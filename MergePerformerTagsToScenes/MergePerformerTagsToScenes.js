@@ -85,30 +85,30 @@
 
         var performerTagIds = (performer.tags || []).map(function (t) { return t.id; });
         if (performerTagIds.length === 0) {
-          alert('"' + performer.name + '" has no tags to merge.');
+          // alert('"' + performer.name + '" has no tags to merge.');
           return;
         }
 
         return getPerformerScenes(performerId).then(function (scenes) {
           if (!scenes || scenes.length === 0) {
-            alert('No scenes found for "' + performer.name + '".');
+            // alert('No scenes found for "' + performer.name + '".');
             return;
           }
 
-          var confirmed = window.confirm(
+/*           var confirmed = window.confirm(
             'Merge ' + performerTagIds.length + ' tag(s) from "' + performer.name + '" to ' +
             scenes.length + ' scene(s)?\n\n' +
             'Existing scene tags will be kept; performer tags will be added where missing.'
           );
           if (!confirmed) return;
-
+ */
           var updated = 0;
           var skipped = 0;
           var i = 0;
 
           function next() {
             if (i >= scenes.length) {
-              alert('Done. Updated ' + updated + ' scene(s). ' + skipped + ' scene(s) already had all tags.');
+              // alert('Done. Updated ' + updated + ' scene(s). ' + skipped + ' scene(s) already had all tags.');
               return;
             }
 

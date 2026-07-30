@@ -1,8 +1,14 @@
 (function () {
   'use strict';
 
+  var PLUGIN_ID           = 'MergePerformerTagsToScenes';
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
+
+  var settings = { autoMergeOnSceneUpdate: false, autoMergeOnPerformerUpdate: false };
+  var isMerging = false;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   function getPerformerId() {
     var m = window.location.pathname.match(/^\/performers\/(\d+)(?:\/|$)/);
@@ -22,103 +28,163 @@
     })
       .then(function (resp) { return resp.json(); })
       .then(function (json) {
-        if (json.errors) {
-          throw new Error(json.errors.map(function (e) { return e.message; }).join('; '));
-        }
+        if (json.errors) throw new Error(json.errors.map(function (e) { return e.message; }).join('; '));
         return json.data;
       });
   }
 
   function updateSceneTags(sceneId, tagIds) {
-    var mutation =
-      'mutation SceneUpdate($input: SceneUpdateInput!) {' +
-      '  sceneUpdate(input: $input) { id }' +
-      '}';
-    return gqlRequest(mutation, { input: { id: sceneId, tag_ids: tagIds } });
+    return gqlRequest(
+      'mutation SceneUpdate($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }',
+      { input: { id: sceneId, tag_ids: tagIds } }
+    );
   }
+
+  // ── Core merge logic (shared by buttons and auto-merge) ───────────────────
+
+  function mergeTagsIntoScene(sceneId) {
+    return gqlRequest(
+      'query FindScene($id: ID!) {' +
+      '  findScene(id: $id) { tags { id } performers { tags { id } } }' +
+      '}',
+      { id: sceneId }
+    ).then(function (data) {
+      var scene = data.findScene;
+      if (!scene || !(scene.performers || []).length) return;
+
+      var perfTagSet = {};
+      scene.performers.forEach(function (p) {
+        (p.tags || []).forEach(function (t) { perfTagSet[t.id] = true; });
+      });
+      var perfTagIds = Object.keys(perfTagSet);
+      if (!perfTagIds.length) return;
+
+      var existingIds = (scene.tags || []).map(function (t) { return t.id; });
+      var existingSet = {};
+      existingIds.forEach(function (id) { existingSet[id] = true; });
+      var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
+      if (!missing.length) return;
+
+      return updateSceneTags(sceneId, existingIds.concat(missing));
+    });
+  }
+
+  function mergeTagsIntoAllPerformerScenes(performerId, onProgress) {
+    return gqlRequest(
+      'query FindPerformer($id: ID!) { findPerformer(id: $id) { tags { id } } }',
+      { id: performerId }
+    ).then(function (data) {
+      var performer = data.findPerformer;
+      if (!performer) return;
+      var perfTagIds = (performer.tags || []).map(function (t) { return t.id; });
+      if (!perfTagIds.length) return;
+
+      return gqlRequest(
+        'query FindPerformerScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {' +
+        '  findScenes(filter: $filter, scene_filter: $scene_filter) { scenes { id tags { id } } }' +
+        '}',
+        {
+          filter: { per_page: -1 },
+          scene_filter: { performers: { value: [performerId], modifier: 'INCLUDES_ALL' } },
+        }
+      ).then(function (data2) {
+        var scenes = data2.findScenes.scenes;
+        if (!scenes || !scenes.length) return;
+
+        var i = 0;
+        function next() {
+          if (i >= scenes.length) return;
+          var scene = scenes[i++];
+          var existingIds = (scene.tags || []).map(function (t) { return t.id; });
+          var existingSet = {};
+          existingIds.forEach(function (id) { existingSet[id] = true; });
+          var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
+          if (!missing.length) return next();
+          if (onProgress) onProgress(i, scenes.length);
+          return updateSceneTags(scene.id, existingIds.concat(missing)).then(next);
+        }
+        return next();
+      });
+    });
+  }
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+
+  function loadSettings() {
+    gqlRequest('{ configuration { plugins } }', null)
+      .then(function (data) {
+        var ps = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
+        settings.autoMergeOnSceneUpdate     = !!ps.autoMergeOnSceneUpdate;
+        settings.autoMergeOnPerformerUpdate = !!ps.autoMergeOnPerformerUpdate;
+      })
+      .catch(function () {});
+  }
+
+  // ── Fetch interception for auto-merge ─────────────────────────────────────
+  //
+  // Wraps window.fetch to detect sceneUpdate / performerUpdate mutations from
+  // Stash itself. isMerging guards against recursion when our own updateSceneTags
+  // calls fire a sceneUpdate mutation.
+
+  var _fetch = window.fetch;
+  window.fetch = function (url, opts) {
+    var p = _fetch.apply(this, arguments);
+    if (isMerging || typeof url !== 'string' || url.indexOf('/graphql') === -1 || !opts || !opts.body) {
+      return p;
+    }
+    try {
+      var q = JSON.parse(opts.body).query || '';
+
+      if (settings.autoMergeOnSceneUpdate && /\bsceneUpdate\b/.test(q)) {
+        p.then(function (r) { return r.clone().json(); })
+          .then(function (j) {
+            if (j.data && j.data.sceneUpdate && j.data.sceneUpdate.id) {
+              isMerging = true;
+              mergeTagsIntoScene(j.data.sceneUpdate.id)
+                .catch(function (e) { console.error('[cpt2s] auto-merge scene:', e); })
+                .then(function () { isMerging = false; });
+            }
+          })
+          .catch(function () {});
+      }
+
+      if (settings.autoMergeOnPerformerUpdate && /\bperformerUpdate\b/.test(q)) {
+        p.then(function (r) { return r.clone().json(); })
+          .then(function (j) {
+            if (j.data && j.data.performerUpdate && j.data.performerUpdate.id) {
+              isMerging = true;
+              mergeTagsIntoAllPerformerScenes(j.data.performerUpdate.id)
+                .catch(function (e) { console.error('[cpt2s] auto-merge performer:', e); })
+                .then(function () { isMerging = false; });
+            }
+          })
+          .catch(function () {});
+      }
+    } catch (e) {}
+    return p;
+  };
 
   // ── Performer page: "Merge Tags to Scene(s)" ──────────────────────────────
 
   var performerCheck = null; // { id, status: 'pending'|'yes'|'no' }
 
   function checkPerformerHasScenes(performerId) {
-    var query =
+    gqlRequest(
       'query CheckPerformerScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {' +
       '  findScenes(filter: $filter, scene_filter: $scene_filter) { count }' +
-      '}';
-    gqlRequest(query, {
-      filter: { per_page: 1 },
-      scene_filter: { performers: { value: [performerId], modifier: 'INCLUDES_ALL' } },
-    })
+      '}',
+      {
+        filter: { per_page: 1 },
+        scene_filter: { performers: { value: [performerId], modifier: 'INCLUDES_ALL' } },
+      }
+    )
       .then(function (data) {
         if (performerCheck && performerCheck.id === performerId) {
           performerCheck.status = data.findScenes.count > 0 ? 'yes' : 'no';
         }
       })
       .catch(function () {
-        if (performerCheck && performerCheck.id === performerId) {
-          performerCheck.status = 'no';
-        }
-      });
-  }
-
-  function mergeTagsToScenesHandler(event) {
-    event.preventDefault();
-    var performerId = getPerformerId();
-    if (!performerId) return;
-
-    var button = event.currentTarget;
-    var originalText = button.textContent;
-    button.disabled = true;
-
-    var perfQuery =
-      'query FindPerformer($id: ID!) {' +
-      '  findPerformer(id: $id) { id name tags { id } }' +
-      '}';
-    var scenesQuery =
-      'query FindPerformerScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {' +
-      '  findScenes(filter: $filter, scene_filter: $scene_filter) {' +
-      '    scenes { id tags { id } }' +
-      '  }' +
-      '}';
-
-    gqlRequest(perfQuery, { id: performerId })
-      .then(function (data) {
-        var performer = data.findPerformer;
-        if (!performer) return;
-
-        var performerTagIds = (performer.tags || []).map(function (t) { return t.id; });
-        if (performerTagIds.length === 0) return;
-
-        return gqlRequest(scenesQuery, {
-          filter: { per_page: -1 },
-          scene_filter: { performers: { value: [performerId], modifier: 'INCLUDES_ALL' } },
-        }).then(function (data2) {
-          var scenes = data2.findScenes.scenes;
-          if (!scenes || scenes.length === 0) return;
-
-          var i = 0;
-          function next() {
-            if (i >= scenes.length) return;
-            var scene = scenes[i++];
-            var existingIds = (scene.tags || []).map(function (t) { return t.id; });
-            var existingSet = {};
-            existingIds.forEach(function (id) { existingSet[id] = true; });
-            var missing = performerTagIds.filter(function (id) { return !existingSet[id]; });
-            if (missing.length === 0) return next();
-            button.textContent = 'Merging... (' + i + '/' + scenes.length + ')';
-            return updateSceneTags(scene.id, existingIds.concat(missing)).then(next);
-          }
-          return next();
-        });
-      })
-      .catch(function (err) {
-        console.error('[mergePerformerTagsToScenes]', err);
-        alert('Error merging tags: ' + err.message);
-      })
-      .then(function () {
-        button.disabled = false;
-        button.textContent = originalText;
+        if (performerCheck && performerCheck.id === performerId) performerCheck.status = 'no';
       });
   }
 
@@ -126,7 +192,6 @@
     var performerId = getPerformerId();
     if (!performerId) return;
     if (document.querySelector('.' + PERFORMER_BTN_CLASS)) return;
-
     var container = document.querySelector('#performer-page .details-edit');
     if (!container) return;
 
@@ -142,7 +207,25 @@
     button.className = 'btn btn-secondary ml-2 ' + PERFORMER_BTN_CLASS;
     button.textContent = 'Merge Tags to Scene(s)';
     button.title = "Merge this performer's tags to all of their scenes";
-    button.addEventListener('click', mergeTagsToScenesHandler);
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      var perfId = getPerformerId();
+      if (!perfId) return;
+      var btn = event.currentTarget;
+      var orig = btn.textContent;
+      btn.disabled = true;
+      mergeTagsIntoAllPerformerScenes(perfId, function (i, total) {
+        btn.textContent = 'Merging... (' + i + '/' + total + ')';
+      })
+        .catch(function (err) {
+          console.error('[cpt2s]', err);
+          alert('Error merging tags: ' + err.message);
+        })
+        .then(function () {
+          btn.disabled = false;
+          btn.textContent = orig;
+        });
+    });
     container.appendChild(button);
   }
 
@@ -151,74 +234,18 @@
   var sceneCheck = null; // { id, status: 'pending'|'yes'|'no' }
 
   function checkSceneHasPerformers(sceneId) {
-    var query =
-      'query FindScenePerformers($id: ID!) {' +
-      '  findScene(id: $id) { performers { id } }' +
-      '}';
-    gqlRequest(query, { id: sceneId })
+    gqlRequest(
+      'query FindScenePerformers($id: ID!) { findScene(id: $id) { performers { id } } }',
+      { id: sceneId }
+    )
       .then(function (data) {
-        var hasPerfs = data.findScene &&
-          data.findScene.performers &&
-          data.findScene.performers.length > 0;
+        var hasPerfs = data.findScene && (data.findScene.performers || []).length > 0;
         if (sceneCheck && sceneCheck.id === sceneId) {
           sceneCheck.status = hasPerfs ? 'yes' : 'no';
         }
       })
       .catch(function () {
-        if (sceneCheck && sceneCheck.id === sceneId) {
-          sceneCheck.status = 'no';
-        }
-      });
-  }
-
-  function mergeTagsFromPerformersHandler(event) {
-    event.preventDefault();
-    var sceneId = getSceneId();
-    if (!sceneId) return;
-
-    var button = event.currentTarget;
-    var originalText = button.textContent;
-    button.disabled = true;
-    button.textContent = 'Merging...';
-
-    var query =
-      'query FindScene($id: ID!) {' +
-      '  findScene(id: $id) {' +
-      '    tags { id }' +
-      '    performers { tags { id } }' +
-      '  }' +
-      '}';
-
-    gqlRequest(query, { id: sceneId })
-      .then(function (data) {
-        var scene = data.findScene;
-        if (!scene) return;
-
-        var performers = scene.performers || [];
-        if (performers.length === 0) return;
-
-        var allPerfTagIds = {};
-        performers.forEach(function (p) {
-          (p.tags || []).forEach(function (t) { allPerfTagIds[t.id] = true; });
-        });
-        var perfTagIds = Object.keys(allPerfTagIds);
-        if (perfTagIds.length === 0) return;
-
-        var existingIds = (scene.tags || []).map(function (t) { return t.id; });
-        var existingSet = {};
-        existingIds.forEach(function (id) { existingSet[id] = true; });
-        var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
-        if (missing.length === 0) return;
-
-        return updateSceneTags(sceneId, existingIds.concat(missing));
-      })
-      .catch(function (err) {
-        console.error('[mergePerformerTagsToScenes]', err);
-        alert('Error merging tags: ' + err.message);
-      })
-      .then(function () {
-        button.disabled = false;
-        button.textContent = originalText;
+        if (sceneCheck && sceneCheck.id === sceneId) sceneCheck.status = 'no';
       });
   }
 
@@ -226,7 +253,6 @@
     var sceneId = getSceneId();
     if (!sceneId) return;
     if (document.querySelector('.' + SCENE_BTN_CLASS)) return;
-
     var container = document.querySelector('#scene-page .details-edit');
     if (!container) return;
 
@@ -242,7 +268,24 @@
     button.className = 'btn btn-secondary ml-2 ' + SCENE_BTN_CLASS;
     button.textContent = 'Merge Tags from Performer(s)';
     button.title = "Merge all performer tags into this scene's tags";
-    button.addEventListener('click', mergeTagsFromPerformersHandler);
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      var sId = getSceneId();
+      if (!sId) return;
+      var btn = event.currentTarget;
+      var orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Merging...';
+      mergeTagsIntoScene(sId)
+        .catch(function (err) {
+          console.error('[cpt2s]', err);
+          alert('Error merging tags: ' + err.message);
+        })
+        .then(function () {
+          btn.disabled = false;
+          btn.textContent = orig;
+        });
+    });
     container.appendChild(button);
   }
 
@@ -258,14 +301,11 @@
     var link = event.target.closest('a');
     if (link) setTimeout(tick, 300);
   });
-  window.addEventListener('popstate', function () {
-    setTimeout(tick, 300);
-  });
-
-  var root = document.getElementById('root') || document.body;
+  window.addEventListener('popstate', function () { setTimeout(tick, 300); });
   new MutationObserver(function () { tick(); })
-    .observe(root, { childList: true, subtree: true });
+    .observe(document.getElementById('root') || document.body, { childList: true, subtree: true });
 
   setInterval(tick, 1000);
+  loadSettings();
   tick();
 })();

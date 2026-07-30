@@ -1,6 +1,15 @@
 name: Merge Performer Tags To Scenes
 description: Adds tag-merging buttons to performer and scene pages. On a performer page, merges the performer's tags into all their scenes. On a scene page, merges all performer tags into the scene. Buttons only appear when related content exists.
-version: 0.2.0
+version: 0.3.0
 ui:
   javascript:
     - MergePerformerTagsToScenes.js
+settings:
+  autoMergeOnSceneUpdate:
+    displayName: Auto Merge On Scene Updates
+    description: When a scene is saved, automatically merge all of its performers' tags into that scene.
+    type: BOOLEAN
+  autoMergeOnPerformerUpdate:
+    displayName: Auto Merge On Performer Updates
+    description: When a performer is saved, automatically merge their tags into all of their scenes.
+    type: BOOLEAN

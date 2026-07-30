@@ -5,7 +5,7 @@
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
 
-  var settings = { autoMergeOnSceneUpdate: false, autoMergeOnPerformerUpdate: false };
+  var settings = { showManualMergeButtons: false, autoMergeOnSceneUpdate: false, autoMergeOnPerformerUpdate: false };
   var isMerging = false;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -114,6 +114,7 @@
     gqlRequest('{ configuration { plugins } }', null)
       .then(function (data) {
         var ps = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
+        settings.showManualMergeButtons     = !!ps.showManualMergeButtons;
         settings.autoMergeOnSceneUpdate     = !!ps.autoMergeOnSceneUpdate;
         settings.autoMergeOnPerformerUpdate = !!ps.autoMergeOnPerformerUpdate;
       })
@@ -192,6 +193,11 @@
   }
 
   function addPerformerButton() {
+    if (!settings.showManualMergeButtons) {
+      var existing = document.querySelector('.' + PERFORMER_BTN_CLASS);
+      if (existing) existing.parentNode.removeChild(existing);
+      return;
+    }
     var performerId = getPerformerId();
     if (!performerId) return;
     if (document.querySelector('.' + PERFORMER_BTN_CLASS)) return;
@@ -208,8 +214,8 @@
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn btn-secondary ml-2 ' + PERFORMER_BTN_CLASS;
-    button.textContent = 'Merge Tags to Scene(s)';
-    button.title = "Merge this performer's tags to all of their scenes";
+    button.textContent = 'Add Tags to Scene(s)';
+    button.title = "Add this performer's tags to all of their scenes";
     button.addEventListener('click', function (event) {
       event.preventDefault();
       var perfId = getPerformerId();
@@ -256,6 +262,11 @@
   }
 
   function addSceneButton() {
+    if (!settings.showManualMergeButtons) {
+      var existing = document.querySelector('.' + SCENE_BTN_CLASS);
+      if (existing) existing.parentNode.removeChild(existing);
+      return;
+    }
     var sceneId = getSceneId();
     if (!sceneId) return;
     if (document.querySelector('.' + SCENE_BTN_CLASS)) return;
@@ -272,8 +283,8 @@
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'btn btn-secondary ml-2 ' + SCENE_BTN_CLASS;
-    button.textContent = 'Merge Tags from Performer(s)';
-    button.title = "Merge all performer tags into this scene's tags";
+    button.textContent = 'Add Perf Tags';
+    button.title = "Add all performer tags into this scene's tags";
     button.addEventListener('click', function (event) {
       event.preventDefault();
       var sId = getSceneId();

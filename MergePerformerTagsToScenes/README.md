@@ -2,12 +2,12 @@
 
 A front-end-only Stash plugin that adds two tag-merging buttons:
 
-- **"Merge Tags to Scene(s)"** on each performer's page — copies that performer's tags onto every scene featuring them.
-- **"Merge Tags from Performer(s)"** on each scene's page — copies all tags from all of that scene's performers into the scene.
+- **"Add Tags to Scene(s)"** on each performer's page — copies that performer's tags onto every scene featuring them.
+- **"Add Perf Tags"** on each scene's page — copies all tags from all of that scene's performers into the scene.
 
-Both buttons only appear when there is at least one related element to act on (a performer with scenes, or a scene with performers). In both cases tags are **merged** (not replaced) — existing tags are always kept.
+Buttons are hidden by default and can be enabled in **Settings → Plugins → Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is at least one related element to act on (a performer with scenes, or a scene with performers). Tags are **added** (not replaced) — existing tags are always kept.
 
-Two optional auto-merge modes can be enabled in **Settings → Plugins → Merge Performer Tags To Scenes**:
+Two optional auto-merge modes can also be enabled in the same settings panel:
 
 - **Auto Merge On Scene Updates** — whenever a scene is saved, its performer tags are merged in automatically.
 - **Auto Merge On Performer Updates** — whenever a performer is saved, their tags are merged into all of their scenes automatically.
@@ -30,9 +30,9 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
 
 ## Usage
 
-**Performer page** — open any performer's page. If they have at least one scene, a **"Merge Tags to Scene(s)"** button appears next to the Edit/Delete buttons. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped.
+**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one scene, an **"Add Tags to Scene(s)"** button appears next to the Edit/Delete buttons. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped.
 
-**Scene page** — open any scene's page. If it has at least one performer, a **"Merge Tags from Performer(s)"** button appears next to the Edit/Delete buttons. Click it to merge all tags from all performers in that scene into the scene's tag list.
+**Scene page** — enable **Show Manual Merge Buttons** in settings, then open any scene's page. If it has at least one performer, an **"Add Perf Tags"** button appears next to the Save/Delete buttons. Click it to add all tags from all performers in that scene into the scene's tag list.
 
 ## Notes / limitations
 

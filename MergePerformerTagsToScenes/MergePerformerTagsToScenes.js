@@ -138,6 +138,28 @@
       var q = parsed.query || '';
       var vars = parsed.variables || {};
 
+      if (settings.autoMergeOnSceneUpdate && /\bbulkSceneUpdate\b/.test(q)) {
+        var bulkSceneIds = vars.input && vars.input.ids;
+        if (bulkSceneIds && bulkSceneIds.length) {
+          p.then(function () {
+            isMerging = true;
+            var i = 0;
+            function nextScene() {
+              if (i >= bulkSceneIds.length) {
+                isMerging = false;
+                refreshSceneList();
+                return;
+              }
+              var sid = String(bulkSceneIds[i++]);
+              mergeTagsIntoScene(sid)
+                .catch(function (e) { console.error('[cpt2s] auto-merge bulk scene:', e); })
+                .then(nextScene);
+            }
+            nextScene();
+          }).catch(function () {});
+        }
+      }
+
       if (settings.autoMergeOnSceneUpdate && /\bsceneUpdate\b/.test(q)) {
         var sceneId = vars.input && vars.input.id;
         if (sceneId) {
@@ -161,6 +183,28 @@
             mergeTagsIntoAllPerformerScenes(String(performerId))
               .catch(function (e) { console.error('[cpt2s] auto-merge performer:', e); })
               .then(function () { isMerging = false; refreshSceneList(); });
+          }).catch(function () {});
+        }
+      }
+
+      if (settings.autoMergeOnPerformerUpdate && /\bbulkPerformerUpdate\b/.test(q)) {
+        var performerIds = vars.input && vars.input.ids;
+        if (performerIds && performerIds.length) {
+          p.then(function () {
+            isMerging = true;
+            var i = 0;
+            function nextPerformer() {
+              if (i >= performerIds.length) {
+                isMerging = false;
+                refreshSceneList();
+                return;
+              }
+              var pid = String(performerIds[i++]);
+              mergeTagsIntoAllPerformerScenes(pid)
+                .catch(function (e) { console.error('[cpt2s] auto-merge bulk performer:', e); })
+                .then(nextPerformer);
+            }
+            nextPerformer();
           }).catch(function () {});
         }
       }

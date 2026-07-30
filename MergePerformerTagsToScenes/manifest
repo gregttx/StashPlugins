@@ -4,7 +4,7 @@ metadata:
   description: Adds tag-merging buttons to performer and scene pages. On a performer
     page, merges the performer's tags into all their scenes. On a scene page, merges
     all performer tags into the scene. Buttons only appear when related content exists.
-version: 0.4.1
+version: 0.4.3
 date: "2026-07-30 00:00:00"
 requires: []
 files:

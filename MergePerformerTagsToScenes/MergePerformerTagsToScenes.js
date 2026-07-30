@@ -159,7 +159,7 @@
             isMerging = true;
             mergeTagsIntoAllPerformerScenes(String(performerId))
               .catch(function (e) { console.error('[cpt2s] auto-merge performer:', e); })
-              .then(function () { isMerging = false; });
+              .then(function () { isMerging = false; refreshSceneList(); });
           }).catch(function () {});
         }
       }
@@ -220,11 +220,14 @@
       mergeTagsIntoAllPerformerScenes(perfId, function (i, total) {
         btn.textContent = 'Merging... (' + i + '/' + total + ')';
       })
+        .then(function () {
+          btn.disabled = false;
+          btn.textContent = orig;
+          refreshSceneList();
+        })
         .catch(function (err) {
           console.error('[cpt2s]', err);
           alert('Error merging tags: ' + err.message);
-        })
-        .then(function () {
           btn.disabled = false;
           btn.textContent = orig;
         });
@@ -303,6 +306,16 @@
       return;
     }
     sessionStorage.setItem('cpt2s_goto_edit', String(sceneId));
+    window.location.reload();
+  }
+
+  function refreshSceneList() {
+    var client = window.__APOLLO_CLIENT__;
+    if (client && client.cache && client.cache.evict) {
+      client.cache.evict({ id: 'ROOT_QUERY', fieldName: 'findScenes' });
+      client.cache.gc();
+      return;
+    }
     window.location.reload();
   }
 

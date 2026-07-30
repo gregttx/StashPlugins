@@ -7,6 +7,11 @@ A front-end-only Stash plugin that adds two tag-merging buttons:
 
 Both buttons only appear when there is at least one related element to act on (a performer with scenes, or a scene with performers). In both cases tags are **merged** (not replaced) — existing tags are always kept.
 
+Two optional auto-merge modes can be enabled in **Settings → Plugins → Merge Performer Tags To Scenes**:
+
+- **Auto Merge On Scene Updates** — whenever a scene is saved, its performer tags are merged in automatically.
+- **Auto Merge On Performer Updates** — whenever a performer is saved, their tags are merged into all of their scenes automatically.
+
 ## How it works
 
 This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.
@@ -31,6 +36,6 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
 
 ## Notes / limitations
 
-- The performer-page button processes scenes one at a time (sequentially) to avoid hammering the server.
-- Neither button runs automatically — both are manual, one-click actions.
+- The performer-page button (and auto-merge on performer update) processes scenes one at a time sequentially to avoid hammering the server.
+- Auto-merge settings take effect immediately but are read once on page load — a browser refresh is needed to pick up changes made in Stash settings.
 - Tags are only added, never removed.

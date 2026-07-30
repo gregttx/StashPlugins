@@ -133,32 +133,35 @@
       return p;
     }
     try {
-      var q = JSON.parse(opts.body).query || '';
+      var parsed = JSON.parse(opts.body);
+      var q = parsed.query || '';
+      var vars = parsed.variables || {};
 
       if (settings.autoMergeOnSceneUpdate && /\bsceneUpdate\b/.test(q)) {
-        p.then(function (r) { return r.clone().json(); })
-          .then(function (j) {
-            if (j.data && j.data.sceneUpdate && j.data.sceneUpdate.id) {
-              isMerging = true;
-              mergeTagsIntoScene(j.data.sceneUpdate.id)
-                .catch(function (e) { console.error('[cpt2s] auto-merge scene:', e); })
-                .then(function () { isMerging = false; });
-            }
-          })
-          .catch(function () {});
+        var sceneId = vars.input && vars.input.id;
+        if (sceneId) {
+          p.then(function () {
+            isMerging = true;
+            mergeTagsIntoScene(String(sceneId))
+              .catch(function (e) { console.error('[cpt2s] auto-merge scene:', e); })
+              .then(function () {
+                isMerging = false;
+                if (getSceneId() === String(sceneId)) refreshSceneData(sceneId);
+              });
+          }).catch(function () {});
+        }
       }
 
       if (settings.autoMergeOnPerformerUpdate && /\bperformerUpdate\b/.test(q)) {
-        p.then(function (r) { return r.clone().json(); })
-          .then(function (j) {
-            if (j.data && j.data.performerUpdate && j.data.performerUpdate.id) {
-              isMerging = true;
-              mergeTagsIntoAllPerformerScenes(j.data.performerUpdate.id)
-                .catch(function (e) { console.error('[cpt2s] auto-merge performer:', e); })
-                .then(function () { isMerging = false; });
-            }
-          })
-          .catch(function () {});
+        var performerId = vars.input && vars.input.id;
+        if (performerId) {
+          p.then(function () {
+            isMerging = true;
+            mergeTagsIntoAllPerformerScenes(String(performerId))
+              .catch(function (e) { console.error('[cpt2s] auto-merge performer:', e); })
+              .then(function () { isMerging = false; });
+          }).catch(function () {});
+        }
       }
     } catch (e) {}
     return p;
@@ -253,7 +256,7 @@
     var sceneId = getSceneId();
     if (!sceneId) return;
     if (document.querySelector('.' + SCENE_BTN_CLASS)) return;
-    var container = document.querySelector('#scene-page .details-edit');
+    var container = document.querySelector('.edit-buttons');
     if (!container) return;
 
     if (!sceneCheck || sceneCheck.id !== sceneId) {
@@ -277,11 +280,12 @@
       btn.disabled = true;
       btn.textContent = 'Merging...';
       mergeTagsIntoScene(sId)
+        .then(function () {
+          refreshSceneData(sId);
+        })
         .catch(function (err) {
           console.error('[cpt2s]', err);
           alert('Error merging tags: ' + err.message);
-        })
-        .then(function () {
           btn.disabled = false;
           btn.textContent = orig;
         });
@@ -291,21 +295,47 @@
 
   // ── Main loop ─────────────────────────────────────────────────────────────
 
+  function refreshSceneData(sceneId) {
+    var client = window.__APOLLO_CLIENT__;
+    if (client && client.cache && client.cache.evict) {
+      client.cache.evict({ id: 'Scene:' + sceneId });
+      client.cache.gc();
+      return;
+    }
+    sessionStorage.setItem('cpt2s_goto_edit', String(sceneId));
+    window.location.reload();
+  }
+
+  function maybeGoToEdit() {
+    var gotoId = sessionStorage.getItem('cpt2s_goto_edit');
+    if (!gotoId || gotoId !== getSceneId()) return;
+    var links = document.querySelectorAll('a.nav-link');
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].textContent.trim() === 'Edit') {
+        sessionStorage.removeItem('cpt2s_goto_edit');
+        links[i].click();
+        return;
+      }
+    }
+  }
+
   function tick() {
+    maybeGoToEdit();
     addPerformerButton();
     addSceneButton();
   }
 
-  window.addEventListener('load', tick);
+  window.addEventListener('load', function () { loadSettings(); tick(); });
   document.addEventListener('click', function (event) {
     var link = event.target.closest('a');
-    if (link) setTimeout(tick, 300);
+    if (link) { setTimeout(tick, 300); setTimeout(loadSettings, 300); }
   });
-  window.addEventListener('popstate', function () { setTimeout(tick, 300); });
+  window.addEventListener('popstate', function () { setTimeout(tick, 300); setTimeout(loadSettings, 300); });
   new MutationObserver(function () { tick(); })
     .observe(document.getElementById('root') || document.body, { childList: true, subtree: true });
 
   setInterval(tick, 1000);
+  setInterval(loadSettings, 10000);
   loadSettings();
   tick();
 })();

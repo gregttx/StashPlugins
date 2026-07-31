@@ -1,6 +1,6 @@
 name: Merge Performer Tags To Scenes
 description: Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, and ignored tags.
-version: 0.5.0
+version: 0.5.1
 ui:
   javascript:
     - MergePerformerTagsToScenes.js

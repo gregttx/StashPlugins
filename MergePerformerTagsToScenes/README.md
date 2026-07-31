@@ -17,7 +17,7 @@ Three optional exclusion filters let you protect certain scenes or tags from bei
 - **Exclude Scenes marked as organized** — scenes with the "organized" flag set are skipped entirely.
 - **Exclude Scenes with specified Tag** — enter a tag name; any scene carrying that tag is skipped. The tag is looked up by exact name and the result is cached until the setting changes.
 - **Exclude Tags set to Ignore auto tag** — performer tags that have "Ignore auto tag" enabled in their tag settings are not copied into scenes.
-- **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags that have that custom field set to a truthy value are not copied into scenes.
+- **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags that have that custom field present with a truthy value or an empty string are not copied into scenes (tags where the field value is `false`, `null`, or `0` are still included).
 
 ## How it works
 
@@ -47,5 +47,5 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
 - All settings (including exclusion filters) are re-read every 10 seconds; changes take effect without a page reload.
 - Exclusion filters apply to both manual button clicks and auto-merge.
 - The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive).
-- The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive); the tag is excluded when that field exists and has a truthy value or an empty string (it is not excluded when the field value is `false`, `null`, or `0`).
+- The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive).
 - Tags are only added, never removed.

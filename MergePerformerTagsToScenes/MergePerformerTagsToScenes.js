@@ -810,7 +810,7 @@
             if (result.status === 'nochange') return flash('No changes');
             // Nothing is saved and nothing is refetched: the tags are now sitting in
             // the form for the user to review, and Stash's own Save button is live.
-            flash('Added ' + result.count, 'Save Pending');
+            flash('Added ' + result.count, 'Save pending');
           })
           .catch(fail);
         return;

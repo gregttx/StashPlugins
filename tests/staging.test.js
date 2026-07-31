@@ -133,7 +133,7 @@ function click(env) {
       btn.textContent.length <= 'Add Perf Tags'.length, btn.textContent);
     await new Promise((r) => setTimeout(r, 1600));
     H.check('then flashes the save prompt separately',
-      btn.textContent === 'Save Pending', btn.textContent);
+      btn.textContent === 'Save pending', btn.textContent);
     H.check('save prompt also fits within the original caption',
       btn.textContent.length <= 'Add Perf Tags'.length, btn.textContent);
     await new Promise((r) => setTimeout(r, 1600));

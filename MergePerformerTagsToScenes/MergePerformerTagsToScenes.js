@@ -13,8 +13,27 @@
     excludeSceneWithTagName: '',
     excludeTagWithIgnoreAutoTag: false,
     excludeTagWithCustomFieldName: '',
-    stageTagsInEditForm: false,
+    // Inverted on purpose. Stash has no default value for plugin settings and renders
+    // an unset BOOLEAN as unchecked, so the behaviour we want by default has to be the
+    // one that "off" selects — otherwise the box would read off while acting on, and
+    // the first click on it would send true rather than false.
+    saveTagsImmediately: false,
   };
+
+  // Staging is the default, but it needs PluginApi. Where that is missing the button
+  // falls back to merging and saving, because the user never opted into review — they
+  // just get the behaviour their Stash can support.
+  function stagingActive() {
+    return !settings.saveTagsImmediately && _tagPatchInstalled;
+  }
+
+  var _warnedNoStaging = false;
+  function warnNoStagingOnce() {
+    if (_warnedNoStaging || settings.saveTagsImmediately || _tagPatchInstalled) return;
+    _warnedNoStaging = true;
+    console.warn('[cpt2s] tag staging is unavailable — this Stash does not expose PluginApi ' +
+      'component patching, so "Add Perf Tags" will merge and save directly.');
+  }
   // Depth of merge work currently in flight. A counter rather than a boolean so
   // that overlapping flows (a bulk update racing a single update, a manual button
   // click racing auto-merge) cannot have the first one to finish re-open fetch
@@ -203,7 +222,7 @@
     });
   }
 
-  // ── Staging into the scene edit form (stageTagsInEditForm) ────────────────
+  // ── Staging into the scene edit form (the default; see saveTagsImmediately) ─
   //
   // Instead of saving, push the performer tags into the open edit form's tag box so
   // the user can review them and press Save themselves.
@@ -228,7 +247,7 @@
       // A before-patch returns the argument list for the real render, so returning
       // props untouched makes this a pure observer.
       api.patch.before('TagSelect', function (props) {
-        if (settings.stageTagsInEditForm && props &&
+        if (!settings.saveTagsImmediately && props &&
             props.isMulti && typeof props.onSelect === 'function') {
           // values is tracked on the entry rather than read back off props, so it can
           // be corrected the moment we stage into the control instead of waiting for
@@ -430,7 +449,7 @@
         settings.excludeSceneWithTagName       = ps.excludeSceneWithTagName || '';
         settings.excludeTagWithIgnoreAutoTag    = !!ps.excludeTagWithIgnoreAutoTag;
         settings.excludeTagWithCustomFieldName  = ps.excludeTagWithCustomFieldName || '';
-        settings.stageTagsInEditForm            = !!ps.stageTagsInEditForm;
+        settings.saveTagsImmediately            = !!ps.saveTagsImmediately;
       })
       .catch(function () {});
   }
@@ -706,7 +725,7 @@
     button.type = 'button';
     button.className = 'btn btn-secondary ml-2 ' + SCENE_BTN_CLASS;
     button.textContent = 'Add Perf Tags';
-    button.title = settings.stageTagsInEditForm
+    button.title = stagingActive()
       ? "Add all performer tags to the tag box for review — you still have to press Save"
       : "Add all performer tags into this scene's tags";
     button.addEventListener('click', function (event) {
@@ -741,17 +760,7 @@
 
       btn.disabled = true;
 
-      if (settings.stageTagsInEditForm) {
-        // Staging needs PluginApi's component patching. Rather than quietly falling
-        // back to saving — the one thing this mode exists to avoid — say so.
-        if (!_tagPatchInstalled) {
-          btn.disabled = false;
-          flash('Unavailable');
-          alert('Staging tags in the edit form needs a newer Stash (PluginApi component ' +
-                'patching was not available). Turn off "Stage Tags In Edit Form" to merge ' +
-                'and save directly instead.');
-          return;
-        }
+      if (stagingActive()) {
         btn.textContent = 'Adding...';
         stageTagsIntoSceneForm(sId)
           .then(function (result) {
@@ -766,6 +775,7 @@
         return;
       }
 
+      warnNoStagingOnce();
       btn.textContent = 'Merging...';
       mergeTagsIntoScene(sId)
         .then(function (changed) {

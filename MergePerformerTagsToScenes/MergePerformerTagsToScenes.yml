@@ -1,6 +1,6 @@
 name: Merge Performer Tags To Scenes
-description: Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, ignored tags, and tags marked via a custom field.
-version: 0.6.4
+description: Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, ignored tags, and tags marked via a custom field. The scene button stages tags in the edit form for review by default.
+version: 0.7.0
 ui:
   javascript:
     - MergePerformerTagsToScenes.js
@@ -17,9 +17,9 @@ settings:
     displayName: Auto Merge On Performer Updates
     description: When a performer is saved, automatically merge their tags into all of their scenes. Covers every scene featuring the performer; filters and selections in the scene list are ignored.
     type: BOOLEAN
-  stageTagsInEditForm:
-    displayName: Stage Tags In Edit Form
-    description: Make "Add Perf Tags" put the performer tags into the scene's tag box for review instead of saving them. The Save button lights up and you save manually. Requires a Stash with UI plugin component patching; has no effect on the performer button or on auto-merge.
+  saveTagsImmediately:
+    displayName: Save Tags Immediately
+    description: Make "Add Perf Tags" merge and save in one step. Leave this off to stage the tags in the scene's tag box for review instead, so you can check them and press Save yourself. Only affects the scene button; the performer button and auto-merge always save.
     type: BOOLEAN
   excludeSceneOrganized:
     displayName: Exclude Scenes marked as Organized

@@ -156,6 +156,17 @@ function check(name, cond, extra) {
   check('button does not appear for a performer with no tags', btn() === null,
     btn() ? 'button present despite the performer having no tags' : '');
 
+  // Saving the performer (adding tags to a previously tag-less one) must make the
+  // button appear on its own, without a page reload.
+  performerTags = [{ id: '2' }];
+  await win.fetch('/graphql', { method: 'POST', body: JSON.stringify({
+    query: 'mutation PerformerUpdate($input: PerformerUpdateInput!) { performerUpdate(input: $input) { id } }',
+    variables: { input: { id: '8' } },
+  }) });
+  await sleep(2500);
+  check('button appears after the performer is saved with new tags, without a reload',
+    !!btn());
+
   console.log(failures === 0
     ? '\n' + passes + ' check(s) passed.'
     : '\n' + failures + ' of ' + (failures + passes) + ' check(s) FAILED.');

@@ -595,6 +595,33 @@
           });
         }
       }
+
+      // The performer button's eligibility (tags + scenes) is cached per performer
+      // id so it isn't re-queried on every tick. That cache goes stale the moment a
+      // save changes the performer's tags — most visibly when a performer with no
+      // tags gains some, which should make the button appear without a page reload.
+      // Unconditional on autoMergeOnPerformerUpdate: the cache is invalidated by the
+      // save itself, not by whether auto-merge is also configured to run.
+      if (/\bperformerUpdate\b/.test(q)) {
+        var savedPerformerId = vars.input && vars.input.id;
+        if (savedPerformerId != null) {
+          mutationSucceeded(p).then(function (ok) {
+            if (ok && performerCheck && performerCheck.id === String(savedPerformerId)) {
+              performerCheck = null;
+            }
+          });
+        }
+      }
+      if (/\bbulkPerformerUpdate\b/.test(q)) {
+        var savedPerformerIds = vars.input && vars.input.ids;
+        if (savedPerformerIds && savedPerformerIds.length) {
+          mutationSucceeded(p).then(function (ok) {
+            if (!ok || !performerCheck) return;
+            var ids = savedPerformerIds.map(String);
+            if (ids.indexOf(performerCheck.id) !== -1) performerCheck = null;
+          });
+        }
+      }
     } catch (e) {}
     return p;
   };

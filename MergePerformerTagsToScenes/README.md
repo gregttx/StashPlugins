@@ -64,6 +64,7 @@ The two buttons appear in different places, because each one sits where the cont
 
 ## Notes / limitations
 
+- The performer-page button's eligibility (does the performer have tags and scenes) is only re-checked when the performer is saved or when you navigate to a different performer, not on every tick — so it stays correct without a page reload after you add tags to a previously tag-less performer, but a change made from elsewhere (bulk tag edit, another tab) is not noticed until one of those events happens.
 - The performer-page button (and auto-merge on performer update) always covers every scene featuring the performer. Neither reads the scene list's filter or selection — the scenes come from a server query keyed only on the performer, so the plugin never sees what the list is showing. The only things that narrow it are the exclusion filters below.
 - The performer-page button (and auto-merge on performer update) processes scenes one at a time sequentially to avoid hammering the server. If one scene fails to update, the remaining scenes are still processed and a summary of the failures is reported at the end (details go to the browser console).
 - Auto-merge only runs when the edit that triggered it actually succeeded; a save that Stash rejects does not cause a merge.

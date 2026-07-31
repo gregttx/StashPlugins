@@ -12,6 +12,18 @@ Two optional auto-merge modes can also be enabled in the same settings panel:
 - **Auto Merge On Scene Updates** — whenever a scene is saved, its performer tags are merged in automatically.
 - **Auto Merge On Performer Updates** — whenever a performer is saved, their tags are merged into all of their scenes automatically.
 
+## Review before saving
+
+By default **"Add Perf Tags"** merges and saves in one step. Enable **Stage Tags In Edit Form** to make it stop short of saving: the performer tags are dropped into the scene's own tag box, Stash's **Save** button lights up, and nothing is written until you press it. You can remove any tag you don't want first, and Cancel discards the lot.
+
+Because nothing is saved, there is also no refresh and no jump back to the Edit tab — the tags simply appear in the box you're already looking at. The button reports what it did without changing width: *"Added 2"* then *"Press Save"*, or *"No changes"*, or *"Scene excluded"*.
+
+This mode needs a Stash new enough to expose UI plugin component patching, because the plugin has to hand the tags to the tag control the same way a click does. If that isn't available the button says **"Unavailable"** and explains why — it deliberately does **not** fall back to saving, since that is the exact thing you turned the setting on to prevent. Turn the setting off to go back to merge-and-save.
+
+The setting only affects the scene page button. The performer button and both auto-merge modes still save directly, since they act on scenes whose edit forms aren't open.
+
+## Exclusion filters
+
 Four optional exclusion filters let you protect certain scenes or tags from being touched:
 
 - **Exclude Scenes marked as organized** — scenes with the "organized" flag set are skipped entirely.
@@ -53,6 +65,9 @@ The two buttons appear in different places, because each one sits where the cont
 - The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive). Tag custom fields only exist in Stash 0.31.0 and newer; the plugin only queries them when this setting is non-empty, so it keeps working on older versions as long as you leave it blank.
 - If the exclusion-tag lookup fails (server restart, network blip), the merge aborts rather than running unfiltered — merging into a scene you meant to protect cannot be undone automatically, since tags are only added, never removed. A manual button click reports this in an alert; an auto-merge reports it only to the browser console, so nothing visibly happens in the UI.
 - When the scene-page button finds nothing to do (the scene is excluded by a filter, or already has every performer tag) it briefly shows "No changes".
+- In **Stage Tags In Edit Form** mode the exclusion filters still apply, so an excluded scene reports "Scene excluded" and stages nothing. The tags to add are diffed against what is currently in the tag box rather than what is on the server, so tags you have added or removed by hand before clicking are preserved.
+- Staging works by observing Stash's tag control through the UI plugin API. The plugin picks the most recently rendered control whose contents match what it expects the scene's tag box to hold — the scene's saved tags to begin with, then whatever it last staged there. If it cannot identify a control it reports an error rather than writing tags into the wrong one.
+- Clicking the button again without saving reports "No changes", because the count is measured against the tag box as it stands, not against the saved scene.
 - Stash uses the same container class for the performer detail view's Edit/Delete bar and for the performer edit form, so the plugin identifies the detail view by its Delete button. If a future Stash release changes that markup, the performer button will simply not appear rather than showing up in the wrong place.
 - While a merge is running, auto-merge ignores other edits saved in the meantime; this is what stops the plugin from reacting to its own updates.
 - Tags are only added, never removed.

@@ -13,6 +13,7 @@
     excludeSceneWithTagName: '',
     excludeTagWithIgnoreAutoTag: false,
     excludeTagWithCustomFieldName: '',
+    stageTagsInEditForm: false,
   };
   // Depth of merge work currently in flight. A counter rather than a boolean so
   // that overlapping flows (a bulk update racing a single update, a manual button
@@ -85,9 +86,18 @@
   // custom_fields was added to Tag in Stash 0.31.0. Requesting it on an older
   // server fails GraphQL validation and breaks every merge, so only ask for it
   // when the custom-field exclusion filter is actually configured.
-  function tagFields() {
+  //
+  // withDisplay adds the fields Stash's TagSelect needs to render a chip. Its Tag
+  // type is Pick<Tag, "id"|"name"|"sort_name"|"aliases"|"image_path"|"stash_ids">;
+  // sort_name and stash_ids are deliberately left out because they are recent
+  // additions and would break the query on older servers. They only affect dropdown
+  // sorting and stash-box matching, neither of which applies to a chip we inject.
+  function tagFields(withDisplay) {
     var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
-    return cfName ? 'id ignore_auto_tag custom_fields' : 'id ignore_auto_tag';
+    var fields = 'id ignore_auto_tag';
+    if (cfName) fields += ' custom_fields';
+    if (withDisplay) fields += ' name aliases image_path';
+    return fields;
   }
 
   // Resolves the tag ID for excludeSceneWithTagName. Both hits and misses are cached
@@ -193,6 +203,152 @@
     });
   }
 
+  // ── Staging into the scene edit form (stageTagsInEditForm) ────────────────
+  //
+  // Instead of saving, push the performer tags into the open edit form's tag box so
+  // the user can review them and press Save themselves.
+  //
+  // Stash's scene edit form does not render its tag list from formik.values.tag_ids —
+  // useTagsEdit() keeps its own copy and calls formik.setFieldValue as a side effect:
+  //
+  //   function onSetTags(items) { setTags(items); setFieldValue(items.map(i => i.id)); }
+  //
+  // So writing to formik alone would enable Save while leaving the visible chips
+  // stale. Going through onSetTags does both. It reaches us as the onSelect prop of
+  // TagSelect, which Stash exposes through PluginApi's component patching.
+
+  var _tagSelectCaptures = [];
+  var TAG_SELECT_CAPTURE_LIMIT = 10;
+  var _tagPatchInstalled = false;
+
+  function installTagSelectPatch() {
+    var api = window.PluginApi;
+    if (!api || !api.patch || typeof api.patch.before !== 'function') return false;
+    try {
+      // A before-patch returns the argument list for the real render, so returning
+      // props untouched makes this a pure observer.
+      api.patch.before('TagSelect', function (props) {
+        if (settings.stageTagsInEditForm && props &&
+            props.isMulti && typeof props.onSelect === 'function') {
+          // values is tracked on the entry rather than read back off props, so it can
+          // be corrected the moment we stage into the control instead of waiting for
+          // React to re-render and capture it again.
+          _tagSelectCaptures.push({
+            props: props,
+            sceneId: getSceneId(),
+            values: props.values || [],
+          });
+          if (_tagSelectCaptures.length > TAG_SELECT_CAPTURE_LIMIT) _tagSelectCaptures.shift();
+        }
+        return [props];
+      });
+      _tagPatchInstalled = true;
+      return true;
+    } catch (e) {
+      console.warn('[cpt2s] could not patch TagSelect:', e);
+      return false;
+    }
+  }
+
+  // What the scene's tag control is expected to be holding: our own last staged list
+  // if we have already written to it, otherwise whatever the scene has on the server.
+  var _stagedForm = { sceneId: null, ids: null };
+
+  function idsOf(tags) {
+    return (tags || []).map(function (t) { return t.id; }).slice().sort().join(',');
+  }
+
+  // TagSelect is used all over Stash, so pick the capture belonging to this scene's
+  // edit form: newest first, preferring one whose contents match what we expect the
+  // control to hold. Matching against expectedIds rather than the server's tags is
+  // what makes a second click see the already-staged list — matching on the server's
+  // tags would keep re-selecting the stale pre-staging capture and report the same
+  // count every time. If the user has hand-edited the box nothing matches, and the
+  // newest capture is the right answer anyway.
+  function findSceneTagControl(expectedIds) {
+    var sid = getSceneId();
+    var wanted = expectedIds ? expectedIds.slice().sort().join(',') : null;
+    var newest = null;
+    for (var i = _tagSelectCaptures.length - 1; i >= 0; i--) {
+      var c = _tagSelectCaptures[i];
+      if (c.sceneId !== sid) continue;
+      if (!newest) newest = c;
+      if (wanted !== null && idsOf(c.values) === wanted) return c;
+    }
+    return newest;
+  }
+
+  // Resolves to a status string: 'staged' (with count), 'nochange', or 'excluded'.
+  function stageTagsIntoSceneForm(sceneId) {
+    return guarded(function () {
+      return resolveExclusionTagId().then(function (exclTagId) {
+        return gqlRequest(
+          'query FindSceneForStaging($id: ID!) {' +
+          '  findScene(id: $id) { organized tags { id } performers { tags { ' +
+          tagFields(true) + ' } } }' +
+          '}',
+          { id: sceneId }
+        ).then(function (data) {
+          var scene = data.findScene;
+          if (!scene) return { status: 'nochange' };
+
+          // The exclusion filters are applied exactly as in save-immediately mode:
+          // they express "these tags do not belong on this scene", which is true
+          // however the tags get there.
+          if (settings.excludeSceneOrganized && scene.organized) return { status: 'excluded' };
+          if (exclTagId) {
+            var hasExcl = false;
+            (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
+            if (hasExcl) return { status: 'excluded' };
+          }
+
+          var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
+          var byId = {};
+          (scene.performers || []).forEach(function (p) {
+            (p.tags || []).forEach(function (t) {
+              if (tagIsMergeable(t, exclTagId, cfName)) byId[t.id] = t;
+            });
+          });
+
+          var existingIds = (scene.tags || []).map(function (t) { return t.id; });
+          var expectedIds = _stagedForm.sceneId === sceneId ? _stagedForm.ids : existingIds;
+          var control = findSceneTagControl(expectedIds);
+          if (!control) {
+            throw new Error('could not find the scene tag editor — open the Edit tab first');
+          }
+
+          // Diff against what is in the form, not what is on the server, so tags the
+          // user has already added or removed by hand are respected — and so clicking
+          // twice without saving reports 0 the second time.
+          var current = control.values || [];
+          var have = {};
+          current.forEach(function (t) { have[t.id] = true; });
+
+          var added = [];
+          Object.keys(byId).forEach(function (id) {
+            if (have[id]) return;
+            var t = byId[id];
+            added.push({
+              id: t.id,
+              name: t.name,
+              aliases: t.aliases || [],
+              image_path: t.image_path || null,
+            });
+          });
+          if (!added.length) return { status: 'nochange' };
+
+          var next = current.concat(added);
+          control.props.onSelect(next);
+          // Record the new contents immediately. React will re-render and capture the
+          // control again, but this keeps the count correct even if it does not.
+          control.values = next;
+          _stagedForm = { sceneId: sceneId, ids: next.map(function (t) { return t.id; }) };
+          return { status: 'staged', count: added.length };
+        });
+      });
+    });
+  }
+
   function mergeTagsIntoAllPerformerScenes(performerId, onProgress) {
     return guarded(function () { return runMergeTagsIntoAllPerformerScenes(performerId, onProgress); });
   }
@@ -274,6 +430,7 @@
         settings.excludeSceneWithTagName       = ps.excludeSceneWithTagName || '';
         settings.excludeTagWithIgnoreAutoTag    = !!ps.excludeTagWithIgnoreAutoTag;
         settings.excludeTagWithCustomFieldName  = ps.excludeTagWithCustomFieldName || '';
+        settings.stageTagsInEditForm            = !!ps.stageTagsInEditForm;
       })
       .catch(function () {});
   }
@@ -504,6 +661,8 @@
   // ── Scene page: "Add Perf Tags" ───────────────────────────────────────────
 
   var sceneCheck = null; // { id, status: 'pending'|'yes'|'no' }
+  var _sceneFlashToken = 0;
+  var FLASH_MS = 1400;
 
   function checkSceneHasPerformers(sceneId) {
     gqlRequest(
@@ -544,14 +703,66 @@
     button.type = 'button';
     button.className = 'btn btn-secondary ml-2 ' + SCENE_BTN_CLASS;
     button.textContent = 'Add Perf Tags';
-    button.title = "Add all performer tags into this scene's tags";
+    button.title = settings.stageTagsInEditForm
+      ? "Add all performer tags to the tag box for review — you still have to press Save"
+      : "Add all performer tags into this scene's tags";
     button.addEventListener('click', function (event) {
       event.preventDefault();
       var sId = getSceneId();
       if (!sId) return;
       var btn = event.currentTarget;
       var orig = btn.textContent;
+
+      // Shows each message in turn and then restores the caption. Splitting the
+      // messages keeps every one of them shorter than "Add Perf Tags", so the button
+      // never changes width. The token makes a later click supersede a running
+      // sequence instead of the two fighting over the caption.
+      function flash() {
+        var texts = Array.prototype.slice.call(arguments);
+        var token = ++_sceneFlashToken;
+        var i = 0;
+        (function step() {
+          if (token !== _sceneFlashToken) return;
+          if (i >= texts.length) { btn.textContent = orig; return; }
+          btn.textContent = texts[i++];
+          setTimeout(step, FLASH_MS);
+        })();
+      }
+      function fail(err) {
+        console.error('[cpt2s]', err);
+        alert('Error merging tags: ' + err.message);
+        _sceneFlashToken++; // cancel any flash still in flight
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+
       btn.disabled = true;
+
+      if (settings.stageTagsInEditForm) {
+        // Staging needs PluginApi's component patching. Rather than quietly falling
+        // back to saving — the one thing this mode exists to avoid — say so.
+        if (!_tagPatchInstalled) {
+          btn.disabled = false;
+          flash('Unavailable');
+          alert('Staging tags in the edit form needs a newer Stash (PluginApi component ' +
+                'patching was not available). Turn off "Stage Tags In Edit Form" to merge ' +
+                'and save directly instead.');
+          return;
+        }
+        btn.textContent = 'Adding...';
+        stageTagsIntoSceneForm(sId)
+          .then(function (result) {
+            btn.disabled = false;
+            if (result.status === 'excluded') return flash('Scene excluded');
+            if (result.status === 'nochange') return flash('No changes');
+            // Nothing is saved and nothing is refetched: the tags are now sitting in
+            // the form for the user to review, and Stash's own Save button is live.
+            flash('Added ' + result.count, 'Press Save');
+          })
+          .catch(fail);
+        return;
+      }
+
       btn.textContent = 'Merging...';
       mergeTagsIntoScene(sId)
         .then(function (changed) {
@@ -559,19 +770,13 @@
           if (!changed) {
             // Scene was excluded by a filter or already had every tag. Say so, since
             // refreshSceneData() would otherwise leave the button looking mid-merge.
-            btn.textContent = 'No changes';
-            setTimeout(function () { btn.textContent = orig; }, 2000);
+            flash('No changes');
             return;
           }
           btn.textContent = orig;
           refreshSceneData(sId);
         })
-        .catch(function (err) {
-          console.error('[cpt2s]', err);
-          alert('Error merging tags: ' + err.message);
-          btn.disabled = false;
-          btn.textContent = orig;
-        });
+        .catch(fail);
     });
     container.appendChild(button);
   }
@@ -658,6 +863,13 @@
       console.warn('[cpt2s] could not observe the DOM; falling back to polling:', e);
       return true; // don't retry: the interval below still drives tick()
     }
+  }
+
+  // Patches have to be registered before the components they target first render,
+  // so this runs at script load. Stash sets window.PluginApi before loading plugin
+  // scripts; the load-event retry only covers an unusual ordering.
+  if (!installTagSelectPatch()) {
+    window.addEventListener('load', function () { installTagSelectPatch(); });
   }
 
   window.addEventListener('load', function () { loadSettings(); tick(); });

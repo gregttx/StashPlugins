@@ -1,0 +1,12 @@
+{
+  "name": "stash-plugins",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Client-side JavaScript plugins for Stash. The plugins themselves have no dependencies and no build step; this file exists only to run the test suites.",
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
+}

@@ -1,0 +1,195 @@
+'use strict';
+const H = require('./harness.js');
+
+function stashSceneSave(ctx, id) {
+  return ctx.fetch('/graphql', {
+    method: 'POST',
+    body: JSON.stringify({
+      query: 'mutation SceneUpdate($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }',
+      variables: { input: { id: String(id), title: 'x' } },
+    }),
+  });
+}
+
+function stashPerformerSave(ctx, id) {
+  return ctx.fetch('/graphql', {
+    method: 'POST',
+    body: JSON.stringify({
+      query: 'mutation PerformerUpdate($input: PerformerUpdateInput!) { performerUpdate(input: $input) { id } }',
+      variables: { input: { id: String(id) } },
+    }),
+  });
+}
+
+(async function () {
+  // ── #2: exclusion tag lookup must request every page ────────────────────────
+  {
+    console.log('\n#2 exclusion tag lookup pagination');
+    const { ctx, calls } = H.makeEnv({ respond: H.responder() });
+    H.run(ctx);
+    await H.flush();
+    await stashSceneSave(ctx, 1);
+    await H.flush();
+    const lookup = calls.find((c) => c.query.indexOf('FindTagByName') !== -1);
+    H.check('FindTagByName sends per_page: -1',
+      lookup && lookup.variables.filter && lookup.variables.filter.per_page === -1,
+      lookup ? JSON.stringify(lookup.variables) : 'no lookup issued');
+  }
+
+  // ── #1 + #3: our own mutations must not re-enter the interceptor ────────────
+  {
+    console.log('\n#1/#3 re-entrancy guard');
+    const { ctx, calls } = H.makeEnv({
+      respond: H.responder({ scene: { organized: false, tags: [], performers: [
+        { tags: [{ id: '10', ignore_auto_tag: false, custom_fields: {} }] }] } }),
+    });
+    H.run(ctx);
+    await H.flush();
+    const before = H.sceneUpdates(calls).length;
+    await stashSceneSave(ctx, 1);
+    await H.flush(80);
+    const ours = H.sceneUpdates(calls).length - before - 1; // minus the simulated user save
+    H.check('one merge mutation, no recursive re-merge', ours === 1, 'plugin issued ' + ours);
+  }
+
+  // ── #4: a failed mutation must not trigger a merge ──────────────────────────
+  {
+    console.log('\n#4 failed mutation gating');
+    const { ctx, calls } = H.makeEnv({ respond: H.responder({ failSceneIds: ['1'] }) });
+    H.run(ctx);
+    await H.flush();
+    const before = calls.length;
+    // Simulate Stash's save failing (GraphQL errors, HTTP 200).
+    await ctx.fetch('/graphql', { method: 'POST', body: JSON.stringify({
+      query: 'mutation SceneUpdate($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }',
+      variables: { input: { id: '1' } } }) });
+    await H.flush(60);
+    const after = calls.slice(before + 1).filter((c) => c.query.indexOf('FindScene(') !== -1);
+    H.check('no merge attempted after a failed save', after.length === 0,
+      after.length + ' merge queries issued');
+  }
+
+  // ── #5: one failing scene must not abort the rest of the performer loop ─────
+  {
+    console.log('\n#5 per-scene failure isolation');
+    const { ctx, calls } = H.makeEnv({
+      pathname: '/performers/7',
+      respond: H.responder({
+        failSceneIds: ['1'],
+        scenes: [{ id: '1', organized: false, tags: [] }, { id: '2', organized: false, tags: [] },
+                 { id: '3', organized: false, tags: [] }],
+      }),
+    });
+    H.run(ctx);
+    await H.flush();
+    const before = calls.length;
+    await stashPerformerSave(ctx, 7);
+    await H.flush(120);
+    const updated = H.sceneUpdates(calls.slice(before)).map((c) => c.variables.input.id).sort();
+    H.check('scenes 2 and 3 still updated after scene 1 fails',
+      updated.join(',') === '1,2,3', 'updated: ' + updated.join(','));
+  }
+
+  // ── #6: prototype keys must not be treated as present custom fields ─────────
+  {
+    console.log('\n#6 custom_fields prototype pollution');
+    const { ctx, calls } = H.makeEnv({
+      respond: H.responder({ scene: { organized: false, tags: [], performers: [
+        { tags: [{ id: '10', ignore_auto_tag: false, custom_fields: {} },
+                 { id: '11', ignore_auto_tag: false, custom_fields: {} }] }] } }),
+    });
+    H.run(ctx); // settings set excludeTagWithCustomFieldName: 'constructor'
+    await H.flush();
+    const before = calls.length;
+    await stashSceneSave(ctx, 1);
+    await H.flush(80);
+    const upd = H.sceneUpdates(calls.slice(before + 1))[0];
+    H.check('tags with no own "constructor" field are still merged',
+      upd && upd.variables.input.tag_ids.length === 2,
+      upd ? JSON.stringify(upd.variables.input.tag_ids) : 'no update issued (all tags excluded)');
+  }
+
+  // ── #6b: a real own custom field still excludes ─────────────────────────────
+  {
+    console.log('\n#6b custom field exclusion still works');
+    const { ctx, calls } = H.makeEnv({
+      respond: H.responder({
+        settings: { excludeTagWithCustomFieldName: 'skip' },
+        scene: { organized: false, tags: [], performers: [
+          { tags: [{ id: '10', ignore_auto_tag: false, custom_fields: { skip: true } },
+                   { id: '11', ignore_auto_tag: false, custom_fields: {} }] }] },
+      }),
+    });
+    H.run(ctx);
+    await H.flush();
+    const before = calls.length;
+    await stashSceneSave(ctx, 1);
+    await H.flush(80);
+    const upd = H.sceneUpdates(calls.slice(before + 1))[0];
+    H.check('tag with skip:true excluded, other merged',
+      upd && upd.variables.input.tag_ids.join(',') === '11',
+      upd ? JSON.stringify(upd.variables.input.tag_ids) : 'no update issued');
+  }
+
+  // ── #6c: presence alone excludes, whatever the value ───────────────────────
+  {
+    console.log('\n#6c custom field presence excludes regardless of value');
+    // Every falsy JSON value that a value-based rule would previously have merged.
+    const falsy = [false, null, 0, ''];
+    const tags = falsy.map((v, i) => (
+      { id: String(20 + i), ignore_auto_tag: false, custom_fields: { skip: v } }));
+    tags.push({ id: '30', ignore_auto_tag: false, custom_fields: { other: 'x' } });
+    const { ctx, calls } = H.makeEnv({
+      respond: H.responder({
+        settings: { excludeTagWithCustomFieldName: 'skip' },
+        scene: { organized: false, tags: [], performers: [{ tags: tags }] },
+      }),
+    });
+    H.run(ctx);
+    await H.flush();
+    const before = calls.length;
+    await stashSceneSave(ctx, 1);
+    await H.flush(80);
+    const upd = H.sceneUpdates(calls.slice(before + 1))[0];
+    H.check('skip: false / null / 0 / "" all excluded, unrelated field merged',
+      upd && upd.variables.input.tag_ids.join(',') === '30',
+      upd ? JSON.stringify(upd.variables.input.tag_ids) : 'no update issued');
+  }
+
+  // ── #9: the exclusion tag itself must never be merged in ────────────────────
+  {
+    console.log('\n#9 exclusion tag is not propagated');
+    const { ctx, calls } = H.makeEnv({
+      respond: H.responder({ scene: { organized: false, tags: [], performers: [
+        { tags: [{ id: '99', ignore_auto_tag: false, custom_fields: {} },   // the exclusion tag
+                 { id: '11', ignore_auto_tag: false, custom_fields: {} }] }] } }),
+    });
+    H.run(ctx);
+    await H.flush();
+    const before = calls.length;
+    await stashSceneSave(ctx, 1);
+    await H.flush(80);
+    const upd = H.sceneUpdates(calls.slice(before + 1))[0];
+    H.check('exclusion tag 99 not copied onto the scene',
+      upd && upd.variables.input.tag_ids.indexOf('99') === -1,
+      upd ? JSON.stringify(upd.variables.input.tag_ids) : 'no update issued');
+  }
+
+  // ── #7: a cached hit must expire so a deleted tag is noticed ────────────────
+  {
+    console.log('\n#7 exclusion tag cache TTL');
+    let tags = [{ id: '99', name: 'Do_Not_Merge' }];
+    const { ctx, calls } = H.makeEnv({ respond: (req, c) => H.responder({ tags })(req, c) });
+    H.run(ctx);
+    await H.flush();
+    await stashSceneSave(ctx, 1);
+    await H.flush(60);
+    const first = calls.filter((c) => c.query.indexOf('FindTagByName') !== -1).length;
+    await stashSceneSave(ctx, 1);
+    await H.flush(60);
+    const second = calls.filter((c) => c.query.indexOf('FindTagByName') !== -1).length;
+    H.check('hit is cached within the TTL', second === first, first + ' then ' + second);
+  }
+
+  H.finish();
+})();

@@ -36,6 +36,16 @@ https://github.com/stashapp/CommunityScripts/tree/main/plugins
 
 All Stash data access goes through `POST /graphql`. The helper `gqlRequest(query, variables)` pattern (returning a Promise that throws on `errors`) is the standard used across plugins. Use `per_page: -1` to fetch all results in a single query rather than paginating.
 
-## No build or test commands
+## No build step
 
-There are no `npm`, `yarn`, or test commands. Verification is done by loading the plugin in a live Stash instance and exercising the UI manually.
+The plugins have no build step, no bundler, and no runtime dependencies. A plugin folder is installed by copying it as-is.
+
+## Tests
+
+`node tests/run.js` (or `npm test`) runs the suites in `tests/`. They evaluate a plugin inside a `vm` context holding a hand-rolled browser and drive it by answering its GraphQL requests — see `tests/README.md`.
+
+Most of it needs no install. The `placement` suite needs `jsdom` and skips itself without it; `npm install` enables it. `package.json` exists only for this — it is not part of any plugin.
+
+Tests cover the plugin's own logic and its assumptions about Stash's markup and component props. They cannot confirm those assumptions still hold after a Stash upgrade, so a change that touches Stash's DOM or components still needs exercising in a live Stash instance.
+
+When fixing a bug, check the new test fails against the unfixed plugin before trusting it: `SRC=/path/to/old.js node tests/<suite>.test.js`.

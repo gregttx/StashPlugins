@@ -278,7 +278,7 @@
   var _stagedForm = { sceneId: null, ids: null };
 
   function idsOf(tags) {
-    return (tags || []).map(function (t) { return t.id; }).slice().sort().join(',');
+    return (tags || []).map(function (t) { return t.id; }).sort().join(',');
   }
 
   // TagSelect is used all over Stash, so pick the capture belonging to this scene's
@@ -742,7 +742,7 @@
   function addSceneButton() {
     if (!settings.showManualMergeButtons) {
       var existing = document.querySelector('.' + SCENE_BTN_CLASS);
-      if (existing) existing.parentNode.removeChild(existing);
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
       return;
     }
     var sceneId = getSceneId();
@@ -762,9 +762,13 @@
     button.type = 'button';
     button.className = 'btn btn-secondary ml-2 ' + SCENE_BTN_CLASS;
     button.textContent = 'Add Perf Tags';
-    button.title = stagingActive()
-      ? "Add all performer tags to the tag box for review — you still have to press Save"
-      : "Add all performer tags into this scene's tags";
+    function updateSceneButtonTitle() {
+      button.title = stagingActive()
+        ? "Add all performer tags to the tag box for review — you still have to press Save"
+        : "Add all performer tags into this scene's tags";
+    }
+    updateSceneButtonTitle();
+    button.addEventListener('mouseenter', updateSceneButtonTitle);
     button.addEventListener('click', function (event) {
       event.preventDefault();
       var sId = getSceneId();

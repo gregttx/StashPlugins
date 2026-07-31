@@ -22,11 +22,9 @@ Because nothing is saved, there is also no refresh and no jump back to the Edit 
 
 Enable **Save Tags Immediately** in the plugin settings panel if you would rather it merge and save in one step, instead of the staging mode.
 
-The setting only affects the scene page button. The performer button and both auto-merge modes always save directly, since they act on scenes whose edit forms aren't open.
+This setting only affects the scene page button. The performer button and both auto-merge modes always save directly, since they act on scenes whose edit forms aren't open.
 
 Additionally, if the staging mode fails, the button merges and saves instead and logs the reason to the browser console — there is nothing to review on a Stash that cannot show you the staged tags. This could happen in the event of a breaking change in the way Stash handles the tag edit control for example.
-
-> **Why an opt-out rather than an opt-in?** Stash has no way to give a plugin setting a default value, and renders an unset checkbox as unticked. The default behaviour therefore has to be the one an unticked box selects, otherwise the setting would read "off" while acting "on".
 
 ## Exclusion filters
 

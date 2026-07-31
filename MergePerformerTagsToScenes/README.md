@@ -1,5 +1,7 @@
 # Merge Performer Tags To Scenes
 
+> **Requires Stash 0.31.0 or newer.** Tag custom fields (the custom-field exclusion filter) and UI plugin component patching (staging tags in the scene edit form) both depend on it.
+
 A front-end-only Stash plugin that adds two tag-merging buttons:
 
 - **"Add Tags to Scene(s)"** on each performer's detail view — copies that performer's tags onto every scene featuring them, regardless of any filter or selection in the scene list below.
@@ -33,7 +35,7 @@ Four optional exclusion filters let you protect certain scenes or tags from bein
 - **Exclude Scenes marked as organized** — scenes with the "organized" flag set are skipped entirely.
 - **Exclude Scenes with specified Tag** — enter a tag name; any scene carrying that tag is skipped. The tag is looked up by exact name and the result is re-checked periodically, so creating, deleting or recreating the tag is picked up without a page reload (a warning is logged to the browser console whenever the tag cannot be found). The exclusion tag itself is never copied into a scene, even if one of the performers carries it.
 - **Exclude Tags set to Ignore auto tag** — performer tags that have "Ignore auto tag" enabled in their tag settings are not copied into scenes.
-- **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags that have that custom field present with a truthy value or an empty string are not copied into scenes. Only a value of JSON `false`, `null`, or `0` keeps a tag included — and note that a value typed as text is a *string*, so `"false"` and `"0"` count as truthy and will exclude the tag. If in doubt, remove the field from tags you want merged rather than trying to set it to a falsy value. Requires Stash 0.31.0 or newer; leave this setting empty on older versions.
+- **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags carrying that custom field are not copied into scenes. **Only the presence of the field matters** — the value is never looked at, so any value at all (including a blank one) excludes the tag. To have a tag merged again, remove the field from it rather than trying to set it to something falsy.
 
 ## How it works
 
@@ -41,6 +43,7 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
 
 ## Installation
 
+0. Check your Stash version is **0.31.0 or newer** (**Settings → System**, or the version in the footer). Older versions are not supported.
 1. Find your Stash plugins directory. This is the `plugins` folder inside the directory that holds your `config.yml` (the same place as your Stash database, typically shown at the top of **Settings → System**). If no `plugins` folder exists yet, create one.
 2. Copy the whole `MergePerformerTagsToScenes` folder into that `plugins` folder:
    ```
@@ -69,7 +72,7 @@ The two buttons appear in different places, because each one sits where the cont
 - All settings (including exclusion filters) are re-read every 10 seconds; changes take effect without a page reload.
 - Exclusion filters apply to both manual button clicks and auto-merge.
 - The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive). Stash's own name search is case-insensitive and treats `_` and `%` as wildcards, so the plugin fetches all candidates and re-checks the name on the client to be sure it excludes the tag you meant.
-- The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive). Tag custom fields only exist in Stash 0.31.0 and newer; the plugin only queries them when this setting is non-empty, so it keeps working on older versions as long as you leave it blank.
+- The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive). The plugin only queries tag custom fields when this setting is non-empty, so leaving it blank keeps them out of every merge query.
 - If the exclusion-tag lookup fails (server restart, network blip), the merge aborts rather than running unfiltered — merging into a scene you meant to protect cannot be undone automatically, since tags are only added, never removed. A manual button click reports this in an alert; an auto-merge reports it only to the browser console, so nothing visibly happens in the UI.
 - When the scene-page button finds nothing to do (the scene is excluded by a filter, or already has every performer tag) it briefly shows "No changes".
 - When staging, the exclusion filters still apply, so an excluded scene reports "Scene excluded" and stages nothing. The tags to add are diffed against what is currently in the tag box rather than what is on the server, so tags you have added or removed by hand before clicking are preserved.

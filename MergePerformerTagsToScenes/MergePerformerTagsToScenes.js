@@ -1,3 +1,8 @@
+// Merge Performer Tags To Scenes
+//
+// Requires Stash 0.31.0 or newer: tag custom_fields (the custom-field exclusion
+// filter) and PluginApi component patching (staging tags into the scene edit form)
+// both depend on it.
 (function () {
   'use strict';
 
@@ -102,15 +107,13 @@
     );
   }
 
-  // custom_fields was added to Tag in Stash 0.31.0. Requesting it on an older
-  // server fails GraphQL validation and breaks every merge, so only ask for it
-  // when the custom-field exclusion filter is actually configured.
+  // custom_fields is only requested when the custom-field exclusion filter is
+  // configured — it is dead weight on every tag of every performer otherwise.
   //
   // withDisplay adds the fields Stash's TagSelect needs to render a chip. Its Tag
   // type is Pick<Tag, "id"|"name"|"sort_name"|"aliases"|"image_path"|"stash_ids">;
-  // sort_name and stash_ids are deliberately left out because they are recent
-  // additions and would break the query on older servers. They only affect dropdown
-  // sorting and stash-box matching, neither of which applies to a chip we inject.
+  // sort_name and stash_ids are left out because they drive dropdown sorting and
+  // stash-box matching, neither of which applies to a chip we inject.
   function tagFields(withDisplay) {
     var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
     var fields = 'id ignore_auto_tag';
@@ -172,10 +175,11 @@
   function tagIsMergeable(t, exclTagId, cfName) {
     if (exclTagId && t.id === exclTagId) return false;
     if (settings.excludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return false;
-    if (cfName && t.custom_fields && hasOwn(t.custom_fields, cfName)) {
-      var cfVal = t.custom_fields[cfName];
-      if (cfVal || cfVal === '') return false;
-    }
+    // Presence alone excludes: the value is never inspected. Tag custom fields come
+    // back as JSON, so a value typed as text is a string — "false" and "0" are truthy
+    // in JS, which made any value-based rule surprising to configure. hasOwnProperty
+    // rather than `in` so inherited keys like "constructor" cannot match every tag.
+    if (cfName && t.custom_fields && hasOwn(t.custom_fields, cfName)) return false;
     return true;
   }
 

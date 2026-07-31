@@ -5,8 +5,19 @@
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
 
-  var settings = { showManualMergeButtons: false, autoMergeOnSceneUpdate: false, autoMergeOnPerformerUpdate: false };
+  var settings = {
+    showManualMergeButtons: false,
+    autoMergeOnSceneUpdate: false,
+    autoMergeOnPerformerUpdate: false,
+    excludeSceneOrganized: false,
+    excludeSceneWithTagName: '',
+    excludeTagWithIgnoreAutoTag: false,
+    excludeTagWithCustomFieldName: '',
+  };
   var isMerging = false;
+
+  var _excludeTagId   = null;
+  var _excludeTagName = '';
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -40,70 +51,117 @@
     );
   }
 
+  // Resolves the tag ID for excludeSceneWithTagName; caches the result.
+  function resolveExclusionTagId() {
+    var name = (settings.excludeSceneWithTagName || '').trim();
+    if (!name) { _excludeTagId = null; _excludeTagName = ''; return Promise.resolve(null); }
+    if (name === _excludeTagName) return Promise.resolve(_excludeTagId);
+    return gqlRequest(
+      'query FindTagByName($tag_filter: TagFilterType) { findTags(tag_filter: $tag_filter) { tags { id } } }',
+      { tag_filter: { name: { value: name, modifier: 'EQUALS' } } }
+    ).then(function (data) {
+      var tags = (data.findTags || {}).tags || [];
+      _excludeTagId   = tags.length ? tags[0].id : null;
+      _excludeTagName = name;
+      return _excludeTagId;
+    }).catch(function () { return null; });
+  }
+
   // ── Core merge logic (shared by buttons and auto-merge) ───────────────────
 
   function mergeTagsIntoScene(sceneId) {
-    return gqlRequest(
-      'query FindScene($id: ID!) {' +
-      '  findScene(id: $id) { tags { id } performers { tags { id } } }' +
-      '}',
-      { id: sceneId }
-    ).then(function (data) {
-      var scene = data.findScene;
-      if (!scene || !(scene.performers || []).length) return;
-
-      var perfTagSet = {};
-      scene.performers.forEach(function (p) {
-        (p.tags || []).forEach(function (t) { perfTagSet[t.id] = true; });
+    return resolveExclusionTagId().then(function (exclTagId) {
+      return gqlRequest(
+        'query FindScene($id: ID!) {' +
+        '  findScene(id: $id) { organized tags { id } performers { tags { id ignore_auto_tag custom_fields } } }' +
+        '}',
+        { id: sceneId }
+      ).then(function (data) {
+        var scene = data.findScene;
+        if (!scene) return;
+        if (settings.excludeSceneOrganized && scene.organized) return;
+        if (exclTagId) {
+          var hasExcl = false;
+          (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
+          if (hasExcl) return;
+        }
+        var performers = scene.performers || [];
+        if (!performers.length) return;
+        var perfTagSet = {};
+        var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
+        performers.forEach(function (p) {
+          (p.tags || []).forEach(function (t) {
+            if (settings.excludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return;
+            if (cfName && t.custom_fields && (cfName in t.custom_fields)) {
+              var cfVal = t.custom_fields[cfName];
+              if (cfVal || cfVal === '') return;
+            }
+            perfTagSet[t.id] = true;
+          });
+        });
+        var perfTagIds = Object.keys(perfTagSet);
+        if (!perfTagIds.length) return;
+        var existingIds = (scene.tags || []).map(function (t) { return t.id; });
+        var existingSet = {};
+        existingIds.forEach(function (id) { existingSet[id] = true; });
+        var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
+        if (!missing.length) return;
+        return updateSceneTags(sceneId, existingIds.concat(missing));
       });
-      var perfTagIds = Object.keys(perfTagSet);
-      if (!perfTagIds.length) return;
-
-      var existingIds = (scene.tags || []).map(function (t) { return t.id; });
-      var existingSet = {};
-      existingIds.forEach(function (id) { existingSet[id] = true; });
-      var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
-      if (!missing.length) return;
-
-      return updateSceneTags(sceneId, existingIds.concat(missing));
     });
   }
 
   function mergeTagsIntoAllPerformerScenes(performerId, onProgress) {
-    return gqlRequest(
-      'query FindPerformer($id: ID!) { findPerformer(id: $id) { tags { id } } }',
-      { id: performerId }
-    ).then(function (data) {
-      var performer = data.findPerformer;
-      if (!performer) return;
-      var perfTagIds = (performer.tags || []).map(function (t) { return t.id; });
-      if (!perfTagIds.length) return;
-
+    return resolveExclusionTagId().then(function (exclTagId) {
       return gqlRequest(
-        'query FindPerformerScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {' +
-        '  findScenes(filter: $filter, scene_filter: $scene_filter) { scenes { id tags { id } } }' +
-        '}',
-        {
-          filter: { per_page: -1 },
-          scene_filter: { performers: { value: [performerId], modifier: 'INCLUDES_ALL' } },
-        }
-      ).then(function (data2) {
-        var scenes = data2.findScenes.scenes;
-        if (!scenes || !scenes.length) return;
+        'query FindPerformer($id: ID!) { findPerformer(id: $id) { tags { id ignore_auto_tag custom_fields } } }',
+        { id: performerId }
+      ).then(function (data) {
+        var performer = data.findPerformer;
+        if (!performer) return;
+        var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
+        var perfTagIds = (performer.tags || []).filter(function (t) {
+          if (settings.excludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return false;
+          if (cfName && t.custom_fields && (cfName in t.custom_fields)) {
+            var cfVal = t.custom_fields[cfName];
+            if (cfVal || cfVal === '') return false;
+          }
+          return true;
+        }).map(function (t) { return t.id; });
+        if (!perfTagIds.length) return;
 
-        var i = 0;
-        function next() {
-          if (i >= scenes.length) return;
-          var scene = scenes[i++];
-          var existingIds = (scene.tags || []).map(function (t) { return t.id; });
-          var existingSet = {};
-          existingIds.forEach(function (id) { existingSet[id] = true; });
-          var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
-          if (!missing.length) return next();
-          if (onProgress) onProgress(i, scenes.length);
-          return updateSceneTags(scene.id, existingIds.concat(missing)).then(next);
-        }
-        return next();
+        return gqlRequest(
+          'query FindPerformerScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {' +
+          '  findScenes(filter: $filter, scene_filter: $scene_filter) { scenes { id organized tags { id } } }' +
+          '}',
+          {
+            filter: { per_page: -1 },
+            scene_filter: { performers: { value: [performerId], modifier: 'INCLUDES_ALL' } },
+          }
+        ).then(function (data2) {
+          var scenes = data2.findScenes.scenes;
+          if (!scenes || !scenes.length) return;
+
+          var i = 0;
+          function next() {
+            if (i >= scenes.length) return;
+            var scene = scenes[i++];
+            if (settings.excludeSceneOrganized && scene.organized) return next();
+            if (exclTagId) {
+              var hasExcl = false;
+              (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
+              if (hasExcl) return next();
+            }
+            var existingIds = (scene.tags || []).map(function (t) { return t.id; });
+            var existingSet = {};
+            existingIds.forEach(function (id) { existingSet[id] = true; });
+            var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
+            if (!missing.length) return next();
+            if (onProgress) onProgress(i, scenes.length);
+            return updateSceneTags(scene.id, existingIds.concat(missing)).then(next);
+          }
+          return next();
+        });
       });
     });
   }
@@ -114,9 +172,13 @@
     gqlRequest('{ configuration { plugins } }', null)
       .then(function (data) {
         var ps = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
-        settings.showManualMergeButtons     = !!ps.showManualMergeButtons;
-        settings.autoMergeOnSceneUpdate     = !!ps.autoMergeOnSceneUpdate;
+        settings.showManualMergeButtons    = !!ps.showManualMergeButtons;
+        settings.autoMergeOnSceneUpdate    = !!ps.autoMergeOnSceneUpdate;
         settings.autoMergeOnPerformerUpdate = !!ps.autoMergeOnPerformerUpdate;
+        settings.excludeSceneOrganized     = !!ps.excludeSceneOrganized;
+        settings.excludeSceneWithTagName       = ps.excludeSceneWithTagName || '';
+        settings.excludeTagWithIgnoreAutoTag    = !!ps.excludeTagWithIgnoreAutoTag;
+        settings.excludeTagWithCustomFieldName  = ps.excludeTagWithCustomFieldName || '';
       })
       .catch(function () {});
   }
@@ -212,7 +274,7 @@
     return p;
   };
 
-  // ── Performer page: "Merge Tags to Scene(s)" ──────────────────────────────
+  // ── Performer page: "Add Tags to Scene(s)" ────────────────────────────────
 
   var performerCheck = null; // { id, status: 'pending'|'yes'|'no' }
 
@@ -285,7 +347,7 @@
     container.appendChild(button);
   }
 
-  // ── Scene page: "Merge Tags from Performer(s)" ───────────────────────────
+  // ── Scene page: "Add Perf Tags" ───────────────────────────────────────────
 
   var sceneCheck = null; // { id, status: 'pending'|'yes'|'no' }
 

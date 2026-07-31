@@ -12,6 +12,13 @@ Two optional auto-merge modes can also be enabled in the same settings panel:
 - **Auto Merge On Scene Updates** — whenever a scene is saved, its performer tags are merged in automatically.
 - **Auto Merge On Performer Updates** — whenever a performer is saved, their tags are merged into all of their scenes automatically.
 
+Three optional exclusion filters let you protect certain scenes or tags from being touched:
+
+- **Exclude Scenes marked as organized** — scenes with the "organized" flag set are skipped entirely.
+- **Exclude Scenes with specified Tag** — enter a tag name; any scene carrying that tag is skipped. The tag is looked up by exact name and the result is cached until the setting changes.
+- **Exclude Tags set to Ignore auto tag** — performer tags that have "Ignore auto tag" enabled in their tag settings are not copied into scenes.
+- **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags that have that custom field set to a truthy value are not copied into scenes.
+
 ## How it works
 
 This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.
@@ -37,5 +44,8 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
 ## Notes / limitations
 
 - The performer-page button (and auto-merge on performer update) processes scenes one at a time sequentially to avoid hammering the server.
-- Auto-merge settings take effect immediately but are read once on page load — a browser refresh is needed to pick up changes made in Stash settings.
+- All settings (including exclusion filters) are re-read every 10 seconds; changes take effect without a page reload.
+- Exclusion filters apply to both manual button clicks and auto-merge.
+- The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive).
+- The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive); the tag is excluded when that field exists and has a truthy value or an empty string (it is not excluded when the field value is `false`, `null`, or `0`).
 - Tags are only added, never removed.

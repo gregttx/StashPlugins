@@ -2,8 +2,8 @@
 
 A front-end-only Stash plugin that adds two tag-merging buttons:
 
-- **"Add Tags to Scene(s)"** on each performer's page — copies that performer's tags onto every scene featuring them.
-- **"Add Perf Tags"** on each scene's page — copies all tags from all of that scene's performers into the scene.
+- **"Add Tags to Scene(s)"** on each performer's detail view — copies that performer's tags onto every scene featuring them.
+- **"Add Perf Tags"** on each scene's Edit tab — copies all tags from all of that scene's performers into the scene.
 
 Buttons are hidden by default and can be enabled in **Settings → Plugins → Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is at least one related element to act on (a performer with scenes, or a scene with performers). Tags are **added** (not replaced) — existing tags are always kept.
 
@@ -15,9 +15,9 @@ Two optional auto-merge modes can also be enabled in the same settings panel:
 Four optional exclusion filters let you protect certain scenes or tags from being touched:
 
 - **Exclude Scenes marked as organized** — scenes with the "organized" flag set are skipped entirely.
-- **Exclude Scenes with specified Tag** — enter a tag name; any scene carrying that tag is skipped. The tag is looked up by exact name and a successful lookup is cached until the setting changes; if no such tag exists yet, the lookup is retried (a warning is logged to the browser console) so the filter starts working as soon as you create the tag.
+- **Exclude Scenes with specified Tag** — enter a tag name; any scene carrying that tag is skipped. The tag is looked up by exact name and the result is re-checked periodically, so creating, deleting or recreating the tag is picked up without a page reload (a warning is logged to the browser console whenever the tag cannot be found). The exclusion tag itself is never copied into a scene, even if one of the performers carries it.
 - **Exclude Tags set to Ignore auto tag** — performer tags that have "Ignore auto tag" enabled in their tag settings are not copied into scenes.
-- **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags that have that custom field present with a truthy value or an empty string are not copied into scenes (tags where the field value is `false`, `null`, or `0` are still included). Requires Stash 0.31.0 or newer; leave this setting empty on older versions.
+- **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags that have that custom field present with a truthy value or an empty string are not copied into scenes. Only a value of JSON `false`, `null`, or `0` keeps a tag included — and note that a value typed as text is a *string*, so `"false"` and `"0"` count as truthy and will exclude the tag. If in doubt, remove the field from tags you want merged rather than trying to set it to a falsy value. Requires Stash 0.31.0 or newer; leave this setting empty on older versions.
 
 ## How it works
 
@@ -37,17 +37,22 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
 
 ## Usage
 
-**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one scene, an **"Add Tags to Scene(s)"** button appears next to the Edit/Delete buttons. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped.
+The two buttons appear in different places, because each one sits where the content it acts on is visible.
 
-**Scene page** — enable **Show Manual Merge Buttons** in settings, then open any scene's page. If it has at least one performer, an **"Add Perf Tags"** button appears next to the Save/Delete buttons. Click it to add all tags from all performers in that scene into the scene's tag list.
+**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one scene, an **"Add Tags to Scene(s)"** button appears in the button bar on the detail view, just before the Delete button. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped, and the button counts through the scenes as it goes. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
+
+**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it has at least one performer, an **"Add Perf Tags"** button appears next to the Save/Delete buttons of the edit form. Click it to add all tags from all performers in that scene into the scene's tag list.
 
 ## Notes / limitations
 
-- The performer-page button (and auto-merge on performer update) processes scenes one at a time sequentially to avoid hammering the server.
+- The performer-page button (and auto-merge on performer update) processes scenes one at a time sequentially to avoid hammering the server. If one scene fails to update, the remaining scenes are still processed and a summary of the failures is reported at the end (details go to the browser console).
+- Auto-merge only runs when the edit that triggered it actually succeeded; a save that Stash rejects does not cause a merge.
 - All settings (including exclusion filters) are re-read every 10 seconds; changes take effect without a page reload.
 - Exclusion filters apply to both manual button clicks and auto-merge.
-- The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive). Stash's own name search is case-insensitive and treats `_` and `%` as wildcards, so the plugin re-checks the name on the client to be sure it excludes the tag you meant.
+- The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive). Stash's own name search is case-insensitive and treats `_` and `%` as wildcards, so the plugin fetches all candidates and re-checks the name on the client to be sure it excludes the tag you meant.
 - The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive). Tag custom fields only exist in Stash 0.31.0 and newer; the plugin only queries them when this setting is non-empty, so it keeps working on older versions as long as you leave it blank.
-- If the exclusion-tag lookup fails (server restart, network blip), the merge aborts with an error rather than running unfiltered — merging into a scene you meant to protect cannot be undone automatically, since tags are only added, never removed.
+- If the exclusion-tag lookup fails (server restart, network blip), the merge aborts rather than running unfiltered — merging into a scene you meant to protect cannot be undone automatically, since tags are only added, never removed. A manual button click reports this in an alert; an auto-merge reports it only to the browser console, so nothing visibly happens in the UI.
 - When the scene-page button finds nothing to do (the scene is excluded by a filter, or already has every performer tag) it briefly shows "No changes".
+- Stash uses the same container class for the performer detail view's Edit/Delete bar and for the performer edit form, so the plugin identifies the detail view by its Delete button. If a future Stash release changes that markup, the performer button will simply not appear rather than showing up in the wrong place.
+- While a merge is running, auto-merge ignores other edits saved in the meantime; this is what stops the plugin from reacting to its own updates.
 - Tags are only added, never removed.

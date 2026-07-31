@@ -1,6 +1,6 @@
 name: Merge Performer Tags To Scenes
 description: Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, ignored tags, and tags marked via a custom field.
-version: 0.6.2
+version: 0.6.4
 ui:
   javascript:
     - MergePerformerTagsToScenes.js
@@ -15,7 +15,7 @@ settings:
     type: BOOLEAN
   autoMergeOnPerformerUpdate:
     displayName: Auto Merge On Performer Updates
-    description: When a performer is saved, automatically merge their tags into all of their scenes.
+    description: When a performer is saved, automatically merge their tags into all of their scenes. Covers every scene featuring the performer; filters and selections in the scene list are ignored.
     type: BOOLEAN
   stageTagsInEditForm:
     displayName: Stage Tags In Edit Form

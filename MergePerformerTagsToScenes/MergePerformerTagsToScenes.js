@@ -632,7 +632,10 @@
     // so it needs breathing room on both sides instead of just the left.
     button.className = 'btn btn-secondary mx-2 ' + PERFORMER_BTN_CLASS;
     button.textContent = 'Add Tags to Scene(s)';
-    button.title = "Add this performer's tags to all of their scenes";
+    // The scene set comes from a findScenes query keyed only on this performer, not
+    // from the list below, so say so — an active filter looks like it ought to apply.
+    button.title = "Add this performer's tags to every scene featuring them. " +
+      "Filters and selections in the scene list are ignored.";
     button.addEventListener('click', function (event) {
       event.preventDefault();
       var perfId = getPerformerId();
@@ -757,7 +760,7 @@
             if (result.status === 'nochange') return flash('No changes');
             // Nothing is saved and nothing is refetched: the tags are now sitting in
             // the form for the user to review, and Stash's own Save button is live.
-            flash('Added ' + result.count, 'Press Save');
+            flash('Added ' + result.count, 'Save Pending');
           })
           .catch(fail);
         return;

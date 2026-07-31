@@ -2,7 +2,7 @@
 
 A front-end-only Stash plugin that adds two tag-merging buttons:
 
-- **"Add Tags to Scene(s)"** on each performer's detail view — copies that performer's tags onto every scene featuring them.
+- **"Add Tags to Scene(s)"** on each performer's detail view — copies that performer's tags onto every scene featuring them, regardless of any filter or selection in the scene list below.
 - **"Add Perf Tags"** on each scene's Edit tab — copies all tags from all of that scene's performers into the scene.
 
 Buttons are hidden by default and can be enabled in **Settings → Plugins → Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is at least one related element to act on (a performer with scenes, or a scene with performers). Tags are **added** (not replaced) — existing tags are always kept.
@@ -16,7 +16,7 @@ Two optional auto-merge modes can also be enabled in the same settings panel:
 
 By default **"Add Perf Tags"** merges and saves in one step. Enable **Stage Tags In Edit Form** to make it stop short of saving: the performer tags are dropped into the scene's own tag box, Stash's **Save** button lights up, and nothing is written until you press it. You can remove any tag you don't want first, and Cancel discards the lot.
 
-Because nothing is saved, there is also no refresh and no jump back to the Edit tab — the tags simply appear in the box you're already looking at. The button reports what it did without changing width: *"Added 2"* then *"Press Save"*, or *"No changes"*, or *"Scene excluded"*.
+Because nothing is saved, there is also no refresh and no jump back to the Edit tab — the tags simply appear in the box you're already looking at. The button reports what it did without changing width: *"Added 2"* then *"Save Pending"*, or *"No changes"*, or *"Scene excluded"*.
 
 This mode needs a Stash new enough to expose UI plugin component patching, because the plugin has to hand the tags to the tag control the same way a click does. If that isn't available the button says **"Unavailable"** and explains why — it deliberately does **not** fall back to saving, since that is the exact thing you turned the setting on to prevent. Turn the setting off to go back to merge-and-save.
 
@@ -51,12 +51,15 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
 
 The two buttons appear in different places, because each one sits where the content it acts on is visible.
 
-**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one scene, an **"Add Tags to Scene(s)"** button appears in the button bar on the detail view, just before the Delete button. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped, and the button counts through the scenes as it goes. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
+**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one scene, an **"Add Tags to Scene(s)"** button appears in the button bar on the detail view, just before the Delete button. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped, and the button counts through the scenes as it goes.
+
+**The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Add Perf Tags" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
 
 **Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it has at least one performer, an **"Add Perf Tags"** button appears next to the Save/Delete buttons of the edit form. Click it to add all tags from all performers in that scene into the scene's tag list.
 
 ## Notes / limitations
 
+- The performer-page button (and auto-merge on performer update) always covers every scene featuring the performer. Neither reads the scene list's filter or selection — the scenes come from a server query keyed only on the performer, so the plugin never sees what the list is showing. The only things that narrow it are the exclusion filters below.
 - The performer-page button (and auto-merge on performer update) processes scenes one at a time sequentially to avoid hammering the server. If one scene fails to update, the remaining scenes are still processed and a summary of the failures is reported at the end (details go to the browser console).
 - Auto-merge only runs when the edit that triggered it actually succeeded; a save that Stash rejects does not cause a merge.
 - All settings (including exclusion filters) are re-read every 10 seconds; changes take effect without a page reload.

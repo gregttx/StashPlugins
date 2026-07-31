@@ -16,8 +16,10 @@
   };
   var isMerging = false;
 
-  var _excludeTagId   = null;
-  var _excludeTagName = '';
+  var _excludeTagId    = null;
+  var _excludeTagName  = '';
+  var _excludeTagMissAt = 0; // when a "tag not found" result was last cached
+  var EXCLUDE_TAG_MISS_TTL_MS = 10000;
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -51,42 +53,67 @@
     );
   }
 
-  // Resolves the tag ID for excludeSceneWithTagName; caches the result.
+  // custom_fields was added to Tag in Stash 0.31.0. Requesting it on an older
+  // server fails GraphQL validation and breaks every merge, so only ask for it
+  // when the custom-field exclusion filter is actually configured.
+  function tagFields() {
+    var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
+    return cfName ? 'id ignore_auto_tag custom_fields' : 'id ignore_auto_tag';
+  }
+
+  // Resolves the tag ID for excludeSceneWithTagName. A successful lookup is cached
+  // for as long as the setting is unchanged; a miss is cached only briefly, so the
+  // filter starts working once the user creates or renames the tag without needing
+  // a page reload. A failed request rejects rather than resolving to null: silently
+  // treating an error as "no exclusion configured" would merge tags into the very
+  // scenes the user asked to protect, and tags are never removed again.
   function resolveExclusionTagId() {
     var name = (settings.excludeSceneWithTagName || '').trim();
     if (!name) { _excludeTagId = null; _excludeTagName = ''; return Promise.resolve(null); }
-    if (name === _excludeTagName) return Promise.resolve(_excludeTagId);
+    if (name === _excludeTagName) {
+      if (_excludeTagId) return Promise.resolve(_excludeTagId);
+      if (Date.now() - _excludeTagMissAt < EXCLUDE_TAG_MISS_TTL_MS) return Promise.resolve(null);
+    }
     return gqlRequest(
-      'query FindTagByName($tag_filter: TagFilterType) { findTags(tag_filter: $tag_filter) { tags { id } } }',
+      'query FindTagByName($tag_filter: TagFilterType) { findTags(tag_filter: $tag_filter) { tags { id name } } }',
       { tag_filter: { name: { value: name, modifier: 'EQUALS' } } }
     ).then(function (data) {
+      // Stash compiles the EQUALS modifier to SQL LIKE, so the server-side match is
+      // case-insensitive and treats _ and % as wildcards. Re-check exactly here so a
+      // near-miss can never bind the exclusion to the wrong tag.
       var tags = (data.findTags || {}).tags || [];
-      _excludeTagId   = tags.length ? tags[0].id : null;
-      _excludeTagName = name;
+      var match = null;
+      tags.forEach(function (t) { if (!match && t.name === name) match = t; });
+      _excludeTagName   = name;
+      _excludeTagId     = match ? match.id : null;
+      _excludeTagMissAt = match ? 0 : Date.now();
+      if (!match) console.warn('[cpt2s] exclusion tag not found: ' + name);
       return _excludeTagId;
-    }).catch(function () { return null; });
+    });
   }
 
   // ── Core merge logic (shared by buttons and auto-merge) ───────────────────
 
+  // Resolves to true when the scene's tags were updated, false when it was skipped
+  // (excluded by a filter, or already carrying every performer tag).
   function mergeTagsIntoScene(sceneId) {
     return resolveExclusionTagId().then(function (exclTagId) {
       return gqlRequest(
         'query FindScene($id: ID!) {' +
-        '  findScene(id: $id) { organized tags { id } performers { tags { id ignore_auto_tag custom_fields } } }' +
+        '  findScene(id: $id) { organized tags { id } performers { tags { ' + tagFields() + ' } } }' +
         '}',
         { id: sceneId }
       ).then(function (data) {
         var scene = data.findScene;
-        if (!scene) return;
-        if (settings.excludeSceneOrganized && scene.organized) return;
+        if (!scene) return false;
+        if (settings.excludeSceneOrganized && scene.organized) return false;
         if (exclTagId) {
           var hasExcl = false;
           (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
-          if (hasExcl) return;
+          if (hasExcl) return false;
         }
         var performers = scene.performers || [];
-        if (!performers.length) return;
+        if (!performers.length) return false;
         var perfTagSet = {};
         var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
         performers.forEach(function (p) {
@@ -100,13 +127,13 @@
           });
         });
         var perfTagIds = Object.keys(perfTagSet);
-        if (!perfTagIds.length) return;
+        if (!perfTagIds.length) return false;
         var existingIds = (scene.tags || []).map(function (t) { return t.id; });
         var existingSet = {};
         existingIds.forEach(function (id) { existingSet[id] = true; });
         var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
-        if (!missing.length) return;
-        return updateSceneTags(sceneId, existingIds.concat(missing));
+        if (!missing.length) return false;
+        return updateSceneTags(sceneId, existingIds.concat(missing)).then(function () { return true; });
       });
     });
   }
@@ -114,7 +141,7 @@
   function mergeTagsIntoAllPerformerScenes(performerId, onProgress) {
     return resolveExclusionTagId().then(function (exclTagId) {
       return gqlRequest(
-        'query FindPerformer($id: ID!) { findPerformer(id: $id) { tags { id ignore_auto_tag custom_fields } } }',
+        'query FindPerformer($id: ID!) { findPerformer(id: $id) { tags { ' + tagFields() + ' } } }',
         { id: performerId }
       ).then(function (data) {
         var performer = data.findPerformer;
@@ -400,7 +427,16 @@
       btn.disabled = true;
       btn.textContent = 'Merging...';
       mergeTagsIntoScene(sId)
-        .then(function () {
+        .then(function (changed) {
+          btn.disabled = false;
+          if (!changed) {
+            // Scene was excluded by a filter or already had every tag. Say so, since
+            // refreshSceneData() would otherwise leave the button looking mid-merge.
+            btn.textContent = 'No changes';
+            setTimeout(function () { btn.textContent = orig; }, 2000);
+            return;
+          }
+          btn.textContent = orig;
           refreshSceneData(sId);
         })
         .catch(function (err) {

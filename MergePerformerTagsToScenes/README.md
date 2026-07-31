@@ -50,7 +50,7 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
    <stash-config-dir>/plugins/MergePerformerTagsToScenes/manifest
    ```
 3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
-4. Do a hard refresh in your browser (Ctrl+Shift+R) so the plugin JavaScript is loaded.
+4. If using multiple browser instances, refresh your browser (F5) so the new plugin JavaScript is loaded in all of them.
 
 ## Usage
 

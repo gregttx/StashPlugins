@@ -603,19 +603,26 @@
 
   var performerCheck = null; // { id, status: 'pending'|'yes'|'no' }
 
+  // A performer with no tags has nothing to merge, so the button would be a dead
+  // click — checked alongside the scene count so both conditions resolve in one
+  // round trip instead of gating the button behind two sequential queries.
   function checkPerformerHasScenes(performerId) {
     gqlRequest(
-      'query CheckPerformerScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {' +
+      'query CheckPerformerScenes($id: ID!, $filter: FindFilterType, $scene_filter: SceneFilterType) {' +
+      '  findPerformer(id: $id) { tags { id } }' +
       '  findScenes(filter: $filter, scene_filter: $scene_filter) { count }' +
       '}',
       {
+        id: performerId,
         filter: { per_page: 1 },
         scene_filter: { performers: { value: [performerId], modifier: 'INCLUDES_ALL' } },
       }
     )
       .then(function (data) {
         if (performerCheck && performerCheck.id === performerId) {
-          performerCheck.status = data.findScenes.count > 0 ? 'yes' : 'no';
+          var hasTags   = !!(data.findPerformer && (data.findPerformer.tags || []).length);
+          var hasScenes = !!(data.findScenes && data.findScenes.count > 0);
+          performerCheck.status = (hasTags && hasScenes) ? 'yes' : 'no';
         }
       })
       .catch(function () {

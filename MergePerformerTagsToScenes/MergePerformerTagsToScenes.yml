@@ -1,13 +1,13 @@
 name: Merge Performer Tags To Scenes
 description: "Requires Stash 0.31.0 or newer. Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, ignored tags, and tags marked via a custom field. The scene button stages tags in the edit form for review by default."
-version: 0.8.6
+version: 0.8.7
 ui:
   javascript:
     - MergePerformerTagsToScenes.js
 settings:
   showManualMergeButtons:
     displayName: Show Manual Merge Buttons
-    description: Show "Add Tags to Scene(s)" on the performer detail view (not while editing) and "Add Perf Tags" on the scene Edit tab. Buttons only appear when related content exists.
+    description: Show "Add Tags to Scene(s)" on the performer detail view (not while editing) and "Add Perf Tags" on the scene Edit tab. Buttons only appear when related content exists (the performer button also needs the performer to have at least one tag).
     type: BOOLEAN
   autoMergeOnSceneUpdate:
     displayName: Auto Merge On Scene Updates

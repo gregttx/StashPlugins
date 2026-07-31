@@ -64,6 +64,10 @@ function makeResponse(payload) {
   return { ok: true, clone() { return makeResponse(payload); }, json: () => Promise.resolve(JSON.parse(body)) };
 }
 
+// Mutated mid-run to exercise the no-tags case; starts populated so the existing
+// placement checks (which assume the button is eligible to appear) are unaffected.
+let performerTags = [{ id: '1' }];
+
 win.fetch = function (url, o) {
   const q = JSON.parse(o.body).query;
   if (q.indexOf('configuration') !== -1) {
@@ -71,7 +75,10 @@ win.fetch = function (url, o) {
       MergePerformerTagsToScenes: { showManualMergeButtons: true } } } } }));
   }
   if (q.indexOf('CheckPerformerScenes') !== -1) {
-    return Promise.resolve(makeResponse({ data: { findScenes: { count: 4 } } }));
+    return Promise.resolve(makeResponse({ data: {
+      findPerformer: { tags: performerTags },
+      findScenes: { count: 4 },
+    } }));
   }
   return Promise.resolve(makeResponse({ data: {} }));
 };
@@ -139,6 +146,15 @@ function check(name, cond, extra) {
   check('handles a Delete button nested in a wrapper element',
     !!w && w.nextElementSibling && !!w.nextElementSibling.querySelector('button.delete'),
     w ? 'next sibling: ' + (w.nextElementSibling && w.nextElementSibling.outerHTML) : 'no button');
+
+  // A different performer with no tags: the eligibility check must come back 'no'
+  // even though the scene count is still 4, so the button never appears.
+  performerTags = [];
+  win.history.pushState({}, '', '/performers/8');
+  root().innerHTML = DETAIL_VIEW;
+  await sleep(2500);
+  check('button does not appear for a performer with no tags', btn() === null,
+    btn() ? 'button present despite the performer having no tags' : '');
 
   console.log(failures === 0
     ? '\n' + passes + ' check(s) passed.'

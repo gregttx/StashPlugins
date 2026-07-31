@@ -404,36 +404,47 @@
 
           var i = 0;
           var failed = 0;
+          // Skipped scenes advance the loop; only a scene that actually needs updating
+          // chains a promise and re-enters. Recursing on skips instead grew the stack
+          // by a frame per scene and overflowed at roughly twelve thousand consecutive
+          // skips — and skipping is the common path, since every re-run skips the
+          // scenes that already carry the tags.
           function next() {
-            if (i >= scenes.length) {
-              // Report failures only after every scene has been attempted, so one bad
-              // scene cannot silently cancel the rest of the run.
-              if (failed) {
-                throw new Error(failed + ' of ' + scenes.length +
-                  ' scene(s) could not be updated; see the browser console for details');
+            while (i < scenes.length) {
+              var scene = scenes[i++];
+              if (onProgress) onProgress(i, scenes.length);
+              if (settings.excludeSceneOrganized && scene.organized) continue;
+              if (exclTagId) {
+                var hasExcl = false;
+                (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
+                if (hasExcl) continue;
               }
-              return;
+              var existingIds = (scene.tags || []).map(function (t) { return t.id; });
+              var existingSet = {};
+              existingIds.forEach(function (id) { existingSet[id] = true; });
+              var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
+              if (!missing.length) continue;
+              return updateSceneTags(scene.id, existingIds.concat(missing))
+                .catch(makeSceneFailureHandler(scene))
+                .then(next);
             }
-            var scene = scenes[i++];
-            if (onProgress) onProgress(i, scenes.length);
-            if (settings.excludeSceneOrganized && scene.organized) return next();
-            if (exclTagId) {
-              var hasExcl = false;
-              (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
-              if (hasExcl) return next();
+            // Report failures only after every scene has been attempted, so one bad
+            // scene cannot silently cancel the rest of the run.
+            if (failed) {
+              throw new Error(failed + ' of ' + scenes.length +
+                ' scene(s) could not be updated; see the browser console for details');
             }
-            var existingIds = (scene.tags || []).map(function (t) { return t.id; });
-            var existingSet = {};
-            existingIds.forEach(function (id) { existingSet[id] = true; });
-            var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
-            if (!missing.length) return next();
-            return updateSceneTags(scene.id, existingIds.concat(missing))
-              .catch(function (e) {
-                failed++;
-                console.error('[cpt2s] scene ' + scene.id + ' update failed:', e);
-              })
-              .then(next);
           }
+
+          // Built outside the loop so the handler closes over this scene rather than
+          // over the loop's shared `var`.
+          function makeSceneFailureHandler(scene) {
+            return function (e) {
+              failed++;
+              console.error('[cpt2s] scene ' + scene.id + ' update failed:', e);
+            };
+          }
+
           return next();
         });
       });
@@ -442,7 +453,26 @@
 
   // ── Settings ──────────────────────────────────────────────────────────────
 
-  function loadSettings() {
+  // loadSettings is called on every link click and popstate as well as on a timer, so
+  // that a settings change is picked up promptly after the user navigates away from
+  // the settings page. Those triggers fire far more often than settings actually
+  // change, and the query behind them is not cheap: Stash cannot scope
+  // `configuration { plugins }` to one plugin, so every call returns the settings of
+  // every installed plugin. Throttling keeps the prompt pickup while collapsing a
+  // burst of navigation into a single request, and stops a slow response from
+  // overlapping the next call.
+  var LOAD_SETTINGS_MIN_INTERVAL_MS = 2000;
+  var _settingsLoadedAt = 0;
+  var _settingsInFlight = false;
+
+  // force skips the rate limit but never the in-flight check — there is nothing to be
+  // gained by stacking a second copy of the same query on a slow connection.
+  function loadSettings(force) {
+    var now = Date.now();
+    if (_settingsInFlight) return;
+    if (!force && now - _settingsLoadedAt < LOAD_SETTINGS_MIN_INTERVAL_MS) return;
+    _settingsLoadedAt = now;
+    _settingsInFlight = true;
     gqlRequest('{ configuration { plugins } }', null)
       .then(function (data) {
         var ps = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
@@ -455,7 +485,10 @@
         settings.excludeTagWithCustomFieldName  = ps.excludeTagWithCustomFieldName || '';
         settings.saveTagsImmediately            = !!ps.saveTagsImmediately;
       })
-      .catch(function () {});
+      .catch(function () {})
+      // Stamped on completion as well as on dispatch, so the throttle window starts
+      // from when the answer arrived rather than from when a slow request began.
+      .then(function () { _settingsInFlight = false; _settingsLoadedAt = Date.now(); });
   }
 
   // ── Fetch interception for auto-merge ─────────────────────────────────────
@@ -893,14 +926,21 @@
   document.addEventListener('click', function (event) {
     var target = event.target;
     var link = target && target.closest ? target.closest('a') : null;
-    if (link) { setTimeout(tick, 300); setTimeout(loadSettings, 300); }
+    // Wrapped rather than passed by reference so a timer argument can never arrive as
+    // loadSettings' `force` and defeat the throttle.
+    if (link) { setTimeout(tick, 300); setTimeout(function () { loadSettings(); }, 300); }
   });
-  window.addEventListener('popstate', function () { setTimeout(tick, 300); setTimeout(loadSettings, 300); });
+  window.addEventListener('popstate', function () {
+    setTimeout(tick, 300);
+    setTimeout(function () { loadSettings(); }, 300);
+  });
 
   // Started before the observer so a missing/unobservable root can never stop the
   // polling fallback from being installed.
   setInterval(tick, 1000);
-  setInterval(loadSettings, 10000);
+  // force: the periodic refresh is the backstop that guarantees settings changes are
+  // picked up, so it must never be throttled away by a recent navigation.
+  setInterval(function () { loadSettings(true); }, 10000);
 
   if (!startObserver()) {
     document.addEventListener('DOMContentLoaded', function () { startObserver(); });

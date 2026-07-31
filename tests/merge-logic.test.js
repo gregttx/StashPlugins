@@ -131,6 +131,80 @@ function stashPerformerSave(ctx, id) {
       upd ? JSON.stringify(upd.variables.input.tag_ids) : 'no update issued');
   }
 
+  // ── #11: the settings query is rate limited across navigation ──────────────
+  {
+    console.log('\n#11 loadSettings throttling');
+    const { ctx, calls } = H.makeEnv({ respond: H.responder() });
+    // Capture the click listener the plugin installs, so clicks can be simulated.
+    let clickHandler = null;
+    ctx.document.addEventListener = (evt, fn) => { if (evt === 'click') clickHandler = fn; };
+    H.run(ctx);
+    await H.flush();
+
+    const configQueries = () =>
+      calls.filter((c) => c.query && c.query.indexOf('configuration') !== -1).length;
+    const atStart = configQueries();
+    H.check('settings are loaded once at startup', atStart === 1, 'queries: ' + atStart);
+
+    // Twenty link clicks in quick succession, as browsing a scene list would produce.
+    const link = { closest: () => ({ tagName: 'A' }) };
+    for (let i = 0; i < 20; i++) clickHandler({ target: link });
+    await new Promise((r) => setTimeout(r, 500));
+    await H.flush(40);
+
+    const afterClicks = configQueries() - atStart;
+    H.check('20 rapid navigations collapse into at most one settings query',
+      afterClicks <= 1, 'queries fired: ' + afterClicks);
+
+    // Past the rate limit, a further navigation is allowed through again.
+    await new Promise((r) => setTimeout(r, 2100));
+    const before = configQueries();
+    clickHandler({ target: link });
+    await new Promise((r) => setTimeout(r, 500));
+    await H.flush(40);
+    H.check('a navigation after the window still refreshes settings',
+      configQueries() - before === 1, 'queries fired: ' + (configQueries() - before));
+  }
+
+  // ── #10: a long run of skipped scenes must not grow the stack ──────────────
+  {
+    console.log('\n#10 skip path is iterative, not recursive');
+    // Comfortably past the ~12.5k frames a `return next()` per skip could manage.
+    const COUNT = 20000;
+    const scenes = [];
+    for (let i = 1; i <= COUNT; i++) {
+      // Every scene already carries both performer tags, so every one is skipped —
+      // exactly what a second run over a performer looks like. Except the last, which
+      // is missing one: reaching it proves the whole list was traversed.
+      scenes.push(i === COUNT
+        ? { id: String(i), organized: false, tags: [{ id: '10' }] }
+        : { id: String(i), organized: false, tags: [{ id: '10' }, { id: '11' }] });
+    }
+    const { ctx, calls } = H.makeEnv({
+      pathname: '/performers/7',
+      respond: H.responder({ scenes }),
+    });
+    const errors = [];
+    ctx.console = {
+      log: console.log,
+      warn() {},
+      error(...a) { errors.push(a.map((x) => (x && x.message) || String(x)).join(' ')); },
+    };
+    H.run(ctx);
+    await H.flush();
+    const before = calls.length;
+    await stashPerformerSave(ctx, 7);
+    await H.flush(80);
+
+    const overflow = errors.filter((e) => /call stack|RangeError/i.test(e));
+    H.check(COUNT + ' consecutive skips do not overflow the stack',
+      overflow.length === 0, overflow[0]);
+    const updated = H.sceneUpdates(calls.slice(before)).map((c) => c.variables.input.id);
+    H.check('the loop reaches the last scene and updates only it',
+      updated.length === 1 && updated[0] === String(COUNT),
+      'updated: ' + (updated.join(',') || 'nothing'));
+  }
+
   // ── #6c: presence alone excludes, whatever the value ───────────────────────
   {
     console.log('\n#6c custom field presence excludes regardless of value');

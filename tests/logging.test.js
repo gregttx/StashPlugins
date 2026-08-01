@@ -13,6 +13,11 @@ function captureConsole(ctx) {
   return info;
 }
 
+// The "logging enabled" banner is emitted once on settings load; the per-tag lines are
+// what the merge assertions are about.
+const isBanner = (line) => line.indexOf('merge logging enabled') !== -1;
+const merges = (info) => info.filter((l) => !isBanner(l));
+
 function stashSceneSave(ctx, id) {
   return ctx.fetch('/graphql', {
     method: 'POST',
@@ -51,7 +56,8 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     await H.flush();
     await stashSceneSave(ctx, 1);
     await H.flush(80);
-    H.check('setting off logs nothing', info.length === 0, info.join(' | '));
+    H.check('setting off logs nothing at all, not even the banner',
+      info.length === 0, info.join(' | '));
     const q = calls.filter((c) => c.query.indexOf('query FindScene(') !== -1)[0];
     H.check('setting off does not request the scene title or file name',
       q && q.query.indexOf('title') === -1 && q.query.indexOf('basename') === -1, q && q.query);
@@ -74,11 +80,37 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     await H.flush();
     await stashSceneSave(ctx, 1);
     await H.flush(80);
-    H.check('one line for the one tag merged', info.length === 1, info.join(' | '));
+    // Emitted on settings load, before anything is merged: it is the only way to tell
+    // "logging is on but nothing needed merging" from "logging is not running at all".
+    H.check('switching the setting on announces itself once',
+      info.filter(isBanner).length === 1, info.join(' | '));
+    H.check('one line for the one tag merged', merges(info).length === 1, info.join(' | '));
     H.check('line matches the documented format',
-      info[0] === PREFIX + ' Tag "Tattoo (11)" saved to Scene "My Scene (1)"', info[0]);
+      merges(info)[0] === PREFIX + ' Tag "Tattoo (11)" saved to Scene "My Scene (1)"',
+      info.join(' | '));
     H.check('the tag the scene already had is not logged',
-      info.join(' ').indexOf('Blonde') === -1, info.join(' | '));
+      merges(info).join(' ').indexOf('Blonde') === -1, info.join(' | '));
+  }
+
+  // ── the banner must not repeat on every settings reload ────────────────────
+  {
+    // Settings are re-read every 10s in a real browser, so a banner that is not
+    // deduped would scroll the console forever.
+    const { ctx } = H.makeEnv({ respond: H.responder({ settings: { logMergesToConsole: true } }) });
+    let clickHandler = null;
+    ctx.document.addEventListener = (evt, fn) => { if (evt === 'click') clickHandler = fn; };
+    const info = captureConsole(ctx);
+    H.run(ctx);
+    await H.flush();
+    // Two more settings loads, spaced past the 2s throttle so both go through.
+    const link = { closest: () => ({ tagName: 'A' }) };
+    for (let i = 0; i < 2; i++) {
+      clickHandler({ target: link });
+      await new Promise((r) => setTimeout(r, 2200));
+      await H.flush(40);
+    }
+    H.check('reloading settings does not repeat the banner',
+      info.filter(isBanner).length === 1, 'banners: ' + info.filter(isBanner).length);
   }
 
   // ── nothing merged: nothing logged ─────────────────────────────────────────
@@ -95,7 +127,8 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     await H.flush();
     await stashSceneSave(ctx, 1);
     await H.flush(80);
-    H.check('a scene that already has every tag logs nothing', info.length === 0, info.join(' | '));
+    H.check('a scene that already has every tag logs no merge line',
+      merges(info).length === 0, info.join(' | '));
   }
 
   // ── performer save: per-scene lines, title falls back to the file name ──────
@@ -119,7 +152,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     await stashPerformerSave(ctx, 7);
     await H.flush(120);
     H.check('three lines: both tags for scene 1, the missing one for scene 2',
-      info.length === 3, info.join(' | '));
+      merges(info).length === 3, info.join(' | '));
     H.check('scene 1 logs both tags against its title',
       info.indexOf(PREFIX + ' Tag "Blonde (10)" saved to Scene "Scene One (1)"') !== -1 &&
       info.indexOf(PREFIX + ' Tag "Tattoo (11)" saved to Scene "Scene One (1)"') !== -1,
@@ -150,9 +183,10 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     await stashPerformerSave(ctx, 7);
     await H.flush(120);
     H.check('the failing scene is not logged',
-      info.join(' ').indexOf('Fails') === -1, info.join(' | '));
+      merges(info).join(' ').indexOf('Fails') === -1, info.join(' | '));
     H.check('the scene that did save still is',
-      info.length === 1 && info[0].indexOf('Scene "Works (2)"') !== -1, info.join(' | '));
+      merges(info).length === 1 && merges(info)[0].indexOf('Scene "Works (2)"') !== -1,
+      info.join(' | '));
   }
 
   // ── staging reports "staged", not "saved" ──────────────────────────────────
@@ -202,9 +236,10 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     clicks[clicks.length - 1]({
       preventDefault() {}, currentTarget: { textContent: 'Add Perf Tags', disabled: false } });
     await H.flush(60);
-    H.check('staging logs one line for the staged tag', info.length === 1, info.join(' | '));
+    H.check('staging logs one line for the staged tag', merges(info).length === 1, info.join(' | '));
     H.check('and calls the action "staged"',
-      info[0] === PREFIX + ' Tag "Tattoo (11)" staged to Scene "Staged Scene (1)"', info[0]);
+      merges(info)[0] === PREFIX + ' Tag "Tattoo (11)" staged to Scene "Staged Scene (1)"',
+      info.join(' | '));
   }
 
   H.finish();

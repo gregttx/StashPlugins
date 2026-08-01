@@ -147,6 +147,23 @@
     return (name || 'untitled') + ' (' + (scene.id || sceneId) + ')';
   }
 
+  function logInfo(msg) {
+    var log = console.info || console.log;
+    if (log) log.call(console, '[' + PLUGIN_ID + '] ' + msg);
+  }
+
+  // Announced once when the setting is seen on, and again if it is switched off and
+  // back on. Without it there is no way to tell "logging is not working" apart from
+  // "nothing has been merged yet" — the log is silent in both cases, and merging
+  // nothing is the normal outcome of a scene that already has all its performer tags.
+  var _loggingAnnounced = false;
+  function announceLogging() {
+    if (!settings.logMergesToConsole) { _loggingAnnounced = false; return; }
+    if (_loggingAnnounced) return;
+    _loggingAnnounced = true;
+    logInfo('merge logging enabled — one line will appear here per tag merged into a scene');
+  }
+
   // One line per tag, at info level. Callers log only once the change is real: after
   // the mutation resolves when saving, after the form takes the tags when staging.
   //
@@ -155,11 +172,9 @@
   function logMerges(tags, scene, sceneId, action) {
     if (!settings.logMergesToConsole) return;
     var label = sceneLogLabel(scene, sceneId);
-    var log = console.info || console.log;
-    if (!log) return;
     tags.forEach(function (t) {
-      log.call(console, '[' + PLUGIN_ID + '] Tag "' + (t.name || 'unnamed') + ' (' + t.id +
-        ')" ' + action + ' to Scene "' + label + '"');
+      logInfo('Tag "' + (t.name || 'unnamed') + ' (' + t.id + ')" ' +
+        action + ' to Scene "' + label + '"');
     });
   }
 
@@ -547,6 +562,7 @@
         settings.excludeTagWithCustomFieldName  = ps.excludeTagWithCustomFieldName || '';
         settings.saveTagsImmediately            = !!ps.saveTagsImmediately;
         settings.logMergesToConsole             = !!ps.logMergesToConsole;
+        announceLogging();
       })
       .catch(function () {})
       // Stamped on completion as well as on dispatch, so the throttle window starts

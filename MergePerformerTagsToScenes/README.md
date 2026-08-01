@@ -44,12 +44,20 @@ Enable **Log Tag merges to the Console (Info level)** to have every tag the plug
 [MergePerformerTagsToScenes] Tag "Tattoo (17)" staged to Scene "My Scene (345)"
 ```
 
+As soon as the plugin picks the setting up it says so once, so you can tell it is running before anything has been merged:
+
+```
+[MergePerformerTagsToScenes] merge logging enabled — one line will appear here per tag merged into a scene
+```
+
+If you tick the setting and that line never appears, the plugin itself is not seeing it: the browser is most likely still running an older copy of the plugin's JavaScript (reload plugins in Stash, then hard-refresh with Ctrl+Shift+R), or the console's level filter is hiding **Info** messages.
+
 The action tells you where the tag went:
 
 - **saved** — the tag was written to the scene. This covers the performer-page button, both auto-merge modes, and the scene button when **Save Tags Immediately** is on.
 - **staged** — the tag was only put into the open edit form's tag box, and is not saved until you press Stash's **Save** button.
 
-Only tags that actually changed something are logged: a tag the scene already carried, a scene skipped by an exclusion filter, and a scene whose update failed all produce no line (failures are reported separately as errors). Scenes without a title are named by their file name.
+Only tags that actually changed something are logged: a tag the scene already carried, a scene skipped by an exclusion filter, and a scene whose update failed all produce no line (failures are reported separately as errors). A merge that had nothing to do is therefore silent — which is why the banner above exists. Scenes without a title are named by their file name.
 
 This setting is independent of everything else — it does not change what gets merged, only what is reported. The extra fields the log line needs (tag names, scene titles) are requested from Stash only while it is enabled.
 

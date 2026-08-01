@@ -35,14 +35,16 @@ Four optional exclusion filters in settings let you protect certain scenes or ta
 - **Exclude Tags set to Ignore auto tag** — performer tags that have "Ignore auto tag" enabled in their tag settings are not copied into scenes.
 - **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags carrying that custom field are not copied into scenes. **Only the presence of the field matters** — the value is never looked at, so any value at all (including a blank one) excludes the tag. To have a tag merged again, remove the field from it rather than trying to set it to something falsy.
 
-## Logging merges to the console
+## Logging merges to the browser console
 
-Enable **Log Tag merges to the Console (Info level)** to have every tag the plugin adds reported in the browser console (F12 → Console), one line per tag and scene, at `info` level:
+Enable **Log Tag merges to the Browser Console (Info level)** to have every tag the plugin adds reported, one line per tag and scene, at `info` level:
 
 ```
 [MergePerformerTagsToScenes] Tag "Blonde (12)" saved to Scene "My Scene (345)"
 [MergePerformerTagsToScenes] Tag "Tattoo (17)" staged to Scene "My Scene (345)"
 ```
+
+**These lines go to your browser's own JavaScript console — not to Stash.** Open it with **F12** (or Ctrl+Shift+J / Cmd+Option+J) and pick the **Console** tab. This plugin runs entirely in the browser, so it has no way to write to the Stash server console or the **Settings → Logs** page; nothing will ever appear in either of those.
 
 As soon as the plugin picks the setting up it says so once, so you can tell it is running before anything has been merged:
 
@@ -50,7 +52,7 @@ As soon as the plugin picks the setting up it says so once, so you can tell it i
 [MergePerformerTagsToScenes] merge logging enabled — one line will appear here per tag merged into a scene
 ```
 
-If you tick the setting and that line never appears, the plugin itself is not seeing it: the browser is most likely still running an older copy of the plugin's JavaScript (reload plugins in Stash, then hard-refresh with Ctrl+Shift+R), or the console's level filter is hiding **Info** messages.
+If you tick the setting and that line never appears, check in this order: you are looking at the browser's console rather than the Stash log; the console's level filter is not hiding **Info** messages (Chrome collapses them under "Verbose"/"Info" in the level dropdown); and the browser is not still running an older copy of the plugin's JavaScript (reload plugins in Stash, then hard-refresh with Ctrl+Shift+R).
 
 The action tells you where the tag went:
 

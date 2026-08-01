@@ -5,9 +5,10 @@ metadata:
     Supports manual buttons (off by default) on performer and scene pages, auto-merge
     on save (off by default), and exclusion filters for organized scenes, tagged scenes,
     ignored tags, and tags marked via a custom field. The scene button stages tags
-    in the edit form for review by default.
-version: 0.8.9
-date: "2026-07-31 00:00:00"
+    in the edit form for review by default. Merges can optionally be logged to the
+    browser console.
+version: 0.9.0
+date: "2026-08-01 00:00:00"
 requires: []
 files:
 - MergePerformerTagsToScenes.js

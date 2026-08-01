@@ -18,6 +18,7 @@
     excludeSceneWithTagName: '',
     excludeTagWithIgnoreAutoTag: false,
     excludeTagWithCustomFieldName: '',
+    logMergesToConsole: false,
     // Inverted on purpose. Stash has no default value for plugin settings and renders
     // an unset BOOLEAN as unchecked, so the behaviour we want by default has to be the
     // one that "off" selects — otherwise the box would read off while acting on, and
@@ -118,8 +119,48 @@
     var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
     var fields = 'id ignore_auto_tag';
     if (cfName) fields += ' custom_fields';
-    if (withDisplay) fields += ' name aliases image_path';
+    // The log line names the tag, so the name comes along for that too.
+    if (withDisplay || settings.logMergesToConsole) fields += ' name';
+    if (withDisplay) fields += ' aliases image_path';
     return fields;
+  }
+
+  // ── Merge logging (logMergesToConsole) ────────────────────────────────────
+
+  // Scene fields the log line needs, spliced into whichever scene query is about to
+  // run. Requested only when logging is on: on the performer path these ride along
+  // with every scene of the performer, so they are pure weight otherwise.
+  function sceneLogFields() {
+    return settings.logMergesToConsole ? ' title files { basename }' : '';
+  }
+
+  // A scene's title is optional in Stash, so fall back to the file name the way its
+  // own UI does rather than logging an empty pair of quotes. sceneId is passed
+  // separately because the single-scene queries look the scene up by id and do not
+  // ask for it back.
+  function sceneLogLabel(scene, sceneId) {
+    var name = scene.title;
+    if (!name) {
+      var files = scene.files || [];
+      if (files.length) name = files[0].basename;
+    }
+    return (name || 'untitled') + ' (' + (scene.id || sceneId) + ')';
+  }
+
+  // One line per tag, at info level. Callers log only once the change is real: after
+  // the mutation resolves when saving, after the form takes the tags when staging.
+  //
+  // action is 'staged' or 'saved'. Names can be missing if logging was switched on
+  // between the query being built and this call, hence the fallback.
+  function logMerges(tags, scene, sceneId, action) {
+    if (!settings.logMergesToConsole) return;
+    var label = sceneLogLabel(scene, sceneId);
+    var log = console.info || console.log;
+    if (!log) return;
+    tags.forEach(function (t) {
+      log.call(console, '[' + PLUGIN_ID + '] Tag "' + (t.name || 'unnamed') + ' (' + t.id +
+        ')" ' + action + ' to Scene "' + label + '"');
+    });
   }
 
   // Resolves the tag ID for excludeSceneWithTagName. Both hits and misses are cached
@@ -193,7 +234,8 @@
     return resolveExclusionTagId().then(function (exclTagId) {
       return gqlRequest(
         'query FindScene($id: ID!) {' +
-        '  findScene(id: $id) { organized tags { id } performers { tags { ' + tagFields() + ' } } }' +
+        '  findScene(id: $id) { organized' + sceneLogFields() +
+        ' tags { id } performers { tags { ' + tagFields() + ' } } }' +
         '}',
         { id: sceneId }
       ).then(function (data) {
@@ -207,21 +249,26 @@
         }
         var performers = scene.performers || [];
         if (!performers.length) return false;
-        var perfTagSet = {};
+        // Keyed by id to dedupe performers sharing a tag; the tag itself is kept as
+        // the value so the log line can name what was merged.
+        var perfTagById = {};
         var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
         performers.forEach(function (p) {
           (p.tags || []).forEach(function (t) {
-            if (tagIsMergeable(t, exclTagId, cfName)) perfTagSet[t.id] = true;
+            if (tagIsMergeable(t, exclTagId, cfName)) perfTagById[t.id] = t;
           });
         });
-        var perfTagIds = Object.keys(perfTagSet);
+        var perfTagIds = Object.keys(perfTagById);
         if (!perfTagIds.length) return false;
         var existingIds = (scene.tags || []).map(function (t) { return t.id; });
         var existingSet = {};
         existingIds.forEach(function (id) { existingSet[id] = true; });
         var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
         if (!missing.length) return false;
-        return updateSceneTags(sceneId, existingIds.concat(missing)).then(function () { return true; });
+        return updateSceneTags(sceneId, existingIds.concat(missing)).then(function () {
+          logMerges(missing.map(function (id) { return perfTagById[id]; }), scene, sceneId, 'saved');
+          return true;
+        });
       });
     });
   }
@@ -307,8 +354,8 @@
       return resolveExclusionTagId().then(function (exclTagId) {
         return gqlRequest(
           'query FindSceneForStaging($id: ID!) {' +
-          '  findScene(id: $id) { organized tags { id } performers { tags { ' +
-          tagFields(true) + ' } } }' +
+          '  findScene(id: $id) { organized' + sceneLogFields() +
+          ' tags { id } performers { tags { ' + tagFields(true) + ' } } }' +
           '}',
           { id: sceneId }
         ).then(function (data) {
@@ -362,6 +409,7 @@
 
           var next = current.concat(added);
           control.props.onSelect(next);
+          logMerges(added, scene, sceneId, 'staged');
           // Record the new contents immediately. React will re-render and capture the
           // control again, but this keeps the count correct even if it does not.
           control.values = next;
@@ -385,14 +433,18 @@
         var performer = data.findPerformer;
         if (!performer) return;
         var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
-        var perfTagIds = (performer.tags || []).filter(function (t) {
+        var perfTags = (performer.tags || []).filter(function (t) {
           return tagIsMergeable(t, exclTagId, cfName);
-        }).map(function (t) { return t.id; });
+        });
+        var perfTagIds = perfTags.map(function (t) { return t.id; });
         if (!perfTagIds.length) return;
+        var perfTagById = {};
+        perfTags.forEach(function (t) { perfTagById[t.id] = t; });
 
         return gqlRequest(
           'query FindPerformerScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {' +
-          '  findScenes(filter: $filter, scene_filter: $scene_filter) { scenes { id organized tags { id } } }' +
+          '  findScenes(filter: $filter, scene_filter: $scene_filter) { scenes { id organized' +
+          sceneLogFields() + ' tags { id } } }' +
           '}',
           {
             filter: { per_page: -1 },
@@ -425,6 +477,7 @@
               var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
               if (!missing.length) continue;
               return updateSceneTags(scene.id, existingIds.concat(missing))
+                .then(makeSceneLogger(scene, missing))
                 .catch(makeSceneFailureHandler(scene))
                 .then(next);
             }
@@ -436,12 +489,21 @@
             }
           }
 
-          // Built outside the loop so the handler closes over this scene rather than
+          // Built outside the loop so the handlers close over this scene rather than
           // over the loop's shared `var`.
           function makeSceneFailureHandler(scene) {
             return function (e) {
               failed++;
               console.error('[cpt2s] scene ' + scene.id + ' update failed:', e);
+            };
+          }
+
+          // Chained ahead of the failure handler, so a scene that could not be updated
+          // is never logged as merged.
+          function makeSceneLogger(scene, mergedIds) {
+            return function () {
+              logMerges(mergedIds.map(function (id) { return perfTagById[id]; }),
+                scene, scene.id, 'saved');
             };
           }
 
@@ -484,6 +546,7 @@
         settings.excludeTagWithIgnoreAutoTag    = !!ps.excludeTagWithIgnoreAutoTag;
         settings.excludeTagWithCustomFieldName  = ps.excludeTagWithCustomFieldName || '';
         settings.saveTagsImmediately            = !!ps.saveTagsImmediately;
+        settings.logMergesToConsole             = !!ps.logMergesToConsole;
       })
       .catch(function () {})
       // Stamped on completion as well as on dispatch, so the throttle window starts

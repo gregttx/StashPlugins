@@ -48,6 +48,7 @@ SRC=/tmp/old-version.js node tests/merge-logic.test.js
 | --- | --- |
 | `merge-logic.test.js` | Fetch interception and the merge core: re-entrancy guarding, exclusion-tag lookup paging, gating auto-merge on the triggering mutation actually succeeding, per-scene error isolation, custom-field exclusion (including prototype keys), and not propagating the exclusion tag itself. |
 | `placement.test.js` | Where the performer button is injected. Reproduces Stash's two `.details-edit` containers — `DetailsEditNavbar` in the detail view, the edit form's own container while editing — and asserts the button appears only in the former, immediately before Delete, including when Delete is nested in a wrapper. Needs `jsdom`. |
+| `logging.test.js` | `logMergesToConsole`: the exact log-line format, "saved" versus "staged", one line per tag actually merged (not per tag considered), the scene-title fallback to the file name, that a failed scene update is not logged as merged, and that the fields the line needs are only queried while the setting is on. |
 | `staging.test.js` | `saveTagsImmediately` and the tag-staging path. Fakes `PluginApi` and mirrors Stash's `useTagsEdit` wiring to check that staging updates both the visible chips and formik (so Save enables), issues no mutation, diffs against the tag box rather than the saved scene, picks the right `TagSelect` among several, and falls back to saving where `PluginApi` is unavailable. |
 
 ## What they do not cover

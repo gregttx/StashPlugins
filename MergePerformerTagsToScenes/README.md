@@ -35,6 +35,24 @@ Four optional exclusion filters in settings let you protect certain scenes or ta
 - **Exclude Tags set to Ignore auto tag** — performer tags that have "Ignore auto tag" enabled in their tag settings are not copied into scenes.
 - **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags carrying that custom field are not copied into scenes. **Only the presence of the field matters** — the value is never looked at, so any value at all (including a blank one) excludes the tag. To have a tag merged again, remove the field from it rather than trying to set it to something falsy.
 
+## Logging merges to the console
+
+Enable **Log Tag merges to the Console (Info level)** to have every tag the plugin adds reported in the browser console (F12 → Console), one line per tag and scene, at `info` level:
+
+```
+[MergePerformerTagsToScenes] Tag "Blonde (12)" saved to Scene "My Scene (345)"
+[MergePerformerTagsToScenes] Tag "Tattoo (17)" staged to Scene "My Scene (345)"
+```
+
+The action tells you where the tag went:
+
+- **saved** — the tag was written to the scene. This covers the performer-page button, both auto-merge modes, and the scene button when **Save Tags Immediately** is on.
+- **staged** — the tag was only put into the open edit form's tag box, and is not saved until you press Stash's **Save** button.
+
+Only tags that actually changed something are logged: a tag the scene already carried, a scene skipped by an exclusion filter, and a scene whose update failed all produce no line (failures are reported separately as errors). Scenes without a title are named by their file name.
+
+This setting is independent of everything else — it does not change what gets merged, only what is reported. The extra fields the log line needs (tag names, scene titles) are requested from Stash only while it is enabled.
+
 ## How it works
 
 This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.
@@ -78,6 +96,7 @@ The two buttons appear in different places, because each one sits where the cont
 - When staging, the exclusion filters still apply, so an excluded scene reports "Scene excluded" and stages nothing. The tags to add are diffed against what is currently in the tag box rather than what is on the server, so tags you have added or removed by hand before clicking are preserved.
 - Staging works by observing Stash's tag control through the UI plugin API. The plugin picks the most recently rendered control whose contents match what it expects the scene's tag box to hold — the scene's saved tags to begin with, then whatever it last staged there. If it cannot identify a control it reports an error rather than writing tags into the wrong one.
 - Clicking the button again without saving reports "No changes", because the count is measured against the tag box as it stands, not against the saved scene.
+- Console logging reports a staged tag as soon as it lands in the tag box, not when you save. If you then remove it, or press Cancel, the line has already been logged — "staged" means exactly that, and nothing more.
 - Stash uses the same container class for the performer detail view's Edit/Delete bar and for the performer edit form, so the plugin identifies the detail view by its Delete button. If a future Stash release changes that markup, the performer button will simply not appear rather than showing up in the wrong place.
 - While a merge is running, auto-merge ignores other edits saved in the meantime; this is what stops the plugin from reacting to its own updates.
 - A merge submits the scene's tags as a complete list, so a tag edit made in another tab at the same time can be overwritten — exactly as it would be if you saved the same scene from two Stash tabs at once. For the same reason the plugin does not try to keep data fresh across tabs: whether a performer's button appears, and what the scene page shows just after a merge, reflect what was loaded rather than what another tab has since changed. Reload the page if you have been editing the same scene or performer elsewhere.

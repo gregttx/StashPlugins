@@ -1,6 +1,6 @@
 name: Merge Performer Tags To Scenes
-description: "Requires Stash 0.31.0 or newer. Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, ignored tags, and tags marked via a custom field. The scene button stages tags in the edit form for review by default."
-version: 0.8.9
+description: "Requires Stash 0.31.0 or newer. Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, ignored tags, and tags marked via a custom field. The scene button stages tags in the edit form for review by default. Merges can optionally be logged to the browser console."
+version: 0.9.0
 ui:
   javascript:
     - MergePerformerTagsToScenes.js
@@ -37,3 +37,7 @@ settings:
     displayName: Exclude Tags marked via a Custom Field
     description: Do not merge a performer tag to scenes if the tag has this custom field. Only the presence of the field matters - its value is ignored, so any value at all excludes the tag. Remove the field from a tag to have it merged again.
     type: STRING
+  logMergesToConsole:
+    displayName: Log Tag merges to the Console (Info level)
+    description: Logs each performer tag merges to the console
+    type: BOOLEAN

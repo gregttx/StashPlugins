@@ -8,7 +8,7 @@ metadata:
     in the edit form for review by default. Merges can optionally be logged to the
     browser's JavaScript console (F12 - Console); being a UI plugin, it cannot write
     to the Stash server log or the Logs page.
-version: 0.9.4
+version: 0.9.5
 date: "2026-08-01 00:00:00"
 requires: []
 files:

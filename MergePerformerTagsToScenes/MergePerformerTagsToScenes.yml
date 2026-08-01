@@ -1,6 +1,6 @@
 name: Merge Performer Tags To Scenes
 description: "Requires Stash 0.31.0 or newer. Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, ignored tags, and tags marked via a custom field. The scene button stages tags in the edit form for review by default. Merges can optionally be logged to the browser's JavaScript console (F12 - Console); being a UI plugin, it cannot write to the Stash server log or the Logs page."
-version: 0.9.4
+version: 0.9.5
 ui:
   javascript:
     - MergePerformerTagsToScenes.js

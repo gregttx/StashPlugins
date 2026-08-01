@@ -14,6 +14,8 @@ Two optional auto-merge modes can also be enabled in the same settings panel:
 - **Auto Merge On Scene Updates** — whenever a scene is saved, its performer tags are merged in automatically.
 - **Auto Merge On Performer Updates** — whenever a performer is saved, their tags are merged into all of their scenes automatically.
 
+Whichever way tags get merged, every merge can optionally be logged to your browser's JavaScript console (F12 → Console) — see [Logging merges to the browser console](#logging-merges-to-the-browser-console). Being a UI plugin, it cannot write to the Stash server log or the **Settings → Logs** page.
+
 ## Review before saving in Scene Edit tab manual merge
 
 **"Add Perf Tags"** stops short of saving by default. The performer tags are dropped into the scene's own tag box, Stash's **Save** button lights up, and nothing is written until you press it. You can remove any tag you don't want first, and Cancel discards the lot.

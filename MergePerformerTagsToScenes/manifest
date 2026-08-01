@@ -6,8 +6,9 @@ metadata:
     on save (off by default), and exclusion filters for organized scenes, tagged scenes,
     ignored tags, and tags marked via a custom field. The scene button stages tags
     in the edit form for review by default. Merges can optionally be logged to the
-    browser console.
-version: 0.9.3
+    browser's JavaScript console (F12 - Console); being a UI plugin, it cannot write
+    to the Stash server log or the Logs page.
+version: 0.9.4
 date: "2026-08-01 00:00:00"
 requires: []
 files:

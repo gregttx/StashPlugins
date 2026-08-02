@@ -26,6 +26,45 @@
     saveTagsImmediately: false,
   };
 
+  // ── Cross-plugin cooperation ──────────────────────────────────────────────
+  //
+  // See "Cross-plugin cooperation: the bulk-edit lease" in the repo-root CLAUDE.md.
+  // Another plugin rewriting many entities on purpose (NormalizeParentTags) takes a
+  // lease for the duration of its writes; auto-merge stands down while one is held,
+  // because those writes look exactly like user edits from in here and reacting to
+  // them undoes the other plugin's work as fast as it lands.
+  //
+  // Manual button clicks are never suppressed: the user asked for those directly.
+  function coop() {
+    var c = window.StashPluginCoop;
+    if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
+    if (!c.leases) c.leases = [];
+    if (!c.respecters) c.respecters = {};
+    return c;
+  }
+
+  // Registered at load so a bulk plugin can tell "will stand down" apart from "too
+  // old to know about leases" and warn the user accordingly.
+  coop().respecters[PLUGIN_ID] = true;
+
+  var _standDownAnnounced = false;
+  function autoMergeSuppressed() {
+    var c = coop();
+    var now = Date.now();
+    // Expired leases are dropped rather than honoured: a tab that crashes mid-run
+    // must not leave auto-merge disabled until the next page reload.
+    for (var i = c.leases.length - 1; i >= 0; i--) {
+      if (!c.leases[i] || !(c.leases[i].until > now)) c.leases.splice(i, 1);
+    }
+    if (!c.leases.length) { _standDownAnnounced = false; return false; }
+    if (!_standDownAnnounced) {
+      _standDownAnnounced = true;
+      console.info('[cpt2s] auto-merge is standing down while ' + c.leases[0].owner +
+        ' applies bulk changes (' + c.leases[0].label + ')');
+    }
+    return true;
+  }
+
   // Staging is the default, but it needs PluginApi. Where that is missing the button
   // falls back to merging and saving, because the user never opted into review — they
   // just get the behaviour their Stash can support.
@@ -607,7 +646,7 @@
       var q = parsed.query || '';
       var vars = parsed.variables || {};
 
-      if (settings.autoMergeOnSceneUpdate && /\bbulkSceneUpdate\b/.test(q)) {
+      if (settings.autoMergeOnSceneUpdate && /\bbulkSceneUpdate\b/.test(q) && !autoMergeSuppressed()) {
         var bulkSceneIds = vars.input && vars.input.ids;
         if (bulkSceneIds && bulkSceneIds.length) {
           mutationSucceeded(p).then(function (ok) {
@@ -628,7 +667,7 @@
         }
       }
 
-      if (settings.autoMergeOnSceneUpdate && /\bsceneUpdate\b/.test(q)) {
+      if (settings.autoMergeOnSceneUpdate && /\bsceneUpdate\b/.test(q) && !autoMergeSuppressed()) {
         var sceneId = vars.input && vars.input.id;
         if (sceneId) {
           mutationSucceeded(p).then(function (ok) {
@@ -642,7 +681,7 @@
         }
       }
 
-      if (settings.autoMergeOnPerformerUpdate && /\bperformerUpdate\b/.test(q)) {
+      if (settings.autoMergeOnPerformerUpdate && /\bperformerUpdate\b/.test(q) && !autoMergeSuppressed()) {
         var performerId = vars.input && vars.input.id;
         if (performerId) {
           mutationSucceeded(p).then(function (ok) {
@@ -654,7 +693,7 @@
         }
       }
 
-      if (settings.autoMergeOnPerformerUpdate && /\bbulkPerformerUpdate\b/.test(q)) {
+      if (settings.autoMergeOnPerformerUpdate && /\bbulkPerformerUpdate\b/.test(q) && !autoMergeSuppressed()) {
         var performerIds = vars.input && vars.input.ids;
         if (performerIds && performerIds.length) {
           mutationSucceeded(p).then(function (ok) {

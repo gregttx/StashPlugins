@@ -65,6 +65,26 @@ Only tags that actually changed something are logged: a tag the scene already ca
 
 This setting is independent of everything else — it does not change what gets merged, only what is reported. The extra fields the log line needs (tag names, scene titles) are requested from Stash only while it is enabled.
 
+## Working alongside Normalize Parent Tags
+
+Auto-merge reacts to *any* scene or performer save it sees, including saves made by another
+plugin. **Normalize Parent Tags** rewrites tags across the whole library, so without cooperation
+auto-merge would merge performer tags — parents included — straight back into everything it had
+just changed.
+
+Since 1.1.0 the two cooperate. While Normalize Parent Tags is applying changes it takes a
+short-lived, self-expiring claim that this plugin honours: **auto-merge stands down for the
+duration and resumes as soon as the apply finishes**, including if it fails or is stopped. One
+line is written to the browser console when it happens:
+
+```
+[cpt2s] auto-merge is standing down while NormalizeParentTags applies bulk changes (Prune Parent Tags from Entities)
+```
+
+Nothing is changed in your settings, other browser tabs are unaffected, and **manual button
+clicks are never suppressed** — you asked for those directly. If the other plugin's tab crashes
+mid-run, the claim expires on its own rather than leaving auto-merge disabled until a reload.
+
 ## How it works
 
 This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.

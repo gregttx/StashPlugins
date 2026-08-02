@@ -23,7 +23,8 @@ Everything else is plain Node with no dependencies.
 ## How it works
 
 The plugins are ES5 IIFEs with no exports, so there is nothing to `require`. Instead
-`harness.js` evaluates the plugin inside a `vm` context holding a hand-rolled browser
+`harness.js` (and `npt-harness.js`, which fakes enough DOM for a plugin that builds a
+whole dialog) evaluates the plugin inside a `vm` context holding a hand-rolled browser
 — `window`, `document`, `fetch`, `sessionStorage`, `MutationObserver` — and the tests
 drive it the way a browser would: by answering its GraphQL requests and by calling the
 event handlers it attaches. Assertions are a `check(name, condition)` helper; there is
@@ -49,6 +50,10 @@ SRC=/tmp/old-version.js node tests/merge-logic.test.js
 | `merge-logic.test.js` | Fetch interception and the merge core: re-entrancy guarding, exclusion-tag lookup paging, gating auto-merge on the triggering mutation actually succeeding, per-scene error isolation, custom-field exclusion (including prototype keys), and not propagating the exclusion tag itself. |
 | `placement.test.js` | Where the performer button is injected. Reproduces Stash's two `.details-edit` containers — `DetailsEditNavbar` in the detail view, the edit form's own container while editing — and asserts the button appears only in the former, immediately before Delete, including when Delete is nested in a wrapper. Needs `jsdom`. |
 | `logging.test.js` | `logMergesToConsole`: the one-time "logging enabled" banner (emitted once, never repeated by the 10s settings refresh), the exact log-line format, "saved" versus "staged", one line per tag actually merged (not per tag considered), the scene-title fallback to the file name, that a failed scene update is not logged as merged, and that the fields the line needs are only queried while the setting is on. |
+| `normalize-plan.test.js` | `NormalizeParentTags` phase 1: the ancestor closure (chains, diamonds, intermediate tags whose children are absent), roll-up, every exclusion filter in both directions, marker primary tags, a planted cycle terminating with an error instead of emptying the entity, processing order, and the shape of the queries. |
+| `normalize-apply.test.js` | `NormalizeParentTags` phase 2: nothing written before Proceed, identical changes grouped and chunked at 100 ids, delta writes rather than a rewritten tag list, failed-request isolation, the bulk-edit lease held for exactly the writes and released on every path, sibling detection, the log render cap versus Copy log, and Rescan. |
+| `normalize-tasks.test.js` | `NormalizeParentTags` task interception: the capture-phase click (including leaving another plugin's same-named task alone) and the `runPluginTask` backstop, which must answer without reaching the server. |
+| `coop.test.js` | The bulk-edit lease from the reactive side: `MergePerformerTagsToScenes` registering itself, standing down while a lease is held, resuming on release, and ignoring an expired one. |
 | `staging.test.js` | `saveTagsImmediately` and the tag-staging path. Fakes `PluginApi` and mirrors Stash's `useTagsEdit` wiring to check that staging updates both the visible chips and formik (so Save enables), issues no mutation, diffs against the tag box rather than the saved scene, picks the right `TagSelect` among several, and falls back to saving where `PluginApi` is unavailable. |
 
 ## What they do not cover

@@ -40,6 +40,52 @@ All Stash data access goes through `POST /graphql`. The helper `gqlRequest(query
 
 The plugins have no build step, no bundler, and no runtime dependencies. A plugin folder is installed by copying it as-is.
 
+## Cross-plugin cooperation: the bulk-edit lease
+
+Two kinds of plugin in this repo collide by design. **Reactive** plugins watch `window.fetch` for
+Stash's own mutations and act on them (`MergePerformerTagsToScenes` auto-merge). **Bulk** plugins
+rewrite many entities on purpose (`NormalizeParentTags` phase 2). A bulk plugin's writes look
+exactly like user edits, so the reactive plugin fires on every one of them — often undoing the
+bulk plugin's work as fast as it lands.
+
+Every plugin loaded into a Stash page shares one `window`, which is enough for a handshake. A bulk
+plugin takes a **lease** for the duration of its writes; a reactive plugin checks for a lease
+before acting, and stands down while one is held.
+
+```js
+// Shared object, created by whichever plugin loads first. Both roles call this.
+function coop() {
+  var c = window.StashPluginCoop;
+  if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
+  if (!c.leases) c.leases = [];          // [{ owner, label, until }]
+  if (!c.respecters) c.respecters = {};  // { pluginId: true }
+  return c;
+}
+```
+
+**Bulk side** — `acquire(owner, label, ttlMs)` pushes a lease and returns a handle with `renew()`
+and `release()`. Renew per batch rather than taking one long lease; release in a `finally` so an
+error, a failed batch or a user Stop cannot leave it latched.
+
+**Reactive side** — register once at load (`coop().respecters[PLUGIN_ID] = true`), and before
+reacting, drop leases whose `until` has passed and skip if any remain. Registering is what lets a
+bulk plugin tell "the sibling will stand down" from "the sibling is too old to know", so it can
+warn the user accordingly.
+
+Rules that make this safe:
+
+- **Advisory, never assumed.** A plugin older than the protocol, or one nobody has heard of, will
+  ignore the lease. The bulk plugin still needs its fallbacks (ordering, a rescan, a warning).
+- **Always expiring.** A tab that crashes mid-run must not disable a reactive plugin until the
+  next reload, so a lease is only honoured until `until`.
+- **Per tab**, like the reactive plugins themselves. Another tab is unaffected, which is correct:
+  its `fetch` never sees these writes.
+- **Not a re-entrancy guard.** A plugin suppressing reactions to *its own* writes (the
+  `_mergeDepth` counter in `MergePerformerTagsToScenes`) is a separate, internal mechanism. Leases
+  are about *other* plugins.
+- **UI plugins only.** A server-side `hooks:` plugin runs in the Stash process, never sees this
+  `window`, and cannot be leased against. Do not let documentation imply otherwise.
+
 ## Tests
 
 `node tests/run.js` (or `npm test`) runs the suites in `tests/`. They evaluate a plugin inside a `vm` context holding a hand-rolled browser and drive it by answering its GraphQL requests — see `tests/README.md`.

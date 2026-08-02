@@ -42,31 +42,31 @@
   // scenes, images, galleries and studios. Flipping one entry here is all it takes
   // if a later Stash adds it elsewhere.
   var TYPES = [
-    { key: 'performers', setting: 'enablePerformers', label: 'Performer', plural: 'Performers',
+    { key: 'performers', setting: 'a1EnablePerformers', label: 'Performer', plural: 'Performers',
       find: 'findPerformers', node: 'performers',
       bulk: 'bulkPerformerUpdate', bulkInput: 'BulkPerformerUpdateInput',
       organized: false, fields: 'id name' },
-    { key: 'studios', setting: 'enableStudios', label: 'Studio', plural: 'Studios',
+    { key: 'studios', setting: 'a2EnableStudios', label: 'Studio', plural: 'Studios',
       find: 'findStudios', node: 'studios',
       bulk: 'bulkStudioUpdate', bulkInput: 'BulkStudioUpdateInput',
       organized: true, fields: 'id name' },
-    { key: 'groups', setting: 'enableGroups', label: 'Group', plural: 'Groups',
+    { key: 'groups', setting: 'a3EnableGroups', label: 'Group', plural: 'Groups',
       find: 'findGroups', node: 'groups',
       bulk: 'bulkGroupUpdate', bulkInput: 'BulkGroupUpdateInput',
       organized: false, fields: 'id name' },
-    { key: 'galleries', setting: 'enableGalleries', label: 'Gallery', plural: 'Galleries',
+    { key: 'galleries', setting: 'a4EnableGalleries', label: 'Gallery', plural: 'Galleries',
       find: 'findGalleries', node: 'galleries',
       bulk: 'bulkGalleryUpdate', bulkInput: 'BulkGalleryUpdateInput',
       organized: true, fields: 'id title' },
-    { key: 'scenes', setting: 'enableScenes', label: 'Scene', plural: 'Scenes',
+    { key: 'scenes', setting: 'a5EnableScenes', label: 'Scene', plural: 'Scenes',
       find: 'findScenes', node: 'scenes',
       bulk: 'bulkSceneUpdate', bulkInput: 'BulkSceneUpdateInput',
       organized: true, fields: 'id title files { basename }' },
-    { key: 'images', setting: 'enableImages', label: 'Image', plural: 'Images',
+    { key: 'images', setting: 'a6EnableImages', label: 'Image', plural: 'Images',
       find: 'findImages', node: 'images',
       bulk: 'bulkImageUpdate', bulkInput: 'BulkImageUpdateInput',
       organized: true, fields: 'id title', pageSize: 500 },
-    { key: 'markers', setting: 'enableMarkers', label: 'Scene Marker', plural: 'Scene Markers',
+    { key: 'markers', setting: 'a7EnableMarkers', label: 'Scene Marker', plural: 'Scene Markers',
       find: 'findSceneMarkers', node: 'scene_markers',
       bulk: 'bulkSceneMarkerUpdate', bulkInput: 'BulkSceneMarkerUpdateInput',
       organized: false, fields: 'id title primary_tag { id name }' },
@@ -122,17 +122,29 @@
   // Read once at the start of each run. `configuration { plugins }` cannot be
   // scoped to one plugin, so the sibling's settings arrive in the same response -
   // which is exactly what the "will it fight us" check below needs.
+  //
+  // The a1/b2/c3 prefixes are the only way to control the order Stash renders the
+  // settings in: `settings:` is a YAML map, so the manifest's order is lost and
+  // what the page shows is the keys sorted alphabetically. The prefixes buy the
+  // grouping the user reads top to bottom - entity types in processing order,
+  // then entity-level exclusions, then the tag filters in add/remove pairs. Keys
+  // are never shown in the UI, but they *are* the storage key, so renaming one
+  // orphans whatever the user had configured under the old name.
   var DEFAULTS = {
-    enableScenes: false, enableImages: false, enableGalleries: false,
-    enablePerformers: false, enableGroups: false, enableStudios: false,
-    enableMarkers: false,
-    excludeOrganized: false,
-    excludeEntityWithTagName: '',
-    excludeTagWithIgnoreAutoTag: false,
-    excludeAddTagWithCustomFieldName: '',
-    excludeRemoveTagWithCustomFieldName: '',
-    excludeAddTagNameContains: '',
-    excludeRemoveTagNameContains: '',
+    a1EnablePerformers: false,
+    a2EnableStudios: false,
+    a3EnableGroups: false,
+    a4EnableGalleries: false,
+    a5EnableScenes: false,
+    a6EnableImages: false,
+    a7EnableMarkers: false,
+    b1ExcludeEntityWithTagName: '',
+    b2ExcludeOrganized: false,
+    c1ExcludeTagWithIgnoreAutoTag: false,
+    c2ExcludeAddTagNameContains: '',
+    c3ExcludeRemoveTagNameContains: '',
+    c4ExcludeAddTagWithCustomFieldName: '',
+    c5ExcludeRemoveTagWithCustomFieldName: '',
   };
 
   function loadSettings() {
@@ -152,8 +164,8 @@
 
   function tagQuery(settings) {
     var fields = 'id name ignore_auto_tag parents { id }';
-    if ((settings.excludeAddTagWithCustomFieldName || '').trim() ||
-        (settings.excludeRemoveTagWithCustomFieldName || '').trim()) {
+    if ((settings.c4ExcludeAddTagWithCustomFieldName || '').trim() ||
+        (settings.c5ExcludeRemoveTagWithCustomFieldName || '').trim()) {
       fields += ' custom_fields';
     }
     // per_page: -1 means "no paging, return everything". Right for tags (thousands
@@ -208,16 +220,16 @@
   // ── Exclusion filters ─────────────────────────────────────────────────────
 
   function makeFilters(settings, graph) {
-    var addCF     = (settings.excludeAddTagWithCustomFieldName || '').trim();
-    var removeCF  = (settings.excludeRemoveTagWithCustomFieldName || '').trim();
-    var addStr    = settings.excludeAddTagNameContains || '';
-    var removeStr = settings.excludeRemoveTagNameContains || '';
+    var addCF     = (settings.c4ExcludeAddTagWithCustomFieldName || '').trim();
+    var removeCF  = (settings.c5ExcludeRemoveTagWithCustomFieldName || '').trim();
+    var addStr    = settings.c2ExcludeAddTagNameContains || '';
+    var removeStr = settings.c3ExcludeRemoveTagNameContains || '';
 
     function blocked(id, cfName, substr) {
       var t = graph.byId[id];
       if (!t) return true;                       // unknown tag: never touch it
       if (graph.cyclic[id]) return true;         // see buildGraph
-      if (settings.excludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return true;
+      if (settings.c1ExcludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return true;
       // Presence alone excludes; the value is never inspected. hasOwnProperty
       // rather than `in`, or inherited keys like "constructor" match every tag.
       if (cfName && t.custom_fields && hasOwn(t.custom_fields, cfName)) return true;
@@ -247,7 +259,7 @@
   // 'rollup'; only one direction is ever populated.
   function planEntity(type, ent, mode, ctx) {
     var s = ctx.settings;
-    if (s.excludeOrganized && type.organized && ent.organized) return null;
+    if (s.b2ExcludeOrganized && type.organized && ent.organized) return null;
 
     var tagIds = (ent.tags || []).map(function (t) { return t.id; });
 
@@ -655,7 +667,7 @@
           excludeTagId: null,
         };
 
-        var exclName = (self.settings.excludeEntityWithTagName || '').trim();
+        var exclName = (self.settings.b1ExcludeEntityWithTagName || '').trim();
         if (exclName) {
           // Resolved against the tag list already in hand: exact and case-sensitive,
           // with none of the SQL LIKE wildcard trouble a name query would bring.
@@ -696,8 +708,16 @@
   Run.prototype.checkSibling = function (siblingSettings) {
     if (!siblingSettings) return;
     var on = [];
-    if (siblingSettings.autoMergeOnSceneUpdate) on.push('Auto Merge On Scene Updates');
-    if (siblingSettings.autoMergeOnPerformerUpdate) on.push('Auto Merge On Performer Updates');
+    // The sibling's own manifest keys, read straight off the shared settings
+    // response - so they are its wire names, prefixes and all, not the internal
+    // names its source uses. They changed once, at its 1.1.1; both alternatives
+    // are accepted here so this check still works against an older copy.
+    if (siblingSettings.a3AutoMergeOnSceneUpdate || siblingSettings.autoMergeOnSceneUpdate) {
+      on.push('Auto Merge On Scene Updates');
+    }
+    if (siblingSettings.a4AutoMergeOnPerformerUpdate || siblingSettings.autoMergeOnPerformerUpdate) {
+      on.push('Auto Merge On Performer Updates');
+    }
     if (!on.length) return;
 
     if (siblingRespectsLeases()) {

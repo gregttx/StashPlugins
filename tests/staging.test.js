@@ -49,7 +49,7 @@ function responder(opts) {
     const q = req.query;
     if (q.indexOf('configuration') !== -1) {
       return { data: { configuration: { plugins: { MergePerformerTagsToScenes: Object.assign(
-        { showManualMergeButtons: true }, opts.settings) } } } };
+        { a1ShowManualMergeButtons: true }, opts.settings) } } } };
     }
     if (q.indexOf('FindTagByName') !== -1) {
       return { data: { findTags: { tags: [{ id: '99', name: 'Do_Not_Merge' }] } } };
@@ -105,7 +105,7 @@ function click(env) {
 }
 
 (async function () {
-  console.log('\nstaging (default) / saveTagsImmediately');
+  console.log('\nstaging (default) / a2SaveTagsImmediately');
 
   // ── happy path ─────────────────────────────────────────────────────────────
   {
@@ -211,7 +211,7 @@ function click(env) {
   // ── exclusion filters still apply ──────────────────────────────────────────
   {
     const env = setup({
-      settings: { excludeSceneOrganized: true },
+      settings: { b2ExcludeSceneOrganized: true },
       scene: { organized: true, tags: [], performers: [{ tags: PERF_TAGS }] },
     });
     await H.flush();
@@ -298,7 +298,7 @@ function click(env) {
 
   // ── setting off: original save-immediately behaviour intact ────────────────
   {
-    const env = setup({ settings: { saveTagsImmediately: true } });
+    const env = setup({ settings: { a2SaveTagsImmediately: true } });
     await H.flush();
     env.renderAll();
     await H.flush();

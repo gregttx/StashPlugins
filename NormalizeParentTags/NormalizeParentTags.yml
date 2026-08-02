@@ -1,6 +1,6 @@
 name: Normalize Parent Tags
 description: "Requires Stash 0.31.0 or newer. BACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. Two library-wide tasks that normalize tag hierarchies on your entities: Prune removes every tag already implied by a descendant tag on the same entity, and Roll Up adds every ancestor of every tag on the entity. Both run from Settings - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing is written until you press Proceed. Entity types are opt-in and are all off until enabled below."
-version: 0.1.0
+version: 0.1.2
 ui:
   javascript:
     - NormalizeParentTags.js
@@ -10,59 +10,59 @@ tasks:
   - name: Roll Up Parent Tags onto Entities
     description: Add every parent tag, recursively, of the tags already on the entity. Opens a dialog listing every addition for review before anything is written. Back up your database before the first run.
 settings:
-  enableScenes:
-    displayName: Include Scenes
-    description: Process the tags of scenes when a Normalize Parent Tags task is run.
-    type: BOOLEAN
-  enableImages:
-    displayName: Include Images
-    description: Process the tags of images when a Normalize Parent Tags task is run. Usually the largest entity type in a library, so it is also the slowest to scan.
-    type: BOOLEAN
-  enableGalleries:
-    displayName: Include Galleries
-    description: Process the tags of galleries when a Normalize Parent Tags task is run.
-    type: BOOLEAN
-  enablePerformers:
+  a1EnablePerformers:
     displayName: Include Performers
     description: Process the tags of performers when a Normalize Parent Tags task is run.
     type: BOOLEAN
-  enableGroups:
-    displayName: Include Groups
-    description: Process the tags of groups when a Normalize Parent Tags task is run. Groups were called Movies before Stash 0.28.
-    type: BOOLEAN
-  enableStudios:
+  a2EnableStudios:
     displayName: Include Studios
     description: Process the tags of studios when a Normalize Parent Tags task is run.
     type: BOOLEAN
-  enableMarkers:
+  a3EnableGroups:
+    displayName: Include Groups
+    description: Process the tags of groups when a Normalize Parent Tags task is run. Groups were called Movies before Stash 0.28.
+    type: BOOLEAN
+  a4EnableGalleries:
+    displayName: Include Galleries
+    description: Process the tags of galleries when a Normalize Parent Tags task is run.
+    type: BOOLEAN
+  a5EnableScenes:
+    displayName: Include Scenes
+    description: Process the tags of scenes when a Normalize Parent Tags task is run.
+    type: BOOLEAN
+  a6EnableImages:
+    displayName: Include Images
+    description: Process the tags of images when a Normalize Parent Tags task is run. Usually the largest entity type in a library, so it is also the slowest to scan.
+    type: BOOLEAN
+  a7EnableMarkers:
     displayName: Include Scene Markers
     description: Process the tags of scene markers when a Normalize Parent Tags task is run. A marker's primary tag is always kept and is never added or removed, but it does count as present, so parents it implies can be pruned from the marker's other tags.
     type: BOOLEAN
-  excludeOrganized:
-    displayName: Exclude entities marked as Organized
-    description: Skip any entity whose Organized flag is set. In Stash 0.31 only scenes, images, galleries and studios have that flag; performers, groups and markers have none, so this setting cannot skip them. If a later Stash adds the flag to more types, they are covered without a plugin update.
-    type: BOOLEAN
-  excludeEntityWithTagName:
+  b1ExcludeEntityWithTagName:
     displayName: Exclude entities carrying this tag
     description: Enter one tag name. Any entity carrying that tag is left untouched by both tasks. Matched by exact name, case-sensitive. The tag must be carried directly - a parent of it does not count. For markers, carrying it as the primary tag also excludes the marker.
     type: STRING
-  excludeTagWithIgnoreAutoTag:
+  b2ExcludeOrganized:
+    displayName: Exclude entities marked as Organized
+    description: Skip any entity whose Organized flag is set. In Stash 0.31 only scenes, images, galleries and studios have that flag; performers, groups and markers have none, so this setting cannot skip them. If a later Stash adds the flag to more types, they are covered without a plugin update.
+    type: BOOLEAN
+  c1ExcludeTagWithIgnoreAutoTag:
     displayName: Never add or remove tags set to Ignore auto tag
     description: Tags with "Ignore auto tag" enabled are neither added by Roll Up nor removed by Prune. They still count as present, so they can still imply the removal of their own parents.
     type: BOOLEAN
-  excludeAddTagWithCustomFieldName:
-    displayName: Never add tags marked via a Custom Field
-    description: Enter a custom field name. Roll Up will not add a tag that has this custom field. Only the presence of the field matters - its value is ignored, so any value at all excludes the tag. Remove the field from a tag to have it added again. Skipping a tag does not stop its own parents from being added.
-    type: STRING
-  excludeRemoveTagWithCustomFieldName:
-    displayName: Never remove tags marked via a Custom Field
-    description: Enter a custom field name. Prune will not remove a tag that has this custom field, even when a descendant tag makes it redundant. Only the presence of the field matters - its value is ignored, so any value at all protects the tag.
-    type: STRING
-  excludeAddTagNameContains:
+  c2ExcludeAddTagNameContains:
     displayName: Never add tags whose name contains
     description: Enter any text. Roll Up will not add a tag whose name contains it. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. Skipping a tag does not stop its own parents from being added.
     type: STRING
-  excludeRemoveTagNameContains:
+  c3ExcludeRemoveTagNameContains:
     displayName: Never remove tags whose name contains
     description: Enter any text. Prune will not remove a tag whose name contains it, even when a descendant tag makes it redundant. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers.
+    type: STRING
+  c4ExcludeAddTagWithCustomFieldName:
+    displayName: Never add tags marked via a Custom Field
+    description: Enter a custom field name. Roll Up will not add a tag that has this custom field. Only the presence of the field matters - its value is ignored, so any value at all excludes the tag. Remove the field from a tag to have it added again. Skipping a tag does not stop its own parents from being added.
+    type: STRING
+  c5ExcludeRemoveTagWithCustomFieldName:
+    displayName: Never remove tags marked via a Custom Field
+    description: Enter a custom field name. Prune will not remove a tag that has this custom field, even when a descendant tag makes it redundant. Only the presence of the field matters - its value is ignored, so any value at all protects the tag.
     type: STRING

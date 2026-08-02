@@ -5,7 +5,7 @@
 const h = require('./npt-harness');
 
 function makeEnv() {
-  const env = h.makeEnv({ quiet: true, respond: h.makeResponder({ settings: { enableScenes: false } }) });
+  const env = h.makeEnv({ quiet: true, respond: h.makeResponder({ settings: { a5EnableScenes: false } }) });
   h.run(env.ctx);
   return env;
 }

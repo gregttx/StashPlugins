@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.1.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.1.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -163,7 +163,23 @@ to one plugin, so every call returns every plugin's settings), so it is throttle
 in-flight check; navigation handlers wrap it in a function so a timer argument can never arrive as
 `force`.
 
-**`saveTagsImmediately` is inverted on purpose.** Stash has no default value for a plugin setting
+**The manifest keys carry ordering prefixes; the internal names do not.** `settings:` is a YAML
+map, so the manifest's declaration order is lost and the settings page renders the keys **sorted
+alphabetically** — which put "Save Tags Immediately" five rows below the button toggle it modifies
+and does nothing without. Since 1.1.1 the keys are `a1`–`a4` (what starts a merge: buttons, the
+staging flag right under them, then the two auto-merge modes), `b1`–`b2` (scene-level exclusions),
+`c1`–`c2` (tag-level exclusions), `d1` (logging, last — it changes no behaviour). The same scheme
+runs in `NormalizeParentTags`, down to `c1ExcludeTagWithIgnoreAutoTag` being the same key in both.
+
+Those prefixed names appear in exactly two places: the manifest, and the nine `ps.*` reads in
+`loadSettings`. Everything else uses the plain internal names, and this file follows the same
+rule — prefixed where a manifest key is meant, plain where the code's own flag is. A key is also
+the storage key, so the 1.1.1 rename reset everyone's settings once; there is no compatibility
+shim, and doing it again needs a better reason than tidiness. (`NormalizeParentTags` does read the
+*sibling's* wire names to detect auto-merge, and does accept both spellings — losing that warning
+silently is the dangerous direction.)
+
+**`a2SaveTagsImmediately` is inverted on purpose.** Stash has no default value for a plugin setting
 and renders an unset `BOOLEAN` as unchecked, so the behaviour we want by default (staging) has to
 be what "off" selects. Otherwise the box would read off while acting on, and the first click on it
 would send `true` rather than `false`. Any new boolean whose desired default is "on" needs the

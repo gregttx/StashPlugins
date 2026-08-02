@@ -98,7 +98,7 @@ function stashPerformerSave(ctx, id) {
         { tags: [{ id: '10', ignore_auto_tag: false, custom_fields: {} },
                  { id: '11', ignore_auto_tag: false, custom_fields: {} }] }] } }),
     });
-    H.run(ctx); // settings set excludeTagWithCustomFieldName: 'constructor'
+    H.run(ctx); // settings set c2ExcludeTagWithCustomFieldName: 'constructor'
     await H.flush();
     const before = calls.length;
     await stashSceneSave(ctx, 1);
@@ -114,7 +114,7 @@ function stashPerformerSave(ctx, id) {
     console.log('\n#6b custom field exclusion still works');
     const { ctx, calls } = H.makeEnv({
       respond: H.responder({
-        settings: { excludeTagWithCustomFieldName: 'skip' },
+        settings: { c2ExcludeTagWithCustomFieldName: 'skip' },
         scene: { organized: false, tags: [], performers: [
           { tags: [{ id: '10', ignore_auto_tag: false, custom_fields: { skip: true } },
                    { id: '11', ignore_auto_tag: false, custom_fields: {} }] }] },
@@ -215,7 +215,7 @@ function stashPerformerSave(ctx, id) {
     tags.push({ id: '30', ignore_auto_tag: false, custom_fields: { other: 'x' } });
     const { ctx, calls } = H.makeEnv({
       respond: H.responder({
-        settings: { excludeTagWithCustomFieldName: 'skip' },
+        settings: { c2ExcludeTagWithCustomFieldName: 'skip' },
         scene: { organized: false, tags: [], performers: [{ tags: tags }] },
       }),
     });

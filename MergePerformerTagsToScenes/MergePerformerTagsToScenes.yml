@@ -1,43 +1,43 @@
 name: Merge Performer Tags To Scenes
 description: "Requires Stash 0.31.0 or newer. Merges performer tags into their scenes. Supports manual buttons (off by default) on performer and scene pages, auto-merge on save (off by default), and exclusion filters for organized scenes, tagged scenes, ignored tags, and tags marked via a custom field. The scene button stages tags in the edit form for review by default. Merges can optionally be logged to the browser's JavaScript console (F12 - Console); being a UI plugin, it cannot write to the Stash server log or the Logs page. Auto-merge stands down while another plugin (such as Normalize Parent Tags) is applying bulk changes."
-version: 1.1.0
+version: 1.1.1
 ui:
   javascript:
     - MergePerformerTagsToScenes.js
 settings:
-  showManualMergeButtons:
+  a1ShowManualMergeButtons:
     displayName: Show Manual Merge Buttons
     description: Show "Add Tags to Scene(s)" on the performer detail view (not while editing) and "Add Perf Tags" on the scene Edit tab. Buttons only appear when related content exists (the performer button also needs the performer to have at least one tag).
     type: BOOLEAN
-  autoMergeOnSceneUpdate:
-    displayName: Auto Merge On Scene Updates
-    description: When a scene is saved, automatically merge all of its performers' tags into that scene.
-    type: BOOLEAN
-  autoMergeOnPerformerUpdate:
-    displayName: Auto Merge On Performer Updates
-    description: When a performer is saved, automatically merge their tags into all of their scenes. Covers every scene featuring the performer; filters and selections in the scene list are ignored.
-    type: BOOLEAN
-  saveTagsImmediately:
+  a2SaveTagsImmediately:
     displayName: Save Tags Immediately
     description: Make "Add Perf Tags" merge and save in one step. Leave this off to stage the tags in the scene's tag box for review instead, so you can check them and press Save yourself. Only affects the scene button; the performer button and auto-merge always save.
     type: BOOLEAN
-  excludeSceneOrganized:
-    displayName: Exclude Scenes marked as Organized
-    description: Do not merge performer tags to scenes if the scene is marked as Organized
+  a3AutoMergeOnSceneUpdate:
+    displayName: Auto Merge On Scene Updates
+    description: When a scene is saved, automatically merge all of its performers' tags into that scene.
     type: BOOLEAN
-  excludeSceneWithTagName:
+  a4AutoMergeOnPerformerUpdate:
+    displayName: Auto Merge On Performer Updates
+    description: When a performer is saved, automatically merge their tags into all of their scenes. Covers every scene featuring the performer; filters and selections in the scene list are ignored.
+    type: BOOLEAN
+  b1ExcludeSceneWithTagName:
     displayName: Exclude Scenes with specified Tag Name
     description: Do not merge performer tags to scenes if the scene has this tag name
     type: STRING
-  excludeTagWithIgnoreAutoTag:
+  b2ExcludeSceneOrganized:
+    displayName: Exclude Scenes marked as Organized
+    description: Do not merge performer tags to scenes if the scene is marked as Organized
+    type: BOOLEAN
+  c1ExcludeTagWithIgnoreAutoTag:
     displayName: Exclude Tags set to Ignore auto tag
     description: Do not merge a performer tag to scenes if the tag is set to Ignore auto tag
     type: BOOLEAN
-  excludeTagWithCustomFieldName:
+  c2ExcludeTagWithCustomFieldName:
     displayName: Exclude Tags marked via a Custom Field
     description: Do not merge a performer tag to scenes if the tag has this custom field. Only the presence of the field matters - its value is ignored, so any value at all excludes the tag. Remove the field from a tag to have it merged again.
     type: STRING
-  logMergesToConsole:
+  d1LogMergesToConsole:
     displayName: Log Tag merges to the Browser Console (Info level)
     description: Logs each performer tag merge to the browser's JavaScript console (F12 - Console), not to the Stash server log or the Logs page
     type: BOOLEAN

@@ -202,7 +202,7 @@ const TAGS = [
 
 function makeResponder(opts) {
   opts = opts || {};
-  const settings = Object.assign({ enableScenes: true }, opts.settings);
+  const settings = Object.assign({ a5EnableScenes: true }, opts.settings);
   const entities = opts.entities || {};
   return function (req) {
     const q = req.query || '';

@@ -72,7 +72,7 @@ win.fetch = function (url, o) {
   const q = JSON.parse(o.body).query;
   if (q.indexOf('configuration') !== -1) {
     return Promise.resolve(makeResponse({ data: { configuration: { plugins: {
-      MergePerformerTagsToScenes: { showManualMergeButtons: true } } } } }));
+      MergePerformerTagsToScenes: { a1ShowManualMergeButtons: true } } } } }));
   }
   if (q.indexOf('CheckPerformerScenes') !== -1) {
     return Promise.resolve(makeResponse({ data: {

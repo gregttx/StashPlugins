@@ -11,7 +11,7 @@
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (two of the exclusion filters) and the
 > `organized` flag on studios both depend on it.
 >
-> **Version 0.1.0 is a first release.** It has automated tests behind it, but it has not been
+> **Version 0.1.2 is a first release.** It has automated tests behind it, but it has not been
 > through a long life in other people's libraries — which is another reason to take the backup
 > above and to read the review log before pressing Proceed.
 
@@ -83,17 +83,18 @@ in per type is deliberate.
 
 | Setting | Covers |
 | --- | --- |
+| **Include Performers** | Performers |
+| **Include Studios** | Studios |
+| **Include Groups** | Groups — called Movies before Stash 0.28 |
+| **Include Galleries** | Galleries |
 | **Include Scenes** | Scenes |
 | **Include Images** | Images — usually the biggest type, and the slowest to scan |
-| **Include Galleries** | Galleries |
-| **Include Performers** | Performers |
-| **Include Groups** | Groups — called Movies before Stash 0.28 |
-| **Include Studios** | Studios |
 | **Include Scene Markers** | Scene markers — see below |
 
-Enabled types are always processed in the same order, whichever order you switch them on:
-**performers → studios → groups → galleries → scenes → images → markers**. Performers lead
-because of the sibling-plugin interaction described at the end of this file.
+They are listed on the settings page in that same order, which is the order enabled types are
+always processed in, whichever order you switch them on: **performers → studios → groups →
+galleries → scenes → images → markers**. Performers lead because of the sibling-plugin
+interaction described at the end of this file.
 
 **Scene markers** work slightly differently, because a marker has a required *primary tag* on top
 of its ordinary tags. The primary tag is never added and never removed — but it does count as
@@ -104,26 +105,26 @@ tags.
 
 Two filters protect whole entities:
 
+- **Exclude entities carrying this tag** — enter a tag name; any entity carrying it is left
+  alone. Matched by exact name, case-sensitive. The tag must be on the entity directly — carrying
+  a child of it does not count. For markers, having it as the primary tag also excludes.
 - **Exclude entities marked as Organized** — skips any entity with the Organized flag set. In
   Stash 0.31 only **scenes, images, galleries and studios** have that flag; performers, groups
   and markers have none, so this setting cannot protect them. If a future Stash adds the flag to
   more types, they are covered automatically.
-- **Exclude entities carrying this tag** — enter a tag name; any entity carrying it is left
-  alone. Matched by exact name, case-sensitive. The tag must be on the entity directly — carrying
-  a child of it does not count. For markers, having it as the primary tag also excludes.
 
 Five more protect individual tags, split by direction so you can, for example, let a tag be added
 but never removed:
 
 - **Never add or remove tags set to Ignore auto tag** — applies in both directions. Such tags
   still count as present, so they can still make their own parents redundant.
+- **Never add tags whose name contains** / **Never remove tags whose name contains** — enter any
+  text; a tag whose name contains it anywhere is skipped. Case-sensitive, and any Unicode
+  character works, which makes it a good fit for namespace markers in tag names.
 - **Never add tags marked via a Custom Field** / **Never remove tags marked via a Custom Field** —
   enter a custom field name. **Only the presence of the field matters** — the value is never
   looked at, so any value at all (including a blank one) applies the exclusion. To lift it,
   remove the field from the tag rather than setting it to something falsy.
-- **Never add tags whose name contains** / **Never remove tags whose name contains** — enter any
-  text; a tag whose name contains it anywhere is skipped. Case-sensitive, and any Unicode
-  character works, which makes it a good fit for namespace markers in tag names.
 
 Two things worth knowing about the tag-level filters:
 

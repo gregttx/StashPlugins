@@ -2,6 +2,12 @@
 
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (the custom-field exclusion filter) and UI plugin component patching (staging tags in the scene edit form) both depend on it.
 
+> **Upgrading to 1.1.1 from an earlier version resets the plugin's settings.** The settings were
+> renamed internally so that the settings page lists them in a sensible order instead of
+> alphabetically. Nothing else changed, but your previous choices are not carried over — open
+> **Settings → Plugins → Merge Performer Tags To Scenes** and set them again. Everything is off
+> until you do, so nothing merges by itself in the meantime.
+
 A front-end-only Stash plugin that adds two tag-merging buttons:
 
 - **"Add Tags to Scene(s)"** on each performer's detail view — copies that performer's tags onto every scene featuring them, regardless of any filter or selection in the scene list below.
@@ -32,8 +38,8 @@ Additionally, if the staging mode fails, the button merges and saves instead and
 
 Four optional exclusion filters in settings let you protect certain scenes or tags from being touched:
 
-- **Exclude Scenes marked as organized** — scenes with the "organized" flag set are skipped entirely.
 - **Exclude Scenes with specified Tag** — enter a tag name; any scene carrying that tag is skipped. The tag is looked up by exact name and the result is re-checked periodically, so creating, deleting or recreating the tag is picked up without a page reload (a warning is logged to the browser console whenever the tag cannot be found). The exclusion tag itself is never copied into a scene, even if one of the performers carries it.
+- **Exclude Scenes marked as organized** — scenes with the "organized" flag set are skipped entirely.
 - **Exclude Tags set to Ignore auto tag** — performer tags that have "Ignore auto tag" enabled in their tag settings are not copied into scenes.
 - **Exclude Tags marked via a Custom Field** — enter a custom field name; performer tags carrying that custom field are not copied into scenes. **Only the presence of the field matters** — the value is never looked at, so any value at all (including a blank one) excludes the tag. To have a tag merged again, remove the field from it rather than trying to set it to something falsy.
 

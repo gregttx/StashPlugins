@@ -71,7 +71,7 @@ Promise.resolve()
 
   // ── Entity-level filters ─────────────────────────────────────────────────
   .then(() => scan({
-    settings: { enableScenes: true, excludeOrganized: true },
+    settings: { a5EnableScenes: true, b2ExcludeOrganized: true },
     entities: scenes([
       { id: '30', title: 'Organized', organized: true, tags: [{ id: '1' }, { id: '2' }] },
       { id: '31', title: 'Loose', organized: false, tags: [{ id: '1' }, { id: '2' }] },
@@ -82,7 +82,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true, excludeEntityWithTagName: 'Rare' },
+    settings: { a5EnableScenes: true, b1ExcludeEntityWithTagName: 'Rare' },
     entities: scenes([
       { id: '32', title: 'Protected', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '6' }] },
       { id: '33', title: 'Open', organized: false, tags: [{ id: '1' }, { id: '2' }] },
@@ -94,7 +94,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true, excludeEntityWithTagName: 'rare' },
+    settings: { a5EnableScenes: true, b1ExcludeEntityWithTagName: 'rare' },
     entities: scenes([{ id: '34', title: 'Any', organized: false, tags: [{ id: '1' }, { id: '2' }] }]),
   })).then(({ d, calls }) => {
     // Case-sensitive: "rare" does not match "Rare", and running unfiltered would
@@ -108,7 +108,7 @@ Promise.resolve()
 
   // ── Tag-level filters ────────────────────────────────────────────────────
   .then(() => scan({
-    settings: { enableScenes: true, excludeRemoveTagNameContains: 'Hair' },
+    settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: 'Hair' },
     entities: scenes([{ id: '40', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d }) => {
     const r = removals(d);
@@ -117,7 +117,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true, excludeAddTagNameContains: 'Hair' },
+    settings: { a5EnableScenes: true, c2ExcludeAddTagNameContains: 'Hair' },
     entities: scenes([{ id: '41', title: 'Leaf', organized: false, tags: [{ id: '3' }] }]),
   }, h.TASK_ROLLUP)).then(({ d }) => {
     const a = additions(d);
@@ -128,7 +128,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true, excludeTagWithIgnoreAutoTag: true },
+    settings: { a5EnableScenes: true, c1ExcludeTagWithIgnoreAutoTag: true },
     tags: h.TAGS.map((t) => (t.id === '1' ? Object.assign({}, t, { ignore_auto_tag: true }) : t)),
     entities: scenes([{ id: '42', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d }) => {
@@ -138,7 +138,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true, excludeRemoveTagWithCustomFieldName: 'keep' },
+    settings: { a5EnableScenes: true, c5ExcludeRemoveTagWithCustomFieldName: 'keep' },
     tags: h.TAGS.map((t) => Object.assign({}, t, { custom_fields: t.id === '1' ? { keep: false } : {} })),
     entities: scenes([{ id: '43', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d, calls }) => {
@@ -151,7 +151,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true, excludeRemoveTagWithCustomFieldName: 'constructor' },
+    settings: { a5EnableScenes: true, c5ExcludeRemoveTagWithCustomFieldName: 'constructor' },
     tags: h.TAGS.map((t) => Object.assign({}, t, { custom_fields: {} })),
     entities: scenes([{ id: '44', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d }) => {
@@ -160,7 +160,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true },
+    settings: { a5EnableScenes: true },
     entities: scenes([{ id: '45', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d, calls }) => {
     h.check('custom_fields is left out when no custom-field filter is set',
@@ -171,7 +171,7 @@ Promise.resolve()
 
   // ── Markers ──────────────────────────────────────────────────────────────
   .then(() => scan({
-    settings: { enableMarkers: true },
+    settings: { a7EnableMarkers: true },
     entities: {
       findSceneMarkers: {
         node: 'scene_markers',
@@ -186,7 +186,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableMarkers: true },
+    settings: { a7EnableMarkers: true },
     entities: {
       findSceneMarkers: {
         node: 'scene_markers',
@@ -202,7 +202,7 @@ Promise.resolve()
 
   // ── Cycles ───────────────────────────────────────────────────────────────
   .then(() => scan({
-    settings: { enableScenes: true },
+    settings: { a5EnableScenes: true },
     tags: [
       { id: '1', name: 'A', ignore_auto_tag: false, parents: [{ id: '2' }] },
       { id: '2', name: 'B', ignore_auto_tag: false, parents: [{ id: '1' }] },
@@ -220,8 +220,8 @@ Promise.resolve()
   // ── Types and ordering ───────────────────────────────────────────────────
   .then(() => scan({
     settings: {
-      enableScenes: true, enablePerformers: true, enableImages: true, enableStudios: true,
-      enableGroups: true, enableGalleries: true, enableMarkers: true,
+      a5EnableScenes: true, a1EnablePerformers: true, a6EnableImages: true, a2EnableStudios: true,
+      a3EnableGroups: true, a4EnableGalleries: true, a7EnableMarkers: true,
     },
     entities: {
       findScenes: { node: 'scenes', list: [] },
@@ -244,7 +244,7 @@ Promise.resolve()
     h.check('markers are scanned last', order[order.length - 1] === 'findSceneMarkers', order.join(', '));
   })
 
-  .then(() => scan({ settings: { enableScenes: false } })).then(({ d, calls }) => {
+  .then(() => scan({ settings: { a5EnableScenes: false } })).then(({ d, calls }) => {
     h.check('no enabled types is reported rather than silently doing nothing',
       d.lines.some((l) => l.indexOf('No entity types are enabled') !== -1), d.lines.join(' | '));
     h.check('no enabled types queries nothing beyond settings',
@@ -253,7 +253,7 @@ Promise.resolve()
 
   // ── Query shape ──────────────────────────────────────────────────────────
   .then(() => scan({
-    settings: { enableScenes: true, enablePerformers: true },
+    settings: { a5EnableScenes: true, a1EnablePerformers: true },
     entities: {
       findScenes: { node: 'scenes', list: [] },
       findPerformers: { node: 'performers', list: [] },
@@ -269,7 +269,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true }, rejectSort: true,
+    settings: { a5EnableScenes: true }, rejectSort: true,
     entities: scenes([{ id: '70', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }] }]),
   })).then(({ d, calls }) => {
     const sorted = calls.filter((c) => /query NPT_findScenes/.test(c.query || '') && c.query.indexOf('sort:') !== -1);
@@ -279,7 +279,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { enableScenes: true, enablePerformers: true },
+    settings: { a5EnableScenes: true, a1EnablePerformers: true },
     failFind: 'findScenes',
     entities: {
       findScenes: { node: 'scenes', list: [] },

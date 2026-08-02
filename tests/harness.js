@@ -100,11 +100,11 @@ function finish() {
 }
 
 const SETTINGS = {
-  showManualMergeButtons: true,
-  autoMergeOnSceneUpdate: true,
-  autoMergeOnPerformerUpdate: true,
-  excludeSceneWithTagName: 'Do_Not_Merge',
-  excludeTagWithCustomFieldName: 'constructor',
+  a1ShowManualMergeButtons: true,
+  a3AutoMergeOnSceneUpdate: true,
+  a4AutoMergeOnPerformerUpdate: true,
+  b1ExcludeSceneWithTagName: 'Do_Not_Merge',
+  c2ExcludeTagWithCustomFieldName: 'constructor',
 };
 
 // Default responder: performer 7 has tags 10,11; scene 1 has tag 10 and performer 7.

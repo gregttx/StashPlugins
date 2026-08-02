@@ -141,7 +141,7 @@ Promise.resolve()
   // ── Sibling detection ────────────────────────────────────────────────────
   .then(() => scan({
     entities: bigLibrary(),
-    siblingSettings: { autoMergeOnSceneUpdate: true },
+    siblingSettings: { a3AutoMergeOnSceneUpdate: true },
   })).then(({ d }) => {
     h.check('an auto-merging sibling that cannot stand down is a warning',
       d().lines.some((l) => l.indexOf('[WARN]') === 0 && l.indexOf('too old to stand down') !== -1),
@@ -155,7 +155,7 @@ Promise.resolve()
       quiet: true,
       respond: h.makeResponder({
         entities: bigLibrary(),
-        siblingSettings: { autoMergeOnSceneUpdate: true },
+        siblingSettings: { a3AutoMergeOnSceneUpdate: true },
       }),
     });
     // Stand in for a sibling new enough to register itself.
@@ -173,10 +173,22 @@ Promise.resolve()
 
   .then(() => scan({
     entities: bigLibrary(),
-    siblingSettings: { autoMergeOnSceneUpdate: false, autoMergeOnPerformerUpdate: false },
+    siblingSettings: { a3AutoMergeOnSceneUpdate: false, a4AutoMergeOnPerformerUpdate: false },
   })).then(({ d }) => {
     h.check('a sibling with auto-merge off is not mentioned at all',
       !d().lines.some((l) => l.indexOf('Merge Performer Tags To Scenes') !== -1), d().lines.join(' | '));
+  })
+
+  // The sibling's manifest keys gained ordering prefixes at its 1.1.1. An older
+  // copy answers with the unprefixed names, and failing to notice it would drop
+  // the warning silently - the one direction that matters.
+  .then(() => scan({
+    entities: bigLibrary(),
+    siblingSettings: { autoMergeOnPerformerUpdate: true },
+  })).then(({ d }) => {
+    h.check('a pre-1.1.1 sibling is still detected under its old setting keys',
+      d().lines.some((l) => l.indexOf('Auto Merge On Performer Updates') !== -1),
+      d().lines.join(' | '));
   })
 
   // ── Log handling ─────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-// Exercises logMergesToConsole: the one-line-per-tag info log, its exact format, and
+// Exercises d1LogMergesToConsole: the one-line-per-tag info log, its exact format, and
 // that it only reports merges that actually happened.
 'use strict';
 const H = require('./harness.js');
@@ -41,7 +41,7 @@ function stashPerformerSave(ctx, id) {
 const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {} });
 
 (async function () {
-  console.log('\nmerge logging (logMergesToConsole)');
+  console.log('\nmerge logging (d1LogMergesToConsole)');
 
   // ── off by default: no log lines, and no extra fields requested ─────────────
   {
@@ -69,7 +69,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
   {
     const { ctx } = H.makeEnv({
       respond: H.responder({
-        settings: { logMergesToConsole: true },
+        settings: { d1LogMergesToConsole: true },
         // Tag 10 is already on the scene, so only 11 is merged — and only 11 logged.
         scene: { organized: false, title: 'My Scene', tags: [{ id: '10' }],
                  performers: [{ tags: [tag('10', 'Blonde'), tag('11', 'Tattoo')] }] },
@@ -96,7 +96,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
   {
     // Settings are re-read every 10s in a real browser, so a banner that is not
     // deduped would scroll the console forever.
-    const { ctx } = H.makeEnv({ respond: H.responder({ settings: { logMergesToConsole: true } }) });
+    const { ctx } = H.makeEnv({ respond: H.responder({ settings: { d1LogMergesToConsole: true } }) });
     let clickHandler = null;
     ctx.document.addEventListener = (evt, fn) => { if (evt === 'click') clickHandler = fn; };
     const info = captureConsole(ctx);
@@ -117,7 +117,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
   {
     const { ctx } = H.makeEnv({
       respond: H.responder({
-        settings: { logMergesToConsole: true },
+        settings: { d1LogMergesToConsole: true },
         scene: { organized: false, title: 'My Scene', tags: [{ id: '10' }, { id: '11' }],
                  performers: [{ tags: [tag('10', 'Blonde'), tag('11', 'Tattoo')] }] },
       }),
@@ -136,7 +136,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     const { ctx } = H.makeEnv({
       pathname: '/performers/7',
       respond: H.responder({
-        settings: { logMergesToConsole: true },
+        settings: { d1LogMergesToConsole: true },
         performer: { tags: [tag('10', 'Blonde'), tag('11', 'Tattoo')] },
         scenes: [
           { id: '1', organized: false, tags: [], title: 'Scene One' },
@@ -170,7 +170,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     const { ctx } = H.makeEnv({
       pathname: '/performers/7',
       respond: H.responder({
-        settings: { logMergesToConsole: true },
+        settings: { d1LogMergesToConsole: true },
         failSceneIds: ['1'],
         performer: { tags: [tag('10', 'Blonde')] },
         scenes: [{ id: '1', organized: false, tags: [], title: 'Fails' },
@@ -202,7 +202,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
         const q = req.query;
         if (q.indexOf('configuration') !== -1) {
           return { data: { configuration: { plugins: { MergePerformerTagsToScenes: {
-            showManualMergeButtons: true, logMergesToConsole: true } } } } };
+            a1ShowManualMergeButtons: true, d1LogMergesToConsole: true } } } } };
         }
         if (q.indexOf('FindScenePerformers') !== -1) {
           return { data: { findScene: { performers: [{ id: '7' }] } } };

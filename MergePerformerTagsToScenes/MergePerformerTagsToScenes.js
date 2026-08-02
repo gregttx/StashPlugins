@@ -592,15 +592,20 @@
     gqlRequest('{ configuration { plugins } }', null)
       .then(function (data) {
         var ps = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
-        settings.showManualMergeButtons    = !!ps.showManualMergeButtons;
-        settings.autoMergeOnSceneUpdate    = !!ps.autoMergeOnSceneUpdate;
-        settings.autoMergeOnPerformerUpdate = !!ps.autoMergeOnPerformerUpdate;
-        settings.excludeSceneOrganized     = !!ps.excludeSceneOrganized;
-        settings.excludeSceneWithTagName       = ps.excludeSceneWithTagName || '';
-        settings.excludeTagWithIgnoreAutoTag    = !!ps.excludeTagWithIgnoreAutoTag;
-        settings.excludeTagWithCustomFieldName  = ps.excludeTagWithCustomFieldName || '';
-        settings.saveTagsImmediately            = !!ps.saveTagsImmediately;
-        settings.logMergesToConsole             = !!ps.logMergesToConsole;
+        // The a1/b2/d1 prefixes on the manifest keys are what orders the settings
+        // page: `settings:` is a YAML map, so Stash renders the keys sorted, and
+        // without them "Save Tags Immediately" lands five rows below the button
+        // toggle it modifies. This is the only place the wire names are read - the
+        // internal `settings.*` names below are the plugin's own and stay plain.
+        settings.showManualMergeButtons         = !!ps.a1ShowManualMergeButtons;
+        settings.saveTagsImmediately            = !!ps.a2SaveTagsImmediately;
+        settings.autoMergeOnSceneUpdate         = !!ps.a3AutoMergeOnSceneUpdate;
+        settings.autoMergeOnPerformerUpdate     = !!ps.a4AutoMergeOnPerformerUpdate;
+        settings.excludeSceneWithTagName        = ps.b1ExcludeSceneWithTagName || '';
+        settings.excludeSceneOrganized          = !!ps.b2ExcludeSceneOrganized;
+        settings.excludeTagWithIgnoreAutoTag    = !!ps.c1ExcludeTagWithIgnoreAutoTag;
+        settings.excludeTagWithCustomFieldName  = ps.c2ExcludeTagWithCustomFieldName || '';
+        settings.logMergesToConsole             = !!ps.d1LogMergesToConsole;
         announceLogging();
       })
       .catch(function () {})

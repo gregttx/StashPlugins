@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.1.0.** This file is both the design and the map of the code — the
+**Status: implemented at 0.1.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -138,18 +138,18 @@ Entity-level (skip the whole entity, both tasks):
 
 | Setting | Applies to |
 | --- | --- |
-| `excludeOrganized` | Scenes, images, galleries, studios — the only types with an `organized` field in Stash 0.31. Do **not** hard-code that list into the queries: request `organized` per type from a table, and if a future Stash adds the flag elsewhere, only the table changes. Performers, groups and markers have no flag, so the setting silently cannot protect them — say so in the setting's description. |
-| `excludeEntityWithTagName` | All types. Resolve the name to an ID once per run (exact, case-sensitive, client-side re-check — Stash's `EQUALS` compiles to SQL `LIKE`, where `_` and `%` are wildcards). Direct presence only; for markers, the primary tag counts. A failed lookup **aborts the run** rather than running unfiltered. |
+| `b1ExcludeEntityWithTagName` | All types. Resolve the name to an ID once per run (exact, case-sensitive, client-side re-check — Stash's `EQUALS` compiles to SQL `LIKE`, where `_` and `%` are wildcards). Direct presence only; for markers, the primary tag counts. A failed lookup **aborts the run** rather than running unfiltered. |
+| `b2ExcludeOrganized` | Scenes, images, galleries, studios — the only types with an `organized` field in Stash 0.31. Do **not** hard-code that list into the queries: request `organized` per type from a table, and if a future Stash adds the flag elsewhere, only the table changes. Performers, groups and markers have no flag, so the setting silently cannot protect them — say so in the setting's description. |
 
 Tag-level (skip the individual tag):
 
 | Setting | Blocks |
 | --- | --- |
-| `excludeTagWithIgnoreAutoTag` | add + remove |
-| `excludeAddTagWithCustomFieldName` | add |
-| `excludeRemoveTagWithCustomFieldName` | remove |
-| `excludeAddTagNameContains` | add |
-| `excludeRemoveTagNameContains` | remove |
+| `c1ExcludeTagWithIgnoreAutoTag` | add + remove |
+| `c2ExcludeAddTagNameContains` | add |
+| `c3ExcludeRemoveTagNameContains` | remove |
+| `c4ExcludeAddTagWithCustomFieldName` | add |
+| `c5ExcludeRemoveTagWithCustomFieldName` | remove |
 
 Custom-field matching is presence-only via `hasOwnProperty` (never `in` — inherited keys like
 `constructor` would match every tag), values never inspected, exactly as the sibling plugin does.
@@ -270,12 +270,34 @@ All settings are re-read at the start of every run (a single `{ configuration { 
 query — Stash cannot scope it to one plugin), not on a timer. The tasks are the only entry
 point, so there is nothing to keep warm between runs.
 
+**The `a1`/`b2`/`c3` key prefixes are load-bearing.** `settings:` is a YAML *map*, so the order
+the manifest declares them in is gone by the time Stash has parsed it; the settings page renders
+the keys **sorted alphabetically**, ignoring `displayName` and ignoring the setting type. Without
+the prefixes the page interleaves the list in the order `enableGalleries … enableMarkers,
+enablePerformers …`, which puts Scene Markers between Images and Performers and drops the
+Organized toggle into the middle of the string filters. The prefixes buy three blocks the user
+can read top to bottom:
+
+- `a1`–`a7` — the entity toggles, in the §5 processing order, so the settings page and the run
+  agree about what happens first.
+- `b1`–`b2` — the entity-level exclusions.
+- `c1`–`c5` — the tag-level filters: the both-directions one first, then add/remove pairs.
+
+Keep the YAML block itself in key order too. It is not what Stash reads, but a block that reads
+differently from the page it produces is a trap for the next edit.
+
+A key is also the **storage key** — Stash saves values under it — so renaming one silently
+resets that setting for every existing install and strands the old value in the config. Renaming
+happened once, at 0.1.1, while the only install was the author's. It should not happen again
+without a good reason. New settings get a prefix in the block they belong to; if there is no gap
+left, renumber the whole block in one go rather than bolting on a `c5a`.
+
 Stash has no default value for a plugin setting: an unset `BOOLEAN` reads as unchecked. Every
 `enable*` type toggle is therefore **off on a fresh install**, and a run with none enabled must
 say so in the dialog rather than silently doing nothing. That default is the right one here —
 Prune deletes tag assignments, and opting in per type is how the user says which parts of the
 library they have thought about. Do **not** invert the settings to make them default-on the way
-`saveTagsImmediately` is inverted in the sibling plugin; that trick is for a safe default, and
+`a2SaveTagsImmediately` is inverted in the sibling plugin; that trick is for a safe default, and
 this one is not safe.
 
 ## 7. Answers to the questions this design was reviewed against

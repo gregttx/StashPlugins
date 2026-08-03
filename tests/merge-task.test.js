@@ -109,6 +109,11 @@ Promise.resolve()
         d().progress.indexOf('3 tag assignment(s) added') !== -1, d().progress);
       h.check('the run ends with Close and Rescan, not Proceed',
         d().visible('Close') && d().visible('Rescan') && !d().visible('Proceed'));
+      // The plan predates the writes, so a finished run is not a settled library.
+      h.check('and the closing line points at Rescan',
+        d().lines.some((l) => l.indexOf('[INFO] Finished.') === 0 &&
+          l.indexOf('Press Rescan to review what is left.') !== -1),
+        d().lines.join(' | '));
     });
   })
 

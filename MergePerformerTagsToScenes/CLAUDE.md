@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.4.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.4.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -276,7 +276,9 @@ deliberate decision about the other.
 
 **Rescan** exists for the same reason it does in the sibling: the plan is computed before the first
 write, so anything that changes tags during phase 2 — another tab, a scan, the auto-merge modes —
-is invisible to the plan being applied.
+is invisible to the plan being applied. Since 1.4.2 `finishApply` closes with *"Press Rescan to
+review what is left."*, the sibling's wording, because a finished run is not the same thing as a
+settled library and the button alone does not say so.
 
 **It warns about a held lease but does not take one, and does not stand down for one.** A task
 click is manual, and §7's rule is that manual actions are never suppressed. Taking one would also

@@ -1149,7 +1149,8 @@
     this.log('INFO', 'Finished. ' + this.scenesUpdated + ' scene(s) updated, ' +
       this.tagsAdded + ' tag assignment(s) added' +
       (this.errors ? ', ' + this.errors + ' error(s)' : '') +
-      (this.stopped ? ' (stopped early; what was written stays written)' : '') + '.');
+      (this.stopped ? ' (stopped early; what was written stays written)' : '') +
+      '. Press Rescan to review what is left.');
     // Counted from what was written, not from the plan: a failed scene, or a Stop,
     // must not be summarised as though it had landed.
     this.logTagSummary(this.appliedTagCounts, 'added');

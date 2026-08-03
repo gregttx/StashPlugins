@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.11.1.** This file is both the design and the map of the code — the
+**Status: implemented at 0.11.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -455,10 +455,6 @@ Both boxes are built by `clearableInput()`, which wraps the input and its × in 
 while the row held one box - the moment Find was added beside Filter, that icon would have sat over
 the wrong input. Clearing Find drops the box and the counter but leaves the tree where the find took
 you: it is a way to stop searching, not an undo.
-
-`render()` rebuilds `rowNodes` so a row can be addressed after the fact; the last row drawn for a
-tag wins, which is the real one rather than a repeat, since repeats are drawn under later parents in
-sort order.
 
 **Both boxes are case-insensitive; the exclusion filters are not.** They look similar and are
 deliberately different: the box locates a tag a human is looking for, and nobody types a namespace

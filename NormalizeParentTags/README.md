@@ -11,9 +11,9 @@
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (two of the exclusion filters) and the
 > `organized` flag on studios both depend on it.
 >
-> **Version 0.1.2 is a first release.** It has automated tests behind it, but it has not been
-> through a long life in other people's libraries — which is another reason to take the backup
-> above and to read the review log before pressing Proceed.
+> **This plugin has not had a long life in other people's libraries.** It has automated tests
+> behind it, but that is not the same thing — which is another reason to take the backup above
+> and to read the review log before pressing Proceed.
 
 A front-end-only Stash plugin that adds three tasks to **Settings → Tasks → Plugin Tasks** — two
 that change tag assignments, and one that only looks:
@@ -24,8 +24,8 @@ that change tag assignments, and one that only looks:
   on the entity.
 - **Show Tag Hierarchy** — a read-only browser of your tag tree. Writes nothing.
 
-Both open a dialog that lists every change *before* anything is written. Nothing is saved until
-you press **Proceed**.
+The first two open a dialog that lists every change *before* anything is written. Nothing is
+saved until you press **Proceed**. The third never writes at all.
 
 ## Why
 
@@ -231,6 +231,7 @@ Two things worth knowing about the tag-level filters:
    <stash-config-dir>/plugins/NormalizeParentTags/NormalizeParentTags.yml
    <stash-config-dir>/plugins/NormalizeParentTags/NormalizeParentTags.js
    <stash-config-dir>/plugins/NormalizeParentTags/manifest
+   <stash-config-dir>/plugins/NormalizeParentTags/README.md
    ```
 3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
 4. Refresh your browser (F5) so the plugin's JavaScript is loaded.
@@ -266,6 +267,8 @@ mid-run, that means the changes already written stay written and the rest are ne
   otherwise be deleted.
 - Installing this plugin does not undo anything you have already tagged. It only ever acts when
   you click one of the two tasks and then press Proceed.
+- Settings are read at the start of each run, so a change takes effect on the next run without a
+  page reload.
 
 ## If you also use Merge Performer Tags To Scenes
 
@@ -299,5 +302,3 @@ This only covers plugins running in your browser. A plugin with server-side **ho
 Python or executable kind that Stash runs on `Scene.Update.Post` and similar — runs inside Stash
 itself, cannot be asked to stand down from here, and will react to this plugin's changes like any
 other edit. If you have one that touches tags, disable it for the run.
-- Settings are read at the start of each run, so a change takes effect on the next run without a
-  page reload.

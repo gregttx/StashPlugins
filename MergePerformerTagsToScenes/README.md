@@ -142,6 +142,7 @@ This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no 
    <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.yml
    <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.js
    <stash-config-dir>/plugins/MergePerformerTagsToScenes/manifest
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/README.md
    ```
 3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
 4. If using multiple browser instances, refresh your browser (F5) so the new plugin JavaScript is loaded in all of them.

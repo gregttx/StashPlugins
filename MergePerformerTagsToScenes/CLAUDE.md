@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.5.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.5.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -23,7 +23,7 @@ Five entry points share one core:
 | Scene button, "Add Perf Tags" | click on the scene Edit tab | **stages** by default; saves if `saveTagsImmediately` |
 | Auto-merge on scene update | `sceneUpdate` / `bulkSceneUpdate` seen in `fetch` | yes |
 | Auto-merge on performer update | `performerUpdate` / `bulkPerformerUpdate` seen in `fetch` | yes, every scene of the performer |
-| Library-wide task (1.2.0) | click in Settings - Tasks - Plugin Tasks | yes, after the user presses **Start** |
+| Library-wide task (1.2.0, review pass 1.3.0) | click in Settings - Tasks - Plugin Tasks | yes, after the user presses **Proceed** |
 
 Everything funnels into two functions — `runMergeTagsIntoScene` (one scene) and
 `runMergeTagsIntoAllPerformerScenes` (a performer's scenes) — plus `stageTagsIntoSceneForm` for

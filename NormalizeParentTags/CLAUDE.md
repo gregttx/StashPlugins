@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.7.0.** This file is both the design and the map of the code — the
+**Status: implemented at 0.7.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -421,6 +421,11 @@ thousands of tags is the expensive thing in this dialog, so they load on a butto
 passed **explicitly**: the count is for the tag itself rather than for it plus everything beneath
 it, and the server's default for an omitted `depth` is not documented in the schema — an ambiguous
 number on screen is worse than no number.
+
+**The search box is case-insensitive; the exclusion filters are not.** They look similar and are
+deliberately different: the box locates a tag a human is looking for, and nobody types a namespace
+marker's exact case to find one. The filters decide what gets written, where matching loosely would
+protect or skip tags by accident — see §4.
 
 **The export follows the selection.** With a tag selected it emits that tag's neighbourhood
 (ancestors + descendants + the edges among them), which is the part that is legible when drawn;

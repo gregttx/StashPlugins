@@ -121,6 +121,10 @@ other two tasks would do before running either.
 - **⚠ cycle** — a loop in the hierarchy. Both tasks refuse to touch tags in one; this is where you
   can find them.
 
+The filter box matches **any part of a tag's name and ignores case**, so `colour` finds
+`Hair Colour`. It is a find-as-you-type box, not one of the exclusion filters — those stay
+case-sensitive, because they decide what actually gets written.
+
 Select any tag to see its parents, ancestors, children and descendants, plus a plain-language
 answer for what Prune and Roll Up would do with it. **Load counts** adds how many scenes, images,
 galleries and performers carry each tag — a separate query, so it is only made if you ask.

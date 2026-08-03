@@ -1340,10 +1340,15 @@
   // Search is flat on purpose: a name match deep in the tree is easier to act on
   // as one row naming its parent than as a path the user has to expand into.
   TreeView.prototype.renderSearch = function () {
-    var g = this.graph, q = this.query, hits = [], id;
+    var g = this.graph, hits = [], id;
+    // Partial and case-insensitive: this is a find-as-you-type box, not one of the
+    // exclusion filters, and nobody types a namespace marker's exact case to locate
+    // a tag. The filters themselves stay case-sensitive - they decide what gets
+    // written, and matching loosely there would protect or skip tags by accident.
+    var q = this.query.toLowerCase();
     for (id in g.byId) {
       if (!hasOwn(g.byId, id)) continue;
-      if (((g.byId[id].name) || '').indexOf(q) !== -1) hits.push(id);
+      if (((g.byId[id].name) || '').toLowerCase().indexOf(q) !== -1) hits.push(id);
     }
     hits = this.sortIds(hits);
     var capped = hits.length > TREE_ROW_CAP ? hits.slice(0, TREE_ROW_CAP) : hits;

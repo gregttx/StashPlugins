@@ -167,13 +167,23 @@ Promise.resolve()
   // Search is how a four-level namespace scheme stays usable at a few thousand tags.
   .then(() => open()).then(({ env, d }) => {
     const input = env.body.descendants().filter((n) => h.hasClass(n, 'npt-search-input'))[0];
-    input.value = 'Le';
-    (input.handlers.input || []).forEach((fn) => fn({}));
-    const r = rows(env);
+    const type = (v) => {
+      input.value = v;
+      (input.handlers.input || []).forEach((fn) => fn({}));
+      return rows(env);
+    };
+    const r = type('Le');
     h.check('search flattens to the matching tags', r.length === 1 &&
       r[0].indexOf('Leaf (3)') !== -1, r.join(' | '));
     h.check('and says how many matched', d().progress.indexOf('1 of 6 tag(s) match "Le"') === 0,
       d().progress);
+    // A find-as-you-type box nobody types the exact case into.
+    h.check('a match is case-insensitive',
+      type('leaf').length === 1 && type('LEAF').length === 1 && type('lEaF').length === 1,
+      type('leaf').join(' | '));
+    h.check('and matches anywhere in the name, not just the start',
+      type('oot').length === 1 && type('oot')[0].indexOf('Root (1)') !== -1, type('oot').join(' | '));
+    h.check('a substring spanning nothing matches nothing', type('zzz').length === 0);
   })
 
   // ── Export ───────────────────────────────────────────────────────────────

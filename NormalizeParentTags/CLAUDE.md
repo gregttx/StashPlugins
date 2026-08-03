@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.8.1.** This file is both the design and the map of the code — the
+**Status: implemented at 0.9.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -406,6 +406,26 @@ How the DAG survives being drawn as a tree:
   once per path.
 - The real row carries `◆ n parents`, which is where Prune surprises people: every parent on every
   branch is implied.
+
+**Both of those badges are jumps** (0.9.0). A count of three parents that cannot be followed leaves
+the user knowing a tag hangs off three branches and with no way to see the other two — the badge
+states the problem and withholds the answer. `◆` walks to the **next** parent in sort order counting
+from the row it is on, so it is stateless (the row knows its own `under`) and n clicks tour every
+branch and come home; its tooltip names them all, since a tour is not a choice. `↩` goes to the full
+copy it already names. Both are on repeat rows too, so the walk continues from wherever it landed —
+which is why the `◆`/`↩` badges are no longer an `else if` pair.
+
+`jumpTo(id, under)` is the single navigation primitive — reveal, select, render, centre — and Find
+calls it with a null `under` meaning "wherever it lives". `under` is what makes an *occurrence*
+addressable rather than a tag: `render()` keeps `occNodes[id][parentId]` alongside `rowNodes[id]`,
+and `centerOn` falls back to the tag's own row when the occurrence is not drawn (its parent is in a
+cycle, so it is never walked into). `rowNodes[id]` prefers the real row over a repeat explicitly;
+which of the two is drawn last depends on where the parents sit in the tree, not on their sort
+order, so the old "last one wins" comment was true only by accident.
+
+Every tag named in the inspector is a jump as well. That is the direct way to reach *one particular*
+parent, where the badge is the tour — the two gestures are worth having both of, and the inspector
+is where the parents are already listed by name.
 - **Cyclic tags are surfaced as roots.** They are unreachable from any real root, so a tree that
   only walked downwards would hide exactly the tags both tasks refuse to touch — the one case
   where a viewer earns its keep.
@@ -620,7 +640,10 @@ cover:
   counts being fetched only on demand and pinned to `depth: 0`, and the filter box - matching
   case-insensitively anywhere in a name, with its clear icon appearing only while there is
   something to clear - and the find bar, which opens the path to a match, selects and centres it,
-  counts and cycles through matches with Enter, and clears an active filter on the way.
+  counts and cycles through matches with Enter, and clears an active filter on the way. The jumps
+  are covered against a tag with **three** parents, since two only proves a badge toggles: the `◆`
+  badge walks them in order and wraps, the `↩` badge reaches the full copy, the inspector's tag
+  lists jump, and jumping out of a flat filtered list restores the tree first.
 - **What a rescan resets** — the log-line counter describes the new pass rather than the session
   (including the reported case: a rescan finding nothing reports four lines and claims nothing
   hidden), Copy log still exports both passes, and the sibling warning clears when the setting it

@@ -22,6 +22,16 @@ const TAGS = [
   { id: '7', name: 'Loose', ignore_auto_tag: false, parents: [] },
 ];
 
+// The same Leaf, hung off three parents: two only proves a badge toggles, three
+// proves it walks the parents in order and wraps.
+const DIAMOND = [
+  { id: '1', name: 'Root', ignore_auto_tag: false, parents: [] },
+  { id: '2', name: 'Mid', ignore_auto_tag: false, parents: [{ id: '1' }] },
+  { id: '3', name: 'Leaf', ignore_auto_tag: false, parents: [{ id: '2' }, { id: '6' }, { id: '10' }] },
+  { id: '6', name: 'Other', ignore_auto_tag: false, parents: [{ id: '1' }] },
+  { id: '10', name: 'Zed', ignore_auto_tag: false, parents: [{ id: '1' }] },
+];
+
 function open(opts) {
   opts = opts || {};
   const env = h.makeEnv({
@@ -58,6 +68,21 @@ const inspector = (env) => (env.body.descendants()
   .filter((n) => h.hasClass(n, 'npt-inspect'))[0] || {}).textContent || '';
 const btn = (env, label) => env.body.descendants()
   .filter((n) => n.tagName === 'BUTTON' && n.textContent === label)[0] || null;
+
+// Rows as nodes rather than text, for the jumps: which row was centred, and which
+// branch it sits in, are the whole question there.
+const rowNodes = (env) => env.body.descendants().filter((n) => h.hasClass(n, 'npt-row'));
+const leafRows = (env) => rowNodes(env).filter((n) => n.textContent.indexOf('Leaf (3)') !== -1);
+const centred = (env) => rowNodes(env).filter((n) => n.scrolledIntoView)[0] || null;
+const badge = (row, mark) => (row ? row.descendants()
+  .filter((n) => h.hasClass(n, 'npt-badge') && n.textContent.indexOf(mark) !== -1)[0] : null) || null;
+// Every parent in these fixtures has one child, so the row above says which
+// branch the jump landed in.
+const branchOf = (env, row) => {
+  const all = rowNodes(env);
+  const i = all.indexOf(row);
+  return i > 0 ? all[i - 1].textContent : '(none)';
+};
 
 Promise.resolve()
 
@@ -286,6 +311,77 @@ Promise.resolve()
     h.check('and shows the match in its place in the tree',
       rows(env).some((l) => l.indexOf('Root (1)') !== -1) &&
       rows(env).some((l) => l.indexOf('Skip (4)') !== -1), rows(env).join(' | '));
+  })
+
+  // ── Jumping between the parents of a diamond ─────────────────────────────
+  //
+  // "◆ 3 parents" that cannot be followed leaves the user knowing a tag hangs off
+  // three branches and with no way to see the other two.
+  .then(() => open({ tags: DIAMOND })).then(({ env }) => {
+    btn(env, 'Expand all').click();
+    const real = leafRows(env).filter((n) => n.textContent.indexOf('↩') === -1)[0];
+    const mark = badge(real, '◆');
+    h.check('the diamond badge is offered as a jump', !!mark && h.hasClass(mark, 'npt-b-act'),
+      mark && mark.className);
+    h.check('and names every parent, so one can be picked out directly',
+      ['"Mid" (2)', '"Other" (6)', '"Zed" (10)'].every((p) => (mark.title || '').indexOf(p) !== -1),
+      mark.title);
+
+    // Each click walks to the next parent in Stash's order, from wherever the row
+    // sits, so three clicks tour all three branches and come home.
+    mark.click();
+    h.check('clicking it lands under the next parent',
+      branchOf(env, centred(env)).indexOf('Other (6)') !== -1, branchOf(env, centred(env)));
+    badge(centred(env), '◆').click();
+    h.check('and again under the one after that',
+      branchOf(env, centred(env)).indexOf('Zed (10)') !== -1, branchOf(env, centred(env)));
+    badge(centred(env), '◆').click();
+    h.check('wrapping round to where the tag is drawn in full',
+      branchOf(env, centred(env)).indexOf('Mid (2)') !== -1, branchOf(env, centred(env)));
+    h.check('the tag stays selected throughout',
+      centred(env).textContent.indexOf('Leaf (3)') !== -1 &&
+      h.hasClass(centred(env), 'npt-row-sel'), centred(env).className);
+  })
+
+  // A pointer that cannot be followed is half a pointer.
+  .then(() => open()).then(({ env }) => {
+    btn(env, 'Expand all').click();
+    const pointer = leafRows(env).filter((n) => n.textContent.indexOf('↩') !== -1)[0];
+    badge(pointer, '↩').click();
+    h.check('the "shown under" badge goes to the row it names',
+      branchOf(env, centred(env)).indexOf('Mid (2)') !== -1 &&
+      centred(env).textContent.indexOf('↩') === -1, branchOf(env, centred(env)));
+  })
+
+  // The badge tours the parents one at a time; the inspector lists them, which is
+  // how one is reached directly.
+  .then(() => open()).then(({ env }) => {
+    btn(env, 'Expand all').click();
+    leafRows(env).filter((n) => n.textContent.indexOf('↩') === -1)[0].click();
+    const links = env.body.descendants().filter((n) => h.hasClass(n, 'npt-i-link'));
+    h.check('the inspector renders its tags as jumps',
+      links.some((n) => n.textContent.indexOf('"Mid" (2)') !== -1) &&
+      links.some((n) => n.textContent.indexOf('"Other" (6)') !== -1),
+      links.map((n) => n.textContent).join(' | '));
+    links.filter((n) => n.textContent.indexOf('"Other" (6)') !== -1)[0].click();
+    h.check('clicking one goes to that tag',
+      centred(env).textContent.indexOf('Other (6)') !== -1 &&
+      h.hasClass(centred(env), 'npt-row-sel'), centred(env).textContent);
+    h.check('and the inspector follows the selection',
+      inspector(env).indexOf('"Other" (6)') === 0, inspector(env).slice(0, 40));
+  })
+
+  // Same rule as Find: there are no branches in a flat list to land in.
+  .then(() => open()).then(({ env }) => {
+    const filter = env.body.descendants().filter((n) => h.hasClass(n, 'npt-search-input'))[0];
+    filter.value = 'Leaf';
+    (filter.handlers.input || []).forEach((fn) => fn({}));
+    h.check('the filter has flattened the tree first', rows(env).length === 1);
+
+    badge(leafRows(env)[0], '◆').click();
+    h.check('jumping from a filtered row clears the filter', filter.value === '');
+    h.check('and puts the tag back in the branch it jumped to',
+      branchOf(env, centred(env)).indexOf('Other (6)') !== -1, rows(env).join(' | '));
   })
 
   // ── Export ───────────────────────────────────────────────────────────────

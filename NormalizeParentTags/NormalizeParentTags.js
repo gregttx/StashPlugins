@@ -341,6 +341,14 @@
   // Ids arrive from GraphQL as strings. Compare them as numbers where both parse,
   // so 9 sorts below 10, and fall back to a string compare so the order is total
   // whatever Stash hands us.
+  // Ids arrive from GraphQL as strings but are also used as object keys, so compare
+  // them as strings rather than trusting both sides to be the same type.
+  function indexOfId(ids, id) {
+    if (id == null) return -1;
+    for (var i = 0; i < ids.length; i++) if (String(ids[i]) === String(id)) return i;
+    return -1;
+  }
+
   function lowerId(a, b) {
     var na = parseInt(a, 10), nb = parseInt(b, 10);
     if (!isNaN(na) && !isNaN(nb) && na !== nb) return na < nb;
@@ -674,6 +682,10 @@
     '.npt-badge{margin-left:.5rem;font-size:.72rem;padding:0 .3rem;border-radius:3px;}' +
     '.npt-b-diamond{color:#7cc4ff;} .npt-b-repeat{color:#a7b6c2;font-style:italic;}' +
     '.npt-b-prot{color:#ffb648;} .npt-b-cycle{color:#ff7373;} .npt-b-dim{color:#7d8f9c;}' +
+    '.npt-b-act{cursor:pointer;text-decoration:underline dotted;}' +
+    '.npt-b-act:hover{background:#3c4f5d;}' +
+    '.npt-i-link{cursor:pointer;text-decoration:underline dotted;}' +
+    '.npt-i-link:hover{color:#7cc4ff;}' +
     '.npt-i-title{font-size:1rem;font-weight:600;margin-bottom:.4rem;font-family:monospace;}' +
     '.npt-i-label{color:#7cc4ff;margin-top:.6rem;}' +
     '.npt-i-body{color:#d6dee4;white-space:pre-wrap;word-break:break-word;}' +
@@ -1333,18 +1345,31 @@
     }
     this.findCountEl.textContent = (this.findIndex + 1) + ' of ' + this.findMatches.length;
 
-    var target = this.findMatches[this.findIndex];
-    // A filter would have replaced the tree with a flat list, and "show me where
-    // this tag lives" cannot be answered from one. Being taken somewhere implies
+    this.jumpTo(this.findMatches[this.findIndex], null);
+  };
+
+  // The one navigation primitive: open the path, select, redraw, centre. `under`
+  // picks *which* occurrence of a multi-parent tag to land on - the row drawn
+  // beneath that parent - so a jump can name a branch and not just a tag. Find
+  // passes null, meaning "wherever it lives", which is its primary parent.
+  TreeView.prototype.jumpTo = function (id, under) {
+    // A filter would have replaced the tree with a flat list, and neither "show me
+    // where this tag lives" nor "show me its other parent" can be answered from
+    // one - there are no branches in it to land in. Being taken somewhere implies
     // the context comes back.
     if (this.query) {
       this.searchEl.value = '';
       this.setQuery('');
     }
-    this.revealPath(target);
-    this.selected = target;
+    if (under) {
+      this.revealPath(under);
+      this.expanded[under] = true;   // the row we are aiming at is one of its children
+    } else {
+      this.revealPath(id);
+    }
+    this.selected = id;
     this.render();
-    this.centerOn(target);
+    this.centerOn(id, under);
   };
 
   // Opens every ancestor between the tag and its root, following the same primary
@@ -1359,8 +1384,12 @@
     }
   };
 
-  TreeView.prototype.centerOn = function (id) {
-    var row = this.rowNodes && this.rowNodes[id];
+  // `under` asks for the occurrence drawn beneath that parent; without one, or if
+  // that occurrence is not on screen (its parent is in a cycle, so it is never
+  // walked into), fall back to the tag's own row rather than scrolling nowhere.
+  TreeView.prototype.centerOn = function (id, under) {
+    var occ = under && this.occNodes && this.occNodes[id];
+    var row = (occ && occ[under]) || (this.rowNodes && this.rowNodes[id]);
     if (!row) return;
     if (row.scrollIntoView) { row.scrollIntoView({ block: 'center' }); return; }
     // Older engines, and anything that does not take scrollIntoView options: put
@@ -1462,7 +1491,8 @@
 
   TreeView.prototype.render = function () {
     while (this.treeEl.firstChild) this.treeEl.removeChild(this.treeEl.firstChild);
-    this.rowNodes = {};
+    this.rowNodes = {};   // tag id -> its real row
+    this.occNodes = {};   // tag id -> { parent id -> the row drawn under that parent }
     var total = 0, id;
     for (id in this.graph.byId) if (hasOwn(this.graph.byId, id)) total++;
 
@@ -1535,9 +1565,30 @@
     var badges = [];
     if (g.cyclic[id]) badges.push({ cls: 'npt-b-cycle', text: '⚠ cycle' });
     if (repeat && under) {
-      badges.push({ cls: 'npt-b-repeat', text: '↩ shown under ' + tagLabel(g, this.primaryParent(id)) });
-    } else if (parents.length > 1) {
-      badges.push({ cls: 'npt-b-diamond', text: '◆ ' + parents.length + ' parents' });
+      // Names where the tag really lives, and takes you there: a pointer that
+      // cannot be followed is half a pointer.
+      badges.push({
+        cls: 'npt-b-repeat npt-b-act',
+        text: '↩ shown under ' + tagLabel(g, this.primaryParent(id)),
+        title: 'Jump to where this tag is drawn in full',
+        act: function () { self.jumpTo(id, self.primaryParent(id)); },
+      });
+    }
+    if (parents.length > 1) {
+      // The count alone leaves the user knowing a tag hangs off three branches and
+      // with no way to see the other two. Each click walks to the next parent in
+      // Stash's order, from wherever this row sits, so n clicks tour all of them;
+      // the tooltip names them, for jumping to one directly.
+      var sorted = this.sortIds(parents);
+      var here = indexOfId(sorted, under);
+      var next = sorted[(here + 1) % sorted.length];
+      badges.push({
+        cls: 'npt-b-diamond npt-b-act',
+        text: '◆ ' + parents.length + ' parents',
+        title: 'Parents: ' + sorted.map(function (pid) { return tagLabel(g, pid); }).join(', ') +
+          '\nJump to it under ' + tagLabel(g, next),
+        act: function () { self.jumpTo(id, next); },
+      });
     }
     var prot = this.filters.protections(id);
     if (prot.remove) badges.push({ cls: 'npt-b-prot', text: '⛔ never removed: ' + prot.remove });
@@ -1546,15 +1597,32 @@
     else badges.push({ cls: 'npt-b-dim', text: kids.length + ' child(ren)' });
     if (this.counts && hasOwn(this.counts, id)) badges.push({ cls: 'npt-b-dim', text: this.counts[id] });
 
-    badges.forEach(function (b) { row.appendChild(el('span', 'npt-badge ' + b.cls, b.text)); });
+    badges.forEach(function (b) {
+      var node = el('span', 'npt-badge ' + b.cls, b.text);
+      if (b.title) node.title = b.title;
+      if (b.act) {
+        node.addEventListener('click', function (ev) {
+          // Or the row's own handler re-renders underneath the jump, discarding
+          // the row it just scrolled to.
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          b.act();
+        });
+      }
+      row.appendChild(node);
+    });
 
     row.addEventListener('click', function () {
       self.selected = id;
       self.render();
     });
-    // The last row drawn for a tag wins, which is the real one rather than a
-    // repeat: repeats are drawn under later parents in sort order.
-    this.rowNodes[id] = row;
+    // The real row wins over a repeat whichever order they were drawn in - which
+    // way round that falls out depends on where the parents sit in the tree, not
+    // on their sort order. Every occurrence is addressable by its parent.
+    if (!repeat || !hasOwn(this.rowNodes, id)) this.rowNodes[id] = row;
+    if (under) {
+      if (!hasOwn(this.occNodes, id)) this.occNodes[id] = {};
+      this.occNodes[id][under] = row;
+    }
     this.treeEl.appendChild(row);
   };
 
@@ -1584,11 +1652,25 @@
 
     var self = this;
     function line(cls, text) { self.inspectEl.appendChild(el('div', cls, text)); }
+    // Every tag named here is a place to go. The Parents list is the direct answer
+    // to "jump to any of the other parents" - the badge tours them one at a time,
+    // this picks one out of a list that also names them.
     function list(label, ids) {
       if (!ids.length) return;
       line('npt-i-label', label + ' (' + ids.length + ')');
-      line('npt-i-body', ids.slice(0, 24).map(function (tid) { return tagLabel(g, tid); }).join(', ') +
-        (ids.length > 24 ? ', and ' + (ids.length - 24) + ' more' : ''));
+      var body = el('div', 'npt-i-body');
+      var capped = ids.slice(0, 24);
+      capped.forEach(function (tid, i) {
+        var link = el('span', 'npt-i-link', tagLabel(g, tid));
+        link.title = 'Jump to this tag';
+        link.addEventListener('click', function () { self.jumpTo(tid, null); });
+        body.appendChild(link);
+        if (i < capped.length - 1) body.appendChild(el('span', null, ', '));
+      });
+      if (ids.length > 24) {
+        body.appendChild(el('span', null, ', and ' + (ids.length - 24) + ' more'));
+      }
+      self.inspectEl.appendChild(body);
     }
 
     line('npt-i-title', tagLabel(g, id));

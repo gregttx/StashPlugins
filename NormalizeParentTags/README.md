@@ -114,9 +114,11 @@ other two tasks would do before running either.
 ```
 
 - **◆ n parents** — the tag hangs off more than one parent. These are worth knowing about: Prune
-  treats *every* ancestor on *every* branch as implied.
+  treats *every* ancestor on *every* branch as implied. **Click the badge to go and see the next
+  one**: it opens that branch and scrolls the tag into the middle of the view, so clicking it *n*
+  times tours every parent and comes back to where you started. Hovering it lists them all.
 - **↩ shown under X** — the same tag reached by a second path. It is drawn in full in one place
-  only, so the tree stays readable.
+  only, so the tree stays readable. **Click the badge** to jump to that full copy.
 - **⛔** — an exclusion filter you have configured protects this tag, and it names which one.
 - **⚠ cycle** — a loop in the hierarchy. Both tasks refuse to touch tags in one; this is where you
   can find them.
@@ -140,7 +142,9 @@ Both match **any part of a tag's name and ignore case**, so `colour` finds `Hair
 actually gets written.
 
 Select any tag to see its parents, ancestors, children and descendants, plus a plain-language
-answer for what Prune and Roll Up would do with it. **Load counts** adds how many scenes, images,
+answer for what Prune and Roll Up would do with it. Every tag named in those lists is clickable and
+takes you to it — which is the direct way to reach one particular parent of a multi-parent tag,
+where the **◆** badge walks them one at a time. **Load counts** adds how many scenes, images,
 galleries and performers carry each tag — a separate query, so it is only made if you ask.
 
 **Copy as DOT** and **Copy as Mermaid** put a diagram of the hierarchy on the clipboard for

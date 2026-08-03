@@ -128,10 +128,13 @@ Two boxes sit above the tree, and they do different things:
   of the view, so you see it where it lives, with its parents and siblings around it. The counter
   beside the box shows `2 of 7`; press **Enter** to walk to the next match, wrapping at the end. If
   a filter was active, finding clears it — there is nowhere to show a tag in context inside a flat
-  list.
+  list. A **×** clears the box and the counter, leaving the tree where the find took you.
 - **Filter by name** — reduces the tree *to* the matches, listed flat. Useful for "how many tags
   contain this" rather than "where is this one". A **×** appears in the box once you have typed
   something; clicking it clears the filter and puts the whole tree back.
+
+Both boxes carry the **×** on the right-hand side, and it only appears once there is something to
+clear.
 
 Both match **any part of a tag's name and ignore case**, so `colour` finds `Hair Colour`. Neither is one of the exclusion filters — those stay case-sensitive, because they decide what
 actually gets written.

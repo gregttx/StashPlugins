@@ -242,6 +242,33 @@ Promise.resolve()
 
     type('zzz');
     h.check('no match says so rather than jumping somewhere', count() === 'no match', count());
+
+    const findClear = env.body.descendants()
+      .filter((n) => h.hasClass(n, 'npt-find-clear'))[0];
+    h.check('the find box offers a clear icon once it has text',
+      !h.hasClass(findClear, 'npt-hidden'));
+    h.check('and it is labelled for what it does', findClear.title === 'Clear find', findClear.title);
+    findClear.click();
+    h.check('clicking it empties the find box', find.value === '');
+    h.check('and drops the match counter', count() === '', count());
+    h.check('and hides itself again', h.hasClass(findClear, 'npt-hidden'), findClear.className);
+    // Clearing a find is not an undo: the tag it took you to stays where you are.
+    h.check('while leaving the tree where the find left it',
+      env.body.descendants().some((n) => h.hasClass(n, 'npt-row-sel')));
+  })
+
+  .then(() => open()).then(({ env }) => {
+    const findClear = env.body.descendants()
+      .filter((n) => h.hasClass(n, 'npt-find-clear'))[0];
+    h.check('the find clear icon starts hidden',
+      !!findClear && h.hasClass(findClear, 'npt-hidden'), findClear && findClear.className);
+    // Two boxes on one row: each icon belongs to its own, or one of them lands in
+    // the wrong place the moment the row gains a second input.
+    const wraps = env.body.descendants().filter((n) => h.hasClass(n, 'npt-inputwrap'));
+    h.check('each box carries its own clear icon in its own wrapper',
+      wraps.length === 2 &&
+      wraps.every((w) => w.descendants().some((n) => h.hasClass(n, 'npt-clear'))),
+      'wrappers: ' + wraps.length);
   })
 
   // Find has to put the tree back if a filter had replaced it with a flat list,

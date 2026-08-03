@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.3.1.** This file is both the design and the map of the code — the
+**Status: implemented at 0.4.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -251,6 +251,29 @@ no PluginApi). It shows:
   The **due to** clause names the tag already on the entity that implies the one being written -
   the entry's *reason*. Both the entity and the tag put their id outside the quotes, so a name
   containing brackets cannot be misread as one.
+- A closing **tag summary** as the last line of the phase, listing every distinct tag the run
+  touches and how many entities each lands on:
+  `[INFO] 2 tag(s) to remove: "Blonde" (2) x1, "Hair Colour" (1) x250`
+
+  The per-entity lines answer "what happened to this entity"; this answers "which tags did this
+  run touch, and how widely", which is the question actually asked before trusting a Prune over a
+  whole library — and the one a six-figure log cannot be read for.
+
+  **Ordered the way Stash orders tags**, so the line reads straight against the tag list in the
+  UI: `ORDER BY COALESCE(tags.sort_name, tags.name) COLLATE NATURAL_CI`. That means `sort_name`
+  wins where it is set (it is nullable, never shown, and exists only to override the name for
+  sorting — so a blank one is no override), compared case-insensitively and with numeric runs as
+  numbers, hence `Volume 2` before `Volume 10`. `Intl.Collator({ numeric: true, sensitivity:
+  'accent' })` is the browser's nearest equivalent; without `Intl` it degrades to a
+  case-insensitive compare rather than throwing. The **id** is the final tie-break — Stash has one
+  too, and two tags in different parts of the hierarchy may share a name.
+
+  This is display order only. The id tie-break in `betterReason` is a different question — *which*
+  tag to blame, not what order to print — and stays on the id.
+
+  Phase 2 emits its own, counted from `appliedTags` — accumulated where a batch **succeeds**, not
+  from the plan — so a failed batch or a **Stop** is not summarised as though it had landed. The
+  two lines differing is meaningful, not a bug.
 - Buttons: **Proceed** (enabled once the scan finishes, and disabled outright when there is
   nothing to do) and **Cancel** (abandons the run; during the scan it stops paging).
 
@@ -470,6 +493,11 @@ cover:
 - **Exclusion filters** — each of the seven, including add/remove asymmetry, `hasOwnProperty`
   vs prototype keys, and that a skipped tag does not block its own parents in Roll Up.
 - **Two-phase dialog** — no mutation is issued before Proceed; Cancel issues none at all.
+- **The tag summary** — the exact closing line in both directions and both phases, the per-tag
+  entity counts, an empty plan producing none, and a failed batch dropping its 100 entities out
+  of the applied count rather than out of the plan's. Ordering is covered against all three parts
+  of Stash's rule at once (a `sort_name` override, case-insensitivity, and `Volume 2` before
+  `Volume 10`), plus that the tag query actually requests `sort_name`.
 - **Naming an untitled entity** — a zip gallery falls back to its file, a folder gallery to its
   folder, an image to its `visual_files` basename, and a real title still wins over all of them.
   The queries are asserted too: the fallback fields are useless if they are never requested, and

@@ -232,6 +232,69 @@ Promise.resolve()
       a[0].indexOf('"Platinum" (51)') !== -1, a[0]);
   })
 
+  // ── The closing tag summary ──────────────────────────────────────────────
+  //
+  // A six-figure log cannot be read to answer "which tags did this actually
+  // touch", so the last line of each phase says so outright.
+  .then(() => scan({
+    entities: scenes([
+      { id: '30', title: 'A', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] },
+      { id: '31', title: 'B', organized: false, tags: [{ id: '1' }, { id: '2' }] },
+    ]),
+  })).then(({ d }) => {
+    const last = d.lines[d.lines.length - 1];
+    // 1 (Hair Colour) goes from both scenes, 2 (Blonde) only from the one that
+    // also has Platinum. Sorted by name: Blonde before Hair Colour.
+    h.check('the review ends with every tag it plans to touch',
+      last === '[INFO] 2 tag(s) to remove: "Blonde" (2) x1, "Hair Colour" (1) x2', last);
+  })
+
+  .then(() => scan({
+    entities: scenes([{ id: '32', title: 'C', organized: false, tags: [{ id: '3' }] }]),
+  }, h.TASK_ROLLUP)).then(({ d }) => {
+    const last = d.lines[d.lines.length - 1];
+    h.check('roll up summarises what it plans to add',
+      last === '[INFO] 3 tag(s) to add: "Blonde" (2) x1, "Hair Colour" (1) x1, "Rare" (6) x1', last);
+  })
+
+  .then(() => scan({
+    entities: scenes([{ id: '33', title: 'D', organized: false, tags: [{ id: '2' }, { id: '5' }] }]),
+  })).then(({ d }) => {
+    h.check('a run with nothing to do has no summary',
+      !d.lines.some((l) => l.indexOf('tag(s) to remove') !== -1), d.lines.join(' | '));
+  })
+
+  // Stash orders tags by COALESCE(sort_name, name) under a natural, case-insensitive
+  // collation, and the summary follows it so the line can be read straight against
+  // the tag list in the UI. Each of these four parents is pruned off by its own
+  // child, and the expected order exercises all three parts of that rule: Zed sorts
+  // first on its sort_name, beta sorts before Volume regardless of case, and
+  // "Volume 2" comes before "volume 10" rather than after it.
+  .then(() => scan({
+    tags: [
+      { id: '10', name: 'Zed', sort_name: 'aaa', ignore_auto_tag: false, parents: [] },
+      { id: '11', name: 'volume 10', ignore_auto_tag: false, parents: [] },
+      { id: '12', name: 'Volume 2', ignore_auto_tag: false, parents: [] },
+      { id: '13', name: 'beta', sort_name: '   ', ignore_auto_tag: false, parents: [] },
+      { id: '20', name: 'child of Zed', ignore_auto_tag: false, parents: [{ id: '10' }] },
+      { id: '21', name: 'child of v10', ignore_auto_tag: false, parents: [{ id: '11' }] },
+      { id: '22', name: 'child of v2', ignore_auto_tag: false, parents: [{ id: '12' }] },
+      { id: '23', name: 'child of beta', ignore_auto_tag: false, parents: [{ id: '13' }] },
+    ],
+    entities: scenes([{
+      id: '40', title: 'E', organized: false,
+      tags: ['10', '11', '12', '13', '20', '21', '22', '23'].map((id) => ({ id })),
+    }]),
+  })).then(({ d, calls }) => {
+    const last = d.lines[d.lines.length - 1];
+    h.check('the summary is ordered the way Stash orders tags',
+      last === '[INFO] 4 tag(s) to remove: "Zed" (10) x1, "beta" (13) x1, ' +
+        '"Volume 2" (12) x1, "volume 10" (11) x1', last);
+    const tq = calls.filter((c) => /NPTTags/.test(c.query || ''))[0] || {};
+    h.check('the tag query asks for sort_name',
+      (tq.query || '').indexOf('sort_name') !== -1, tq.query);
+  })
+
   // ── Naming an entity that has no title ───────────────────────────────────
   //
   // Titles are optional on scenes, galleries and images. A zip gallery (.cbz is a

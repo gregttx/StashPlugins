@@ -58,7 +58,18 @@ and a log of every change it *would* make:
 [REMOVE] Image "IMG_0042" (900) - Tag "Hair Colour" (45) - due to "Blonde" (46)
 [ADD]    Performer "Jane" (7) - Tag "Hair Colour" (45) - due to "Platinum" (47)
 [ERROR]  Scenes page 5 - findScenes failed: ...
+[INFO]   2 tag(s) to remove: "Blonde" (46) x1, "Hair Colour" (45) x250
 ```
+
+The last line of each phase lists **every distinct tag the run touches**, with the number of
+entities each one lands on. It is the quickest way to see whether a run is about to do what you
+expect: the per-entity lines say what happens to one gallery, this says which tags are in play
+across the whole library. Phase 2 prints its own version counting what was actually written, so
+if a request failed the two lines will not match.
+
+The tags are listed in the same order Stash itself sorts them — by **Sort Name** where a tag has
+one, otherwise by name, ignoring case and treating numbers as numbers (`Volume 2` before
+`Volume 10`) — so the line reads straight against your tag list without re-sorting it by eye.
 
 The **due to** tag is the reason the change was planned: the tag already on the entity that
 implies the one being written. Where several tags on the entity imply it, the lowest one in the

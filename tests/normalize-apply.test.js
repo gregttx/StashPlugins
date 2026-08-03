@@ -241,6 +241,33 @@ Promise.resolve()
     });
   })
 
+  // ── The closing tag summary ──────────────────────────────────────────────
+  .then(() => scan({ entities: bigLibrary() })).then(({ d }) => {
+    const planned = d().lines[d().lines.length - 1];
+    h.check('the review summary counts every entity per tag',
+      planned === '[INFO] 2 tag(s) to remove: "Body" (4) x3, "Hair Colour" (1) x250', planned);
+    d().button('Proceed').click();
+    return h.flush().then(() => {
+      const applied = d().lines[d().lines.length - 1];
+      h.check('the run ends with what was actually written',
+        applied === '[INFO] 2 tag(s) removed: "Body" (4) x3, "Hair Colour" (1) x250', applied);
+    });
+  })
+
+  // The 250-entity delta is three chunks; failing the one holding id 1 must take
+  // 100 entities off that tag's count and leave the other tag alone.
+  .then(() => scan({
+    entities: bigLibrary(),
+    failBulk: (req) => req.variables.input.ids.indexOf('1') !== -1,
+  })).then(({ d }) => {
+    d().button('Proceed').click();
+    return h.flush().then(() => {
+      const applied = d().lines[d().lines.length - 1];
+      h.check('a failed batch is not summarised as written',
+        applied === '[INFO] 2 tag(s) removed: "Body" (4) x3, "Hair Colour" (1) x150', applied);
+    });
+  })
+
   // ── Clear log ────────────────────────────────────────────────────────────
   .then(() => {
     const copied = [];

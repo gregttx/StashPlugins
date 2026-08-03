@@ -171,7 +171,9 @@
   // ── Tag graph ─────────────────────────────────────────────────────────────
 
   function tagQuery(settings) {
-    var fields = 'id name ignore_auto_tag parents { id }';
+    // sort_name is what Stash sorts by when it is set; it costs one nullable string
+    // per tag on a query that is already fetching the whole hierarchy.
+    var fields = 'id name sort_name ignore_auto_tag parents { id }';
     if ((settings.c4ExcludeAddTagWithCustomFieldName || '').trim() ||
         (settings.c5ExcludeRemoveTagWithCustomFieldName || '').trim()) {
       fields += ' custom_fields';
@@ -299,6 +301,71 @@
     var out = {};
     ids.forEach(function (tid) { if (hasOwn(implied, tid)) out[tid] = implied[tid]; });
     return out;
+  }
+
+  function tagName(graph, id) {
+    var t = graph.byId[id];
+    return (t && t.name) || 'unknown';
+  }
+
+  // What Stash orders a tag by: `COALESCE(tags.sort_name, tags.name)`. sort_name is
+  // nullable and never shown in the UI - it exists purely to override the name for
+  // sorting - so an empty one is no override at all.
+  function tagSortKey(graph, id) {
+    var t = graph.byId[id];
+    if (!t) return '';
+    return (t.sort_name || '').trim() || t.name || '';
+  }
+
+  // Stash applies its own NATURAL_CI collation to that key: case-insensitive, and
+  // numeric runs compared as numbers, so "Volume 2" precedes "Volume 10" instead of
+  // following it. Intl.Collator is the closest thing the browser has; where it is
+  // missing this degrades to a case-insensitive compare rather than failing, and
+  // the id tie-break at the call site keeps the order total either way.
+  var collateNames = (function () {
+    try {
+      if (typeof Intl !== 'undefined' && Intl && Intl.Collator) {
+        var c = new Intl.Collator(undefined, { numeric: true, sensitivity: 'accent' });
+        return function (a, b) { return c.compare(a, b); };
+      }
+    } catch (e) { /* fall through to the plain compare */ }
+    return function (a, b) {
+      var la = String(a).toLowerCase(), lb = String(b).toLowerCase();
+      return la === lb ? 0 : (la < lb ? -1 : 1);
+    };
+  }());
+
+  // Counts entities per tag over a whole plan. A run only ever writes in one
+  // direction, so the two lists never need keeping apart here.
+  function planTagCounts(plan) {
+    var counts = {};
+    plan.forEach(function (entry) {
+      (entry.remove.length ? entry.remove : entry.add).forEach(function (tid) {
+        counts[tid] = (hasOwn(counts, tid) ? counts[tid] : 0) + 1;
+      });
+    });
+    return counts;
+  }
+
+  // The per-entity lines answer "what happened to this entity". This answers
+  // "which tags did this run touch, and how widely" - the question actually being
+  // asked before trusting a Prune across a whole library, and one that a
+  // six-figure log cannot be read for. Ordered the way Stash orders tags, so the
+  // line can be read against the tag list in the UI without re-sorting it by eye,
+  // with the id as the final tie-break - Stash uses one too, and two tags in
+  // different parts of the hierarchy are allowed to share a name.
+  function tagSummaryLine(graph, counts, verb) {
+    var ids = [], id;
+    for (id in counts) if (hasOwn(counts, id)) ids.push(id);
+    if (!ids.length) return '';
+    ids.sort(function (a, b) {
+      var c = collateNames(tagSortKey(graph, a), tagSortKey(graph, b));
+      if (c) return c;
+      return lowerId(a, b) ? -1 : 1;
+    });
+    return ids.length + ' tag(s) ' + verb + ': ' + ids.map(function (tid) {
+      return tagLabel(graph, tid) + ' x' + counts[tid];
+    }).join(', ');
   }
 
   // One log line for one tag on one entity, in either direction.
@@ -479,6 +546,7 @@
           // reasons - the same redundant parent is rarely redundant for the same
           // cause twice - so the line is built per entry, not per batch.
           run.log(batch.mode, changeLine(graph, batch.type, entry.label, tid, entry.reason));
+          run.appliedTags[tid] = (hasOwn(run.appliedTags, tid) ? run.appliedTags[tid] : 0) + 1;
         });
         run.wrote = true;
         run.applied++;
@@ -567,6 +635,7 @@
     this.total = {};
     this.errors = 0;
     this.applied = 0;
+    this.appliedTags = {};
     this.failed = 0;
     this.cancelled = false;
     this.stopped = false;
@@ -642,6 +711,14 @@
     this.show(this.closeBtn, done);
     this.proceedBtn.disabled = !ready || !this.plan.length;
     this.copyBtn.disabled = false;
+  };
+
+  Run.prototype.logTagSummary = function (counts, verb) {
+    // A run that stops before the tag query - no types enabled, settings failed -
+    // has no graph to name anything with, and nothing to summarise either.
+    if (!this.graph) return;
+    var line = tagSummaryLine(this.graph, counts, verb);
+    if (line) this.log('INFO', line);
   };
 
   Run.prototype.log = function (kind, message) {
@@ -818,6 +895,8 @@
     } else {
       this.log('INFO', 'Review complete: ' + this.plan.length + ' entity change(s) planned across ' +
         buildBatches(this.plan).length + ' request(s). Nothing has been written. Press Proceed to apply.');
+      this.logTagSummary(planTagCounts(this.plan),
+        this.mode === 'prune' ? 'to remove' : 'to add');
     }
     this.setState('ready');
     this.flush();
@@ -830,6 +909,7 @@
     var self = this;
     this.setState('applying');
     this.applied = 0;
+    this.appliedTags = {};
     this.failed = 0;
     this.log('INFO', 'Applying ' + this.plan.length + ' entity change(s) - ' + new Date().toISOString());
 
@@ -864,6 +944,9 @@
       (this.failed ? ', ' + this.failed + ' failed' : '') +
       (this.stopped ? ' (stopped early; changes already applied stay applied)' : '') +
       '. Press Rescan to review what is left.');
+    // Counted from what was written, not from the plan: a failed batch, or a Stop,
+    // must not be summarised as though it had landed.
+    this.logTagSummary(this.appliedTags, this.mode === 'prune' ? 'removed' : 'added');
     this.setState('done');
     this.flush();
   };

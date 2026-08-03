@@ -157,6 +157,41 @@ Promise.resolve()
       a.length === 2 && !a.some((l) => l.indexOf('Hair Colour') !== -1), a.join(' | '));
   })
 
+  // The name filters take several substrings at once, separated by whitespace, and
+  // a tag is protected when its name contains any one of them.
+  .then(() => scan({
+    settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: 'Hair Body' },
+    entities: scenes([
+      { id: '44', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] },
+      { id: '45', title: 'Other', organized: false, tags: [{ id: '4' }, { id: '5' }] },
+    ]),
+  })).then(({ d }) => {
+    const r = removals(d);
+    // Hair Colour (1) and Body (4) are each implied and each protected by their own
+    // term; only Blonde is left to go.
+    h.check('every space separated substring protects',
+      r.length === 1 && r[0].indexOf('Blonde') !== -1, r.join(' | '));
+  })
+
+  .then(() => scan({
+    settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: '   Hair\t\tBody  ' },
+    entities: scenes([
+      { id: '46', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] },
+      { id: '47', title: 'Other', organized: false, tags: [{ id: '4' }, { id: '5' }] },
+    ]),
+  })).then(({ d }) => {
+    h.check('padding and repeated whitespace produce no empty term',
+      removals(d).length === 1, removals(d).join(' | '));
+  })
+
+  // An empty setting must not degenerate into a term matching every name.
+  .then(() => scan({
+    settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: '   ' },
+    entities: scenes([{ id: '48', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
+  })).then(({ d }) => {
+    h.check('a blank setting protects nothing', removals(d).length === 2, removals(d).join(' | '));
+  })
+
   .then(() => scan({
     settings: { a5EnableScenes: true, c1ExcludeTagWithIgnoreAutoTag: true },
     tags: h.TAGS.map((t) => (t.id === '1' ? Object.assign({}, t, { ignore_auto_tag: true }) : t)),

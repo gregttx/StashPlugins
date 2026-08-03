@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.4.1.** This file is both the design and the map of the code — the
+**Status: implemented at 0.5.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -177,6 +177,15 @@ Custom-field matching is presence-only via `hasOwnProperty` (never `in` — inhe
 Name matching is a case-sensitive substring (`indexOf !== -1`) over the raw Unicode string: these
 are meant for namespace markers, and case-insensitivity would drag in locale surprises for no
 benefit. Aliases are not matched, only the name.
+
+Since 0.5.0 the two name settings hold **several substrings separated by whitespace**, and a tag is
+excluded when its name contains **any** of them (`splitTerms` + `nameMatchesAny`). Empty tokens are
+dropped, so padding and repeated separators are harmless — and a blank setting must yield an empty
+list, never a term matching every name. The cost is that a substring can no longer contain a space:
+one marker per term, which is what these are for. Note the upgrade consequence — a pre-0.5.0 value
+of `Hair Colour` was one substring and is now two, matching strictly more tags. That direction is
+the safe one (more tags protected from Prune, fewer added by Roll Up), but it is a silent change in
+meaning for anyone who had a phrase in there.
 
 A protected tag never breaks correctness: a parent kept back by a filter is still implied by its
 descendant, and the descendant's own status is unaffected.
@@ -506,7 +515,9 @@ cover:
   candidates fall to the lowest id, and phase 2 keeps each entity's own reason even though
   entities are batched by shared delta.
 - **Exclusion filters** — each of the seven, including add/remove asymmetry, `hasOwnProperty`
-  vs prototype keys, and that a skipped tag does not block its own parents in Roll Up.
+  vs prototype keys, and that a skipped tag does not block its own parents in Roll Up. For the
+  name filters: several substrings each protecting on their own, padding and repeated whitespace
+  yielding no empty term, and a blank setting protecting nothing rather than everything.
 - **Two-phase dialog** — no mutation is issued before Proceed; Cancel issues none at all.
 - **What a rescan resets** — the log-line counter describes the new pass rather than the session
   (including the reported case: a rescan finding nothing reports four lines and claims nothing

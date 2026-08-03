@@ -141,9 +141,15 @@ but never removed:
 
 - **Never add or remove tags set to Ignore auto tag** — applies in both directions. Such tags
   still count as present, so they can still make their own parents redundant.
-- **Never add tags whose name contains** / **Never remove tags whose name contains** — enter any
-  text; a tag whose name contains it anywhere is skipped. Case-sensitive, and any Unicode
-  character works, which makes it a good fit for namespace markers in tag names.
+- **Never add tags whose name contains (space separated substring)** / **Never remove tags whose
+  name contains (space separated substring)** — enter one or more substrings separated by spaces;
+  a tag whose name contains **any** of them anywhere is skipped. Case-sensitive, and any Unicode
+  character works, which makes it a good fit for namespace markers in tag names. Because spaces
+  separate the substrings, a single substring cannot contain one.
+
+  > **Upgrading from 0.4.x:** a value that used to be a phrase, say `Hair Colour`, is now read as
+  > the two substrings `Hair` and `Colour` and will match more tags than before. Check these two
+  > settings after updating if you had spaces in either.
 - **Never add tags marked via a Custom Field** / **Never remove tags marked via a Custom Field** —
   enter a custom field name. **Only the presence of the field matters** — the value is never
   looked at, so any value at all (including a blank one) applies the exclusion. To lift it,

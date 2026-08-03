@@ -1,6 +1,6 @@
 name: Normalize Parent Tags
 description: "Requires Stash 0.31.0 or newer. BACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. Two library-wide tasks that normalize tag hierarchies on your entities: Prune removes every tag already implied by a descendant tag on the same entity, and Roll Up adds every ancestor of every tag on the entity. Both run from Settings - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing is written until you press Proceed. Entity types are opt-in and are all off until enabled below."
-version: 0.4.1
+version: 0.5.0
 ui:
   javascript:
     - NormalizeParentTags.js
@@ -51,12 +51,12 @@ settings:
     description: Tags with "Ignore auto tag" enabled are neither added by Roll Up nor removed by Prune. They still count as present, so they can still imply the removal of their own parents.
     type: BOOLEAN
   c2ExcludeAddTagNameContains:
-    displayName: Never add tags whose name contains
-    description: Enter any text. Roll Up will not add a tag whose name contains it. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. Skipping a tag does not stop its own parents from being added.
+    displayName: Never add tags whose name contains (space separated substring)
+    description: Enter one or more substrings separated by spaces. Roll Up will not add a tag whose name contains any of them. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space. Skipping a tag does not stop its own parents from being added.
     type: STRING
   c3ExcludeRemoveTagNameContains:
-    displayName: Never remove tags whose name contains
-    description: Enter any text. Prune will not remove a tag whose name contains it, even when a descendant tag makes it redundant. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers.
+    displayName: Never remove tags whose name contains (space separated substring)
+    description: Enter one or more substrings separated by spaces. Prune will not remove a tag whose name contains any of them, even when a descendant tag makes it redundant. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space.
     type: STRING
   c4ExcludeAddTagWithCustomFieldName:
     displayName: Never add tags marked via a Custom Field

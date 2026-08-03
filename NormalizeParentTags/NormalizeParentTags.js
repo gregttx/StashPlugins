@@ -229,13 +229,33 @@
 
   // ── Exclusion filters ─────────────────────────────────────────────────────
 
-  function makeFilters(settings, graph) {
-    var addCF     = (settings.c4ExcludeAddTagWithCustomFieldName || '').trim();
-    var removeCF  = (settings.c5ExcludeRemoveTagWithCustomFieldName || '').trim();
-    var addStr    = settings.c2ExcludeAddTagNameContains || '';
-    var removeStr = settings.c3ExcludeRemoveTagNameContains || '';
+  // The name filters take a list of substrings separated by whitespace, and a tag
+  // is excluded when its name contains any one of them. The trade is that a
+  // substring cannot itself contain a space - these are meant for namespace
+  // markers, not for whole tag names, and matching several of them was worth more
+  // than matching one that could be a phrase.
+  function splitTerms(value) {
+    var out = [];
+    String(value == null ? '' : value).split(/\s+/).forEach(function (term) {
+      if (term) out.push(term);
+    });
+    return out;
+  }
 
-    function blocked(id, cfName, substr) {
+  function nameMatchesAny(name, terms) {
+    for (var i = 0; i < terms.length; i++) {
+      if (name.indexOf(terms[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function makeFilters(settings, graph) {
+    var addCF      = (settings.c4ExcludeAddTagWithCustomFieldName || '').trim();
+    var removeCF   = (settings.c5ExcludeRemoveTagWithCustomFieldName || '').trim();
+    var addTerms    = splitTerms(settings.c2ExcludeAddTagNameContains);
+    var removeTerms = splitTerms(settings.c3ExcludeRemoveTagNameContains);
+
+    function blocked(id, cfName, terms) {
       var t = graph.byId[id];
       if (!t) return true;                       // unknown tag: never touch it
       if (graph.cyclic[id]) return true;         // see buildGraph
@@ -243,13 +263,13 @@
       // Presence alone excludes; the value is never inspected. hasOwnProperty
       // rather than `in`, or inherited keys like "constructor" match every tag.
       if (cfName && t.custom_fields && hasOwn(t.custom_fields, cfName)) return true;
-      if (substr && (t.name || '').indexOf(substr) !== -1) return true;
+      if (terms.length && nameMatchesAny(t.name || '', terms)) return true;
       return false;
     }
 
     return {
-      canAdd:    function (id) { return !blocked(id, addCF, addStr); },
-      canRemove: function (id) { return !blocked(id, removeCF, removeStr); },
+      canAdd:    function (id) { return !blocked(id, addCF, addTerms); },
+      canRemove: function (id) { return !blocked(id, removeCF, removeTerms); },
     };
   }
 

@@ -5,17 +5,17 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.1.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.2.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
 
-## 1. What it does, and the four paths that do it
+## 1. What it does, and the five paths that do it
 
 Performer tags are copied onto scenes. Tags are only ever **added**, never removed — which is the
 assumption behind half the decisions below, because a wrong merge cannot be undone by the plugin.
 
-Four entry points share one core:
+Five entry points share one core:
 
 | Path | Trigger | Saves? |
 | --- | --- | --- |
@@ -23,6 +23,7 @@ Four entry points share one core:
 | Scene button, "Add Perf Tags" | click on the scene Edit tab | **stages** by default; saves if `saveTagsImmediately` |
 | Auto-merge on scene update | `sceneUpdate` / `bulkSceneUpdate` seen in `fetch` | yes |
 | Auto-merge on performer update | `performerUpdate` / `bulkPerformerUpdate` seen in `fetch` | yes, every scene of the performer |
+| Library-wide task (1.2.0) | click in Settings - Tasks - Plugin Tasks | yes, after the user presses **Start** |
 
 Everything funnels into two functions — `runMergeTagsIntoScene` (one scene) and
 `runMergeTagsIntoAllPerformerScenes` (a performer's scenes) — plus `stageTagsIntoSceneForm` for
@@ -41,10 +42,12 @@ The file is sectioned with `── ... ─` comments, in this order:
 7. Staging — `installTagSelectPatch`, `findSceneTagControl`, `stageTagsIntoSceneForm`
 8. `mergeTagsIntoAllPerformerScenes`
 9. Settings loading and its throttle
-10. Fetch interception
-11. Performer button
-12. Scene button
-13. Main loop — refresh strategy, `maybeGoToEdit`, `tick()`, observer, bootstrap
+10. **Library-wide task** — the dialog, the walk over every performer, and layer 1 of the
+    task-click interception
+11. Fetch interception (layer 2 of the task interception sits at the top of the wrapper)
+12. Performer button
+13. Scene button
+14. Main loop — refresh strategy, `maybeGoToEdit`, `tick()`, observer, bootstrap
 
 ## 3. The invariants
 
@@ -199,6 +202,48 @@ The protocol is documented in `../CLAUDE.md`. This plugin is the **reactive** si
   console line is only emitted for a mutation that would actually have been reacted to.
 - **Manual button clicks are never suppressed.** The user asked for those directly.
 
+## 7a. The library-wide task (1.2.0)
+
+Declared under `tasks:` in the manifest so Stash renders it natively in **Settings → Tasks →
+Plugin Tasks**, and caught in the browser, because this plugin has no `exec` and a queued job
+could only fail. The mechanism is the one `NormalizeParentTags` established and it is deliberately
+identical — capture-phase click listener keyed on the task name *within* a `SettingGroup` headed
+with the plugin name, plus a backstop in the `fetch` wrapper keyed on `plugin_id`. Read §2 of that
+plugin's CLAUDE.md before changing either layer.
+
+One thing differs and matters: **layer 2 sits at the very top of the `fetch` wrapper**, ahead of
+the `_mergeDepth` early return. A task click is a user action and stays one even if a merge happens
+to be in flight, and the mutation has to be *answered* rather than forwarded — so it cannot go
+through `_fetch` first the way the auto-merge branches do.
+
+**No dry-run phase, unlike the sibling.** Prune deletes assignments, so its plan is worth
+computing up front; this only ever adds, and the set it would add is exactly what the per-performer
+pass works out scene by scene. A planning pass would cost the same queries as the run and could
+still be stale by the time it was applied. Instead the dialog opens *ready but not started* and
+lists the active exclusions, so the user confirms against what is actually configured.
+
+**One `guarded()` around the whole walk**, not one per performer. Every scene the task writes would
+otherwise look to our own `fetch` wrapper like a user edit and re-enter the merge.
+
+**Performers are paged** (`TASK_PAGE_SIZE`, sorted by id), not fetched with `per_page: -1`: a large
+library has tens of thousands and one response holding all of them is a tab that stops responding.
+Performers with no tags are skipped from the page listing rather than inside the merge, so the
+common case costs nothing beyond the row that already named them.
+
+**It reuses `runMergeTagsIntoAllPerformerScenes` per performer**, which re-queries that performer's
+tags even though the page listing already returned their ids. That is one small query per tagged
+performer, paid to keep a single implementation of the filter rules (exclusion tag, ignore auto
+tag, custom field). Do not fork it for the task.
+
+**`finish()` must not call `refreshSceneList()`.** Its fallback is `location.reload()`, which would
+tear down the dialog and the log at the moment the user wants to read or copy it. The task evicts
+the Apollo scene-list cache directly and accepts a stale list where Apollo is absent.
+
+**It warns about a held lease but does not take one, and does not stand down for one.** A task
+click is manual, and §7's rule is that manual actions are never suppressed. Taking one would also
+be pointless today: the only bulk plugin in the repo is not reactive, so nothing would honour it.
+If a reactive third plugin ever appears, this run is what would need to start taking a lease.
+
 ## 8. Logging
 
 Two different prefixes, deliberately: user-facing merge lines use the full `[MergePerformerTagsToScenes]`
@@ -217,8 +262,19 @@ so in three places because users keep looking there.
 
 ## 9. Tests
 
-`node tests/run.js`. Four suites touch this plugin: `merge-logic`, `placement` (needs `jsdom`),
-`logging`, `staging`, plus `coop` for the lease. See `tests/README.md` for what each covers.
+`node tests/run.js`. Five suites touch this plugin: `merge-logic`, `placement` (needs `jsdom`),
+`logging`, `staging`, `merge-task`, plus `coop` for the lease. See `tests/README.md` for what each
+covers.
+
+`merge-task.test.js` runs on `npt-harness.js` rather than `harness.js`, because the task builds a
+dialog and `harness.js` fakes only enough DOM for a plugin that injects a button. That harness now
+takes the source path and plugin id as arguments (`run(ctx, src)`, `startTask(ctx, task, pluginId)`)
+and its `dialog(body, prefix)` reads either plugin's markup — one fake DOM for both, rather than a
+copy that drifts. It covers: the click never reaching the server, nothing written before **Start**,
+scenes that already carry the tag being skipped, untagged performers costing no scene query, the
+run not re-entering its own auto-merge, a failed scene being isolated and not logged as merged, and
+**Stop** halting between performers. The Stop case presses the button from inside the responder on
+the fifth write, so the moment it lands does not depend on how many ticks a flush happens to take.
 
 `staging.test.js` is the most exposed, because it *models* `useTagsEdit` rather than calling it.
 Anything touching §4 needs a click in a real Stash before it is believed. Same for §5: the suites

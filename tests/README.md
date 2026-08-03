@@ -23,7 +23,9 @@ Everything else is plain Node with no dependencies.
 ## How it works
 
 The plugins are ES5 IIFEs with no exports, so there is nothing to `require`. Instead
-`harness.js` (and `npt-harness.js`, which fakes enough DOM for a plugin that builds a
+`harness.js` (and `npt-harness.js`, which serves both plugins' dialogs — it takes the
+source path and plugin id as arguments, and `dialog(body, prefix)` reads either one's
+markup — and fakes enough DOM for a plugin that builds a
 whole dialog) evaluates the plugin inside a `vm` context holding a hand-rolled browser
 — `window`, `document`, `fetch`, `sessionStorage`, `MutationObserver` — and the tests
 drive it the way a browser would: by answering its GraphQL requests and by calling the
@@ -53,6 +55,7 @@ SRC=/tmp/old-version.js node tests/merge-logic.test.js
 | `normalize-plan.test.js` | `NormalizeParentTags` phase 1: the ancestor closure (chains, diamonds, intermediate tags whose children are absent), roll-up, every exclusion filter in both directions, marker primary tags, a planted cycle terminating with an error instead of emptying the entity, processing order, and the shape of the queries. |
 | `normalize-apply.test.js` | `NormalizeParentTags` phase 2: nothing written before Proceed, identical changes grouped and chunked at 100 ids, delta writes rather than a rewritten tag list, failed-request isolation, the bulk-edit lease held for exactly the writes and released on every path, sibling detection, the log render cap versus Copy log, and Rescan. |
 | `normalize-tasks.test.js` | `NormalizeParentTags` task interception: the capture-phase click (including leaving another plugin's same-named task alone) and the `runPluginTask` backstop, which must answer without reaching the server. |
+| `merge-task.test.js` | `MergePerformerTagsToScenes`' library-wide task: the click never reaching the server, the dialog opening ready rather than running, nothing written before **Start**, scenes that already carry the tag skipped and untagged performers costing no scene query, the run not re-entering its own auto-merge, a failed scene isolated and not counted as merged, and **Stop** halting between performers. Runs on `npt-harness.js`, which is the one with a DOM real enough for a dialog. |
 | `coop.test.js` | The bulk-edit lease from the reactive side: `MergePerformerTagsToScenes` registering itself, standing down while a lease is held, resuming on release, and ignoring an expired one. |
 | `staging.test.js` | `saveTagsImmediately` and the tag-staging path. Fakes `PluginApi` and mirrors Stash's `useTagsEdit` wiring to check that staging updates both the visible chips and formik (so Save enables), issues no mutation, diffs against the tag box rather than the saved scene, picks the right `TagSelect` among several, and falls back to saving where `PluginApi` is unavailable. |
 

@@ -133,17 +133,20 @@ function makeEnv(opts) {
   return { ctx, calls, body };
 }
 
-function run(ctx) {
+// `src` defaults to NormalizeParentTags; the merge-task suite passes the sibling's
+// path so that one fake DOM serves both plugins rather than being copied.
+function run(ctx, src) {
+  const file = src || SRC;
   vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(SRC, 'utf8'), ctx, { filename: SRC });
+  vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: file });
 }
 
 // Starts a task run the way the plugin's fetch backstop expects.
-function startTask(ctx, taskName) {
+function startTask(ctx, taskName, pluginId) {
   return ctx.window.fetch('/graphql', {
     body: JSON.stringify({
       query: 'mutation RunPluginTask($plugin_id: ID!, $task_name: String) { runPluginTask(plugin_id: $plugin_id, task_name: $task_name) }',
-      variables: { plugin_id: PLUGIN_ID, task_name: taskName },
+      variables: { plugin_id: pluginId || PLUGIN_ID, task_name: taskName },
     }),
   });
 }
@@ -155,20 +158,23 @@ const flush = (n) => {
 };
 
 // The dialog, as the tests want to see it: log lines, buttons by label, progress.
-function dialog(body) {
+// `prefix` selects which plugin's dialog to read: NormalizeParentTags uses npt-,
+// the merge task in the sibling uses cpt2s-. Same markup, same class suffixes.
+function dialog(body, prefix) {
+  const p = prefix || 'npt';
   const nodes = body.descendants();
   const buttons = nodes.filter((n) => n.tagName === 'BUTTON');
   return {
-    open: nodes.some((n) => hasClass(n, 'npt-modal')),
-    lines: nodes.filter((n) => hasClass(n, 'npt-line')).map((n) => n.textContent),
-    progress: (nodes.filter((n) => hasClass(n, 'npt-progress'))[0] || {}).textContent || '',
-    note: (nodes.filter((n) => hasClass(n, 'npt-note'))[0] || {}).textContent || '',
+    open: nodes.some((n) => hasClass(n, p + '-modal')),
+    lines: nodes.filter((n) => hasClass(n, p + '-line')).map((n) => n.textContent),
+    progress: (nodes.filter((n) => hasClass(n, p + '-progress'))[0] || {}).textContent || '',
+    note: (nodes.filter((n) => hasClass(n, p + '-note'))[0] || {}).textContent || '',
     button(label) {
       return buttons.filter((b) => b.textContent === label)[0] || null;
     },
     visible(label) {
       const b = this.button(label);
-      return !!b && !hasClass(b, 'npt-hidden');
+      return !!b && !hasClass(b, p + '-hidden');
     },
   };
 }
@@ -243,7 +249,7 @@ const bulkCalls = (calls) => calls.filter((c) => /mutation NPT_bulk/.test(c.quer
 
 module.exports = {
   SRC, PLUGIN_ID, TASK_PRUNE, TASK_ROLLUP, TAGS,
-  makeEnv, run, startTask, flush, dialog, hasClass,
+  makeEnv, run, startTask, flush, dialog, hasClass, makeElement,
   check, finish, makeResponder, bulkCalls,
   results: () => failures,
 };

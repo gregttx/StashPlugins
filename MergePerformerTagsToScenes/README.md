@@ -15,6 +15,18 @@ A front-end-only Stash plugin that adds two tag-merging buttons:
 
 Buttons are hidden by default and can be enabled in **Settings → Plugins → Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and the scene button needs the scene to have performers. Tags are **added** (not replaced) — existing tags are always kept.
 
+There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks**:
+
+- **Merge Performer Tags into All Their Scenes** — does what the performer button does, for every
+  performer in your library, in one run. Clicking it opens a dialog that shows which exclusion
+  filters are active and waits: **nothing is written until you press Start.** From there it reports
+  progress performer by performer, logs every scene it writes, and can be halted with **Stop** —
+  what has already been written stays written. **Copy log** hands you the whole run.
+
+  It needs no settings turned on: the buttons and auto-merge modes are separate, and the task runs
+  whether or not they are enabled. Tags are only ever added, but there is no undo — back up your
+  database before the first run.
+
 Two optional auto-merge modes can also be enabled in the same settings panel:
 
 - **Auto Merge On Scene Updates** — whenever a scene is saved, its performer tags are merged in automatically.

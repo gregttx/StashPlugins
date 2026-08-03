@@ -7,8 +7,18 @@
   'use strict';
 
   var PLUGIN_ID           = 'MergePerformerTagsToScenes';
+  var PLUGIN_NAME         = 'Merge Performer Tags To Scenes';
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
+
+  // Declared in the manifest so Stash lists it under Settings - Tasks - Plugin
+  // Tasks, but run in the browser: this plugin has no exec, so a queued job could
+  // only fail. See the task section near the end of this file.
+  var TASK_MERGE_ALL   = 'Merge Performer Tags into All Their Scenes';
+  var TASKS            = [TASK_MERGE_ALL];
+  var TASK_PAGE_SIZE   = 500;   // performers per page while walking the library
+  var TASK_LOG_CAP     = 1000;  // log lines kept in the DOM; all of them stay in memory
+  var TASK_FLUSH_MS    = 100;
 
   var settings = {
     showManualMergeButtons: false,
@@ -478,11 +488,17 @@
     });
   }
 
-  function mergeTagsIntoAllPerformerScenes(performerId, onProgress) {
-    return guarded(function () { return runMergeTagsIntoAllPerformerScenes(performerId, onProgress); });
+  function mergeTagsIntoAllPerformerScenes(performerId, onProgress, onMerged) {
+    return guarded(function () {
+      return runMergeTagsIntoAllPerformerScenes(performerId, onProgress, onMerged);
+    });
   }
 
-  function runMergeTagsIntoAllPerformerScenes(performerId, onProgress) {
+  // onMerged(scene, tags) fires per scene that was actually written, after the
+  // mutation resolved - the same point the console log is emitted from, and for the
+  // same reason: a scene that could not be updated must not be reported as merged.
+  // The library-wide task counts and logs from it.
+  function runMergeTagsIntoAllPerformerScenes(performerId, onProgress, onMerged) {
     return resolveExclusionTagId().then(function (exclTagId) {
       return gqlRequest(
         'query FindPerformer($id: ID!) { findPerformer(id: $id) { tags { ' + tagFields() + ' } } }',
@@ -560,8 +576,9 @@
           // is never logged as merged.
           function makeSceneLogger(scene, mergedIds) {
             return function () {
-              logMerges(mergedIds.map(function (id) { return perfTagById[id]; }),
-                scene, scene.id, 'saved');
+              var tags = mergedIds.map(function (id) { return perfTagById[id]; });
+              logMerges(tags, scene, scene.id, 'saved');
+              if (onMerged) onMerged(scene, tags);
             };
           }
 
@@ -618,6 +635,422 @@
       .then(function () { _settingsInFlight = false; _settingsLoadedAt = Date.now(); });
   }
 
+  // ── Library-wide task ─────────────────────────────────────────────────────
+  //
+  // The task is declared in the manifest so Stash renders it natively under
+  // Settings - Tasks - Plugin Tasks, but this plugin has no `exec`, so a click that
+  // reached the server could only produce a failed job. Both layers below stop it
+  // from getting there, exactly as NormalizeParentTags does: a capture-phase click
+  // listener, and a backstop in the fetch wrapper keyed on the plugin id that the
+  // runPluginTask mutation carries.
+  //
+  // What the run does is what the performer button does, for every performer in the
+  // library. There is no dry-run phase: the merge only ever *adds* tags, and the set
+  // it would add is exactly what the per-performer pass computes scene by scene, so
+  // a planning pass would cost the same queries as the run itself and could still be
+  // stale by the time it was applied. The dialog opens ready-but-not-started
+  // instead, so the user confirms before anything is written.
+
+  var TASK_STYLE_ID = 'cpt2s-task-style';
+  var TASK_CSS =
+    '.cpt2s-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
+    'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
+    '.cpt2s-modal{background:#30404d;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
+    'width:min(56rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
+    '.cpt2s-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
+    '.cpt2s-title{font-size:1.1rem;font-weight:600;}' +
+    '.cpt2s-warn{color:#ffb648;margin-top:.35rem;}' +
+    '.cpt2s-note{color:#a7b6c2;margin-top:.35rem;}' +
+    '.cpt2s-progress{padding:.5rem 1rem;border-bottom:1px solid #394b59;color:#a7b6c2;' +
+    'white-space:pre-wrap;}' +
+    '.cpt2s-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;' +
+    'font-size:.8rem;line-height:1.35;min-height:14rem;}' +
+    '.cpt2s-line{white-space:pre-wrap;word-break:break-word;}' +
+    '.cpt2s-ERROR{color:#ff7373;} .cpt2s-WARN{color:#ffb648;} .cpt2s-MERGE{color:#84d68a;}' +
+    '.cpt2s-INFO{color:#a7b6c2;}' +
+    '.cpt2s-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
+    'flex-wrap:wrap;align-items:center;}' +
+    '.cpt2s-foot button{margin-right:.5rem;}' +
+    '.cpt2s-hidden{display:none;}';
+
+  function taskInjectStyle() {
+    if (document.getElementById(TASK_STYLE_ID)) return;
+    var style = document.createElement('style');
+    style.id = TASK_STYLE_ID;
+    style.textContent = TASK_CSS;
+    (document.head || document.body || document.documentElement).appendChild(style);
+  }
+
+  function taskEl(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function taskButton(label, className) {
+    var b = taskEl('button', 'btn btn-secondary btn-sm' + (className ? ' ' + className : ''), label);
+    b.type = 'button';
+    return b;
+  }
+
+  function performerLabel(p) {
+    return '"' + (p.name || 'unnamed') + '" (' + p.id + ')';
+  }
+
+  var _activeTask = null;
+
+  function startTaskRun(taskName) {
+    if (_activeTask) { _activeTask.focus(); return; }
+    _activeTask = new TaskRun(taskName || TASK_MERGE_ALL);
+    _activeTask.build();
+  }
+
+  function TaskRun(taskName) {
+    this.taskName = taskName;
+    this.state = 'ready';
+    this.lines = [];
+    this.pending = [];
+    this.viewLines = 0;
+    this.stopped = false;
+    this.performersSeen = 0;
+    this.performersTotal = 0;
+    this.scenesUpdated = 0;
+    this.tagsAdded = 0;
+    this.errors = 0;
+  }
+
+  TaskRun.prototype.build = function () {
+    taskInjectStyle();
+    var self = this;
+
+    this.backdrop = taskEl('div', 'cpt2s-backdrop');
+    this.modal = taskEl('div', 'cpt2s-modal');
+    this.backdrop.appendChild(this.modal);
+
+    var head = taskEl('div', 'cpt2s-head');
+    head.appendChild(taskEl('div', 'cpt2s-title', PLUGIN_NAME + ' - ' + this.taskName));
+    head.appendChild(taskEl('div', 'cpt2s-warn',
+      'Tags are only ever added, never removed - but there is no undo. Back up your database ' +
+      'before the first run.'));
+    this.noteEl = taskEl('div', 'cpt2s-note', '');
+    head.appendChild(this.noteEl);
+    this.modal.appendChild(head);
+
+    this.progressEl = taskEl('div', 'cpt2s-progress', 'Ready.');
+    this.modal.appendChild(this.progressEl);
+
+    this.logEl = taskEl('div', 'cpt2s-log');
+    this.modal.appendChild(this.logEl);
+
+    var foot = taskEl('div', 'cpt2s-foot');
+    this.startBtn  = taskButton('Start', 'cpt2s-start');
+    this.cancelBtn = taskButton('Cancel', 'cpt2s-cancel');
+    this.stopBtn   = taskButton('Stop', 'cpt2s-stop cpt2s-hidden');
+    this.copyBtn   = taskButton('Copy log', 'cpt2s-copy');
+    this.closeBtn  = taskButton('Close', 'cpt2s-close cpt2s-hidden');
+
+    this.startBtn.addEventListener('click', function () { self.start(); });
+    this.cancelBtn.addEventListener('click', function () { self.close(); });
+    this.stopBtn.addEventListener('click', function () { self.stop(); });
+    this.copyBtn.addEventListener('click', function () { self.copy(); });
+    this.closeBtn.addEventListener('click', function () { self.close(); });
+
+    [this.startBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.closeBtn]
+      .forEach(function (b) { foot.appendChild(b); });
+    this.modal.appendChild(foot);
+
+    document.body.appendChild(this.backdrop);
+    this.describe();
+  };
+
+  TaskRun.prototype.focus = function () {
+    if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
+  };
+
+  TaskRun.prototype.show = function (node, visible) {
+    node.className = node.className.replace(/\s*cpt2s-hidden/g, '') + (visible ? '' : ' cpt2s-hidden');
+  };
+
+  TaskRun.prototype.setState = function (state) {
+    this.state = state;
+    var ready = state === 'ready', running = state === 'running', done = state === 'done';
+    this.show(this.startBtn, ready);
+    this.show(this.cancelBtn, ready);
+    this.show(this.stopBtn, running);
+    this.show(this.closeBtn, done);
+  };
+
+  // Everything the run is about to do that the user cannot see from the button:
+  // which exclusions are live, and whether a sibling bulk edit is in flight.
+  TaskRun.prototype.describe = function () {
+    this.setState('ready');
+    this.log('INFO', PLUGIN_NAME + ' - ' + this.taskName);
+    this.log('INFO', 'This copies every performer\'s tags onto every scene they appear in. ' +
+      'Nothing is written until you press Start.');
+
+    var on = [];
+    if (settings.excludeSceneOrganized) on.push('scenes marked Organized are skipped');
+    if ((settings.excludeSceneWithTagName || '').trim()) {
+      on.push('scenes tagged "' + settings.excludeSceneWithTagName.trim() + '" are skipped');
+    }
+    if (settings.excludeTagWithIgnoreAutoTag) on.push('tags set to Ignore auto tag are not merged');
+    if ((settings.excludeTagWithCustomFieldName || '').trim()) {
+      on.push('tags with the custom field "' + settings.excludeTagWithCustomFieldName.trim() +
+        '" are not merged');
+    }
+    this.log('INFO', on.length ? 'Active exclusions: ' + on.join('; ') + '.'
+      : 'No exclusion filters are configured, so every performer tag will be merged.');
+
+    // A lease means a bulk plugin is mid-run. It is advisory and this is a manual
+    // action, so it does not block - but two plugins rewriting the same scenes at
+    // once is worth saying out loud.
+    if (coop().leases.length) {
+      var msg = 'Another plugin is applying bulk changes right now. Running both at once means ' +
+        'each may undo part of the other; let it finish first.';
+      this.log('WARN', msg);
+      this.noteEl.textContent = msg;
+    }
+    this.renderProgress();
+  };
+
+  TaskRun.prototype.log = function (kind, message) {
+    var line = '[' + kind + '] ' + message;
+    this.lines.push(line);
+    this.viewLines++;
+    this.pending.push({ kind: kind, line: line });
+    this.scheduleFlush();
+  };
+
+  TaskRun.prototype.scheduleFlush = function () {
+    var self = this;
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(function () {
+      self.flushTimer = null;
+      self.flush();
+    }, TASK_FLUSH_MS);
+  };
+
+  // Only the tail is rendered. A library-wide merge can write six figures of
+  // scenes, and one node per line is a tab that stops responding; the full log
+  // stays in `lines`, which is what Copy log exports.
+  TaskRun.prototype.flush = function () {
+    if (!this.pending.length) return;
+    var pending = this.pending;
+    this.pending = [];
+    pending.forEach(function (p) {
+      this.logEl.appendChild(taskEl('div', 'cpt2s-line cpt2s-' + p.kind, p.line));
+    }, this);
+    while (this.logEl.childNodes && this.logEl.childNodes.length > TASK_LOG_CAP) {
+      this.logEl.removeChild(this.logEl.firstChild);
+    }
+    if (typeof this.logEl.scrollHeight === 'number') this.logEl.scrollTop = this.logEl.scrollHeight;
+    this.renderProgress();
+  };
+
+  TaskRun.prototype.renderProgress = function () {
+    var summary;
+    if (this.state === 'ready') {
+      summary = 'Ready. Nothing has been written.';
+    } else if (this.state === 'running') {
+      summary = 'Merging. Performers ' + this.performersSeen + ' / ' + this.performersTotal +
+        ', ' + this.scenesUpdated + ' scene(s) updated';
+    } else {
+      summary = 'Finished. ' + this.scenesUpdated + ' scene(s) updated, ' +
+        this.tagsAdded + ' tag assignment(s) added' +
+        (this.stopped ? ' (stopped early; what was written stays written)' : '');
+    }
+    if (this.errors) summary += ', ' + this.errors + ' error(s)';
+    if (this.viewLines > TASK_LOG_CAP) {
+      summary += ' - showing the last ' + TASK_LOG_CAP + ' of ' + this.viewLines + ' lines';
+    }
+    this.progressEl.textContent = summary;
+  };
+
+  TaskRun.prototype.start = function () {
+    if (this.state !== 'ready') return;
+    var self = this;
+    this.setState('running');
+    this.log('INFO', 'Started ' + new Date().toISOString() + '.');
+    this.renderProgress();
+
+    // One guard around the whole run rather than one per performer: every scene we
+    // write here would otherwise look to our own fetch wrapper like a user edit and
+    // re-enter the merge.
+    guarded(function () { return self.walk(1); })
+      .then(function () { self.finish(); }, function (e) {
+        self.log('ERROR', 'Run aborted: ' + (e && e.message ? e.message : e));
+        self.errors++;
+        self.finish();
+      });
+  };
+
+  // Pages the performer list rather than asking for all of them at once: a large
+  // library has tens of thousands, and `per_page: -1` on that is one response the
+  // tab has to hold whole.
+  TaskRun.prototype.walk = function (page) {
+    var self = this;
+    return gqlRequest(
+      'query CPT2S_TaskPerformers($page: Int!, $per: Int!) {' +
+      '  findPerformers(filter: { page: $page, per_page: $per, sort: "id", direction: ASC }) {' +
+      '    count performers { id name tags { id } }' +
+      '  }' +
+      '}',
+      { page: page, per: TASK_PAGE_SIZE }
+    ).then(function (data) {
+      var result = (data && data.findPerformers) || {};
+      var list = result.performers || [];
+      self.performersTotal = result.count || 0;
+      if (!list.length) return;
+
+      var i = 0;
+      function nextPerformer() {
+        // Performers with no tags are skipped here rather than inside the merge, so
+        // the common case costs nothing beyond the page that already listed them.
+        while (i < list.length) {
+          if (self.stopped) return;
+          var p = list[i++];
+          self.performersSeen++;
+          if (!p.tags || !p.tags.length) continue;
+          return self.mergeOne(p).then(nextPerformer);
+        }
+        self.renderProgress();
+        if (self.stopped || self.performersSeen >= self.performersTotal) return;
+        return self.walk(page + 1);
+      }
+      return nextPerformer();
+    });
+  };
+
+  TaskRun.prototype.mergeOne = function (p) {
+    var self = this;
+    return runMergeTagsIntoAllPerformerScenes(p.id, null, function (scene, tags) {
+      self.scenesUpdated++;
+      self.tagsAdded += tags.length;
+      self.log('MERGE', 'Performer ' + performerLabel(p) + ' - Scene ' +
+        sceneLogLabel(scene, scene.id) + ' - ' + tags.length + ' tag(s)');
+    }).then(function () {
+      self.renderProgress();
+    }, function (e) {
+      // runMergeTagsIntoAllPerformerScenes throws once, at the end, if any of that
+      // performer's scenes failed - so the rest of their scenes have already been
+      // attempted and the next performer is safe to start.
+      self.log('ERROR', 'Performer ' + performerLabel(p) + ': ' +
+        (e && e.message ? e.message : e));
+      self.errors++;
+    });
+  };
+
+  TaskRun.prototype.finish = function () {
+    this.log('INFO', 'Finished. ' + this.scenesUpdated + ' scene(s) updated, ' +
+      this.tagsAdded + ' tag assignment(s) added' +
+      (this.errors ? ', ' + this.errors + ' error(s)' : '') + '.');
+    this.setState('done');
+    this.flush();
+
+    // Evict the cached scene list so open views pick the new tags up - but never
+    // through refreshSceneList, whose fallback is location.reload(). Reloading here
+    // would tear down this dialog, and the log with it, at the moment the user wants
+    // to read or copy it. Without Apollo the worst case is a stale list until they
+    // navigate, which is the right way round.
+    var client = window.__APOLLO_CLIENT__;
+    if (client && client.cache && client.cache.evict) {
+      client.cache.evict({ id: 'ROOT_QUERY', fieldName: 'findScenes' });
+      client.cache.gc();
+    }
+  };
+
+  TaskRun.prototype.stop = function () {
+    if (this.state !== 'running') return;
+    this.stopped = true;
+    this.log('WARN', 'Stopping after the current performer...');
+  };
+
+  TaskRun.prototype.copy = function () {
+    var text = this.lines.join('\n');
+    var self = this;
+    function done(ok) {
+      self.copyBtn.textContent = ok ? 'Copied' : 'Copy failed';
+      setTimeout(function () { self.copyBtn.textContent = 'Copy log'; }, 2000);
+    }
+    var nav = window.navigator;
+    if (nav && nav.clipboard && nav.clipboard.writeText) {
+      nav.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallback()); });
+      return;
+    }
+    done(fallback());
+
+    // Stash is commonly served over plain HTTP on a LAN, where the async clipboard
+    // API is not available at all.
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        if (ta.select) ta.select();
+        var ok = document.execCommand ? document.execCommand('copy') : false;
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        return false;
+      }
+    }
+  };
+
+  TaskRun.prototype.close = function () {
+    if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
+    if (this.backdrop && this.backdrop.parentNode) {
+      this.backdrop.parentNode.removeChild(this.backdrop);
+    }
+    if (_activeTask === this) _activeTask = null;
+  };
+
+  // Layer 1: capture-phase click. React attaches its handlers to the root
+  // container, a descendant of document, so a capture listener here runs first and
+  // stopPropagation keeps PluginTasks' own handler - and its misleading "added job
+  // to queue" toast - from running at all.
+  //
+  // The button is only ours if it carries our task name AND sits inside a
+  // SettingGroup headed with the plugin name; another plugin may declare a task by
+  // the same name. Where the group cannot be identified the click is left alone:
+  // layer 2 still catches it, keyed on the plugin id in the mutation itself.
+  function ownTaskName(btn) {
+    var label = (btn.textContent || '').trim();
+    if (TASKS.indexOf(label) === -1) return null;
+    var node = btn;
+    for (var depth = 0; node && depth < 8; depth++, node = node.parentElement) {
+      var heading = node.querySelector ? node.querySelector('h3') : null;
+      if (heading && (heading.textContent || '').trim() === PLUGIN_NAME) return label;
+    }
+    return null;
+  }
+
+  document.addEventListener('click', function (event) {
+    var target = event.target;
+    var btn = target && target.closest ? target.closest('button') : null;
+    if (!btn) return;
+    var taskName = ownTaskName(btn);
+    if (!taskName) return;
+    event.preventDefault();
+    event.stopPropagation();
+    startTaskRun(taskName);
+  }, true);
+
+  // Layer 2 lives in the fetch wrapper below; this builds the response it answers
+  // with, so the mutation is never forwarded to a server that has nothing to exec.
+  function fakeOk(payload) {
+    var body = JSON.stringify(payload);
+    if (typeof Response === 'function') {
+      return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    return {
+      ok: true, status: 200,
+      json: function () { return Promise.resolve(JSON.parse(body)); },
+      text: function () { return Promise.resolve(body); },
+      clone: function () { return fakeOk(payload); },
+    };
+  }
+
   // ── Fetch interception for auto-merge ─────────────────────────────────────
   //
   // Wraps window.fetch to detect sceneUpdate / performerUpdate mutations from
@@ -646,6 +1079,21 @@
 
   var _fetch = window.fetch;
   window.fetch = function (url, opts) {
+    // Layer 2 of the task interception, ahead of everything else: the mutation must
+    // be answered rather than forwarded, so it cannot go through _fetch first, and
+    // the check has to sit in front of the _mergeDepth early return - a task click
+    // is a user action and stays one even if a merge happens to be in flight.
+    if (typeof url === 'string' && url.indexOf('/graphql') !== -1 && opts && opts.body) {
+      try {
+        var taskReq = JSON.parse(opts.body);
+        var taskVars = taskReq.variables || {};
+        if (/\brunPluginTask\b/.test(taskReq.query || '') && taskVars.plugin_id === PLUGIN_ID) {
+          startTaskRun(taskVars.task_name || TASK_MERGE_ALL);
+          return Promise.resolve(fakeOk({ data: { runPluginTask: PLUGIN_ID + '-handled-in-browser' } }));
+        }
+      } catch (e) { /* not JSON, or not ours: fall through to the real fetch */ }
+    }
+
     var p = _fetch.apply(this, arguments);
     if (_mergeDepth > 0 || typeof url !== 'string' || url.indexOf('/graphql') === -1 || !opts || !opts.body) {
       return p;

@@ -7,12 +7,12 @@ metadata:
     ignored tags, and tags marked via a custom field. The scene button stages tags
     in the edit form for review by default. A library-wide task in Settings - Tasks
     - Plugin Tasks merges every performer's tags into all of their scenes in one run,
-    after a confirmation dialog; nothing is written until you press Start. Merges can
-    optionally be logged to the
+    showing every planned change for review first; nothing is written until you press
+    Proceed. Merges can optionally be logged to the
     browser's JavaScript console (F12 - Console); being a UI plugin, it cannot write
     to the Stash server log or the Logs page. Auto-merge stands down while another
     plugin (such as Normalize Parent Tags) is applying bulk changes.
-version: 1.2.0
+version: 1.3.0
 date: "2026-08-02 00:00:00"
 requires: []
 files:

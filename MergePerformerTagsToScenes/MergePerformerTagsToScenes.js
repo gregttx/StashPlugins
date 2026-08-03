@@ -292,6 +292,25 @@
     return true;
   }
 
+  // The one place that decides whether one of a performer's scenes is skipped and,
+  // if not, which of their tags it is missing. Returns null for "skip", otherwise
+  // { existingIds, missing }. Both the per-performer merge and the task's review
+  // pass go through it, so the plan the user approves and the write that follows
+  // can never disagree about what a scene needs.
+  function sceneMergePlan(scene, perfTagIds, exclTagId) {
+    if (settings.excludeSceneOrganized && scene.organized) return null;
+    if (exclTagId) {
+      var hasExcl = false;
+      (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
+      if (hasExcl) return null;
+    }
+    var existingIds = (scene.tags || []).map(function (t) { return t.id; });
+    var existingSet = {};
+    existingIds.forEach(function (id) { existingSet[id] = true; });
+    var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
+    return missing.length ? { existingIds: existingIds, missing: missing } : null;
+  }
+
   // Resolves to true when the scene's tags were updated, false when it was skipped
   // (excluded by a filter, or already carrying every performer tag).
   function mergeTagsIntoScene(sceneId) {
@@ -488,17 +507,11 @@
     });
   }
 
-  function mergeTagsIntoAllPerformerScenes(performerId, onProgress, onMerged) {
-    return guarded(function () {
-      return runMergeTagsIntoAllPerformerScenes(performerId, onProgress, onMerged);
-    });
+  function mergeTagsIntoAllPerformerScenes(performerId, onProgress) {
+    return guarded(function () { return runMergeTagsIntoAllPerformerScenes(performerId, onProgress); });
   }
 
-  // onMerged(scene, tags) fires per scene that was actually written, after the
-  // mutation resolved - the same point the console log is emitted from, and for the
-  // same reason: a scene that could not be updated must not be reported as merged.
-  // The library-wide task counts and logs from it.
-  function runMergeTagsIntoAllPerformerScenes(performerId, onProgress, onMerged) {
+  function runMergeTagsIntoAllPerformerScenes(performerId, onProgress) {
     return resolveExclusionTagId().then(function (exclTagId) {
       return gqlRequest(
         'query FindPerformer($id: ID!) { findPerformer(id: $id) { tags { ' + tagFields() + ' } } }',
@@ -539,19 +552,10 @@
             while (i < scenes.length) {
               var scene = scenes[i++];
               if (onProgress) onProgress(i, scenes.length);
-              if (settings.excludeSceneOrganized && scene.organized) continue;
-              if (exclTagId) {
-                var hasExcl = false;
-                (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
-                if (hasExcl) continue;
-              }
-              var existingIds = (scene.tags || []).map(function (t) { return t.id; });
-              var existingSet = {};
-              existingIds.forEach(function (id) { existingSet[id] = true; });
-              var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
-              if (!missing.length) continue;
-              return updateSceneTags(scene.id, existingIds.concat(missing))
-                .then(makeSceneLogger(scene, missing))
+              var plan = sceneMergePlan(scene, perfTagIds, exclTagId);
+              if (!plan) continue;
+              return updateSceneTags(scene.id, plan.existingIds.concat(plan.missing))
+                .then(makeSceneLogger(scene, plan.missing))
                 .catch(makeSceneFailureHandler(scene))
                 .then(next);
             }
@@ -576,9 +580,8 @@
           // is never logged as merged.
           function makeSceneLogger(scene, mergedIds) {
             return function () {
-              var tags = mergedIds.map(function (id) { return perfTagById[id]; });
-              logMerges(tags, scene, scene.id, 'saved');
-              if (onMerged) onMerged(scene, tags);
+              logMerges(mergedIds.map(function (id) { return perfTagById[id]; }),
+                scene, scene.id, 'saved');
             };
           }
 
@@ -694,6 +697,14 @@
     return b;
   }
 
+  // The review log names every tag it plans to add, so `name` is always requested -
+  // unlike tagFields(), which adds it only while console logging is on. Everything
+  // else the filters need is the same.
+  function taskTagFields() {
+    var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
+    return 'id name ignore_auto_tag' + (cfName ? ' custom_fields' : '');
+  }
+
   function performerLabel(p) {
     return '"' + (p.name || 'unnamed') + '" (' + p.id + ')';
   }
@@ -708,17 +719,29 @@
 
   function TaskRun(taskName) {
     this.taskName = taskName;
-    this.state = 'ready';
-    this.lines = [];
+    this.reset();
+  }
+
+  TaskRun.prototype.reset = function () {
+    this.state = 'scanning';
+    this.lines = this.lines || [];
     this.pending = [];
     this.viewLines = 0;
+    this.cancelled = false;
     this.stopped = false;
     this.performersSeen = 0;
     this.performersTotal = 0;
+    // One entry per scene, never one per performer: a scene featuring two performers
+    // is missing tags from both, and writing it twice from a plan computed before
+    // either write would have the second write - built from the scene's scan-time
+    // tags - drop what the first one added. See planScene.
+    this.plan = [];
+    this.planByScene = {};
+    this.tagsPlanned = 0;
     this.scenesUpdated = 0;
     this.tagsAdded = 0;
     this.errors = 0;
-  }
+  };
 
   TaskRun.prototype.build = function () {
     taskInjectStyle();
@@ -737,31 +760,34 @@
     head.appendChild(this.noteEl);
     this.modal.appendChild(head);
 
-    this.progressEl = taskEl('div', 'cpt2s-progress', 'Ready.');
+    this.progressEl = taskEl('div', 'cpt2s-progress', 'Starting...');
     this.modal.appendChild(this.progressEl);
 
     this.logEl = taskEl('div', 'cpt2s-log');
     this.modal.appendChild(this.logEl);
 
     var foot = taskEl('div', 'cpt2s-foot');
-    this.startBtn  = taskButton('Start', 'cpt2s-start');
-    this.cancelBtn = taskButton('Cancel', 'cpt2s-cancel');
-    this.stopBtn   = taskButton('Stop', 'cpt2s-stop cpt2s-hidden');
-    this.copyBtn   = taskButton('Copy log', 'cpt2s-copy');
-    this.closeBtn  = taskButton('Close', 'cpt2s-close cpt2s-hidden');
+    this.proceedBtn = taskButton('Proceed', 'cpt2s-proceed');
+    this.cancelBtn  = taskButton('Cancel', 'cpt2s-cancel');
+    this.stopBtn    = taskButton('Stop', 'cpt2s-stop cpt2s-hidden');
+    this.copyBtn    = taskButton('Copy log', 'cpt2s-copy');
+    this.rescanBtn  = taskButton('Rescan', 'cpt2s-rescan cpt2s-hidden');
+    this.closeBtn   = taskButton('Close', 'cpt2s-close cpt2s-hidden');
+    this.proceedBtn.disabled = true;
 
-    this.startBtn.addEventListener('click', function () { self.start(); });
-    this.cancelBtn.addEventListener('click', function () { self.close(); });
+    this.proceedBtn.addEventListener('click', function () { self.proceed(); });
+    this.cancelBtn.addEventListener('click', function () { self.cancel(); });
     this.stopBtn.addEventListener('click', function () { self.stop(); });
     this.copyBtn.addEventListener('click', function () { self.copy(); });
+    this.rescanBtn.addEventListener('click', function () { self.rescan(); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
 
-    [this.startBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.closeBtn]
+    [this.proceedBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.rescanBtn, this.closeBtn]
       .forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
     document.body.appendChild(this.backdrop);
-    this.describe();
+    this.begin();
   };
 
   TaskRun.prototype.focus = function () {
@@ -774,44 +800,14 @@
 
   TaskRun.prototype.setState = function (state) {
     this.state = state;
-    var ready = state === 'ready', running = state === 'running', done = state === 'done';
-    this.show(this.startBtn, ready);
-    this.show(this.cancelBtn, ready);
-    this.show(this.stopBtn, running);
+    var scanning = state === 'scanning', ready = state === 'ready';
+    var applying = state === 'applying', done = state === 'done';
+    this.show(this.proceedBtn, scanning || ready);
+    this.show(this.cancelBtn, scanning || ready);
+    this.show(this.stopBtn, applying);
+    this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
-  };
-
-  // Everything the run is about to do that the user cannot see from the button:
-  // which exclusions are live, and whether a sibling bulk edit is in flight.
-  TaskRun.prototype.describe = function () {
-    this.setState('ready');
-    this.log('INFO', PLUGIN_NAME + ' - ' + this.taskName);
-    this.log('INFO', 'This copies every performer\'s tags onto every scene they appear in. ' +
-      'Nothing is written until you press Start.');
-
-    var on = [];
-    if (settings.excludeSceneOrganized) on.push('scenes marked Organized are skipped');
-    if ((settings.excludeSceneWithTagName || '').trim()) {
-      on.push('scenes tagged "' + settings.excludeSceneWithTagName.trim() + '" are skipped');
-    }
-    if (settings.excludeTagWithIgnoreAutoTag) on.push('tags set to Ignore auto tag are not merged');
-    if ((settings.excludeTagWithCustomFieldName || '').trim()) {
-      on.push('tags with the custom field "' + settings.excludeTagWithCustomFieldName.trim() +
-        '" are not merged');
-    }
-    this.log('INFO', on.length ? 'Active exclusions: ' + on.join('; ') + '.'
-      : 'No exclusion filters are configured, so every performer tag will be merged.');
-
-    // A lease means a bulk plugin is mid-run. It is advisory and this is a manual
-    // action, so it does not block - but two plugins rewriting the same scenes at
-    // once is worth saying out loud.
-    if (coop().leases.length) {
-      var msg = 'Another plugin is applying bulk changes right now. Running both at once means ' +
-        'each may undo part of the other; let it finish first.';
-      this.log('WARN', msg);
-      this.noteEl.textContent = msg;
-    }
-    this.renderProgress();
+    this.proceedBtn.disabled = !ready || !this.plan.length;
   };
 
   TaskRun.prototype.log = function (kind, message) {
@@ -831,8 +827,8 @@
     }, TASK_FLUSH_MS);
   };
 
-  // Only the tail is rendered. A library-wide merge can write six figures of
-  // scenes, and one node per line is a tab that stops responding; the full log
+  // Only the tail is rendered. A first run over a large library can plan six figures
+  // of scenes, and one node per line is a tab that stops responding; the full log
   // stays in `lines`, which is what Copy log exports.
   TaskRun.prototype.flush = function () {
     if (!this.pending.length) return;
@@ -850,11 +846,14 @@
 
   TaskRun.prototype.renderProgress = function () {
     var summary;
-    if (this.state === 'ready') {
-      summary = 'Ready. Nothing has been written.';
-    } else if (this.state === 'running') {
-      summary = 'Merging. Performers ' + this.performersSeen + ' / ' + this.performersTotal +
-        ', ' + this.scenesUpdated + ' scene(s) updated';
+    if (this.state === 'scanning') {
+      summary = 'Reviewing. Performers ' + this.performersSeen + ' / ' + this.performersTotal +
+        ', ' + this.plan.length + ' scene(s) to update';
+    } else if (this.state === 'ready') {
+      summary = 'Review complete. ' + this.plan.length + ' scene(s) to update, ' +
+        this.tagsPlanned + ' tag assignment(s) to add. Nothing has been written.';
+    } else if (this.state === 'applying') {
+      summary = 'Merging. ' + this.scenesUpdated + ' of ' + this.plan.length + ' scene(s) updated';
     } else {
       summary = 'Finished. ' + this.scenesUpdated + ' scene(s) updated, ' +
         this.tagsAdded + ' tag assignment(s) added' +
@@ -867,33 +866,63 @@
     this.progressEl.textContent = summary;
   };
 
-  TaskRun.prototype.start = function () {
-    if (this.state !== 'ready') return;
-    var self = this;
-    this.setState('running');
-    this.log('INFO', 'Started ' + new Date().toISOString() + '.');
-    this.renderProgress();
+  // ── Phase 1: review ───────────────────────────────────────────────────────
 
-    // One guard around the whole run rather than one per performer: every scene we
-    // write here would otherwise look to our own fetch wrapper like a user edit and
-    // re-enter the merge.
-    guarded(function () { return self.walk(1); })
-      .then(function () { self.finish(); }, function (e) {
-        self.log('ERROR', 'Run aborted: ' + (e && e.message ? e.message : e));
-        self.errors++;
-        self.finish();
-      });
+  TaskRun.prototype.begin = function () {
+    var self = this;
+    this.setState('scanning');
+    this.noteEl.textContent = '';
+    this.renderProgress();
+    this.log('INFO', PLUGIN_NAME + ' - ' + this.taskName + ' - reviewing, nothing will be written yet.');
+    this.describeFilters();
+
+    // A lease means a bulk plugin is mid-run. It is advisory and this is a manual
+    // action, so it does not block - but two plugins rewriting the same scenes at
+    // once is worth saying out loud.
+    if (coop().leases.length) {
+      var msg = 'Another plugin is applying bulk changes right now. Running both at once means ' +
+        'each may undo part of the other; let it finish first.';
+      this.log('WARN', msg);
+      this.noteEl.textContent = msg;
+    }
+
+    resolveExclusionTagId().then(function (exclTagId) {
+      return self.walk(1, exclTagId);
+    }).then(function () {
+      self.finishScan();
+    }, function (e) {
+      self.log('ERROR', 'Review failed: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      self.finishScan();
+    });
+  };
+
+  TaskRun.prototype.describeFilters = function () {
+    var on = [];
+    if (settings.excludeSceneOrganized) on.push('scenes marked Organized are skipped');
+    if ((settings.excludeSceneWithTagName || '').trim()) {
+      on.push('scenes tagged "' + settings.excludeSceneWithTagName.trim() + '" are skipped');
+    }
+    if (settings.excludeTagWithIgnoreAutoTag) on.push('tags set to Ignore auto tag are not merged');
+    if ((settings.excludeTagWithCustomFieldName || '').trim()) {
+      on.push('tags with the custom field "' + settings.excludeTagWithCustomFieldName.trim() +
+        '" are not merged');
+    }
+    this.log('INFO', on.length ? 'Active exclusions: ' + on.join('; ') + '.'
+      : 'No exclusion filters are configured, so every performer tag will be merged.');
   };
 
   // Pages the performer list rather than asking for all of them at once: a large
   // library has tens of thousands, and `per_page: -1` on that is one response the
-  // tab has to hold whole.
-  TaskRun.prototype.walk = function (page) {
+  // tab has to hold whole. Tags come back with the page, so the review needs no
+  // second query per performer.
+  TaskRun.prototype.walk = function (page, exclTagId) {
     var self = this;
+    if (this.cancelled) return Promise.resolve();
     return gqlRequest(
       'query CPT2S_TaskPerformers($page: Int!, $per: Int!) {' +
       '  findPerformers(filter: { page: $page, per_page: $per, sort: "id", direction: ASC }) {' +
-      '    count performers { id name tags { id } }' +
+      '    count performers { id name tags { ' + taskTagFields() + ' } }' +
       '  }' +
       '}',
       { page: page, per: TASK_PAGE_SIZE }
@@ -905,46 +934,154 @@
 
       var i = 0;
       function nextPerformer() {
-        // Performers with no tags are skipped here rather than inside the merge, so
-        // the common case costs nothing beyond the page that already listed them.
+        // Performers with nothing mergeable are skipped here rather than costing a
+        // scene query each: on a large library that is most of the run's savings.
         while (i < list.length) {
-          if (self.stopped) return;
+          if (self.cancelled) return;
           var p = list[i++];
           self.performersSeen++;
-          if (!p.tags || !p.tags.length) continue;
-          return self.mergeOne(p).then(nextPerformer);
+          var perfTags = (p.tags || []).filter(function (t) {
+            return tagIsMergeable(t, exclTagId, (settings.excludeTagWithCustomFieldName || '').trim());
+          });
+          if (!perfTags.length) continue;
+          return self.reviewPerformer(p, perfTags, exclTagId).then(nextPerformer);
         }
         self.renderProgress();
-        if (self.stopped || self.performersSeen >= self.performersTotal) return;
-        return self.walk(page + 1);
+        if (self.cancelled || self.performersSeen >= self.performersTotal) return;
+        return self.walk(page + 1, exclTagId);
       }
       return nextPerformer();
     });
   };
 
-  TaskRun.prototype.mergeOne = function (p) {
+  TaskRun.prototype.reviewPerformer = function (p, perfTags, exclTagId) {
     var self = this;
-    return runMergeTagsIntoAllPerformerScenes(p.id, null, function (scene, tags) {
-      self.scenesUpdated++;
-      self.tagsAdded += tags.length;
-      self.log('MERGE', 'Performer ' + performerLabel(p) + ' - Scene ' +
-        sceneLogLabel(scene, scene.id) + ' - ' + tags.length + ' tag(s)');
-    }).then(function () {
+    var perfTagIds = perfTags.map(function (t) { return t.id; });
+    var perfTagById = {};
+    perfTags.forEach(function (t) { perfTagById[t.id] = t; });
+
+    return gqlRequest(
+      'query CPT2S_TaskPerformerScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {' +
+      '  findScenes(filter: $filter, scene_filter: $scene_filter) {' +
+      '    scenes { id organized title files { basename } tags { id } }' +
+      '  }' +
+      '}',
+      {
+        filter: { per_page: -1 },
+        scene_filter: { performers: { value: [p.id], modifier: 'INCLUDES_ALL' } },
+      }
+    ).then(function (data) {
+      var scenes = (data.findScenes && data.findScenes.scenes) || [];
+      scenes.forEach(function (scene) {
+        var need = sceneMergePlan(scene, perfTagIds, exclTagId);
+        if (!need) return;
+        self.planScene(scene, need, perfTagById, p);
+      });
       self.renderProgress();
     }, function (e) {
-      // runMergeTagsIntoAllPerformerScenes throws once, at the end, if any of that
-      // performer's scenes failed - so the rest of their scenes have already been
-      // attempted and the next performer is safe to start.
-      self.log('ERROR', 'Performer ' + performerLabel(p) + ': ' +
+      self.log('ERROR', 'Performer ' + performerLabel(p) + ': listing scenes failed: ' +
         (e && e.message ? e.message : e));
       self.errors++;
     });
   };
 
-  TaskRun.prototype.finish = function () {
+  // Folds one performer's needs for one scene into that scene's single plan entry.
+  TaskRun.prototype.planScene = function (scene, need, perfTagById, p) {
+    var entry = this.planByScene[scene.id];
+    if (!entry) {
+      entry = {
+        scene: scene,
+        existingIds: need.existingIds,
+        tagIds: [],
+        tags: [],
+        from: [],
+      };
+      this.planByScene[scene.id] = entry;
+      this.plan.push(entry);
+    }
+    var added = [];
+    need.missing.forEach(function (id) {
+      if (entry.tagIds.indexOf(id) !== -1) return;   // another performer already needs it
+      entry.tagIds.push(id);
+      entry.tags.push(perfTagById[id]);
+      added.push(perfTagById[id]);
+    });
+    entry.from.push(performerLabel(p));
+    this.tagsPlanned += added.length;
+    if (added.length) {
+      this.log('MERGE', 'Performer ' + performerLabel(p) + ' - Scene ' +
+        sceneLogLabel(scene, scene.id) + ' - ' + added.length + ' tag(s): ' +
+        added.map(function (t) { return '"' + (t.name || 'unnamed') + '" (' + t.id + ')'; }).join(', '));
+    }
+  };
+
+  TaskRun.prototype.finishScan = function () {
+    this.flush();
+    if (this.cancelled) return;
+    if (!this.plan.length) {
+      this.log('INFO', 'Nothing to merge.');
+    } else {
+      this.log('INFO', 'Review complete: ' + this.tagsPlanned + ' tag assignment(s) across ' +
+        this.plan.length + ' scene(s). Nothing has been written. Press Proceed to apply.');
+    }
+    this.setState('ready');
+    this.flush();
+  };
+
+  // ── Phase 2: apply ────────────────────────────────────────────────────────
+
+  TaskRun.prototype.proceed = function () {
+    if (this.state !== 'ready' || !this.plan.length) return;
+    var self = this;
+    this.setState('applying');
+    this.scenesUpdated = 0;
+    this.tagsAdded = 0;
+    this.log('INFO', 'Applying ' + this.plan.length + ' scene change(s) - ' + new Date().toISOString());
+
+    var i = 0;
+    // One guard around the whole apply rather than one per scene: every scene we
+    // write would otherwise look to our own fetch wrapper like a user edit and
+    // re-enter the merge.
+    guarded(function () {
+      function nextEntry() {
+        if (self.stopped || i >= self.plan.length) return Promise.resolve();
+        return self.applyEntry(self.plan[i++]).then(nextEntry);
+      }
+      return nextEntry();
+    }).then(function () {
+      self.finishApply();
+    }, function (e) {
+      self.log('ERROR', 'Apply aborted: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      self.finishApply();
+    });
+  };
+
+  // The write is the scene's scan-time tags plus every tag the plan folded into it.
+  // Anything a *third party* changed in between is lost the same way any other Stash
+  // edit loses a concurrent one - but nothing this run does can clobber itself,
+  // because a scene appears in the plan exactly once.
+  TaskRun.prototype.applyEntry = function (entry) {
+    var self = this;
+    return updateSceneTags(entry.scene.id, entry.existingIds.concat(entry.tagIds)).then(function () {
+      self.scenesUpdated++;
+      self.tagsAdded += entry.tagIds.length;
+      logMerges(entry.tags, entry.scene, entry.scene.id, 'saved');
+      self.log('MERGE', 'Scene ' + sceneLogLabel(entry.scene, entry.scene.id) + ' - ' +
+        entry.tagIds.length + ' tag(s) added - from Performer ' + entry.from.join(', '));
+      self.renderProgress();
+    }, function (e) {
+      self.log('ERROR', 'Scene ' + sceneLogLabel(entry.scene, entry.scene.id) + ' update failed: ' +
+        (e && e.message ? e.message : e));
+      self.errors++;
+    });
+  };
+
+  TaskRun.prototype.finishApply = function () {
     this.log('INFO', 'Finished. ' + this.scenesUpdated + ' scene(s) updated, ' +
       this.tagsAdded + ' tag assignment(s) added' +
-      (this.errors ? ', ' + this.errors + ' error(s)' : '') + '.');
+      (this.errors ? ', ' + this.errors + ' error(s)' : '') +
+      (this.stopped ? ' (stopped early; what was written stays written)' : '') + '.');
     this.setState('done');
     this.flush();
 
@@ -961,9 +1098,28 @@
   };
 
   TaskRun.prototype.stop = function () {
-    if (this.state !== 'running') return;
+    if (this.state !== 'applying') return;
     this.stopped = true;
-    this.log('WARN', 'Stopping after the current performer...');
+    this.log('WARN', 'Stopping after the current scene...');
+  };
+
+  TaskRun.prototype.cancel = function () {
+    this.cancelled = true;
+    this.log('INFO', 'Cancelled. Nothing was written.');
+    this.close();
+  };
+
+  // The plan is computed in full before the first write, so anything that changes
+  // tags while phase 2 runs - another tab, a scan, the auto-merge modes - is not in
+  // the plan being applied. Rescanning until it comes back empty is how a run
+  // converges.
+  TaskRun.prototype.rescan = function () {
+    var lines = this.lines.slice();
+    this.reset();
+    this.lines = lines;
+    this.log('INFO', '--- Rescan ---');
+    while (this.logEl.firstChild) this.logEl.removeChild(this.logEl.firstChild);
+    this.begin();
   };
 
   TaskRun.prototype.copy = function () {

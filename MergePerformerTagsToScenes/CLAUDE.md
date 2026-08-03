@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.2.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.3.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -216,28 +216,43 @@ the `_mergeDepth` early return. A task click is a user action and stays one even
 to be in flight, and the mutation has to be *answered* rather than forwarded — so it cannot go
 through `_fetch` first the way the auto-merge branches do.
 
-**No dry-run phase, unlike the sibling.** Prune deletes assignments, so its plan is worth
-computing up front; this only ever adds, and the set it would add is exactly what the per-performer
-pass works out scene by scene. A planning pass would cost the same queries as the run and could
-still be stale by the time it was applied. Instead the dialog opens *ready but not started* and
-lists the active exclusions, so the user confirms against what is actually configured.
+**Two phases, like the sibling.** Phase 1 walks the library read-only and lists every tag it
+would add to every scene; **Proceed** is disabled until it finishes and stays disabled when the
+plan is empty. Phase 2 writes the plan. The first cut of this task had only a confirmation step —
+it described the active exclusions and started on **Start** — which guarded "you meant to press
+this" rather than "here is what it will do". The cost of the review pass is real: it is the same
+per-performer scene query the apply would issue, so a run is roughly twice the wall clock. That is
+the price of being able to read the plan before a library-wide write with no undo.
 
-**One `guarded()` around the whole walk**, not one per performer. Every scene the task writes would
+**The plan is keyed by scene, not by performer.** A scene featuring two performers is missing tags
+from both, and `updateSceneTags` writes the *whole* tag list. Two entries for one scene, each
+carrying that scene's scan-time tags, would have the second write drop what the first added.
+`planScene` folds every performer's needs into one entry per scene, and the entry records which
+performers contributed so the log can still attribute it. This is the one thing in the task that
+would silently lose data if it were rearranged.
+
+**One `guarded()` around the whole apply**, not one per scene. Every scene the task writes would
 otherwise look to our own `fetch` wrapper like a user edit and re-enter the merge.
 
 **Performers are paged** (`TASK_PAGE_SIZE`, sorted by id), not fetched with `per_page: -1`: a large
 library has tens of thousands and one response holding all of them is a tab that stops responding.
-Performers with no tags are skipped from the page listing rather than inside the merge, so the
-common case costs nothing beyond the row that already named them.
+Their tags come back with the page, so the review needs no second query per performer, and a
+performer with nothing mergeable never costs a scene query at all.
 
-**It reuses `runMergeTagsIntoAllPerformerScenes` per performer**, which re-queries that performer's
-tags even though the page listing already returned their ids. That is one small query per tagged
-performer, paid to keep a single implementation of the filter rules (exclusion tag, ignore auto
-tag, custom field). Do not fork it for the task.
+**`sceneMergePlan` is shared with the per-performer merge.** It is the single place that decides
+whether a scene is skipped and which tags it is missing, so the plan the user approves and the
+write that follows cannot disagree. Do not fork it for either caller.
 
-**`finish()` must not call `refreshSceneList()`.** Its fallback is `location.reload()`, which would
-tear down the dialog and the log at the moment the user wants to read or copy it. The task evicts
-the Apollo scene-list cache directly and accepts a stale list where Apollo is absent.
+**`taskTagFields()` always requests `name`,** unlike `tagFields()`, which adds it only while console
+logging is on — the review log names every tag it plans to add regardless of that setting.
+
+**`finishApply()` must not call `refreshSceneList()`.** Its fallback is `location.reload()`, which
+would tear down the dialog and the log at the moment the user wants to read or copy it. The task
+evicts the Apollo scene-list cache directly and accepts a stale list where Apollo is absent.
+
+**Rescan** exists for the same reason it does in the sibling: the plan is computed before the first
+write, so anything that changes tags during phase 2 — another tab, a scan, the auto-merge modes —
+is invisible to the plan being applied.
 
 **It warns about a held lease but does not take one, and does not stand down for one.** A task
 click is manual, and §7's rule is that manual actions are never suppressed. Taking one would also
@@ -270,10 +285,11 @@ covers.
 dialog and `harness.js` fakes only enough DOM for a plugin that injects a button. That harness now
 takes the source path and plugin id as arguments (`run(ctx, src)`, `startTask(ctx, task, pluginId)`)
 and its `dialog(body, prefix)` reads either plugin's markup — one fake DOM for both, rather than a
-copy that drifts. It covers: the click never reaching the server, nothing written before **Start**,
-scenes that already carry the tag being skipped, untagged performers costing no scene query, the
-run not re-entering its own auto-merge, a failed scene being isolated and not logged as merged, and
-**Stop** halting between performers. The Stop case presses the button from inside the responder on
+copy that drifts. It covers: the click never reaching the server, the review pass
+writing nothing, a scene wanted by two performers being planned and written **once** with the union
+of their tags, scenes that already carry the tag being skipped, untagged performers costing no
+scene query, an empty plan disabling Proceed, the apply not re-entering its own auto-merge, a
+failed scene isolated and not logged as merged, **Stop**, and **Rescan**. The Stop case presses the button from inside the responder on
 the fifth write, so the moment it lands does not depend on how many ticks a flush happens to take.
 
 `staging.test.js` is the most exposed, because it *models* `useTagsEdit` rather than calling it.

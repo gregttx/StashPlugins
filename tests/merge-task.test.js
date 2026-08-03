@@ -1,6 +1,7 @@
 // The library-wide task in MergePerformerTagsToScenes: that the click never
-// reaches the server, that nothing is written until Start, and that the walk over
-// every performer merges, counts, isolates failures and stops when asked.
+// reaches the server, that the review pass writes nothing, that a scene wanted by
+// two performers is planned and written once with both their tags, and that the
+// apply pass counts, isolates failures and stops when asked.
 //
 // It runs on the NormalizeParentTags harness rather than harness.js, because that
 // is the one with a DOM real enough to build a dialog and read it back. Only the
@@ -16,12 +17,13 @@ const TASK = 'Merge Performer Tags into All Their Scenes';
 
 // Two performers with one tag each, appearing in two scenes apiece. Scene 1 already
 // carries Blonde, so only three of the four scene/performer pairs need writing.
+const TAGS = { 10: 'Blonde', 11: 'Tattoo' };
+const tag = (id) => ({ id: id, name: TAGS[id], ignore_auto_tag: false });
 const PERFORMERS = [
-  { id: '1', name: 'Ann', tags: [{ id: '10' }] },
-  { id: '2', name: 'Bea', tags: [{ id: '11' }] },
+  { id: '1', name: 'Ann', tags: [tag('10')] },
+  { id: '2', name: 'Bea', tags: [tag('11')] },
   { id: '3', name: 'Cat', tags: [] },
 ];
-const TAGS = { 10: 'Blonde', 11: 'Tattoo' };
 const SCENES = {
   1: [{ id: '101', title: 'S101', organized: false, tags: [{ id: '10' }] },
       { id: '102', title: 'S102', organized: false, tags: [] }],
@@ -77,14 +79,18 @@ Promise.resolve()
   .then(() => open()).then(({ env, d }) => {
     h.check('the task click never reaches the server',
       !env.calls.some((c) => /runPluginTask/.test(c.query || '')));
-    h.check('the dialog opens ready, not running',
-      d().visible('Start') && d().visible('Cancel') && !d().visible('Stop') && !d().visible('Close'));
-    h.check('nothing is written before Start', sceneUpdates(env.calls).length === 0);
-    h.check('the dialog says what it will do',
-      d().lines.some((l) => l.indexOf('Nothing is written until you press Start') !== -1),
+    h.check('the review pass writes nothing', sceneUpdates(env.calls).length === 0);
+    h.check('Proceed and Cancel are the review buttons',
+      d().visible('Proceed') && d().visible('Cancel') && !d().visible('Stop') && !d().visible('Close'));
+    h.check('Proceed is enabled once a plan exists', d().button('Proceed').disabled === false);
+    h.check('the review lists what it would write, tag by tag',
+      d().lines.some((l) => l.indexOf('Performer "Ann" (1) - Scene "S102" (102) - 1 tag(s): "Blonde" (10)') !== -1),
       d().lines.join(' | '));
+    h.check('the review totals are reported',
+      d().progress.indexOf('3 scene(s) to update') !== -1 &&
+      d().progress.indexOf('3 tag assignment(s) to add') !== -1, d().progress);
 
-    d().button('Start').click();
+    d().button('Proceed').click();
     return h.flush(200).then(() => {
       // 4 scenes across two tagged performers, one of which already has the tag.
       h.check('every performer scene missing a tag is written',
@@ -95,15 +101,14 @@ Promise.resolve()
       h.check('a performer with no tags costs no scene query',
         !env.calls.some((c) => /findScenes/.test(c.query || '') &&
           c.variables.scene_filter.performers.value[0] === '3'));
-      h.check('each written scene is logged against its performer',
-        merges(d).length === 3 &&
-        merges(d).some((l) => l.indexOf('Performer "Ann" (1) - Scene "S102" (102) - 1 tag(s)') !== -1),
-        merges(d).join(' | '));
+      h.check('each written scene is logged with the performers it came from',
+        d().lines.some((l) => l.indexOf('[MERGE] Scene "S102" (102) - 1 tag(s) added - from Performer "Ann" (1)') === 0),
+        d().lines.join(' | '));
       h.check('the totals are reported',
         d().progress.indexOf('3 scene(s) updated') !== -1 &&
         d().progress.indexOf('3 tag assignment(s) added') !== -1, d().progress);
-      h.check('the run ends with Close, not Stop',
-        d().visible('Close') && !d().visible('Stop') && !d().visible('Start'));
+      h.check('the run ends with Close and Rescan, not Proceed',
+        d().visible('Close') && d().visible('Rescan') && !d().visible('Proceed'));
     });
   })
 
@@ -119,7 +124,7 @@ Promise.resolve()
   // edits. Without the guard around the run, every one of our own writes would
   // re-enter the merge.
   .then(() => open({ settings: { a3AutoMergeOnSceneUpdate: true } })).then(({ env, d }) => {
-    d().button('Start').click();
+    d().button('Proceed').click();
     return h.flush(200).then(() => {
       h.check('the run does not re-trigger auto-merge on its own writes',
         sceneUpdates(env.calls).length === 3, 'got ' + sceneUpdates(env.calls).length);
@@ -129,26 +134,56 @@ Promise.resolve()
   // One failing scene must not cancel the performers after it.
   .then(() => open({ failScene: (req) => req.variables.input.id === '102' }))
     .then(({ env, d }) => {
-      d().button('Start').click();
+      d().button('Proceed').click();
       return h.flush(200).then(() => {
         h.check('a failed scene is reported',
-          d().lines.some((l) => l.indexOf('[ERROR]') === 0 && l.indexOf('"Ann" (1)') !== -1),
+          d().lines.some((l) => l.indexOf('[ERROR]') === 0 && l.indexOf('(102) update failed') !== -1),
           d().lines.join(' | '));
-        h.check('and the other performers still run',
+        h.check('and the other scenes still run',
           sceneUpdates(env.calls).some((c) => c.variables.input.id === '103') &&
           sceneUpdates(env.calls).some((c) => c.variables.input.id === '104'));
         h.check('a scene that failed is not counted as merged',
-          !merges(d).some((l) => l.indexOf('(102)') !== -1), merges(d).join(' | '));
+          !d().lines.some((l) => l.indexOf('[MERGE] Scene "S102"') === 0), d().lines.join(' | '));
         h.check('the error count is reported', d().progress.indexOf('error(s)') !== -1, d().progress);
       });
     })
+
+  // A scene featuring two performers is missing tags from both. It must be planned
+  // and written ONCE with the union: two writes built from the same scan-time tag
+  // list would have the second one drop what the first added.
+  .then(() => {
+    const shared = { id: '200', title: 'Shared', organized: false, tags: [] };
+    return open({
+      performers: [
+        { id: '1', name: 'Ann', tags: [tag('10')] },
+        { id: '2', name: 'Bea', tags: [tag('11')] },
+      ],
+      scenes: { 1: [shared], 2: [shared] },
+    }).then(({ env, d }) => {
+      h.check('a scene wanted by two performers is planned once',
+        d().progress.indexOf('1 scene(s) to update') !== -1 &&
+        d().progress.indexOf('2 tag assignment(s) to add') !== -1, d().progress);
+      d().button('Proceed').click();
+      return h.flush(200).then(() => {
+        const writes = sceneUpdates(env.calls);
+        h.check('and written once', writes.length === 1, 'wrote ' + writes.length);
+        h.check('with both performers tags, neither dropping the other',
+          writes[0].variables.input.tag_ids.indexOf('10') !== -1 &&
+          writes[0].variables.input.tag_ids.indexOf('11') !== -1,
+          JSON.stringify(writes[0].variables.input.tag_ids));
+        h.check('and attributed to both performers',
+          d().lines.some((l) => l.indexOf('from Performer "Ann" (1), "Bea" (2)') !== -1),
+          d().lines.join(' | '));
+      });
+    });
+  })
 
   // Stop is checked between performers, so what has been written stays written.
   // Pressed from the responder on the fifth write, which makes the moment it lands
   // deterministic rather than a function of how many ticks a flush happens to take.
   .then(() => {
     const many = [];
-    for (let i = 1; i <= 40; i++) many.push({ id: String(i), name: 'P' + i, tags: [{ id: '10' }] });
+    for (let i = 1; i <= 40; i++) many.push({ id: String(i), name: 'P' + i, tags: [tag('10')] });
     const scenes = {};
     many.forEach((p) => { scenes[p.id] = [{ id: 'S' + p.id, title: 'T' + p.id, organized: false, tags: [] }]; });
 
@@ -166,7 +201,7 @@ Promise.resolve()
     h.startTask(env.ctx, TASK, PLUGIN_ID);
     const d = () => h.dialog(env.body, 'cpt2s');
     return h.flush(150).then(() => {
-      d().button('Start').click();
+      d().button('Proceed').click();
       return h.flush(400);
     }).then(() => {
       const written = sceneUpdates(env.calls).length;
@@ -176,6 +211,36 @@ Promise.resolve()
         d().progress.indexOf('stopped early') !== -1 &&
         d().progress.indexOf(written + ' scene(s) updated') !== -1, d().progress);
       h.check('Stop leaves the dialog closable', d().visible('Close') && !d().visible('Stop'));
+    });
+  })
+
+  // A library with nothing left to merge must say so rather than offering a Proceed
+  // that would write nothing, and Rescan has to be able to find that state.
+  .then(() => open({
+    performers: [{ id: '1', name: 'Ann', tags: [tag('10')] }],
+    scenes: { 1: [{ id: '300', title: 'Done', organized: false, tags: [{ id: '10' }] }] },
+  })).then(({ env, d }) => {
+    h.check('an empty plan disables Proceed', d().button('Proceed').disabled === true);
+    h.check('an empty plan says so',
+      d().lines.some((l) => l.indexOf('Nothing to merge') !== -1), d().lines.join(' | '));
+    h.check('and writes nothing', sceneUpdates(env.calls).length === 0);
+  })
+
+  .then(() => open()).then(({ env, d }) => {
+    d().button('Proceed').click();
+    return h.flush(200).then(() => {
+      const before = env.calls.length;
+      d().button('Rescan').click();
+      return h.flush(200).then(() => {
+        h.check('Rescan re-reviews without closing the dialog',
+          env.calls.length > before &&
+          env.calls.slice(before).some((c) => /CPT2S_TaskPerformers/.test(c.query || '')) &&
+          d().open);
+        h.check('Rescan returns the dialog to the review state',
+          d().visible('Proceed') && !d().visible('Close'));
+        h.check('Rescan keeps the earlier log',
+          d().lines.some((l) => l.indexOf('--- Rescan ---') !== -1), d().lines.join(' | '));
+      });
     });
   })
 

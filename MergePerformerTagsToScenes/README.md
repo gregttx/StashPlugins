@@ -18,14 +18,25 @@ Buttons are hidden by default and can be enabled in **Settings → Plugins → M
 There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks**:
 
 - **Merge Performer Tags into All Their Scenes** — does what the performer button does, for every
-  performer in your library, in one run. Clicking it opens a dialog that shows which exclusion
-  filters are active and waits: **nothing is written until you press Start.** From there it reports
-  progress performer by performer, logs every scene it writes, and can be halted with **Stop** —
-  what has already been written stays written. **Copy log** hands you the whole run.
+  performer in your library, in one run. It works in two phases, like Normalize Parent Tags:
 
-  It needs no settings turned on: the buttons and auto-merge modes are separate, and the task runs
+  **Review.** Clicking the task opens a dialog and scans the library without writing anything. It
+  lists every tag it would add to every scene, names the performer each one comes from, and shows
+  which exclusion filters are active. **Proceed** stays disabled until the scan finishes, and stays
+  disabled if there is nothing to do. **Cancel** walks away with your library untouched.
+
+  **Apply.** **Proceed** performs the merge and continues the log with what was actually written.
+  **Stop** halts after the current scene — what has already been written stays written. **Copy log**
+  hands you the whole run, and **Rescan** starts a fresh review without closing the dialog.
+
+  A scene featuring several performers is written **once**, with the tags all of them contribute.
+
+  The task needs no settings turned on: the buttons and auto-merge modes are separate, and it runs
   whether or not they are enabled. Tags are only ever added, but there is no undo — back up your
   database before the first run.
+
+  Reviewing costs roughly the same time as merging, so a first run over a large library takes about
+  twice as long as it would with no review. That is the trade for seeing the plan first.
 
 Two optional auto-merge modes can also be enabled in the same settings panel:
 

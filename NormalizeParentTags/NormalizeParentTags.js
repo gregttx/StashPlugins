@@ -337,9 +337,6 @@
     return '"' + (name || 'untitled') + '" (' + ent.id + ')';
   }
 
-  // Ids arrive from GraphQL as strings. Compare them as numbers where both parse,
-  // so 9 sorts below 10, and fall back to a string compare so the order is total
-  // whatever Stash hands us.
   // Ids arrive from GraphQL as strings but are also used as object keys, so compare
   // them as strings rather than trusting both sides to be the same type.
   function indexOfId(ids, id) {
@@ -348,6 +345,8 @@
     return -1;
   }
 
+  // Compare ids as numbers where both parse, so 9 sorts below 10, and fall back to a
+  // string compare so the order is total whatever Stash hands us.
   function lowerId(a, b) {
     var na = parseInt(a, 10), nb = parseInt(b, 10);
     if (!isNaN(na) && !isNaN(nb) && na !== nb) return na < nb;
@@ -770,7 +769,6 @@
     // describes: a rescan logging four lines must not report 28161 of them, nor claim
     // to be hiding the 27161 it no longer has. Same split as the sibling's TaskRun.
     this.viewLines = 0;
-    this.rendered = 0;
     this.state = 'scanning';
   };
 
@@ -837,7 +835,6 @@
     this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
     this.proceedBtn.disabled = !ready || !this.plan.length;
-    this.copyBtn.disabled = false;
   };
 
   // A run-level warning: into the log, where Copy log will carry it, and into the
@@ -1123,7 +1120,6 @@
     this.reset();
     this.lines = lines;
     this.log('INFO', '--- Rescan ---');
-    this.logEl.textContent = '';
     while (this.logEl.firstChild) this.logEl.removeChild(this.logEl.firstChild);
     this.begin();
   };

@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.7.1.** This file is both the design and the map of the code — the
+**Status: implemented at 0.7.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -598,8 +598,10 @@ cover:
 - **The hierarchy viewer** (`normalize-tree`) — that it issues no mutation and nothing beyond the
   settings and tag queries, that a diamond appears under both parents with exactly one of them the
   repeat, that cyclic tags are still reachable, that badges and the inspector name the filter
-  actually configured, search, the DOT/Mermaid exports including edge pruning at the selection
-  boundary, and counts being fetched only on demand and pinned to `depth: 0`.
+  actually configured, the DOT/Mermaid exports including edge pruning at the selection boundary,
+  counts being fetched only on demand and pinned to `depth: 0`, and the filter box - matching
+  case-insensitively anywhere in a name, with its clear icon appearing only while there is
+  something to clear.
 - **What a rescan resets** — the log-line counter describes the new pass rather than the session
   (including the reported case: a rescan finding nothing reports four lines and claims nothing
   hidden), Copy log still exports both passes, and the sibling warning clears when the setting it

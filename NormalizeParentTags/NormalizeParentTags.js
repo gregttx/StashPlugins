@@ -649,9 +649,13 @@
     'flex-wrap:wrap;align-items:center;}' +
     '.npt-foot button{margin-right:.5rem;}' +
     '.npt-hidden{display:none;}' +
-    '.npt-search{padding:.5rem 1rem;border-bottom:1px solid #394b59;}' +
+    '.npt-search{padding:.5rem 1rem;border-bottom:1px solid #394b59;position:relative;}' +
     '.npt-search-input{width:100%;background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
-    'border-radius:3px;padding:.25rem .5rem;}' +
+    'border-radius:3px;padding:.25rem 1.9rem .25rem .5rem;}' +
+    '.npt-search-clear{position:absolute;right:1.35rem;top:50%;transform:translateY(-50%);' +
+    'background:none;border:0;color:#a7b6c2;font-size:1.1rem;line-height:1;cursor:pointer;' +
+    'padding:0 .35rem;}' +
+    '.npt-search-clear:hover{color:#f5f8fa;}' +
     '.npt-split{flex:1 1 auto;display:flex;min-height:18rem;overflow:hidden;}' +
     '.npt-tree{flex:2 1 0;overflow:auto;padding:.5rem 0;font-size:.85rem;}' +
     '.npt-inspect{flex:1 1 0;overflow:auto;padding:.5rem 1rem;border-left:1px solid #394b59;' +
@@ -1205,10 +1209,20 @@
     this.searchEl.type = 'text';
     this.searchEl.placeholder = 'Filter by name...';
     this.searchEl.addEventListener('input', function () {
-      self.query = (self.searchEl.value || '').trim();
-      self.render();
+      self.setQuery(self.searchEl.value || '');
+    });
+    // Sits inside the box and only appears once there is something to clear, so it
+    // never reads as a control that does something to the tree.
+    this.clearBtn = el('button', 'npt-search-clear npt-hidden', '\u00d7');
+    this.clearBtn.type = 'button';
+    this.clearBtn.title = 'Clear filter';
+    this.clearBtn.addEventListener('click', function () {
+      self.searchEl.value = '';
+      self.setQuery('');
+      if (self.searchEl.focus) self.searchEl.focus();
     });
     searchRow.appendChild(this.searchEl);
+    searchRow.appendChild(this.clearBtn);
     this.modal.appendChild(searchRow);
 
     var split = el('div', 'npt-split');
@@ -1239,6 +1253,18 @@
 
     document.body.appendChild(this.backdrop);
     this.load();
+  };
+
+  TreeView.prototype.setQuery = function (raw) {
+    this.query = String(raw == null ? '' : raw).trim();
+    this.show(this.clearBtn, !!this.query);
+    this.render();
+  };
+
+  // Shared with the run dialog's buttons: strips the hidden class and re-adds it,
+  // rather than assuming what else is on the element.
+  TreeView.prototype.show = function (node, visible) {
+    node.className = node.className.replace(/\s*npt-hidden/g, '') + (visible ? '' : ' npt-hidden');
   };
 
   TreeView.prototype.focus = function () {

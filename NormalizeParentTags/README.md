@@ -122,7 +122,8 @@ other two tasks would do before running either.
   can find them.
 
 The filter box matches **any part of a tag's name and ignores case**, so `colour` finds
-`Hair Colour`. It is a find-as-you-type box, not one of the exclusion filters — those stay
+`Hair Colour`. A **×** appears in the box once you have typed something; clicking it clears the
+filter and puts the whole tree back. It is a find-as-you-type box, not one of the exclusion filters — those stay
 case-sensitive, because they decide what actually gets written.
 
 Select any tag to see its parents, ancestors, children and descendants, plus a plain-language

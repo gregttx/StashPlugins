@@ -184,6 +184,23 @@ Promise.resolve()
     h.check('and matches anywhere in the name, not just the start',
       type('oot').length === 1 && type('oot')[0].indexOf('Root (1)') !== -1, type('oot').join(' | '));
     h.check('a substring spanning nothing matches nothing', type('zzz').length === 0);
+
+    // The clear affordance only exists while there is something to clear.
+    const clear = env.body.descendants()
+      .filter((n) => h.hasClass(n, 'npt-search-clear'))[0];
+    h.check('the clear icon is offered once the box has text', !h.hasClass(clear, 'npt-hidden'));
+    clear.click();
+    h.check('clicking it empties the box', input.value === '');
+    h.check('and restores the whole tree', rows(env).length === 4, rows(env).join(' | '));
+    h.check('and hides itself again', h.hasClass(clear, 'npt-hidden'), clear.className);
+  })
+
+  .then(() => open()).then(({ env }) => {
+    const clear = env.body.descendants()
+      .filter((n) => h.hasClass(n, 'npt-search-clear'))[0];
+    h.check('the clear icon starts hidden', !!clear && h.hasClass(clear, 'npt-hidden'),
+      clear && clear.className);
+    h.check('and is labelled for what it does', clear.title === 'Clear filter', clear.title);
   })
 
   // ── Export ───────────────────────────────────────────────────────────────

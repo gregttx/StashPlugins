@@ -31,6 +31,16 @@ There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks*
 
   A scene featuring several performers is written **once**, with the tags all of them contribute.
 
+  Each phase ends with a one-line recap of **every distinct tag involved** and how many scenes it
+  lands on — what the plan would add, and then what was actually added:
+
+  ```
+  [INFO] 3 tag(s) to add: "Blonde" (12) x250, "Tattoo" (17) x18
+  ```
+
+  The tags are listed in the same order Stash sorts them — by **Sort Name** where a tag has one,
+  otherwise by name, ignoring case and treating numbers as numbers.
+
   The task needs no settings turned on: the buttons and auto-merge modes are separate, and it runs
   whether or not they are enabled. Tags are only ever added, but there is no undo — back up your
   database before the first run.

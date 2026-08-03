@@ -18,7 +18,7 @@ const TASK = 'Merge Performer Tags into All Their Scenes';
 // Two performers with one tag each, appearing in two scenes apiece. Scene 1 already
 // carries Blonde, so only three of the four scene/performer pairs need writing.
 const TAGS = { 10: 'Blonde', 11: 'Tattoo' };
-const tag = (id) => ({ id: id, name: TAGS[id], ignore_auto_tag: false });
+const tag = (id, sortName) => ({ id: id, name: TAGS[id], sort_name: sortName || null, ignore_auto_tag: false });
 const PERFORMERS = [
   { id: '1', name: 'Ann', tags: [tag('10')] },
   { id: '2', name: 'Bea', tags: [tag('11')] },
@@ -213,6 +213,49 @@ Promise.resolve()
       h.check('Stop leaves the dialog closable', d().visible('Close') && !d().visible('Stop'));
     });
   })
+
+  // ── The closing tag recap ────────────────────────────────────────────────
+  //
+  // Ordered the way Stash orders tags - COALESCE(sort_name, name) compared
+  // case-insensitively and numerically - so the line reads against the tag list in
+  // the UI. Zed leads on its sort_name, and Volume 2 precedes Volume 10.
+  .then(() => {
+    const T = { 20: 'Zed', 21: 'volume 10', 22: 'Volume 2' };
+    const mk = (id, sortName) =>
+      ({ id: id, name: T[id], sort_name: sortName || null, ignore_auto_tag: false });
+    const performers = [
+      { id: '1', name: 'Ann', tags: [mk('20', 'aaa'), mk('21'), mk('22')] },
+    ];
+    const scenes = {
+      1: [{ id: '400', title: 'One', organized: false, tags: [] },
+          { id: '401', title: 'Two', organized: false, tags: [{ id: '21' }, { id: '22' }] }],
+    };
+    return open({ performers: performers, scenes: scenes }).then(({ d }) => {
+      const planned = d().lines[d().lines.length - 1];
+      // Zed lands on both scenes; the other two only on the one missing them.
+      h.check('the review ends with every tag it would add, per scene',
+        planned === '[INFO] 3 tag(s) to add: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1',
+        planned);
+      d().button('Proceed').click();
+      return h.flush(200).then(() => {
+        const applied = d().lines[d().lines.length - 1];
+        h.check('and the apply ends with what was actually written',
+          applied === '[INFO] 3 tag(s) added: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1',
+          applied);
+      });
+    });
+  })
+
+  // A failed scene must drop out of the applied recap without touching the planned one.
+  .then(() => open({ failScene: (req) => req.variables.input.id === '104' }))
+    .then(({ d }) => {
+      d().button('Proceed').click();
+      return h.flush(200).then(() => {
+        const applied = d().lines[d().lines.length - 1];
+        h.check('a failed scene is not counted in the recap',
+          applied === '[INFO] 2 tag(s) added: "Blonde" (10) x1, "Tattoo" (11) x1', applied);
+      });
+    })
 
   // A library with nothing left to merge must say so rather than offering a Proceed
   // that would write nothing, and Rescan has to be able to find that state.

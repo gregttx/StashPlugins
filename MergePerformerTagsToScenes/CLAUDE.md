@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.3.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.4.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -250,6 +250,22 @@ logging is on — the review log names every tag it plans to add regardless of t
 would tear down the dialog and the log at the moment the user wants to read or copy it. The task
 evicts the Apollo scene-list cache directly and accepts a stale list where Apollo is absent.
 
+**Each phase closes with a tag recap** — every distinct tag the run moves and how many scenes it
+lands on, `to add` for the plan and `added` for what was written:
+
+```
+[INFO] 3 tag(s) to add: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1
+```
+
+Counted **per scene, not per performer** (a scene is written once whichever of its performers
+asked for the tag), and the applied recap is counted from the writes rather than the plan, so a
+failed scene or a **Stop** is not summarised as though it had landed. Ordering is Stash's own —
+`COALESCE(sort_name, name)` under `NATURAL_CI`, via `Intl.Collator({ numeric: true, sensitivity:
+'accent' })` with the id as tie-break — which is why `taskTagFields()` asks for `sort_name`. The
+same rule is documented at greater length in §3 of `NormalizeParentTags`' CLAUDE.md; the two
+implementations are separate because the plugins share no module, so a change to one is a
+deliberate decision about the other.
+
 **Rescan** exists for the same reason it does in the sibling: the plan is computed before the first
 write, so anything that changes tags during phase 2 — another tab, a scan, the auto-merge modes —
 is invisible to the plan being applied.
@@ -289,7 +305,9 @@ copy that drifts. It covers: the click never reaching the server, the review pas
 writing nothing, a scene wanted by two performers being planned and written **once** with the union
 of their tags, scenes that already carry the tag being skipped, untagged performers costing no
 scene query, an empty plan disabling Proceed, the apply not re-entering its own auto-merge, a
-failed scene isolated and not logged as merged, **Stop**, and **Rescan**. The Stop case presses the button from inside the responder on
+failed scene isolated and not logged as merged, **Stop**, **Rescan**, and the closing tag recap in
+both phases (including its Stash-order sorting and a failed scene dropping out of the applied
+count). The Stop case presses the button from inside the responder on
 the fifth write, so the moment it lands does not depend on how many ticks a flush happens to take.
 
 `staging.test.js` is the most exposed, because it *models* `useTagsEdit` rather than calling it.

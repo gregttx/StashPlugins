@@ -702,7 +702,58 @@
   // else the filters need is the same.
   function taskTagFields() {
     var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
-    return 'id name ignore_auto_tag' + (cfName ? ' custom_fields' : '');
+    // sort_name is what Stash orders tags by where it is set; the closing recap
+    // below lists them in that order so it reads against the tag list in the UI.
+    return 'id name sort_name ignore_auto_tag' + (cfName ? ' custom_fields' : '');
+  }
+
+  // Stash orders tags by COALESCE(sort_name, name) under its NATURAL_CI collation:
+  // case-insensitive, with numeric runs compared as numbers so "Volume 2" precedes
+  // "Volume 10". Same rule as NormalizeParentTags' summary line - see §3 of its
+  // CLAUDE.md. Intl.Collator is the browser's nearest equivalent; without Intl this
+  // degrades to a case-insensitive compare, and the id tie-break keeps the order
+  // total either way.
+  var taskCollate = (function () {
+    try {
+      if (typeof Intl !== 'undefined' && Intl && Intl.Collator) {
+        var c = new Intl.Collator(undefined, { numeric: true, sensitivity: 'accent' });
+        return function (a, b) { return c.compare(a, b); };
+      }
+    } catch (e) { /* fall through to the plain compare */ }
+    return function (a, b) {
+      var la = String(a).toLowerCase(), lb = String(b).toLowerCase();
+      return la === lb ? 0 : (la < lb ? -1 : 1);
+    };
+  }());
+
+  function taskTagSortKey(t) {
+    if (!t) return '';
+    return ((t.sort_name || '').trim()) || t.name || '';
+  }
+
+  function taskLowerId(a, b) {
+    var na = parseInt(a, 10), nb = parseInt(b, 10);
+    if (!isNaN(na) && !isNaN(nb) && na !== nb) return na < nb;
+    return String(a) < String(b);
+  }
+
+  // The per-scene lines answer "what happened to this scene". This answers "which
+  // tags did this run move, and onto how many scenes" - the question worth asking
+  // before approving a library-wide merge, and one a six-figure log cannot be read
+  // for.
+  function taskTagSummary(counts, tagsById, verb) {
+    var ids = [], id;
+    for (id in counts) if (hasOwn(counts, id)) ids.push(id);
+    if (!ids.length) return '';
+    ids.sort(function (a, b) {
+      var c = taskCollate(taskTagSortKey(tagsById[a]), taskTagSortKey(tagsById[b]));
+      if (c) return c;
+      return taskLowerId(a, b) ? -1 : 1;
+    });
+    return ids.length + ' tag(s) ' + verb + ': ' + ids.map(function (tid) {
+      var t = tagsById[tid];
+      return '"' + ((t && t.name) || 'unnamed') + '" (' + tid + ') x' + counts[tid];
+    }).join(', ');
   }
 
   function performerLabel(p) {
@@ -737,6 +788,11 @@
     // tags - drop what the first one added. See planScene.
     this.plan = [];
     this.planByScene = {};
+    // Scenes per tag, for the closing recap: what the plan would touch, and what the
+    // apply actually wrote. `tagsById` carries the names and sort keys for both.
+    this.plannedTagCounts = {};
+    this.appliedTagCounts = {};
+    this.tagsById = {};
     this.tagsPlanned = 0;
     this.scenesUpdated = 0;
     this.tagsAdded = 0;
@@ -808,6 +864,11 @@
     this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
     this.proceedBtn.disabled = !ready || !this.plan.length;
+  };
+
+  TaskRun.prototype.logTagSummary = function (counts, verb) {
+    var line = taskTagSummary(counts, this.tagsById, verb);
+    if (line) this.log('INFO', line);
   };
 
   TaskRun.prototype.log = function (kind, message) {
@@ -1000,11 +1061,16 @@
       this.plan.push(entry);
     }
     var added = [];
+    var self = this;
     need.missing.forEach(function (id) {
       if (entry.tagIds.indexOf(id) !== -1) return;   // another performer already needs it
       entry.tagIds.push(id);
       entry.tags.push(perfTagById[id]);
       added.push(perfTagById[id]);
+      self.tagsById[id] = perfTagById[id];
+      // Counted per scene, not per performer: the scene is written once whichever
+      // of its performers asked for the tag.
+      self.plannedTagCounts[id] = (hasOwn(self.plannedTagCounts, id) ? self.plannedTagCounts[id] : 0) + 1;
     });
     entry.from.push(performerLabel(p));
     this.tagsPlanned += added.length;
@@ -1023,6 +1089,7 @@
     } else {
       this.log('INFO', 'Review complete: ' + this.tagsPlanned + ' tag assignment(s) across ' +
         this.plan.length + ' scene(s). Nothing has been written. Press Proceed to apply.');
+      this.logTagSummary(this.plannedTagCounts, 'to add');
     }
     this.setState('ready');
     this.flush();
@@ -1036,6 +1103,7 @@
     this.setState('applying');
     this.scenesUpdated = 0;
     this.tagsAdded = 0;
+    this.appliedTagCounts = {};
     this.log('INFO', 'Applying ' + this.plan.length + ' scene change(s) - ' + new Date().toISOString());
 
     var i = 0;
@@ -1066,6 +1134,9 @@
     return updateSceneTags(entry.scene.id, entry.existingIds.concat(entry.tagIds)).then(function () {
       self.scenesUpdated++;
       self.tagsAdded += entry.tagIds.length;
+      entry.tagIds.forEach(function (id) {
+        self.appliedTagCounts[id] = (hasOwn(self.appliedTagCounts, id) ? self.appliedTagCounts[id] : 0) + 1;
+      });
       logMerges(entry.tags, entry.scene, entry.scene.id, 'saved');
       self.log('MERGE', 'Scene ' + sceneLogLabel(entry.scene, entry.scene.id) + ' - ' +
         entry.tagIds.length + ' tag(s) added - from Performer ' + entry.from.join(', '));
@@ -1082,6 +1153,9 @@
       this.tagsAdded + ' tag assignment(s) added' +
       (this.errors ? ', ' + this.errors + ' error(s)' : '') +
       (this.stopped ? ' (stopped early; what was written stays written)' : '') + '.');
+    // Counted from what was written, not from the plan: a failed scene, or a Stop,
+    // must not be summarised as though it had landed.
+    this.logTagSummary(this.appliedTagCounts, 'added');
     this.setState('done');
     this.flush();
 

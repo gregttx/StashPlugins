@@ -49,7 +49,10 @@ function open(opts) {
           { id: '3', scene_count: 0, image_count: 0, gallery_count: 0, performer_count: 0 },
         ] } } };
       }
-      if (/NPTTags/.test(q)) return { data: { findTags: { tags: opts.tags || TAGS } } };
+      if (/NPTTags/.test(q)) {
+        if (opts.failTags) return { errors: [{ message: 'database is locked' }] };
+        return { data: { findTags: { tags: opts.tags || TAGS } } };
+      }
       return { data: {} };
     },
   });
@@ -445,6 +448,32 @@ Promise.resolve()
       h.check('a failed count query is reported and leaves the tree usable',
         d().progress.indexOf('Counts could not be loaded') === 0 && rows(env).length === 4,
         d().progress);
+    });
+  })
+
+  // Every control is built and wired before the tags are fetched, and the fetch may
+  // never succeed - in which case the dialog stays open around a graph that does not
+  // exist. Driving it then must do nothing, not throw on every keystroke.
+  .then(() => open({ failTags: true })).then(({ env, d }) => {
+    h.check('a failed tag query is reported',
+      d().progress.indexOf('Could not load tags') === 0, d().progress);
+
+    const find = env.body.descendants().filter((n) => h.hasClass(n, 'npt-find-input'))[0];
+    const filter = env.body.descendants().filter((n) => h.hasClass(n, 'npt-search-input'))[0];
+    const drive = (el, v) => { el.value = v; (el.handlers.input || []).forEach((fn) => fn({})); };
+
+    drive(find, 'leaf');
+    drive(filter, 'leaf');
+    (find.handlers.keydown || []).forEach((fn) => fn({ key: 'Enter' }));
+    ['Expand all', 'Collapse all', 'Load counts', 'Copy as DOT', 'Copy as Mermaid']
+      .forEach((label) => btn(env, label).click());
+
+    return h.flush(10).then(() => {
+      h.check('and the controls stay inert rather than throwing without a graph',
+        rows(env).length === 0 && d().progress.indexOf('Could not load tags') === 0,
+        d().progress);
+      h.check('a graphless dialog issues no further queries',
+        env.calls.filter((c) => /NPTTagCounts/.test(c.query)).length === 0);
     });
   })
 

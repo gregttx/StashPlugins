@@ -1264,9 +1264,18 @@
     this.load();
   };
 
+  // Every control in this dialog is live from the moment it is built, but the graph
+  // behind them only arrives when load() resolves - and never at all if the tag
+  // query fails, in which case the dialog stays open saying so. Nothing that reads
+  // the graph may assume it is there.
+  TreeView.prototype.ready = function () {
+    return !!this.graph;
+  };
+
   // Jumps to a match and centres it, rather than reducing the tree to matches.
   // `next` walks to the following match; typing restarts from the first.
   TreeView.prototype.find = function (next) {
+    if (!this.ready()) return;
     var raw = (this.findEl.value || '').trim();
     var q = raw.toLowerCase();
     this.show(this.findClearBtn, !!raw);
@@ -1351,6 +1360,7 @@
   };
 
   TreeView.prototype.setQuery = function (raw) {
+    if (!this.ready()) return;
     this.query = String(raw == null ? '' : raw).trim();
     this.show(this.clearBtn, !!this.query);
     this.render();
@@ -1428,6 +1438,7 @@
   };
 
   TreeView.prototype.expandAll = function (open) {
+    if (!this.ready()) return;
     var g = this.graph, id;
     this.expanded = {};
     if (open) {
@@ -1441,6 +1452,7 @@
   // ── Rendering ─────────────────────────────────────────────────────────────
 
   TreeView.prototype.render = function () {
+    if (!this.ready()) return;
     while (this.treeEl.firstChild) this.treeEl.removeChild(this.treeEl.firstChild);
     this.rowNodes = {};   // tag id -> its real row
     this.occNodes = {};   // tag id -> { parent id -> the row drawn under that parent }
@@ -1669,7 +1681,7 @@
   // ambiguous.
   TreeView.prototype.loadCounts = function () {
     var self = this;
-    if (this._countsBusy) return;
+    if (!this.ready() || this._countsBusy) return;
     this._countsBusy = true;
     this.countsBtn.textContent = 'Loading...';
     gqlRequest(
@@ -1758,6 +1770,7 @@
   };
 
   TreeView.prototype.copyGraph = function (kind) {
+    if (!this.ready()) return;
     var text = this.graphText(kind);
     var btn = kind === 'mermaid' ? this.mmdBtn : this.dotBtn;
     var label = kind === 'mermaid' ? 'Copy as Mermaid' : 'Copy as DOT';

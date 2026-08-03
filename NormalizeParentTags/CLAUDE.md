@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.10.0.** This file is both the design and the map of the code — the
+**Status: implemented at 0.10.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -429,6 +429,13 @@ filter protects a tag and can never drift from what the run will actually do. Th
 value of the badge; a re-implementation that agreed today and diverged in six months would be worse
 than no badge.
 
+**Nothing may assume the graph is there.** `build()` wires every control and *then* calls `load()`,
+so both boxes and all five footer buttons are live before the tag query answers — and stay live
+forever if it fails, since the dialog remains open showing `Could not load tags`. Every entry point
+that reads the graph is gated on `ready()`; without it a keystroke in either box threw
+`Cannot read properties of undefined (reading 'byId')` into the console on every character, with
+nothing visible to explain it. `render()` is gated too, so a future caller cannot reopen the hole.
+
 **Counts are opt-in.** `scene_count` and friends are per-tag resolver fields and one query over
 thousands of tags is the expensive thing in this dialog, so they load on a button. `depth: 0` is
 passed **explicitly**: the count is for the tag itself rather than for it plus everything beneath
@@ -636,7 +643,9 @@ cover:
   counts and cycles through matches with Enter, and clears an active filter on the way. The jumps
   are covered against a tag with **three** parents, since two only proves a badge toggles: the `◆`
   badge walks them in order and wraps, the `↩` badge reaches the full copy, the inspector's tag
-  lists jump, and jumping out of a flat filtered list restores the tree first.
+  lists jump, and jumping out of a flat filtered list restores the tree first. A failed tag query
+  is covered too: both boxes and all five footer buttons are driven against a dialog that has no
+  graph, and must stay inert rather than throw.
 - **What a rescan resets** — the log-line counter describes the new pass rather than the session
   (including the reported case: a rescan finding nothing reports four lines and claims nothing
   hidden), Copy log still exports both passes, and the sibling warning clears when the setting it

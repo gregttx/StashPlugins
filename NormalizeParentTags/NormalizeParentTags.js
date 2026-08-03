@@ -151,8 +151,9 @@
     c1ExcludeTagWithIgnoreAutoTag: false,
     c2ExcludeAddTagNameContains: '',
     c3ExcludeRemoveTagNameContains: '',
-    c4ExcludeAddTagWithCustomFieldName: '',
-    c5ExcludeRemoveTagWithCustomFieldName: '',
+    c4TagNameSeparator: '',
+    c5ExcludeAddTagWithCustomFieldName: '',
+    c6ExcludeRemoveTagWithCustomFieldName: '',
   };
 
   function loadSettings() {
@@ -174,8 +175,8 @@
     // sort_name is what Stash sorts by when it is set; it costs one nullable string
     // per tag on a query that is already fetching the whole hierarchy.
     var fields = 'id name sort_name ignore_auto_tag parents { id }';
-    if ((settings.c4ExcludeAddTagWithCustomFieldName || '').trim() ||
-        (settings.c5ExcludeRemoveTagWithCustomFieldName || '').trim()) {
+    if ((settings.c5ExcludeAddTagWithCustomFieldName || '').trim() ||
+        (settings.c6ExcludeRemoveTagWithCustomFieldName || '').trim()) {
       fields += ' custom_fields';
     }
     // per_page: -1 means "no paging, return everything". Right for tags (thousands
@@ -229,15 +230,22 @@
 
   // ── Exclusion filters ─────────────────────────────────────────────────────
 
-  // The name filters take a list of substrings separated by whitespace, and a tag
-  // is excluded when its name contains any one of them. The trade is that a
-  // substring cannot itself contain a space - these are meant for namespace
-  // markers, not for whole tag names, and matching several of them was worth more
-  // than matching one that could be a phrase.
-  function splitTerms(value) {
+  // The name filters take a list of substrings, and a tag is excluded when its
+  // name contains any one of them. Whitespace separates them by default, which
+  // costs the ability to write a substring containing a space; `sep` buys it back
+  // by separating on something the user's tag names never contain instead.
+  //
+  // Split on a *string*, never a RegExp: `.` and `|` are plausible separators and
+  // would otherwise have to be escaped by the user. Each term is trimmed, so a
+  // list written as "a, b" does not carry a leading space into the match, and
+  // empty terms are dropped - a setting of nothing but separators must leave an
+  // empty list, never a term matching every tag in the library.
+  function splitTerms(value, sep) {
+    var raw = String(value == null ? '' : value);
     var out = [];
-    String(value == null ? '' : value).split(/\s+/).forEach(function (term) {
-      if (term) out.push(term);
+    (sep ? raw.split(sep) : raw.split(/\s+/)).forEach(function (term) {
+      var t = term.trim();
+      if (t) out.push(t);
     });
     return out;
   }
@@ -250,10 +258,14 @@
   }
 
   function makeFilters(settings, graph) {
-    var addCF      = (settings.c4ExcludeAddTagWithCustomFieldName || '').trim();
-    var removeCF   = (settings.c5ExcludeRemoveTagWithCustomFieldName || '').trim();
-    var addTerms    = splitTerms(settings.c2ExcludeAddTagNameContains);
-    var removeTerms = splitTerms(settings.c3ExcludeRemoveTagNameContains);
+    // Trimmed, so stray padding around the separator does not become the
+    // separator; trimming to nothing simply means the whitespace default, which is
+    // also the only way to ask for a plain space.
+    var sep         = (settings.c4TagNameSeparator || '').trim();
+    var addCF       = (settings.c5ExcludeAddTagWithCustomFieldName || '').trim();
+    var removeCF    = (settings.c6ExcludeRemoveTagWithCustomFieldName || '').trim();
+    var addTerms    = splitTerms(settings.c2ExcludeAddTagNameContains, sep);
+    var removeTerms = splitTerms(settings.c3ExcludeRemoveTagNameContains, sep);
 
     function blocked(id, cfName, terms) {
       var t = graph.byId[id];

@@ -1,6 +1,6 @@
 name: Normalize Parent Tags
 description: "Requires Stash 0.31.0 or newer. BACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. Two library-wide tasks that normalize tag hierarchies on your entities: Prune removes every tag already implied by a descendant tag on the same entity, and Roll Up adds every ancestor of every tag on the entity. Both run from Settings - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing is written until you press Proceed. Entity types are opt-in and are all off until enabled below."
-version: 0.5.0
+version: 0.6.1
 ui:
   javascript:
     - NormalizeParentTags.js
@@ -52,17 +52,21 @@ settings:
     type: BOOLEAN
   c2ExcludeAddTagNameContains:
     displayName: Never add tags whose name contains (space separated substring)
-    description: Enter one or more substrings separated by spaces. Roll Up will not add a tag whose name contains any of them. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space. Skipping a tag does not stop its own parents from being added.
+    description: Enter one or more substrings separated by spaces. Roll Up will not add a tag whose name contains any of them. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space unless you set a separator below. Skipping a tag does not stop its own parents from being added.
     type: STRING
   c3ExcludeRemoveTagNameContains:
     displayName: Never remove tags whose name contains (space separated substring)
-    description: Enter one or more substrings separated by spaces. Prune will not remove a tag whose name contains any of them, even when a descendant tag makes it redundant. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space.
+    description: Enter one or more substrings separated by spaces. Prune will not remove a tag whose name contains any of them, even when a descendant tag makes it redundant. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space unless you set a separator below.
     type: STRING
-  c4ExcludeAddTagWithCustomFieldName:
+  c4TagNameSeparator:
+    displayName: Separator for the two "name contains" settings
+    description: Leave this empty to separate those substrings on spaces. Enter any character - a comma, a pipe, or any Unicode character you do not use in tag names - to separate on that instead, which is how a substring can then contain a space. It is matched literally, so punctuation needs no escaping, and surrounding whitespace is trimmed from each substring.
+    type: STRING
+  c5ExcludeAddTagWithCustomFieldName:
     displayName: Never add tags marked via a Custom Field
     description: Enter a custom field name. Roll Up will not add a tag that has this custom field. Only the presence of the field matters - its value is ignored, so any value at all excludes the tag. Remove the field from a tag to have it added again. Skipping a tag does not stop its own parents from being added.
     type: STRING
-  c5ExcludeRemoveTagWithCustomFieldName:
+  c6ExcludeRemoveTagWithCustomFieldName:
     displayName: Never remove tags marked via a Custom Field
     description: Enter a custom field name. Prune will not remove a tag that has this custom field, even when a descendant tag makes it redundant. Only the presence of the field matters - its value is ignored, so any value at all protects the tag.
     type: STRING

@@ -137,7 +137,7 @@ Two filters protect whole entities:
   more types, they are covered automatically.
 
 Five more protect individual tags, split by direction so you can, for example, let a tag be added
-but never removed:
+but never removed, plus one that sets how the two name filters are written:
 
 - **Never add or remove tags set to Ignore auto tag** — applies in both directions. Such tags
   still count as present, so they can still make their own parents redundant.
@@ -149,7 +149,14 @@ but never removed:
 
   > **Upgrading from 0.4.x:** a value that used to be a phrase, say `Hair Colour`, is now read as
   > the two substrings `Hair` and `Colour` and will match more tags than before. Check these two
-  > settings after updating if you had spaces in either.
+  > settings after updating if you had spaces in either — or set a separator, below, and the
+  > phrase works again as it did.
+- **Separator for the two "name contains" settings** — leave empty to separate those substrings on
+  spaces. Enter any character instead — a comma, a pipe, or any Unicode character you never use in
+  tag names — and the substrings are separated on that, which is how a substring can then contain a
+  space: with a separator of `,`, the entry `Body Art, Art Deco` is two substrings rather than
+  four. The separator is matched literally, so punctuation needs no escaping, and spaces around
+  each substring are trimmed.
 - **Never add tags marked via a Custom Field** / **Never remove tags marked via a Custom Field** —
   enter a custom field name. **Only the presence of the field matters** — the value is never
   looked at, so any value at all (including a blank one) applies the exclusion. To lift it,

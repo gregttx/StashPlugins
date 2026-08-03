@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.5.0.** This file is both the design and the map of the code — the
+**Status: implemented at 0.6.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -169,8 +169,9 @@ Tag-level (skip the individual tag):
 | `c1ExcludeTagWithIgnoreAutoTag` | add + remove |
 | `c2ExcludeAddTagNameContains` | add |
 | `c3ExcludeRemoveTagNameContains` | remove |
-| `c4ExcludeAddTagWithCustomFieldName` | add |
-| `c5ExcludeRemoveTagWithCustomFieldName` | remove |
+| `c4TagNameSeparator` | neither on its own — it splits `c2`/`c3` |
+| `c5ExcludeAddTagWithCustomFieldName` | add |
+| `c6ExcludeRemoveTagWithCustomFieldName` | remove |
 
 Custom-field matching is presence-only via `hasOwnProperty` (never `in` — inherited keys like
 `constructor` would match every tag), values never inspected, exactly as the sibling plugin does.
@@ -181,11 +182,26 @@ benefit. Aliases are not matched, only the name.
 Since 0.5.0 the two name settings hold **several substrings separated by whitespace**, and a tag is
 excluded when its name contains **any** of them (`splitTerms` + `nameMatchesAny`). Empty tokens are
 dropped, so padding and repeated separators are harmless — and a blank setting must yield an empty
-list, never a term matching every name. The cost is that a substring can no longer contain a space:
-one marker per term, which is what these are for. Note the upgrade consequence — a pre-0.5.0 value
-of `Hair Colour` was one substring and is now two, matching strictly more tags. That direction is
-the safe one (more tags protected from Prune, fewer added by Roll Up), but it is a silent change in
+list, never a term matching every name. Note the upgrade consequence — a pre-0.5.0 value of
+`Hair Colour` was one substring and is now two, matching strictly more tags. That direction is the
+safe one (more tags protected from Prune, fewer added by Roll Up), but it is a silent change in
 meaning for anyone who had a phrase in there.
+
+`c4TagNameSeparator` (0.6.0) buys back the substring-with-a-space that whitespace splitting costs:
+set it and the two lists split on that string instead. Three things it must keep doing:
+
+- **Split on a string, never a `RegExp`.** `.` and `|` are plausible separators, and `new RegExp('|')`
+  is an empty alternation that splits every character — single letters that would protect most of a
+  library. Users should not have to escape punctuation.
+- **Trim each term**, so `a, b` does not carry a leading space into the match, and drop the empties,
+  so a setting of nothing but separators leaves an empty list.
+- **Trim the separator itself**, and treat an empty one as "use whitespace" — which is also the only
+  way to ask for a plain space.
+
+Testing the separator needs care: splitting a phrase always leaves pieces that still match the tag
+the phrase matched, so the two behaviours only differ against a *second* tag one of those pieces
+reaches. The suite uses `Body Art` and `Art Deco` for exactly that, and the first version of the
+test passed against the unfixed build until it did.
 
 A protected tag never breaks correctness: a parent kept back by a filter is still implied by its
 descendant, and the descendant's own status is unaffected.
@@ -385,7 +401,14 @@ can read top to bottom:
 - `a1`–`a7` — the entity toggles, in the §5 processing order, so the settings page and the run
   agree about what happens first.
 - `b1`–`b2` — the entity-level exclusions.
-- `c1`–`c5` — the tag-level filters: the both-directions one first, then add/remove pairs.
+- `c1`–`c6` — the tag-level filters: the both-directions one first, then the add/remove name pair,
+  then `c4TagNameSeparator` directly under the two settings it splits, then the add/remove
+  custom-field pair.
+
+`c4TagNameSeparator` arrived last and was briefly `c6`, appended to avoid renumbering. It was moved
+under `c2`/`c3` at 0.6.0, pushing the custom-field pair to `c5`/`c6` — a deliberate exception to the
+rule below, taken while the plugin was still unreleased and the only install was the author's. That
+window is closed for the next one.
 
 Keep the YAML block itself in key order too. It is not what Stash reads, but a block that reads
 differently from the page it produces is a trap for the next edit.
@@ -395,6 +418,11 @@ resets that setting for every existing install and strands the old value in the 
 happened once, at 0.1.1, while the only install was the author's. It should not happen again
 without a good reason. New settings get a prefix in the block they belong to; if there is no gap
 left, renumber the whole block in one go rather than bolting on a `c5a`.
+
+**A new key has to be added to `DEFAULTS` as well.** `loadSettings` copies only the keys that table
+declares, so a setting present in the manifest and missing from `DEFAULTS` reads as empty forever —
+configurable in the UI and inert in the run. `c4TagNameSeparator` shipped that way for one test run;
+the suite caught it because the separator case was written to fail without the feature.
 
 Stash has no default value for a plugin setting: an unset `BOOLEAN` reads as unchecked. Every
 `enable*` type toggle is therefore **off on a fresh install**, and a run with none enabled must

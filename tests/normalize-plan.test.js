@@ -24,6 +24,16 @@ const additions = (d) => d.lines.filter((l) => l.indexOf('[ADD]') === 0);
 // A change line reads: Scene "Chain" (10) - Tag "Hair Colour" (1) - due to "Platinum" (3)
 // A test asking "was Platinum removed?" must look at the tag field alone, or the
 // reason clause answers for it.
+// Two unrelated pairs whose names share the word "Art", for the separator cases:
+// "Body Art" as one substring protects only the first, while "Body" and "Art" as
+// two protect both.
+const artTags = [
+  { id: '1', name: 'Body Art', ignore_auto_tag: false, parents: [] },
+  { id: '2', name: 'Sleeve', ignore_auto_tag: false, parents: [{ id: '1' }] },
+  { id: '3', name: 'Art Deco', ignore_auto_tag: false, parents: [] },
+  { id: '4', name: 'Vase', ignore_auto_tag: false, parents: [{ id: '3' }] },
+];
+
 const tagOf = (l) => (l.split(' - Tag ')[1] || '').split(' - due to ')[0];
 const dueTo = (l) => l.split(' - due to ')[1] || '';
 
@@ -184,6 +194,55 @@ Promise.resolve()
       removals(d).length === 1, removals(d).join(' | '));
   })
 
+  // A separator buys back what whitespace splitting costs: a substring that
+  // contains a space. Splitting a phrase always leaves pieces that still match the
+  // tag the phrase matched, so the difference only shows against a second tag that
+  // one of those pieces reaches - here "Art", which "Body Art" does not protect but
+  // its whitespace-split halves do.
+  .then(() => scan({
+    tags: artTags,
+    settings: {
+      a5EnableScenes: true,
+      c4TagNameSeparator: ',',
+      c3ExcludeRemoveTagNameContains: 'Body Art',
+    },
+    entities: scenes([{
+      id: '49', title: 'Art', organized: false,
+      tags: [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }],
+    }]),
+  })).then(({ d }) => {
+    const r = removals(d);
+    h.check('a separator lets a substring hold a space',
+      r.length === 1 && r[0].indexOf('Art Deco') !== -1, r.join(' | '));
+  })
+
+  // A RegExp built from "|" is an empty alternation that splits every character,
+  // and single letters protect most of a library. The split takes a string.
+  .then(() => scan({
+    tags: artTags,
+    settings: { a5EnableScenes: true, c4TagNameSeparator: '|', c3ExcludeRemoveTagNameContains: 'Deco' },
+    entities: scenes([{
+      id: '50', title: 'Art', organized: false,
+      tags: [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }],
+    }]),
+  })).then(({ d }) => {
+    const r = removals(d);
+    h.check('a separator that is a regex metacharacter is matched literally',
+      r.length === 1 && r[0].indexOf('Body Art') !== -1, r.join(' | '));
+  })
+
+  .then(() => scan({
+    tags: artTags,
+    settings: { a5EnableScenes: true, c4TagNameSeparator: ',', c3ExcludeRemoveTagNameContains: ' , ,, ' },
+    entities: scenes([{
+      id: '51', title: 'Art', organized: false,
+      tags: [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }],
+    }]),
+  })).then(({ d }) => {
+    h.check('a setting of nothing but separators protects nothing',
+      removals(d).length === 2, removals(d).join(' | '));
+  })
+
   // An empty setting must not degenerate into a term matching every name.
   .then(() => scan({
     settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: '   ' },
@@ -203,7 +262,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, c5ExcludeRemoveTagWithCustomFieldName: 'keep' },
+    settings: { a5EnableScenes: true, c6ExcludeRemoveTagWithCustomFieldName: 'keep' },
     tags: h.TAGS.map((t) => Object.assign({}, t, { custom_fields: t.id === '1' ? { keep: false } : {} })),
     entities: scenes([{ id: '43', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d, calls }) => {
@@ -216,7 +275,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, c5ExcludeRemoveTagWithCustomFieldName: 'constructor' },
+    settings: { a5EnableScenes: true, c6ExcludeRemoveTagWithCustomFieldName: 'constructor' },
     tags: h.TAGS.map((t) => Object.assign({}, t, { custom_fields: {} })),
     entities: scenes([{ id: '44', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d }) => {

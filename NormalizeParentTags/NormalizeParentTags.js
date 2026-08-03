@@ -214,7 +214,7 @@
 
   function tagLabel(graph, id) {
     var t = graph.byId[id];
-    return '"' + ((t && t.name) || 'unknown') + ' (' + id + ')"';
+    return '"' + ((t && t.name) || 'unknown') + '" (' + id + ')';
   }
 
   // ── Exclusion filters ─────────────────────────────────────────────────────
@@ -252,11 +252,48 @@
       if (files.length) name = files[0].basename;
     }
     if (!name && type.key === 'markers' && ent.primary_tag) name = ent.primary_tag.name;
-    return '"' + (name || 'untitled') + ' (' + ent.id + ')"';
+    return '"' + (name || 'untitled') + '" (' + ent.id + ')';
   }
 
-  // Returns { add: [], remove: [] } - both may be empty. `mode` is 'prune' or
-  // 'rollup'; only one direction is ever populated.
+  // Ids arrive from GraphQL as strings. Compare them as numbers where both parse,
+  // so 9 sorts below 10, and fall back to a string compare so the order is total
+  // whatever Stash hands us.
+  function lowerId(a, b) {
+    var na = parseInt(a, 10), nb = parseInt(b, 10);
+    if (!isNaN(na) && !isNaN(nb) && na !== nb) return na < nb;
+    return String(a) < String(b);
+  }
+
+  // Is `a` the better "due to" tag than the incumbent `b`? The lowest-level tag
+  // wins: if one is an ancestor of the other it is the higher of the two and
+  // loses. Neither being an ancestor of the other (a diamond, or two unrelated
+  // children of one parent) is a real tie, broken on lowest id - `for...in` order
+  // is not guaranteed, and a log line that shuffles between runs cannot be audited.
+  function betterReason(graph, a, b) {
+    if (a === b) return false;
+    if (hasOwn(graph.ancestorsOf(a), b)) return true;
+    if (hasOwn(graph.ancestorsOf(b), a)) return false;
+    return lowerId(a, b);
+  }
+
+  // Narrow the entity's full implied-tag map to just the tags being written, so a
+  // six-figure plan is not carrying an ancestor map per entry.
+  function reasonsFor(implied, ids) {
+    var out = {};
+    ids.forEach(function (tid) { if (hasOwn(implied, tid)) out[tid] = implied[tid]; });
+    return out;
+  }
+
+  // One log line for one tag on one entity, in either direction.
+  function changeLine(graph, type, label, tid, reason) {
+    var line = type.label + ' ' + label + ' - Tag ' + tagLabel(graph, tid);
+    if (reason && hasOwn(reason, tid)) line += ' - due to ' + tagLabel(graph, reason[tid]);
+    return line;
+  }
+
+  // Returns { add: [], remove: [], reason: {} } - both lists may be empty. `mode`
+  // is 'prune' or 'rollup'; only one direction is ever populated. `reason` maps
+  // each tag being written to the present tag that implies it.
   function planEntity(type, ent, mode, ctx) {
     var s = ctx.settings;
     if (s.b2ExcludeOrganized && type.organized && ent.organized) return null;
@@ -272,11 +309,19 @@
 
     if (ctx.excludeTagId && present[ctx.excludeTagId]) return null;
 
+    // Maps an implied tag to the present tag that implies it, rather than to a
+    // bare `true`: that tag is the "due to" in the log, and it is what makes a
+    // planned change explainable without the reader rebuilding the hierarchy in
+    // their head. Where several present tags imply the same ancestor, the lowest
+    // one wins - see betterReason.
     var implied = {}, id, k;
     for (id in present) {
       if (!hasOwn(present, id)) continue;
       var anc = ctx.graph.ancestorsOf(id);
-      for (k in anc) if (hasOwn(anc, k)) implied[k] = true;
+      for (k in anc) {
+        if (!hasOwn(anc, k)) continue;
+        if (!hasOwn(implied, k) || betterReason(ctx.graph, id, implied[k])) implied[k] = id;
+      }
     }
 
     if (mode === 'prune') {
@@ -286,7 +331,10 @@
       var remove = tagIds.filter(function (tid) {
         return hasOwn(implied, tid) && ctx.filters.canRemove(tid);
       });
-      return remove.length ? { add: [], remove: remove } : null;
+      // The tag named as the reason is never itself removed here: anything that
+      // implied it would be a strictly lower candidate for the same ancestor, and
+      // would have won. So a Prune line always points at a tag that survives.
+      return remove.length ? { add: [], remove: remove, reason: reasonsFor(implied, remove) } : null;
     }
 
     var add = [];
@@ -297,7 +345,7 @@
       // added. The filters describe a tag, not a wall in the hierarchy.
       if (ctx.filters.canAdd(k)) add.push(k);
     }
-    return add.length ? { add: add, remove: [] } : null;
+    return add.length ? { add: add, remove: [], reason: reasonsFor(implied, add) } : null;
   }
 
   function entityQuery(type, withSort) {
@@ -343,12 +391,15 @@
           seen++;
           if (!delta) return;
           var label = entityLabel(type, ent);
-          ctx.run.plan.push({ type: type, id: ent.id, label: label, add: delta.add, remove: delta.remove });
+          ctx.run.plan.push({
+            type: type, id: ent.id, label: label,
+            add: delta.add, remove: delta.remove, reason: delta.reason,
+          });
           delta.remove.forEach(function (tid) {
-            ctx.run.log('REMOVE', type.label + ' ' + label + ' - Tag ' + tagLabel(ctx.graph, tid));
+            ctx.run.log('REMOVE', changeLine(ctx.graph, type, label, tid, delta.reason));
           });
           delta.add.forEach(function (tid) {
-            ctx.run.log('ADD', type.label + ' ' + label + ' - Tag ' + tagLabel(ctx.graph, tid));
+            ctx.run.log('ADD', changeLine(ctx.graph, type, label, tid, delta.reason));
           });
         });
         ctx.run.scanned[type.key] = seen;
@@ -407,7 +458,10 @@
     }).then(function () {
       batch.entries.forEach(function (entry) {
         batch.tagIds.forEach(function (tid) {
-          run.log(batch.mode, batch.type.label + ' ' + entry.label + ' - Tag ' + tagLabel(graph, tid));
+          // Entities are batched by identical delta, but each carries its own
+          // reasons - the same redundant parent is rarely redundant for the same
+          // cause twice - so the line is built per entry, not per batch.
+          run.log(batch.mode, changeLine(graph, batch.type, entry.label, tid, entry.reason));
         });
         run.applied++;
       });

@@ -177,13 +177,17 @@
   // own UI does rather than logging an empty pair of quotes. sceneId is passed
   // separately because the single-scene queries look the scene up by id and do not
   // ask for it back.
+  //
+  // The label carries its own quotes and leaves the id outside them - "Name" (12),
+  // not "Name (12)" - so a title containing brackets cannot be misread as an id.
+  // NormalizeParentTags logs the same shape.
   function sceneLogLabel(scene, sceneId) {
     var name = scene.title;
     if (!name) {
       var files = scene.files || [];
       if (files.length) name = files[0].basename;
     }
-    return (name || 'untitled') + ' (' + (scene.id || sceneId) + ')';
+    return '"' + (name || 'untitled') + '" (' + (scene.id || sceneId) + ')';
   }
 
   function logInfo(msg) {
@@ -212,8 +216,8 @@
     if (!settings.logMergesToConsole) return;
     var label = sceneLogLabel(scene, sceneId);
     tags.forEach(function (t) {
-      logInfo('Tag "' + (t.name || 'unnamed') + ' (' + t.id + ')" ' +
-        action + ' to Scene "' + label + '"');
+      logInfo('Tag "' + (t.name || 'unnamed') + '" (' + t.id + ') ' +
+        action + ' to Scene ' + label);
     });
   }
 

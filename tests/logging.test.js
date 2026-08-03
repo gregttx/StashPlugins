@@ -86,7 +86,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
       info.filter(isBanner).length === 1, info.join(' | '));
     H.check('one line for the one tag merged', merges(info).length === 1, info.join(' | '));
     H.check('line matches the documented format',
-      merges(info)[0] === PREFIX + ' Tag "Tattoo (11)" saved to Scene "My Scene (1)"',
+      merges(info)[0] === PREFIX + ' Tag "Tattoo" (11) saved to Scene "My Scene" (1)',
       info.join(' | '));
     H.check('the tag the scene already had is not logged',
       merges(info).join(' ').indexOf('Blonde') === -1, info.join(' | '));
@@ -154,14 +154,14 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     H.check('three lines: both tags for scene 1, the missing one for scene 2',
       merges(info).length === 3, info.join(' | '));
     H.check('scene 1 logs both tags against its title',
-      info.indexOf(PREFIX + ' Tag "Blonde (10)" saved to Scene "Scene One (1)"') !== -1 &&
-      info.indexOf(PREFIX + ' Tag "Tattoo (11)" saved to Scene "Scene One (1)"') !== -1,
+      info.indexOf(PREFIX + ' Tag "Blonde" (10) saved to Scene "Scene One" (1)') !== -1 &&
+      info.indexOf(PREFIX + ' Tag "Tattoo" (11) saved to Scene "Scene One" (1)') !== -1,
       info.join(' | '));
     H.check('an untitled scene is named by its file',
-      info.indexOf(PREFIX + ' Tag "Tattoo (11)" saved to Scene "clip2.mp4 (2)"') !== -1,
+      info.indexOf(PREFIX + ' Tag "Tattoo" (11) saved to Scene "clip2.mp4" (2)') !== -1,
       info.join(' | '));
     H.check('the tag scene 2 already had is not logged against it',
-      info.join(' ').indexOf('Tag "Blonde (10)" saved to Scene "clip2.mp4') === -1,
+      info.join(' ').indexOf('Tag "Blonde" (10) saved to Scene "clip2.mp4"') === -1,
       info.join(' | '));
   }
 
@@ -185,7 +185,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     H.check('the failing scene is not logged',
       merges(info).join(' ').indexOf('Fails') === -1, info.join(' | '));
     H.check('the scene that did save still is',
-      merges(info).length === 1 && merges(info)[0].indexOf('Scene "Works (2)"') !== -1,
+      merges(info).length === 1 && merges(info)[0].indexOf('Scene "Works" (2)') !== -1,
       info.join(' | '));
   }
 
@@ -238,7 +238,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     await H.flush(60);
     H.check('staging logs one line for the staged tag', merges(info).length === 1, info.join(' | '));
     H.check('and calls the action "staged"',
-      merges(info)[0] === PREFIX + ' Tag "Tattoo (11)" staged to Scene "Staged Scene (1)"',
+      merges(info)[0] === PREFIX + ' Tag "Tattoo" (11) staged to Scene "Staged Scene" (1)',
       info.join(' | '));
   }
 

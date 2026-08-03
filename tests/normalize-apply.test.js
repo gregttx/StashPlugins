@@ -52,6 +52,15 @@ Promise.resolve()
         d().visible('Close') && d().visible('Rescan') && !d().visible('Proceed'));
       h.check('the applied count is reported',
         d().progress.indexOf('253 entity change(s) applied') !== -1, d().progress);
+      // Entities are batched by shared delta, but the reason is per entity: the
+      // 250 lose Hair Colour to Blonde, the 3 lose Body to Tattoo, and both kinds
+      // of line have to come back out of one batch loop with the right reason.
+      const all = d().lines;
+      const written = all.slice(all.findIndex((l) => l.indexOf('Applying') !== -1));
+      h.check('phase 2 keeps each entity own reason',
+        written.some((l) => l.indexOf('Scene "S1" (1) - Tag "Hair Colour" (1) - due to "Blonde" (2)') !== -1) &&
+        written.some((l) => l.indexOf('Scene "T900" (900) - Tag "Body" (4) - due to "Tattoo" (5)') !== -1),
+        written.slice(1, 3).join(' | '));
     });
   })
 
@@ -76,7 +85,7 @@ Promise.resolve()
         lines.join(' | '));
       h.check('a failed request does not stop the run', h.bulkCalls(env.calls).length === 4);
       h.check('entities in a failed request are not logged as changed',
-        !lines.some((l) => l.indexOf('[REMOVE] Scene "S1 (1)"') === 0 &&
+        !lines.some((l) => l.indexOf('[REMOVE] Scene "S1" (1)') === 0 &&
           lines.filter((x) => x === l).length > 1), lines.slice(0, 3).join(' | '));
       h.check('the failure count is reported',
         d().progress.indexOf('100 failed') !== -1, d().progress);

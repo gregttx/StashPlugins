@@ -48,8 +48,8 @@ Four optional exclusion filters in settings let you protect certain scenes or ta
 Enable **Log Tag merges to the Browser Console (Info level)** to have every tag the plugin adds reported, one line per tag and scene, at `info` level:
 
 ```
-[MergePerformerTagsToScenes] Tag "Blonde (12)" saved to Scene "My Scene (345)"
-[MergePerformerTagsToScenes] Tag "Tattoo (17)" staged to Scene "My Scene (345)"
+[MergePerformerTagsToScenes] Tag "Blonde" (12) saved to Scene "My Scene" (345)
+[MergePerformerTagsToScenes] Tag "Tattoo" (17) staged to Scene "My Scene" (345)
 ```
 
 **These lines go to your browser's own JavaScript console — not to Stash.** Open it with **F12** (or Ctrl+Shift+J / Cmd+Option+J) and pick the **Console** tab. This plugin runs entirely in the browser, so it has no way to write to the Stash server console or the **Settings → Logs** page; nothing will ever appear in either of those.

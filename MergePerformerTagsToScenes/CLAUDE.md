@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.1.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.1.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -202,7 +202,10 @@ The protocol is documented in `../CLAUDE.md`. This plugin is the **reactive** si
 ## 8. Logging
 
 Two different prefixes, deliberately: user-facing merge lines use the full `[MergePerformerTagsToScenes]`
-(via `logInfo`), diagnostics use the short `[cpt2s]`. Merge lines are `info` level, one per tag per
+(via `logInfo`), diagnostics use the short `[cpt2s]`. A merge line reads
+`Tag "Blonde" (12) saved to Scene "My Scene" (345)` — the id sits **outside** the quotes on both,
+which is what `NormalizeParentTags` does too, so a name containing brackets cannot be read as an
+id. `sceneLogLabel` returns the quotes as part of the label; callers must not add their own. Merge lines are `info` level, one per tag per
 scene, and only for tags that actually changed something — a skipped scene, an already-present tag
 and a failed update all produce nothing, which is why the one-time "logging enabled" banner exists
 at all. `announceLogging` re-arms when the setting is switched off and on.

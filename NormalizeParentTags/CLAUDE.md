@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.1.2.** This file is both the design and the map of the code — the
+**Status: implemented at 0.2.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -120,6 +120,27 @@ A tag rejected by `addable()` is skipped *individually* — its own parents are 
 filters describe a tag, not a barrier in the hierarchy. Document this; the other reading
 (treat an excluded tag as a wall and stop climbing) is defensible but surprising.
 
+### The reason ("due to")
+
+`implied` is not a set but a map from each implied tag to the tag on the entity that implies it,
+and that tag is logged as the change's reason. Where several present tags imply the same
+ancestor, the **lowest** wins: a candidate that is an ancestor of another candidate is higher up
+the hierarchy and loses. Candidates that are incomparable — a diamond, or two unrelated children
+of one parent — are a genuine tie, broken on the **lowest tag id**, compared numerically where
+both ids parse so 9 sorts below 10. The tie-break exists for determinism, not for meaning:
+`for…in` order is not guaranteed, and a log that shuffles between two runs over an unchanged
+library cannot be used to audit anything.
+
+Two properties worth keeping true:
+
+- **In Prune the reason tag is never itself removed in the same run.** If it were, whatever
+  implied *it* would be a strictly lower candidate for the same ancestor and would have won the
+  contest. So a `[REMOVE]` line always points at a tag that survives — which is the whole reason
+  the clause is useful.
+- **A marker's primary tag can be a reason**, since it counts as present. That is correct and
+  informative: it explains a removal that is otherwise unexplainable from the marker's tag list
+  alone.
+
 ### Markers
 
 `SceneMarker` has `primary_tag: Tag!` (required, separate field) and `tags: [Tag!]!`.
@@ -210,9 +231,13 @@ no PluginApi). It shows:
 - Any run-level warning raised at startup — currently the sibling-plugin check in §8.
 - Per-type progress: `Scenes 4200 / 12871`, plus a running "changes found" count.
 - A scrollable log of every planned change, one line per tag per entity:
-  `[REMOVE] Scene "My Scene (123)" — Tag "Hair Colour (45)"`
-  `[ADD]    Performer "Jane (7)" — Tag "Blonde (12)"`
-  `[ERROR]  Scenes page 5 — findScenes failed: ...`
+  `[REMOVE] Scene "My Scene" (123) - Tag "Hair Colour" (45) - due to "Platinum" (47)`
+  `[ADD]    Performer "Jane" (7) - Tag "Blonde" (12) - due to "Platinum" (47)`
+  `[ERROR]  Scenes page 5 - findScenes failed: ...`
+
+  The **due to** clause names the tag already on the entity that implies the one being written -
+  the entry's *reason*. Both the entity and the tag put their id outside the quotes, so a name
+  containing brackets cannot be misread as one.
 - Buttons: **Proceed** (enabled once the scan finishes, and disabled outright when there is
   nothing to do) and **Cancel** (abandons the run; during the scan it stops paging).
 
@@ -221,7 +246,10 @@ changes. Keep the full log in a JS array (that is what Copy exports) and render 
 ~1000 lines into the DOM, with a `showing last 1000 of 214503` note above it. Append in batches
 on a timer rather than one node per change, or the scan is bottlenecked on layout.
 
-Nothing is written in phase 1. The plan is held as `[{ type, entityId, entityLabel, add: [], remove: [] }]`.
+Nothing is written in phase 1. The plan is held as
+`[{ type, entityId, entityLabel, add: [], remove: [], reason: { tagId: tagId } }]`. `reason` is
+narrowed to the tags actually being written rather than holding the entity's whole implied map —
+a six-figure plan carrying an ancestor map per entry is a browser tab that runs out of memory.
 
 ### Phase 2 — apply
 
@@ -406,7 +434,10 @@ cover:
 
 - **Closure and pruning logic** — chains, diamonds (two parents), multi-root, the antichain
   result, and a planted cycle terminating with an error rather than hanging.
-- **Marker handling** — primary tag implies but is never removed.
+- **Marker handling** — primary tag implies but is never removed, and can be named as a reason.
+- **The reason clause** — the lowest implying tag is named in both directions, incomparable
+  candidates fall to the lowest id, and phase 2 keeps each entity's own reason even though
+  entities are batched by shared delta.
 - **Exclusion filters** — each of the seven, including add/remove asymmetry, `hasOwnProperty`
   vs prototype keys, and that a skipped tag does not block its own parents in Roll Up.
 - **Two-phase dialog** — no mutation is issued before Proceed; Cancel issues none at all.

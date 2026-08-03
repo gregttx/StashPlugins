@@ -21,6 +21,12 @@ function scan(opts, task) {
 const removals = (d) => d.lines.filter((l) => l.indexOf('[REMOVE]') === 0);
 const additions = (d) => d.lines.filter((l) => l.indexOf('[ADD]') === 0);
 
+// A change line reads: Scene "Chain" (10) - Tag "Hair Colour" (1) - due to "Platinum" (3)
+// A test asking "was Platinum removed?" must look at the tag field alone, or the
+// reason clause answers for it.
+const tagOf = (l) => (l.split(' - Tag ')[1] || '').split(' - due to ')[0];
+const dueTo = (l) => l.split(' - due to ')[1] || '';
+
 Promise.resolve()
 
   // ── Prune ────────────────────────────────────────────────────────────────
@@ -30,8 +36,11 @@ Promise.resolve()
     // 1 -> 2 -> 3 all present: only the leaf survives, in one pass, both parents go.
     const r = removals(d);
     h.check('prune removes every implied ancestor of a chain', r.length === 2, r.join(' | '));
-    h.check('prune keeps the most specific tag', !r.some((l) => l.indexOf('Platinum') !== -1), r.join(' | '));
-    h.check('prune names entity and tag with ids', r[0].indexOf('Scene "Chain (10)"') !== -1, r[0]);
+    h.check('prune keeps the most specific tag', !r.some((l) => tagOf(l).indexOf('Platinum') !== -1), r.join(' | '));
+    h.check('prune names entity and tag with ids', r[0].indexOf('Scene "Chain" (10)') !== -1, r[0]);
+    // 1 <- 2 <- 3: both removals are owed to the leaf, not to the intermediate.
+    h.check('prune names the lowest implying tag as the reason',
+      r.every((l) => dueTo(l) === '"Platinum" (3)'), r.join(' | '));
   })
 
   .then(() => scan({
@@ -66,7 +75,28 @@ Promise.resolve()
   }, h.TASK_ROLLUP)).then(({ d }) => {
     const a = additions(d);
     h.check('roll up adds every ancestor recursively', a.length === 3, a.join(' | '));
-    h.check('roll up does not re-add what is present', !a.some((l) => l.indexOf('Platinum') !== -1), a.join(' | '));
+    h.check('roll up does not re-add what is present',
+      !a.some((l) => tagOf(l).indexOf('Platinum') !== -1), a.join(' | '));
+    h.check('roll up names the tag that pulled the ancestor in',
+      a.every((l) => dueTo(l) === '"Platinum" (3)'), a.join(' | '));
+  })
+
+  // Two present tags, neither an ancestor of the other, implying the same parent.
+  // There is no lowest, so the tie is broken on id - numerically, or 10 wins 9.
+  .then(() => scan({
+    tags: [
+      { id: '1', name: 'Hair Colour', ignore_auto_tag: false, parents: [] },
+      { id: '9', name: 'Blonde', ignore_auto_tag: false, parents: [{ id: '1' }] },
+      { id: '10', name: 'Brunette', ignore_auto_tag: false, parents: [{ id: '1' }] },
+    ],
+    entities: scenes([{
+      id: '14', title: 'Both', organized: false,
+      tags: [{ id: '1' }, { id: '9' }, { id: '10' }],
+    }]),
+  })).then(({ d }) => {
+    const r = removals(d);
+    h.check('incomparable reasons are tie-broken on the lowest id',
+      r.length === 1 && dueTo(r[0]) === '"Blonde" (9)', r.join(' | '));
   })
 
   // ── Entity-level filters ─────────────────────────────────────────────────
@@ -182,7 +212,9 @@ Promise.resolve()
     const r = removals(d);
     h.check('a marker primary tag implies removals from the tag list', r.length === 2, r.join(' | '));
     h.check('the primary tag itself is never removed',
-      !r.some((l) => l.indexOf('Platinum') !== -1), r.join(' | '));
+      !r.some((l) => tagOf(l).indexOf('Platinum') !== -1), r.join(' | '));
+    h.check('a primary tag can be named as the reason',
+      r.every((l) => dueTo(l) === '"Platinum" (3)'), r.join(' | '));
   })
 
   .then(() => scan({
@@ -197,7 +229,7 @@ Promise.resolve()
     const a = additions(d);
     h.check('roll up puts a marker primary tag ancestors in the tag list', a.length === 3, a.join(' | '));
     h.check('an untitled marker is named by its primary tag',
-      a[0].indexOf('"Platinum (51)"') !== -1, a[0]);
+      a[0].indexOf('"Platinum" (51)') !== -1, a[0]);
   })
 
   // ── Cycles ───────────────────────────────────────────────────────────────

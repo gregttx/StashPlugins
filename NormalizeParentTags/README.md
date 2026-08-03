@@ -54,11 +54,17 @@ Running a task opens a dialog that works in two phases.
 and a log of every change it *would* make:
 
 ```
-[REMOVE] Scene "My Scene (123)" — Tag "Hair Colour (45)"
-[REMOVE] Image "IMG_0042 (900)" — Tag "Hair Colour (45)"
-[ADD]    Performer "Jane (7)" — Tag "Hair Colour (45)"
-[ERROR]  Scenes page 5 — findScenes failed: ...
+[REMOVE] Scene "My Scene" (123) - Tag "Hair Colour" (45) - due to "Platinum" (47)
+[REMOVE] Image "IMG_0042" (900) - Tag "Hair Colour" (45) - due to "Blonde" (46)
+[ADD]    Performer "Jane" (7) - Tag "Hair Colour" (45) - due to "Platinum" (47)
+[ERROR]  Scenes page 5 - findScenes failed: ...
 ```
+
+The **due to** tag is the reason the change was planned: the tag already on the entity that
+implies the one being written. Where several tags on the entity imply it, the lowest one in the
+hierarchy is named — for Prune that tag is always one that survives the run, so the line reads as
+"this is redundant *because of* that". Tags at the same level are tie-broken on the lower tag id
+so that repeated runs log identically.
 
 Nothing has been written at this point. **Cancel** walks away with your library untouched.
 

@@ -770,15 +770,10 @@
     this.reset();
   }
 
+  // Same shape as NormalizeParentTags' Run.reset: everything a pass owns is cleared
+  // here, and rescan() is the only caller that puts anything back. Keep the two
+  // readable against each other - they are one design with two sets of counters.
   TaskRun.prototype.reset = function () {
-    this.state = 'scanning';
-    this.lines = this.lines || [];
-    this.pending = [];
-    this.viewLines = 0;
-    this.cancelled = false;
-    this.stopped = false;
-    this.performersSeen = 0;
-    this.performersTotal = 0;
     // One entry per scene, never one per performer: a scene featuring two performers
     // is missing tags from both, and writing it twice from a plan computed before
     // either write would have the second write - built from the scene's scan-time
@@ -791,9 +786,24 @@
     this.appliedTagCounts = {};
     this.tagsById = {};
     this.tagsPlanned = 0;
+    this.performersSeen = 0;
+    this.performersTotal = 0;
     this.scenesUpdated = 0;
     this.tagsAdded = 0;
     this.errors = 0;
+    this.cancelled = false;
+    this.stopped = false;
+    // `lines` is the export buffer and survives a Rescan, because Copy log is meant
+    // to hand over the whole session - rescan() saves it across this call. It is
+    // emptied here rather than kept, so a first run starts clean without the
+    // constructor needing a special case. `viewLines` counts what has gone into the
+    // log since the current pass emptied the view, which is what the progress line
+    // describes: a rescan logging four lines must not report the thousands behind it,
+    // nor claim to be hiding the ones it no longer has.
+    this.lines = [];
+    this.pending = [];
+    this.viewLines = 0;
+    this.state = 'scanning';
   };
 
   TaskRun.prototype.build = function () {

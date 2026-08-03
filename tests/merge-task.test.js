@@ -288,6 +288,12 @@ Promise.resolve()
           d().visible('Proceed') && !d().visible('Close'));
         h.check('Rescan keeps the earlier log',
           d().lines.some((l) => l.indexOf('--- Rescan ---') !== -1), d().lines.join(' | '));
+        // The fake server does not apply what it is told, so the second pass finds
+        // the same three scenes - the point is that it finds three and not six.
+        h.check('Rescan starts the plan over rather than adding to it',
+          d().progress.indexOf('Review complete. 3 scene(s) to update') === 0, d().progress);
+        h.check('and does not claim to be hiding lines it no longer has',
+          d().progress.indexOf('showing the last') === -1, d().progress);
       });
     });
   })

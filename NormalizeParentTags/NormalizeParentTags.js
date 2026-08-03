@@ -763,10 +763,12 @@
     this.lines = [];
     this.pending = [];
     // `lines` is the export buffer and survives a Rescan, because Copy log is meant
-    // to hand over the whole session. `viewLines` counts what has gone into the log
-    // *since the current pass emptied the view*, which is what the progress line
-    // describes - a rescan that logs four lines must not report 28161 of them, nor
-    // claim to be hiding the 27161 it no longer has.
+    // to hand over the whole session - rescan() saves it across this call. It is
+    // emptied here rather than kept, so a first run starts clean without the
+    // constructor needing a special case. `viewLines` counts what has gone into the
+    // log since the current pass emptied the view, which is what the progress line
+    // describes: a rescan logging four lines must not report 28161 of them, nor claim
+    // to be hiding the 27161 it no longer has. Same split as the sibling's TaskRun.
     this.viewLines = 0;
     this.rendered = 0;
     this.state = 'scanning';

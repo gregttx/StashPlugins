@@ -44,9 +44,13 @@ The plugins have no build step, no bundler, and no runtime dependencies. A plugi
 
 Two kinds of plugin in this repo collide by design. **Reactive** plugins watch `window.fetch` for
 Stash's own mutations and act on them (`MergePerformerTagsToScenes` auto-merge). **Bulk** plugins
-rewrite many entities on purpose (`NormalizeParentTags` phase 2). A bulk plugin's writes look
-exactly like user edits, so the reactive plugin fires on every one of them — often undoing the
-bulk plugin's work as fast as it lands.
+rewrite many entities on purpose (`NormalizeParentTags` phase 2, and
+`MergePerformerTagsToScenes`' own library-wide task). A bulk plugin's writes look exactly like
+user edits, so the reactive plugin fires on every one of them — often undoing the bulk plugin's
+work as fast as it lands.
+
+The two roles are per *run*, not per plugin: `MergePerformerTagsToScenes` is reactive through its
+auto-merge modes and bulk during its task, and holds both halves of the protocol at once.
 
 Every plugin loaded into a Stash page shares one `window`, which is enough for a handshake. A bulk
 plugin takes a **lease** for the duration of its writes; a reactive plugin checks for a lease
@@ -83,6 +87,13 @@ Rules that make this safe:
 - **Not a re-entrancy guard.** A plugin suppressing reactions to *its own* writes (the
   `_mergeDepth` counter in `MergePerformerTagsToScenes`) is a separate, internal mechanism. Leases
   are about *other* plugins.
+- **Take one for every bulk run, even with nothing listening.** Neither plugin here honours the
+  other's lease today — `NormalizeParentTags` is not reactive — so a bulk run taking one changes
+  nothing in this repo. It is still the rule: the protocol is not ours alone, and a bulk run that
+  does not announce itself is exactly what a third plugin could not defend against.
+- **Warn on someone else's, never stand down for it.** A bulk run is started by hand, and §7 of
+  `MergePerformerTagsToScenes`' CLAUDE.md is that manual actions are not suppressed. Both dialogs
+  therefore *say* a lease is held and carry on — an advisory the user can act on, not a lock.
 - **UI plugins only.** A server-side `hooks:` plugin runs in the Stash process, never sees this
   `window`, and cannot be leased against. Do not let documentation imply otherwise.
 

@@ -124,6 +124,11 @@ Nothing is changed in your settings, other browser tabs are unaffected, and **ma
 clicks are never suppressed** — you asked for those directly. If the other plugin's tab crashes
 mid-run, the claim expires on its own rather than leaving auto-merge disabled until a reload.
 
+It works the other way round too. The library-wide task above rewrites scenes across your whole
+library, so while it is applying changes **it takes the same kind of claim**, for any plugin that
+watches for one. And if you start it while another plugin is mid-run, the dialog says so and lets
+you decide — running both at once means each may undo part of the other.
+
 ## How it works
 
 This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.

@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.4.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.5.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -197,9 +197,13 @@ would send `true` rather than `false`. Any new boolean whose desired default is 
 same treatment — and if it is a *destructive* default, it needs the opposite (see
 `NormalizeParentTags`, where every type toggle is deliberately off).
 
-## 7. The bulk-edit lease (1.1.0)
+## 7. The bulk-edit lease (1.1.0, both sides since 1.5.0)
 
-The protocol is documented in `../CLAUDE.md`. This plugin is the **reactive** side:
+The protocol is documented in `../CLAUDE.md`. This plugin sits on **both** sides of it, because
+the roles are per run rather than per plugin: auto-merge is reactive, the library-wide task is
+bulk. Keep the two halves apart in your head — they never run against each other (§7a).
+
+The **reactive** half:
 
 - `coop().respecters[PLUGIN_ID] = true` at load. This is what lets a bulk plugin tell "will stand
   down" apart from "too old to know" and warn the user accordingly — it is not optional bookkeeping.
@@ -209,6 +213,17 @@ The protocol is documented in `../CLAUDE.md`. This plugin is the **reactive** si
   (`/\bbulkSceneUpdate\b/.test(q) && !autoMergeSuppressed()`) so the one-time "standing down"
   console line is only emitted for a mutation that would actually have been reacted to.
 - **Manual button clicks are never suppressed.** The user asked for those directly.
+
+The **bulk** half is `acquireLease()`, taken around the task's apply phase only — the same shape
+as `NormalizeParentTags`', down to the 5-minute TTL, the per-unit `renew()`, and releasing on
+success, on failure and on **Stop**. The two implementations are separate because the plugins
+share no module; keep them readable against each other.
+
+`autoMergeSuppressed()` will see our own lease during a task apply, which sounds like a plugin
+standing itself down but is not: `guarded()` has already short-circuited the `fetch` wrapper for
+every write the task issues, so the only mutation that can reach those branches while the lease is
+held is a *user's* save in the same tab — which is precisely one that should stand down. The
+console line naming us as the owner is accurate in that case.
 
 ## 7a. The library-wide task (1.2.0)
 
@@ -280,10 +295,15 @@ is invisible to the plan being applied. Since 1.4.2 `finishApply` closes with *"
 review what is left."*, the sibling's wording, because a finished run is not the same thing as a
 settled library and the button alone does not say so.
 
-**It warns about a held lease but does not take one, and does not stand down for one.** A task
-click is manual, and §7's rule is that manual actions are never suppressed. Taking one would also
-be pointless today: the only bulk plugin in the repo is not reactive, so nothing would honour it.
-If a reactive third plugin ever appears, this run is what would need to start taking a lease.
+**It takes a lease while it writes, warns about anyone else's, and stands down for neither.** The
+lease covers phase 2 only — phase 1 writes nothing, so there is nothing to suppress, and holding
+one across a library-wide review would stand a reactive plugin down for the half of the run that
+cannot disturb it. Nothing in this repo honours it: `NormalizeParentTags` is not reactive, and it
+warns about ours rather than yielding to it, exactly as this dialog warns about its. Both warnings
+are advisory because a task click is manual, and §7's rule is that manual actions are never
+suppressed. Taking one anyway is the point of a protocol that is not ours alone — until 1.5.0 this
+run wrote across the whole library announcing nothing, which is the case a third plugin could not
+have defended against.
 
 ## 8. Logging
 

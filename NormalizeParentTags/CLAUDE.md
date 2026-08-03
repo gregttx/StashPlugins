@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.10.2.** This file is both the design and the map of the code — the
+**Status: implemented at 0.11.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -614,6 +614,13 @@ comes first in each condition (`/\bbulkSceneUpdate\b/.test(q) && !autoMergeSuppr
 "standing down" console line is only emitted for a mutation it would actually have reacted to.
 Manual button clicks are never suppressed — the user asked for those directly.
 
+**The sibling is a bulk plugin too, since its 1.5.0.** Its library-wide task rewrites scenes across
+the whole library and takes a lease while it does, so `begin()` reports one that is already held —
+naming the owner and the task — the same way that dialog reports ours. It is a warning, not a
+block: a task click is manual on both sides, and standing down for a lease we would only have taken
+ourselves a moment later helps nobody. Ours is taken in `proceed()`, so nothing in `begin()` can be
+looking at its own.
+
 ## 9. Testing
 
 Three suites cover this plugin — `normalize-plan`, `normalize-apply`, `normalize-tasks` — plus
@@ -669,6 +676,8 @@ cover:
   order the settings come back in.
 - **Sibling detection** — an auto-merge flag set on `MergePerformerTagsToScenes` in the shared
   `configuration { plugins }` response raises the dialog warning, and its absence does not.
+- **Someone else's lease** — one held at `begin()` is warned about, names its owner and label in
+  the head, and does not disable Proceed; no lease leaves the head empty.
 
 The suites cannot confirm Stash's own behaviour (page markup, `BulkUpdateIds` semantics), so any
 change here still needs one run against a real instance — preferably a copy of the library.

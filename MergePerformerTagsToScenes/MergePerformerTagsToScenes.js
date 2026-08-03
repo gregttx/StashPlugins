@@ -39,18 +39,44 @@
   // ── Cross-plugin cooperation ──────────────────────────────────────────────
   //
   // See "Cross-plugin cooperation: the bulk-edit lease" in the repo-root CLAUDE.md.
-  // Another plugin rewriting many entities on purpose (NormalizeParentTags) takes a
-  // lease for the duration of its writes; auto-merge stands down while one is held,
-  // because those writes look exactly like user edits from in here and reacting to
-  // them undoes the other plugin's work as fast as it lands.
+  // This plugin is on both sides of the protocol.
   //
-  // Manual button clicks are never suppressed: the user asked for those directly.
+  // Reactive: another plugin rewriting many entities on purpose (NormalizeParentTags)
+  // takes a lease for the duration of its writes; auto-merge stands down while one is
+  // held, because those writes look exactly like user edits from in here and reacting
+  // to them undoes the other plugin's work as fast as it lands. Manual button clicks
+  // are never suppressed: the user asked for those directly.
+  //
+  // Bulk: the library-wide task rewrites scenes across the whole library, which is
+  // the same thing seen from the other end, so it takes a lease of its own while it
+  // writes. Nothing in this repo honours it yet - the sibling is not reactive - but
+  // the protocol is not ours alone, and a bulk run that does not announce itself is
+  // the case a third plugin could not defend against.
   function coop() {
     var c = window.StashPluginCoop;
     if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
     return c;
+  }
+
+  // Identical to NormalizeParentTags' acquireLease, deliberately: renew per unit of
+  // work rather than taking one long lease, and release in every outcome so an error
+  // or a Stop cannot leave a reactive plugin standing down. The expiry is the
+  // backstop for the outcome neither can catch - the tab going away mid-run.
+  var LEASE_TTL_MS = 300000;
+
+  function acquireLease(label) {
+    var c = coop();
+    var lease = { owner: PLUGIN_ID, label: label, until: Date.now() + LEASE_TTL_MS };
+    c.leases.push(lease);
+    return {
+      renew: function () { lease.until = Date.now() + LEASE_TTL_MS; },
+      release: function () {
+        var i = c.leases.indexOf(lease);
+        if (i !== -1) c.leases.splice(i, 1);
+      },
+    };
   }
 
   // Registered at load so a bulk plugin can tell "will stand down" apart from "too
@@ -873,6 +899,16 @@
     this.proceedBtn.disabled = !ready || !this.plan.length;
   };
 
+  // A run-level warning: into the log, where Copy log will carry it, and into the
+  // dialog head, where it stays visible after the log has scrolled past it. Appends
+  // rather than assigns, so a second warning cannot silently replace the first;
+  // begin() blanks the head on every pass, so a rescan re-derives both.
+  TaskRun.prototype.note = function (msg) {
+    this.log('WARN', msg);
+    this.noteEl.textContent = this.noteEl.textContent
+      ? this.noteEl.textContent + ' ' + msg : msg;
+  };
+
   TaskRun.prototype.logTagSummary = function (counts, verb) {
     var line = taskTagSummary(counts, this.tagsById, verb);
     if (line) this.log('INFO', line);
@@ -948,10 +984,8 @@
     // action, so it does not block - but two plugins rewriting the same scenes at
     // once is worth saying out loud.
     if (coop().leases.length) {
-      var msg = 'Another plugin is applying bulk changes right now. Running both at once means ' +
-        'each may undo part of the other; let it finish first.';
-      this.log('WARN', msg);
-      this.noteEl.textContent = msg;
+      this.note('Another plugin is applying bulk changes right now. Running both at once means ' +
+        'each may undo part of the other; let it finish first.');
     }
 
     resolveExclusionTagId().then(function (exclTagId) {
@@ -1114,18 +1148,26 @@
     this.log('INFO', 'Applying ' + this.plan.length + ' scene change(s) - ' + new Date().toISOString());
 
     var i = 0;
+    // The lease covers phase 2 only. Phase 1 writes nothing, so there is nothing to
+    // suppress, and holding one across a library-wide review would stand a reactive
+    // plugin down for the half of the run that cannot disturb it.
+    var lease = acquireLease(this.taskName);
     // One guard around the whole apply rather than one per scene: every scene we
     // write would otherwise look to our own fetch wrapper like a user edit and
-    // re-enter the merge.
+    // re-enter the merge. That is internal re-entrancy; the lease above is about
+    // other plugins, and the two are not substitutes.
     guarded(function () {
       function nextEntry() {
         if (self.stopped || i >= self.plan.length) return Promise.resolve();
+        lease.renew();
         return self.applyEntry(self.plan[i++]).then(nextEntry);
       }
       return nextEntry();
     }).then(function () {
+      lease.release();
       self.finishApply();
     }, function (e) {
+      lease.release();
       self.log('ERROR', 'Apply aborted: ' + (e && e.message ? e.message : e));
       self.errors++;
       self.finishApply();

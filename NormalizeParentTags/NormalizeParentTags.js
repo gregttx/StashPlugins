@@ -840,6 +840,16 @@
     this.copyBtn.disabled = false;
   };
 
+  // A run-level warning: into the log, where Copy log will carry it, and into the
+  // dialog head, where it stays visible after the log has scrolled past it. Appends
+  // rather than assigns, so a second warning cannot silently replace the first;
+  // begin() blanks the head on every pass, so a rescan re-derives both.
+  Run.prototype.note = function (msg) {
+    this.log('WARN', msg);
+    this.noteEl.textContent = this.noteEl.textContent
+      ? this.noteEl.textContent + ' ' + msg : msg;
+  };
+
   Run.prototype.logTagSummary = function (counts, verb) {
     // A run that stops before the tag query - no types enabled, settings failed -
     // has no graph to name anything with, and nothing to summarise either.
@@ -920,6 +930,16 @@
     this.noteEl.textContent = '';
     this.renderProgress();
     this.log('INFO', PLUGIN_NAME + ' - ' + this.taskName + ' - reviewing, nothing will be written yet.');
+
+    // Someone else's lease, held right now. Ours is taken in proceed(), so nothing
+    // here can be looking at its own. It is advisory and this is a manual action, so
+    // it does not block - but two plugins rewriting the same entities at once is
+    // worth saying out loud, and the sibling's library-wide task now takes one.
+    if (coop().leases.length) {
+      this.note('Another plugin is applying bulk changes right now (' +
+        coop().leases[0].owner + ' - ' + coop().leases[0].label + '). Running both at once ' +
+        'means each may undo part of the other; let it finish first.');
+    }
 
     loadSettings().then(function (loaded) {
       self.settings = loaded.settings;
@@ -1014,11 +1034,9 @@
         ' enabled; it will stand down while changes are applied.');
       return;
     }
-    var msg = 'Merge Performer Tags To Scenes has ' + on.join(' and ') + ' enabled, and this copy ' +
+    this.note('Merge Performer Tags To Scenes has ' + on.join(' and ') + ' enabled, and this copy ' +
       'is too old to stand down. It will merge performer tags back into entities this run changes. ' +
-      'Turn it off for the duration, or press Rescan afterwards.';
-    this.log('WARN', msg);
-    this.noteEl.textContent = msg;
+      'Turn it off for the duration, or press Rescan afterwards.');
   };
 
   Run.prototype.finishScan = function () {

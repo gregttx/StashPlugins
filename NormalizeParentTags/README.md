@@ -283,6 +283,11 @@ stand down, and it does.** Auto-merge resumes the moment the apply finishes — 
 fails, if you press Stop, or if you close the tab mid-run. Nothing is switched off in the
 settings, and other browser tabs are unaffected.
 
+That plugin also has a library-wide task of its own, which rewrites scenes the same way this one
+does. If it is mid-run when you start a task here, the dialog says so and names what it is doing.
+It does not stop you — you pressed the button — but running both at once means each may undo part
+of the other, so it is usually worth letting the first one finish.
+
 If either auto-merge setting is on when you start a run, the dialog tells you which, and whether
 the installed version is new enough to stand down. If it is older than the cooperation protocol,
 you have two options: turn its auto-merge off for the duration of the run, or press **Rescan**

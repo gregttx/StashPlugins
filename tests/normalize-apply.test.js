@@ -365,4 +365,36 @@ Promise.resolve()
     h.check('the run dialog offers no Clear log button', !d().button('Clear log'));
   })
 
+  // The other end of the lease. The sibling's library-wide task takes one while it
+  // writes, so a run started on top of it has to say so - the same warning the
+  // sibling's task raises about ours.
+  .then(() => {
+    const env = h.makeEnv({ quiet: true, respond: h.makeResponder({ entities: bigLibrary() }) });
+    env.ctx.window.StashPluginCoop = {
+      leases: [{
+        owner: 'MergePerformerTagsToScenes',
+        label: 'Merge Performer Tags into All Their Scenes',
+        until: Date.now() + 60000,
+      }],
+      respecters: { MergePerformerTagsToScenes: true },
+    };
+    h.run(env.ctx);
+    h.startTask(env.ctx, h.TASK_PRUNE);
+    return h.flush().then(() => {
+      const d = h.dialog(env.body);
+      h.check('a lease held by another plugin is warned about',
+        d.lines.some((l) => l.indexOf('[WARN]') === 0 &&
+          l.indexOf('applying bulk changes right now') !== -1), d.lines.join(' | '));
+      h.check('and the warning names who holds it and for what',
+        d.note.indexOf('MergePerformerTagsToScenes') !== -1 &&
+        d.note.indexOf('Merge Performer Tags into All Their Scenes') !== -1, d.note);
+      // Advisory, not blocking: this is a manual action either way.
+      h.check('but the review still runs', d.button('Proceed').disabled === false);
+    });
+  })
+
+  .then(() => scan({ entities: bigLibrary() })).then(({ d }) => {
+    h.check('no lease means no note', d().note === '', d().note);
+  })
+
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

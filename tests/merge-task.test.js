@@ -298,4 +298,78 @@ Promise.resolve()
     });
   })
 
+  // ── The bulk-edit lease ──────────────────────────────────────────────────
+  //
+  // This run rewrites scenes across the whole library, which is the bulk side of
+  // the protocol however it was started. Mirrors normalize-apply's coverage of the
+  // sibling: nothing held during the review, one lease across the writes, released
+  // whichever way the run ends.
+  .then(() => {
+    const seen = [];
+    const inner = makeResponder();
+    let env;
+    env = h.makeEnv({
+      quiet: true,
+      respond: (req, calls) => {
+        const held = ((env.ctx.window.StashPluginCoop || {}).leases || []);
+        seen.push({
+          write: /sceneUpdate/.test(req.query || ''),
+          leases: held.length,
+          owner: held.length ? held[0].owner : null,
+          label: held.length ? held[0].label : null,
+          until: held.length ? held[0].until : 0,
+        });
+        return inner(req, calls);
+      },
+    });
+    h.run(env.ctx, SRC);
+    h.startTask(env.ctx, TASK, PLUGIN_ID);
+    const d = () => h.dialog(env.body, 'cpt2s');
+    return h.flush(150).then(() => {
+      h.check('no lease is held during the review pass',
+        seen.every((s) => s.leases === 0), JSON.stringify(seen.slice(0, 3)));
+      d().button('Proceed').click();
+      return h.flush(200).then(() => {
+        const writes = seen.filter((s) => s.write);
+        h.check('a lease is held while writing',
+          writes.length === 3 && writes.every((s) => s.leases === 1),
+          JSON.stringify(writes));
+        h.check('the lease names its owner and task, and expires',
+          writes.every((s) => s.owner === PLUGIN_ID && s.label === TASK && s.until > Date.now()),
+          JSON.stringify(writes[0]));
+        h.check('the lease is released when the run finishes',
+          (env.ctx.window.StashPluginCoop.leases || []).length === 0);
+      });
+    });
+  })
+
+  // Stop is the path an error-free run cannot reach, and the one most likely to
+  // leave a lease latched.
+  .then(() => {
+    const many = [];
+    for (let i = 1; i <= 40; i++) many.push({ id: String(i), name: 'P' + i, tags: [tag('10')] });
+    const scenes = {};
+    many.forEach((p) => { scenes[p.id] = [{ id: 'S' + p.id, title: 'T' + p.id, organized: false, tags: [] }]; });
+
+    const inner = makeResponder({ performers: many, scenes: scenes });
+    let writes = 0;
+    let env;
+    const respond = (req, calls) => {
+      if (/sceneUpdate/.test(req.query || '') && ++writes === 3) {
+        h.dialog(env.body, 'cpt2s').button('Stop').click();
+      }
+      return inner(req, calls);
+    };
+    env = h.makeEnv({ quiet: true, respond: respond });
+    h.run(env.ctx, SRC);
+    h.startTask(env.ctx, TASK, PLUGIN_ID);
+    return h.flush(150).then(() => {
+      h.dialog(env.body, 'cpt2s').button('Proceed').click();
+      return h.flush(400);
+    }).then(() => {
+      h.check('a stopped run releases its lease too',
+        (env.ctx.window.StashPluginCoop.leases || []).length === 0);
+    });
+  })
+
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

@@ -232,6 +232,63 @@ Promise.resolve()
       a[0].indexOf('"Platinum" (51)') !== -1, a[0]);
   })
 
+  // ── Naming an entity that has no title ───────────────────────────────────
+  //
+  // Titles are optional on scenes, galleries and images. A zip gallery (.cbz is a
+  // zip) carries its name on the file, a folder gallery on the folder, and neither
+  // used to be asked for - so every one of them logged as "untitled".
+  .then(() => scan({
+    settings: { a4EnableGalleries: true },
+    entities: {
+      findGalleries: {
+        node: 'galleries',
+        list: [
+          { id: '70', organized: false, tags: [{ id: '1' }, { id: '2' }],
+            files: [{ basename: 'Some Comic.cbz' }] },
+          { id: '71', organized: false, tags: [{ id: '1' }, { id: '2' }],
+            files: [], folder: { basename: 'A Folder Gallery' } },
+          { id: '72', title: 'Has A Title', organized: false, tags: [{ id: '1' }, { id: '2' }],
+            files: [{ basename: 'ignored.cbz' }] },
+        ],
+      },
+    },
+  })).then(({ d, calls }) => {
+    const r = removals(d);
+    h.check('a zip gallery is named by its file, not "untitled"',
+      r.some((l) => l.indexOf('Gallery "Some Comic.cbz" (70)') !== -1), r.join(' | '));
+    h.check('a folder gallery is named by its folder',
+      r.some((l) => l.indexOf('Gallery "A Folder Gallery" (71)') !== -1), r.join(' | '));
+    h.check('a title still wins over the file name',
+      r.some((l) => l.indexOf('Gallery "Has A Title" (72)') !== -1), r.join(' | '));
+    h.check('nothing is left "untitled"',
+      !r.some((l) => l.indexOf('untitled') !== -1), r.join(' | '));
+    const gq = calls.filter((c) => /query NPT_findGalleries/.test(c.query || ''))[0] || {};
+    h.check('galleries ask for both fallbacks',
+      (gq.query || '').indexOf('files { basename }') !== -1 &&
+      (gq.query || '').indexOf('folder { basename }') !== -1, gq.query);
+  })
+
+  .then(() => scan({
+    settings: { a6EnableImages: true },
+    entities: {
+      findImages: {
+        node: 'images',
+        list: [{ id: '80', organized: false, tags: [{ id: '1' }, { id: '2' }],
+          visual_files: [{ basename: 'IMG_0042.jpg' }] }],
+      },
+    },
+  })).then(({ d, calls }) => {
+    const r = removals(d);
+    h.check('an untitled image is named by its file',
+      r.length === 1 && r[0].indexOf('Image "IMG_0042.jpg" (80)') !== -1, r.join(' | '));
+    // Image.files is deprecated; visual_files is a union, so the selection needs
+    // the concrete types spelled out or Stash rejects the whole query.
+    const iq = calls.filter((c) => /query NPT_findImages/.test(c.query || ''))[0] || {};
+    h.check('images select basename through the union members',
+      /visual_files \{ \.\.\. on ImageFile \{ basename \} \.\.\. on VideoFile \{ basename \} \}/
+        .test(iq.query || ''), iq.query);
+  })
+
   // ── Cycles ───────────────────────────────────────────────────────────────
   .then(() => scan({
     settings: { a5EnableScenes: true },

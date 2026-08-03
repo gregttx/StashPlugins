@@ -58,7 +58,9 @@
     { key: 'galleries', setting: 'a4EnableGalleries', label: 'Gallery', plural: 'Galleries',
       find: 'findGalleries', node: 'galleries',
       bulk: 'bulkGalleryUpdate', bulkInput: 'BulkGalleryUpdateInput',
-      organized: true, fields: 'id title' },
+      // A gallery is a zip (often .cbz) or a folder, and either way the title is
+      // optional - so both fallbacks are needed to name one in the log.
+      organized: true, fields: 'id title files { basename } folder { basename }' },
     { key: 'scenes', setting: 'a5EnableScenes', label: 'Scene', plural: 'Scenes',
       find: 'findScenes', node: 'scenes',
       bulk: 'bulkSceneUpdate', bulkInput: 'BulkSceneUpdateInput',
@@ -66,7 +68,12 @@
     { key: 'images', setting: 'a6EnableImages', label: 'Image', plural: 'Images',
       find: 'findImages', node: 'images',
       bulk: 'bulkImageUpdate', bulkInput: 'BulkImageUpdateInput',
-      organized: true, fields: 'id title', pageSize: 500 },
+      // Image.files is deprecated in favour of visual_files, which is a union of
+      // ImageFile and VideoFile - hence the two inline fragments rather than a
+      // plain basename selection. Both implement BaseFile, but naming the concrete
+      // types is the form every Stash 0.31 accepts.
+      organized: true, pageSize: 500,
+      fields: 'id title visual_files { ... on ImageFile { basename } ... on VideoFile { basename } }' },
     { key: 'markers', setting: 'a7EnableMarkers', label: 'Scene Marker', plural: 'Scene Markers',
       find: 'findSceneMarkers', node: 'scene_markers',
       bulk: 'bulkSceneMarkerUpdate', bulkInput: 'BulkSceneMarkerUpdateInput',
@@ -246,11 +253,20 @@
 
   // ── Planning ──────────────────────────────────────────────────────────────
 
+  function firstBasename(files) {
+    return (files && files.length && files[0].basename) || '';
+  }
+
+  // Title is optional on scenes, galleries and images alike, so fall back the way
+  // Stash's own UI does rather than logging "untitled" at the user: the file name,
+  // and for a gallery that is a folder rather than a zip, the folder name. Which
+  // of these fields exists is decided by the type's `fields` - a type that does
+  // not ask for files simply has none here.
   function entityLabel(type, ent) {
     var name = ent.name || ent.title;
-    if (!name && type.key === 'scenes') {
-      var files = ent.files || [];
-      if (files.length) name = files[0].basename;
+    if (!name) {
+      name = firstBasename(ent.files) || firstBasename(ent.visual_files) ||
+        (ent.folder && ent.folder.basename) || '';
     }
     if (!name && type.key === 'markers' && ent.primary_tag) name = ent.primary_tag.name;
     return '"' + (name || 'untitled') + '" (' + ent.id + ')';

@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.3.0.** This file is both the design and the map of the code — the
+**Status: implemented at 0.3.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -200,9 +200,22 @@ of them is a browser tab that stops responding). So:
   filtered query errors, fall back to paging everything — the filter is an optimization, never
   a correctness requirement.
 
-Request only what is needed: `id`, `tags { id }`, `organized` where it exists, and a display
-name (`title` with a `files { basename }` fallback for scenes and images; `name` for performers,
-studios, groups; `title` plus `primary_tag { id name }` for markers).
+Request only what is needed: `id`, `tags { id }`, `organized` where it exists, and a display name.
+`name` for performers, studios and groups; `title` everywhere else, but `title` is **optional** on
+scenes, galleries and images, so each needs its own fallback:
+
+| Type | Fallback after `title` |
+| --- | --- |
+| Scenes | `files { basename }` |
+| Galleries | `files { basename }`, then `folder { basename }` — a gallery is a zip (`.cbz` is one) *or* a folder, and a folder gallery has no file at all |
+| Images | `visual_files { ... on ImageFile { basename } ... on VideoFile { basename } }` — `Image.files` is deprecated in favour of `visual_files`, which is a **union**, so the concrete types have to be named |
+| Markers | `primary_tag { id name }` |
+
+`entityLabel` reads whichever of `files` / `visual_files` / `folder` is present rather than
+switching on `type.key`: the type's `fields` decides what exists, and a per-type branch in the
+labeller is what let galleries and images log as `"untitled"` from 0.1.0 until 0.3.1 — the
+fallback was written for scenes and never extended, and the two types did not even request the
+fields it would have needed.
 
 ### Processing order
 
@@ -457,6 +470,10 @@ cover:
 - **Exclusion filters** — each of the seven, including add/remove asymmetry, `hasOwnProperty`
   vs prototype keys, and that a skipped tag does not block its own parents in Roll Up.
 - **Two-phase dialog** — no mutation is issued before Proceed; Cancel issues none at all.
+- **Naming an untitled entity** — a zip gallery falls back to its file, a folder gallery to its
+  folder, an image to its `visual_files` basename, and a real title still wins over all of them.
+  The queries are asserted too: the fallback fields are useless if they are never requested, and
+  that combination is exactly what shipped broken.
 - **Clear log** — one click during review, two once something has been written, the plan survives
   it (Proceed still writes all 253), Copy log exports the cleared buffer, and a Rescan neither
   re-arms nor makes the earlier writes forgettable. The arm's own expiry is not covered: the

@@ -203,6 +203,64 @@ Promise.resolve()
     h.check('and is labelled for what it does', clear.title === 'Clear filter', clear.title);
   })
 
+  // ── Find ─────────────────────────────────────────────────────────────────
+  //
+  // Find navigates where filter reduces: the tree stays a tree, the path to the
+  // match is opened, and the row is brought to the middle of the view.
+  .then(() => open()).then(({ env }) => {
+    const find = env.body.descendants().filter((n) => h.hasClass(n, 'npt-find-input'))[0];
+    const count = () => (env.body.descendants()
+      .filter((n) => h.hasClass(n, 'npt-find-count'))[0] || {}).textContent;
+    const type = (v) => {
+      find.value = v;
+      (find.handlers.input || []).forEach((fn) => fn({}));
+    };
+    const enter = () => (find.handlers.keydown || []).forEach((fn) => fn({ key: 'Enter' }));
+
+    // Leaf sits two levels down, under Mid, under Root - all collapsed at open.
+    type('leaf');
+    const r = rows(env);
+    h.check('find opens the path to the match rather than flattening the tree',
+      r.length > 4 && r.some((l) => l.indexOf('Root (1)') !== -1) &&
+      r.some((l) => l.indexOf('Mid (2)') !== -1) &&
+      r.some((l) => l.indexOf('Leaf (3)') !== -1), r.join(' | '));
+    h.check('the match is selected',
+      env.body.descendants().some((n) => h.hasClass(n, 'npt-row-sel') &&
+        n.textContent.indexOf('Leaf (3)') !== -1));
+    h.check('and centred in the view',
+      (rowFor(env, 'Leaf').scrolledIntoView || {}).block === 'center',
+      JSON.stringify(rowFor(env, 'Leaf').scrolledIntoView));
+    h.check('with a position among the matches', count() === '1 of 1', count());
+
+    // "o" hits Root, Other and Loose - Enter walks them in Stash's order and wraps.
+    type('o');
+    h.check('a partial match counts every hit', count() === '1 of 3', count());
+    enter();
+    h.check('Enter advances to the next match', count() === '2 of 3', count());
+    enter(); enter();
+    h.check('and wraps at the end', count() === '1 of 3', count());
+
+    type('zzz');
+    h.check('no match says so rather than jumping somewhere', count() === 'no match', count());
+  })
+
+  // Find has to put the tree back if a filter had replaced it with a flat list,
+  // or "show me where this lives" has nowhere to show it.
+  .then(() => open()).then(({ env }) => {
+    const filter = env.body.descendants().filter((n) => h.hasClass(n, 'npt-search-input'))[0];
+    filter.value = 'Leaf';
+    (filter.handlers.input || []).forEach((fn) => fn({}));
+    h.check('the filter has flattened the tree first', rows(env).length === 1);
+
+    const find = env.body.descendants().filter((n) => h.hasClass(n, 'npt-find-input'))[0];
+    find.value = 'skip';
+    (find.handlers.input || []).forEach((fn) => fn({}));
+    h.check('finding clears the filter', filter.value === '');
+    h.check('and shows the match in its place in the tree',
+      rows(env).some((l) => l.indexOf('Root (1)') !== -1) &&
+      rows(env).some((l) => l.indexOf('Skip (4)') !== -1), rows(env).join(' | '));
+  })
+
   // ── Export ───────────────────────────────────────────────────────────────
   .then(() => {
     const copied = [];

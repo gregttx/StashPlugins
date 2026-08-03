@@ -649,8 +649,13 @@
     'flex-wrap:wrap;align-items:center;}' +
     '.npt-foot button{margin-right:.5rem;}' +
     '.npt-hidden{display:none;}' +
-    '.npt-search{padding:.5rem 1rem;border-bottom:1px solid #394b59;position:relative;}' +
-    '.npt-search-input{width:100%;background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
+    '.npt-search{padding:.5rem 1rem;border-bottom:1px solid #394b59;position:relative;' +
+    'display:flex;gap:.5rem;align-items:center;}' +
+    '.npt-find-wrap{flex:1 1 0;display:flex;align-items:center;gap:.4rem;}' +
+    '.npt-find-input{flex:1 1 auto;background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
+    'border-radius:3px;padding:.25rem .5rem;}' +
+    '.npt-find-count{color:#7d8f9c;font-size:.75rem;white-space:nowrap;min-width:5rem;}' +
+    '.npt-search-input{flex:1 1 0;background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
     'border-radius:3px;padding:.25rem 1.9rem .25rem .5rem;}' +
     '.npt-search-clear{position:absolute;right:1.35rem;top:50%;transform:translateY(-50%);' +
     'background:none;border:0;color:#a7b6c2;font-size:1.1rem;line-height:1;cursor:pointer;' +
@@ -1204,7 +1209,29 @@
     this.progressEl = el('div', 'npt-progress', 'Loading tags...');
     this.modal.appendChild(this.progressEl);
 
+    // Two different gestures, deliberately side by side. Find *navigates* - it takes
+    // you to a tag and shows it where it lives, in context. Filter *reduces* - it
+    // throws the tree away and lists the matches flat. Conflating them would cost
+    // whichever half the user wanted this time.
     var searchRow = el('div', 'npt-search');
+
+    var findWrap = el('div', 'npt-find-wrap');
+    this.findEl = el('input', 'npt-find-input');
+    this.findEl.type = 'text';
+    this.findEl.placeholder = 'Find tag and jump to it...';
+    this.findEl.addEventListener('input', function () { self.find(false); });
+    this.findEl.addEventListener('keydown', function (ev) {
+      // Enter walks to the next match, the way a find bar is expected to.
+      if (ev && (ev.key === 'Enter' || ev.keyCode === 13)) {
+        if (ev.preventDefault) ev.preventDefault();
+        self.find(true);
+      }
+    });
+    this.findCountEl = el('span', 'npt-find-count', '');
+    findWrap.appendChild(this.findEl);
+    findWrap.appendChild(this.findCountEl);
+    searchRow.appendChild(findWrap);
+
     this.searchEl = el('input', 'npt-search-input');
     this.searchEl.type = 'text';
     this.searchEl.placeholder = 'Filter by name...';
@@ -1253,6 +1280,74 @@
 
     document.body.appendChild(this.backdrop);
     this.load();
+  };
+
+  // Jumps to a match and centres it, rather than reducing the tree to matches.
+  // `next` walks to the following match; typing restarts from the first.
+  TreeView.prototype.find = function (next) {
+    var raw = (this.findEl.value || '').trim();
+    var q = raw.toLowerCase();
+    if (!q) {
+      this.findMatches = null;
+      this.findQuery = '';
+      this.findCountEl.textContent = '';
+      return;
+    }
+
+    if (this.findQuery !== q || !this.findMatches) {
+      var g = this.graph, hits = [], id;
+      for (id in g.byId) {
+        if (!hasOwn(g.byId, id)) continue;
+        if (((g.byId[id].name) || '').toLowerCase().indexOf(q) !== -1) hits.push(id);
+      }
+      this.findMatches = this.sortIds(hits);
+      this.findQuery = q;
+      this.findIndex = 0;
+    } else if (next) {
+      this.findIndex = (this.findIndex + 1) % this.findMatches.length;
+    }
+
+    if (!this.findMatches.length) {
+      this.findCountEl.textContent = 'no match';
+      return;
+    }
+    this.findCountEl.textContent = (this.findIndex + 1) + ' of ' + this.findMatches.length;
+
+    var target = this.findMatches[this.findIndex];
+    // A filter would have replaced the tree with a flat list, and "show me where
+    // this tag lives" cannot be answered from one. Being taken somewhere implies
+    // the context comes back.
+    if (this.query) {
+      this.searchEl.value = '';
+      this.setQuery('');
+    }
+    this.revealPath(target);
+    this.selected = target;
+    this.render();
+    this.centerOn(target);
+  };
+
+  // Opens every ancestor between the tag and its root, following the same primary
+  // parent the tree draws it under - otherwise the row exists in a branch nobody
+  // can see.
+  TreeView.prototype.revealPath = function (id) {
+    var guard = 0;
+    var parent = this.primaryParent(id);
+    while (parent && guard++ < 64) {
+      this.expanded[parent] = true;
+      parent = this.primaryParent(parent);
+    }
+  };
+
+  TreeView.prototype.centerOn = function (id) {
+    var row = this.rowNodes && this.rowNodes[id];
+    if (!row) return;
+    if (row.scrollIntoView) { row.scrollIntoView({ block: 'center' }); return; }
+    // Older engines, and anything that does not take scrollIntoView options: put
+    // the row half a viewport down by hand rather than leaving it off screen.
+    if (typeof row.offsetTop === 'number' && typeof this.treeEl.clientHeight === 'number') {
+      this.treeEl.scrollTop = Math.max(0, row.offsetTop - (this.treeEl.clientHeight / 2));
+    }
   };
 
   TreeView.prototype.setQuery = function (raw) {
@@ -1347,6 +1442,7 @@
 
   TreeView.prototype.render = function () {
     while (this.treeEl.firstChild) this.treeEl.removeChild(this.treeEl.firstChild);
+    this.rowNodes = {};
     var total = 0, id;
     for (id in this.graph.byId) if (hasOwn(this.graph.byId, id)) total++;
 
@@ -1436,6 +1532,9 @@
       self.selected = id;
       self.render();
     });
+    // The last row drawn for a tag wins, which is the real one rather than a
+    // repeat: repeats are drawn under later parents in sort order.
+    this.rowNodes[id] = row;
     this.treeEl.appendChild(row);
   };
 

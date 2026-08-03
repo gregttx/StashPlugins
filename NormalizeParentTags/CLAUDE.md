@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.7.2.** This file is both the design and the map of the code — the
+**Status: implemented at 0.8.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -422,7 +422,19 @@ passed **explicitly**: the count is for the tag itself rather than for it plus e
 it, and the server's default for an omitted `depth` is not documented in the schema — an ambiguous
 number on screen is worse than no number.
 
-**The search box is case-insensitive; the exclusion filters are not.** They look similar and are
+**Find and Filter are two gestures, not one control with a mode.** Find *navigates*: it opens the
+path to the match through the same primary parents the tree draws it under, selects it, and centres
+the row (`scrollIntoView({ block: 'center' })`, with a manual `scrollTop` fallback). Filter
+*reduces*: it throws the tree away for a flat list of matches. Conflating them would cost whichever
+half the user wanted this time. Find clears an active filter before jumping, because "show me where
+this tag lives" cannot be answered from a flat list — that is the one place they interact, and it
+is the direction that keeps the request honest.
+
+`render()` rebuilds `rowNodes` so a row can be addressed after the fact; the last row drawn for a
+tag wins, which is the real one rather than a repeat, since repeats are drawn under later parents in
+sort order.
+
+**Both boxes are case-insensitive; the exclusion filters are not.** They look similar and are
 deliberately different: the box locates a tag a human is looking for, and nobody types a namespace
 marker's exact case to find one. The filters decide what gets written, where matching loosely would
 protect or skip tags by accident — see §4.
@@ -601,7 +613,8 @@ cover:
   actually configured, the DOT/Mermaid exports including edge pruning at the selection boundary,
   counts being fetched only on demand and pinned to `depth: 0`, and the filter box - matching
   case-insensitively anywhere in a name, with its clear icon appearing only while there is
-  something to clear.
+  something to clear - and the find bar, which opens the path to a match, selects and centres it,
+  counts and cycles through matches with Enter, and clears an active filter on the way.
 - **What a rescan resets** — the log-line counter describes the new pass rather than the session
   (including the reported case: a rescan finding nothing reports four lines and claims nothing
   hidden), Copy log still exports both passes, and the sibling warning clears when the setting it

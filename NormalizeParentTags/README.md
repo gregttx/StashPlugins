@@ -121,10 +121,20 @@ other two tasks would do before running either.
 - **⚠ cycle** — a loop in the hierarchy. Both tasks refuse to touch tags in one; this is where you
   can find them.
 
-The filter box matches **any part of a tag's name and ignores case**, so `colour` finds
-`Hair Colour`. A **×** appears in the box once you have typed something; clicking it clears the
-filter and puts the whole tree back. It is a find-as-you-type box, not one of the exclusion filters — those stay
-case-sensitive, because they decide what actually gets written.
+Two boxes sit above the tree, and they do different things:
+
+- **Find tag and jump to it** — takes you *to* a tag and leaves the tree intact. It opens the path
+  down to the first tag whose name contains what you typed, selects it and scrolls it to the middle
+  of the view, so you see it where it lives, with its parents and siblings around it. The counter
+  beside the box shows `2 of 7`; press **Enter** to walk to the next match, wrapping at the end. If
+  a filter was active, finding clears it — there is nowhere to show a tag in context inside a flat
+  list.
+- **Filter by name** — reduces the tree *to* the matches, listed flat. Useful for "how many tags
+  contain this" rather than "where is this one". A **×** appears in the box once you have typed
+  something; clicking it clears the filter and puts the whole tree back.
+
+Both match **any part of a tag's name and ignore case**, so `colour` finds `Hair Colour`. Neither is one of the exclusion filters — those stay case-sensitive, because they decide what
+actually gets written.
 
 Select any tag to see its parents, ancestors, children and descendants, plus a plain-language
 answer for what Prune and Roll Up would do with it. **Load counts** adds how many scenes, images,

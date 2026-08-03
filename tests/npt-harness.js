@@ -55,6 +55,9 @@ function makeElement(tag) {
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
     click() { (this.handlers.click || []).forEach((fn) => fn({ preventDefault() {}, stopPropagation() {} })); },
     select() {},
+    // Recorded rather than performed: there is no viewport here, but a test can
+    // still assert that the plugin asked for a row to be brought into view.
+    scrollIntoView(opts) { this.scrolledIntoView = opts || true; },
     get parentElement() { return this.parentNode; },
     // Enough of a selector engine for the two selectors the plugin uses: a tag
     // name ('h3') downwards, and 'button' upwards.

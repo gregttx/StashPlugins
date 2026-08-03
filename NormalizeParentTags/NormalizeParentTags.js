@@ -641,6 +641,12 @@
     this.stopped = false;
     this.lines = [];
     this.pending = [];
+    // `lines` is the export buffer and survives a Rescan, because Copy log is meant
+    // to hand over the whole session. `viewLines` counts what has gone into the log
+    // *since it was last cleared*, which is what the progress line describes - a
+    // rescan that logs four lines must not report 28161 of them, nor claim to be
+    // hiding the 27161 it no longer has.
+    this.viewLines = 0;
     this.rendered = 0;
     this.state = 'scanning';
   };
@@ -724,6 +730,7 @@
   Run.prototype.log = function (kind, message) {
     var line = '[' + kind + '] ' + message;
     this.lines.push(line);
+    this.viewLines++;
     this.pending.push({ kind: kind, line: line });
     this.scheduleFlush();
   };
@@ -766,7 +773,7 @@
       summary = 'Scanning. ' + this.plan.length + ' change(s) found';
     } else if (this.state === 'ready') {
       summary = 'Review complete. ' + this.plan.length + ' entity change(s) planned, ' +
-        this.lines.length + ' log line(s)';
+        this.viewLines + ' log line(s)';
     } else if (this.state === 'applying') {
       summary = 'Applying. ' + this.applied + ' of ' + this.plan.length + ' entities updated';
     } else {
@@ -774,8 +781,8 @@
         (this.failed ? ', ' + this.failed + ' failed' : '');
     }
     if (this.errors) summary += ', ' + this.errors + ' error(s)';
-    if (this.lines.length > LOG_RENDER_CAP) {
-      summary += ' - showing the last ' + LOG_RENDER_CAP + ' of ' + this.lines.length + ' lines';
+    if (this.viewLines > LOG_RENDER_CAP) {
+      summary += ' - showing the last ' + LOG_RENDER_CAP + ' of ' + this.viewLines + ' lines';
     }
     this.progressEl.textContent = parts.length ? summary + '\n' + parts.join('   ') : summary;
   };
@@ -785,6 +792,12 @@
   Run.prototype.begin = function () {
     var self = this;
     this.setState('scanning');
+    // Every pass re-derives the note from freshly loaded settings, so it has to
+    // start empty: the warning it carries tells the user to turn the sibling's
+    // auto-merge off and rescan, and leaving it up after they have done exactly
+    // that says the run is still unsafe when it no longer is.
+    this.noteEl.textContent = '';
+    this.renderProgress();
     this.log('INFO', PLUGIN_NAME + ' - ' + this.taskName + ' - reviewing, nothing will be written yet.');
 
     loadSettings().then(function (loaded) {
@@ -1033,6 +1046,7 @@
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
     this.lines = [];
     this.pending = [];
+    this.viewLines = 0;
     while (this.logEl.firstChild) this.logEl.removeChild(this.logEl.firstChild);
     // A marker rather than an empty log, so an exported copy shows that lines were
     // dropped instead of reading as a run that did nothing.

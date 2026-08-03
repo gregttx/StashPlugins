@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.4.0.** This file is both the design and the map of the code — the
+**Status: implemented at 0.4.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -339,6 +339,21 @@ record of an earlier pass be discarded without asking. Clearing leaves one `Log 
 line rather than an empty buffer, so an exported log shows lines were dropped instead of reading
 as a run that did nothing.
 
+**Two counters, deliberately.** `lines` is the export buffer: it survives a Rescan, because Copy
+log is meant to hand over the whole session. `viewLines` counts what has gone into the log *since
+it was last cleared*, and is what the progress line describes — both the `N log line(s)` figure
+and the `showing the last 1000 of N` clause. Reporting `lines` there was wrong in a way that only
+showed up at scale: a pass that applied 28 000 lines followed by a rescan finding nothing left the
+header claiming 28 161 lines and 27 161 hidden, over a log holding four. Reset `viewLines`
+wherever the view is emptied — `reset()` (which `rescan()` calls) and `clearLog()`.
+
+**A rescan starts a pass, so every per-pass surface has to be re-derived, not just added to.**
+`reset()` handles the counters and `rescan()` clears the rendered log, but the head of the dialog
+is written straight to the DOM: `begin()` blanks `noteEl` and repaints the progress line before
+anything is loaded. The sibling warning is the reason — it tells the user to turn auto-merge off
+and rescan, so leaving it up after they have done that reports a run as unsafe when it no longer
+is. Anything else parked in the head needs the same treatment.
+
 **Rescan is not a convenience.** The whole plan is computed before the first write, so anything
 that changes tags *during* phase 2 — the sibling plugin in §8, another browser tab, a running
 scan — is invisible to the plan that is being applied. Rescan is how the user converges: run,
@@ -493,6 +508,10 @@ cover:
 - **Exclusion filters** — each of the seven, including add/remove asymmetry, `hasOwnProperty`
   vs prototype keys, and that a skipped tag does not block its own parents in Roll Up.
 - **Two-phase dialog** — no mutation is issued before Proceed; Cancel issues none at all.
+- **What a rescan resets** — the log-line counter describes the new pass rather than the session
+  (including the reported case: a rescan finding nothing reports four lines and claims nothing
+  hidden), Copy log still exports both passes, and the sibling warning clears when the setting it
+  warns about is turned off.
 - **The tag summary** — the exact closing line in both directions and both phases, the per-tag
   entity counts, an empty plan producing none, and a failed batch dropping its 100 entities out
   of the applied count rather than out of the plan's. Ordering is covered against all three parts

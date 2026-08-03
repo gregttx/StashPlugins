@@ -221,6 +221,27 @@ Promise.resolve()
         h.check('Copy log copies every line, not the rendered tail',
           copied.length === 1 && copied[0].split('\n').length > rendered,
           'copied ' + (copied[0] || '').split('\n').length + ' vs rendered ' + rendered);
+        // The counter in the progress line describes the log as it stands, and a
+        // Rescan empties it. Counting the export buffer instead reported tens of
+        // thousands of lines over a view holding four, and claimed to be hiding
+        // the difference.
+        d().button('Rescan').click();
+        return h.flush(200).then(() => {
+          const progress = d().progress;
+          h.check('a rescan counts its own log lines, not the whole session',
+            /Review complete\. \d+ entity change\(s\) planned, 120\d log line\(s\)/.test(progress),
+            progress);
+          // Its caption is still "Copied" from the click above, and the dialog
+          // helper finds buttons by their text.
+          (d().button('Copy log') || d().button('Copied')).click();
+          return h.flush(5).then(() => {
+            h.check('while Copy log still hands over both passes',
+              copied.length === 2 &&
+              copied[1].split('\n').length > copied[0].split('\n').length,
+              'first ' + copied[0].split('\n').length +
+              ', second ' + (copied[1] || '').split('\n').length);
+          });
+        });
       });
     });
   })
@@ -237,6 +258,40 @@ Promise.resolve()
           d().visible('Proceed') && !d().visible('Close'));
         h.check('Rescan keeps the earlier log', d().lines.some((l) => l.indexOf('--- Rescan ---') !== -1),
           d().lines.slice(0, 2).join(' | '));
+      });
+    });
+  })
+
+  // The warning tells the user to turn the sibling's auto-merge off and rescan.
+  // Leaving it up after they have done exactly that says the run is still unsafe
+  // when it is not, so every pass re-derives the note from the settings it just
+  // loaded rather than only ever adding to it.
+  .then(() => {
+    const list = [{ id: '1', title: 'S1', organized: false, tags: [{ id: '1' }, { id: '2' }] }];
+    let pass = 0;
+    const inner = h.makeResponder({ entities: { findScenes: { node: 'scenes', list: list } } });
+    const env = h.makeEnv({ quiet: true, respond: (req, calls) => {
+      if ((req.query || '').indexOf('configuration') !== -1) {
+        pass++;
+        const plugins = { NormalizeParentTags: { a5EnableScenes: true } };
+        if (pass === 1) plugins.MergePerformerTagsToScenes = { a3AutoMergeOnSceneUpdate: true };
+        return { data: { configuration: { plugins } } };
+      }
+      return inner(req, calls);
+    } });
+    h.run(env.ctx);
+    h.startTask(env.ctx, h.TASK_PRUNE);
+    const d = () => h.dialog(env.body);
+    return h.flush().then(() => {
+      h.check('the sibling warning is on the dialog while it applies',
+        d().note.indexOf('Merge Performer Tags To Scenes') !== -1, d().note);
+      d().button('Proceed').click();
+      return h.flush().then(() => {
+        d().button('Rescan').click();
+        return h.flush().then(() => {
+          h.check('and is gone once the setting it warns about is off',
+            d().note === '', d().note);
+        });
       });
     });
   })
@@ -265,6 +320,42 @@ Promise.resolve()
       const applied = d().lines[d().lines.length - 1];
       h.check('a failed batch is not summarised as written',
         applied === '[INFO] 2 tag(s) removed: "Body" (4) x3, "Hair Colour" (1) x150', applied);
+    });
+  })
+
+  // The reported case: a run that applied tens of thousands of lines, then a
+  // rescan that finds nothing. The four lines it logs are the whole of the log,
+  // and there is nothing hidden to announce.
+  .then(() => {
+    const dirty = Array.from({ length: 5 }, (_, i) =>
+      ({ id: String(i + 1), title: 'S' + (i + 1), organized: false, tags: [{ id: '1' }, { id: '2' }] }));
+    const clean = dirty.map((s) => ({ id: s.id, title: s.title, organized: false, tags: [{ id: '2' }] }));
+    let pass = 0;
+    const env = h.makeEnv({ quiet: true, respond: (req, calls) => {
+      if (/query NPT_findScenes/.test(req.query || '')) {
+        pass++;
+        const list = pass > 1 ? clean : dirty;
+        return { data: { findScenes: {
+          count: list.length, scenes: req.variables.page === 1 ? list : [],
+        } } };
+      }
+      return h.makeResponder({ entities: {} })(req, calls);
+    } });
+    h.run(env.ctx);
+    h.startTask(env.ctx, h.TASK_PRUNE);
+    const d = () => h.dialog(env.body);
+    return h.flush().then(() => {
+      d().button('Proceed').click();
+      return h.flush().then(() => {
+        d().button('Rescan').click();
+        return h.flush(200).then(() => {
+          h.check('a rescan that finds nothing reports only its own lines',
+            d().progress.indexOf('Review complete. 0 entity change(s) planned, 4 log line(s)') === 0,
+            d().progress);
+          h.check('and does not claim to be hiding any',
+            d().progress.indexOf('showing the last') === -1, d().progress);
+        });
+      });
     });
   })
 

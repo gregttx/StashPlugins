@@ -359,76 +359,10 @@ Promise.resolve()
     });
   })
 
-  // ── Clear log ────────────────────────────────────────────────────────────
-  .then(() => {
-    const copied = [];
-    return scan({
-      entities: bigLibrary(),
-      clipboard: { writeText: (t) => { copied.push(t); return Promise.resolve(); } },
-    }).then(({ env, d }) => {
-      const planned = d().lines.length;
-      h.check('Clear log is offered during review', d().visible('Clear log') && planned > 0);
-      d().button('Clear log').click();
-      // Past LOG_FLUSH_MS, or the marker line is still in the pending buffer.
-      return h.flush(150).then(() => {
-        h.check('during review one click clears the log',
-          d().lines.length === 1 && d().lines[0].indexOf('Log cleared') !== -1,
-          d().lines.join(' | '));
-        d().button('Copy log').click();
-        return h.flush(5).then(() => {
-          h.check('Copy log exports the cleared buffer, not the old lines',
-            copied.length === 1 && copied[0].indexOf('Log cleared') !== -1 &&
-            copied[0].indexOf('Hair Colour') === -1, copied[0]);
-          // Clearing is a log-buffer operation: the plan behind Proceed survives it.
-          h.check('clearing the log does not clear the plan',
-            d().button('Proceed').disabled === false);
-          d().button('Proceed').click();
-          return h.flush().then(() => {
-            h.check('and Proceed still writes the whole plan',
-              h.bulkCalls(env.calls).reduce((n, c) => n + c.variables.input.ids.length, 0) === 253);
-          });
-        });
-      });
-    });
-  })
-
+  // The log buffer has no Clear: the dialog offers only Copy log, and Rescan is
+  // what empties the rendered view for the next pass.
   .then(() => scan({ entities: bigLibrary() })).then(({ d }) => {
-    d().button('Proceed').click();
-    return h.flush().then(() => {
-      const written = d().lines.length;
-      d().button('Clear log').click();
-      return h.flush(5).then(() => {
-        // The log is the only record of what phase 2 wrote, so the first click
-        // asks rather than discarding it.
-        h.check('once something is written the first click only arms',
-          d().lines.length === written && d().visible('Clear log?'), d().lines.length + ' lines');
-        d().button('Clear log?').click();
-        return h.flush(150).then(() => {
-          h.check('the second click clears', d().lines.length === 1 &&
-            d().lines[0].indexOf('Log cleared') !== -1, d().lines.join(' | '));
-          h.check('and the caption goes back', d().visible('Clear log') && !d().button('Clear log?'));
-        });
-      });
-    });
-  })
-
-  // A Rescan resets the counters but keeps the log, so the record of what the
-  // first pass wrote is still in there and clearing must still ask.
-  .then(() => scan({ entities: bigLibrary() })).then(({ d }) => {
-    d().button('Proceed').click();
-    return h.flush().then(() => {
-      d().button('Clear log').click();          // arms
-      d().button('Rescan').click();             // and is disarmed by the rescan
-      return h.flush().then(() => {
-        h.check('a rescan disarms the button', d().visible('Clear log') && !d().button('Clear log?'));
-        const kept = d().lines.length;
-        d().button('Clear log').click();
-        return h.flush(5).then(() => {
-          h.check('a rescan does not make the earlier writes forgettable',
-            d().lines.length === kept && d().visible('Clear log?'), d().lines.length + ' lines');
-        });
-      });
-    });
+    h.check('the run dialog offers no Clear log button', !d().button('Clear log'));
   })
 
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

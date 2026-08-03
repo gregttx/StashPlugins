@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.9.0.** This file is both the design and the map of the code — the
+**Status: implemented at 0.10.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -349,29 +349,22 @@ over plain HTTP on a LAN, where the async clipboard API is unavailable), **Resca
 plan away and restarts phase 1 without closing the dialog), and **Close**. A **Stop** button
 halts after the current chunk; already-applied chunks stay applied.
 
-**Clear log** is a *buffer* operation, not a run operation: it empties `lines`, `pending` and the
-rendered nodes, and deliberately leaves `plan` alone, so Proceed still applies everything phase 1
-found. It is shown in every state, since a long review is the main reason to want it.
-
-Once anything has been written the log is the only record of what changed — Stash has no undo and
-the plugin cannot reconstruct the list — so the first click *arms* the button (its caption becomes
-`Clear log?`) and a second within `CLEAR_ARM_MS` confirms. The prompt is in the caption rather than
-a `window.confirm()`, which would stack a native dialog on top of our own modal and reads as a
-page error. `Rescan` and `Close` disarm it.
-
-The latch behind that is `run.wrote`, set where a batch succeeds and **initialised outside
-`reset()`** — a Rescan zeroes `applied` but keeps the log, so gating on `applied` would let the
-record of an earlier pass be discarded without asking. Clearing leaves one `Log cleared` marker
-line rather than an empty buffer, so an exported log shows lines were dropped instead of reading
-as a run that did nothing.
+**There is deliberately no Clear log.** It existed until 0.10.0 and earned nothing: emptying the
+buffer is only ever wanted before a Rescan, which empties the rendered view anyway, and once phase 2
+has written something the log is the only record of what changed — Stash has no undo and the plugin
+cannot reconstruct the list. A button whose whole safe use is covered by another button, and whose
+unsafe use needed an arm/confirm latch (`run.wrote`, `CLEAR_ARM_MS`) to be survivable, is a button
+worth removing rather than guarding. Its class also collided with the tree view's `.npt-clear`
+input icon, which is what made the cost visible. Do not reintroduce it without a use Rescan does
+not already serve.
 
 **Two counters, deliberately.** `lines` is the export buffer: it survives a Rescan, because Copy
 log is meant to hand over the whole session. `viewLines` counts what has gone into the log *since
-it was last cleared*, and is what the progress line describes — both the `N log line(s)` figure
-and the `showing the last 1000 of N` clause. Reporting `lines` there was wrong in a way that only
-showed up at scale: a pass that applied 28 000 lines followed by a rescan finding nothing left the
-header claiming 28 161 lines and 27 161 hidden, over a log holding four. Reset `viewLines`
-wherever the view is emptied — `reset()` (which `rescan()` calls) and `clearLog()`.
+the current pass emptied the view*, and is what the progress line describes — both the
+`N log line(s)` figure and the `showing the last 1000 of N` clause. Reporting `lines` there was
+wrong in a way that only showed up at scale: a pass that applied 28 000 lines followed by a rescan
+finding nothing left the header claiming 28 161 lines and 27 161 hidden, over a log holding four.
+Reset `viewLines` wherever the view is emptied — today that is `reset()`, which `rescan()` calls.
 
 **A rescan starts a pass, so every per-pass surface has to be re-derived, not just added to.**
 `reset()` handles the counters and `rescan()` clears the rendered log, but the head of the dialog
@@ -657,10 +650,8 @@ cover:
   folder, an image to its `visual_files` basename, and a real title still wins over all of them.
   The queries are asserted too: the fallback fields are useless if they are never requested, and
   that combination is exactly what shipped broken.
-- **Clear log** — one click during review, two once something has been written, the plan survives
-  it (Proceed still writes all 253), Copy log exports the cleared buffer, and a Rescan neither
-  re-arms nor makes the earlier writes forgettable. The arm's own expiry is not covered: the
-  harness runs on real timers, and a four-second wait is not worth it for a `setTimeout`.
+- **No Clear log** — the run dialog does not offer one. Pinned so a reintroduction has to argue
+  with §5 rather than slip back in.
 - **Grouping and chunking** — identical deltas collapse into one mutation, chunks cap at 100 ids,
   a failed chunk is isolated and its entities are not logged as changed.
 - **Task interception** — the click never reaches `runPluginTask`, and the fetch fallback catches

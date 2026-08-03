@@ -292,18 +292,29 @@
     return true;
   }
 
-  // The one place that decides whether one of a performer's scenes is skipped and,
-  // if not, which of their tags it is missing. Returns null for "skip", otherwise
-  // { existingIds, missing }. Both the per-performer merge and the task's review
-  // pass go through it, so the plan the user approves and the write that follows
-  // can never disagree about what a scene needs.
-  function sceneMergePlan(scene, perfTagIds, exclTagId) {
-    if (settings.excludeSceneOrganized && scene.organized) return null;
+  // The scene-level half of the exclusion rules. Split out because the staging path
+  // needs the answer on its own - it reports "Scene excluded" rather than merging -
+  // while the two saving paths only want it folded into sceneMergePlan. One copy, so
+  // a new scene-level filter cannot land on two of the three and be forgotten on the
+  // third.
+  function sceneIsExcluded(scene, exclTagId) {
+    if (settings.excludeSceneOrganized && scene.organized) return true;
     if (exclTagId) {
       var hasExcl = false;
       (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
-      if (hasExcl) return null;
+      if (hasExcl) return true;
     }
+    return false;
+  }
+
+  // The one place that decides whether a scene is skipped and, if not, which of the
+  // performer tags it is missing. Returns null for "skip", otherwise
+  // { existingIds, missing }. All three saving paths - the single scene, a
+  // performer's scenes, and the task's review pass - go through it, so the plan the
+  // user approves and the write that follows can never disagree about what a scene
+  // needs.
+  function sceneMergePlan(scene, perfTagIds, exclTagId) {
+    if (sceneIsExcluded(scene, exclTagId)) return null;
     var existingIds = (scene.tags || []).map(function (t) { return t.id; });
     var existingSet = {};
     existingIds.forEach(function (id) { existingSet[id] = true; });
@@ -328,12 +339,6 @@
       ).then(function (data) {
         var scene = data.findScene;
         if (!scene) return false;
-        if (settings.excludeSceneOrganized && scene.organized) return false;
-        if (exclTagId) {
-          var hasExcl = false;
-          (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
-          if (hasExcl) return false;
-        }
         var performers = scene.performers || [];
         if (!performers.length) return false;
         // Keyed by id to dedupe performers sharing a tag; the tag itself is kept as
@@ -347,13 +352,10 @@
         });
         var perfTagIds = Object.keys(perfTagById);
         if (!perfTagIds.length) return false;
-        var existingIds = (scene.tags || []).map(function (t) { return t.id; });
-        var existingSet = {};
-        existingIds.forEach(function (id) { existingSet[id] = true; });
-        var missing = perfTagIds.filter(function (id) { return !existingSet[id]; });
-        if (!missing.length) return false;
-        return updateSceneTags(sceneId, existingIds.concat(missing)).then(function () {
-          logMerges(missing.map(function (id) { return perfTagById[id]; }), scene, sceneId, 'saved');
+        var plan = sceneMergePlan(scene, perfTagIds, exclTagId);
+        if (!plan) return false;
+        return updateSceneTags(sceneId, plan.existingIds.concat(plan.missing)).then(function () {
+          logMerges(plan.missing.map(function (id) { return perfTagById[id]; }), scene, sceneId, 'saved');
           return true;
         });
       });
@@ -452,12 +454,7 @@
           // The exclusion filters are applied exactly as in save-immediately mode:
           // they express "these tags do not belong on this scene", which is true
           // however the tags get there.
-          if (settings.excludeSceneOrganized && scene.organized) return { status: 'excluded' };
-          if (exclTagId) {
-            var hasExcl = false;
-            (scene.tags || []).forEach(function (t) { if (t.id === exclTagId) hasExcl = true; });
-            if (hasExcl) return { status: 'excluded' };
-          }
+          if (sceneIsExcluded(scene, exclTagId)) return { status: 'excluded' };
 
           var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
           var byId = {};

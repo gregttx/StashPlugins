@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.4.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.4.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -89,6 +89,14 @@ re-check on `t.name === name` exists for the same reason (the server match is ca
 
 **The exclusion tag is never propagated.** `tagIsMergeable` rejects it: copying the "skip this
 scene" tag onto scenes would permanently exclude them from every future merge.
+
+**One filter, one implementation, three paths.** `sceneIsExcluded` answers the scene-level half
+(Organized, the exclusion tag) and `sceneMergePlan` folds it together with the missing-tag diff.
+`runMergeTagsIntoScene`, `runMergeTagsIntoAllPerformerScenes` and the task's review pass all go
+through `sceneMergePlan`; only `stageTagsIntoSceneForm` stops at `sceneIsExcluded`, because it
+reports "Scene excluded" as a distinct outcome and then diffs against the *form* rather than the
+server. Until 1.4.1 the single-scene path had its own inline copy of both halves, which meant a
+new scene-level filter had to be written three times to be right.
 
 **Custom-field matching is presence-only, via `hasOwnProperty`.** Values are JSON, so a text
 `"false"` is truthy in JS and any value-based rule is surprising to configure. `in` would let
@@ -239,9 +247,9 @@ library has tens of thousands and one response holding all of them is a tab that
 Their tags come back with the page, so the review needs no second query per performer, and a
 performer with nothing mergeable never costs a scene query at all.
 
-**`sceneMergePlan` is shared with the per-performer merge.** It is the single place that decides
-whether a scene is skipped and which tags it is missing, so the plan the user approves and the
-write that follows cannot disagree. Do not fork it for either caller.
+**`sceneMergePlan` is shared by every saving path.** It is the single place that decides whether a
+scene is skipped and which tags it is missing, so the plan the user approves and the write that
+follows cannot disagree. Do not fork it for any caller — see §3.
 
 **`taskTagFields()` always requests `name`,** unlike `tagFields()`, which adds it only while console
 logging is on — the review log names every tag it plans to add regardless of that setting.

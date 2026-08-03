@@ -81,6 +81,12 @@ comes back empty is how you know the library has settled.
 On a large library the log can run to many thousands of lines. Only the most recent are kept on
 screen (the dialog says how many are hidden); **Copy log** always copies all of them.
 
+**Clear log** empties it — both what is on screen and what **Copy log** would export — which is
+useful for reading the next Rescan against a clean slate. It never touches the plan, so
+**Proceed** still applies everything that was found. Once changes have actually been written the
+log is the only record of what happened, so the button asks for a second click before discarding
+it; copy the log first if you want to keep it.
+
 ## Entity types
 
 Every type is **off** until you enable it in **Settings → Plugins → Normalize Parent Tags**.

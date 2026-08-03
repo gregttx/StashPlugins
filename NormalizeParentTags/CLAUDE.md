@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.2.0.** This file is both the design and the map of the code — the
+**Status: implemented at 0.3.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -287,6 +287,22 @@ over plain HTTP on a LAN, where the async clipboard API is unavailable), **Resca
 plan away and restarts phase 1 without closing the dialog), and **Close**. A **Stop** button
 halts after the current chunk; already-applied chunks stay applied.
 
+**Clear log** is a *buffer* operation, not a run operation: it empties `lines`, `pending` and the
+rendered nodes, and deliberately leaves `plan` alone, so Proceed still applies everything phase 1
+found. It is shown in every state, since a long review is the main reason to want it.
+
+Once anything has been written the log is the only record of what changed — Stash has no undo and
+the plugin cannot reconstruct the list — so the first click *arms* the button (its caption becomes
+`Clear log?`) and a second within `CLEAR_ARM_MS` confirms. The prompt is in the caption rather than
+a `window.confirm()`, which would stack a native dialog on top of our own modal and reads as a
+page error. `Rescan` and `Close` disarm it.
+
+The latch behind that is `run.wrote`, set where a batch succeeds and **initialised outside
+`reset()`** — a Rescan zeroes `applied` but keeps the log, so gating on `applied` would let the
+record of an earlier pass be discarded without asking. Clearing leaves one `Log cleared` marker
+line rather than an empty buffer, so an exported log shows lines were dropped instead of reading
+as a run that did nothing.
+
 **Rescan is not a convenience.** The whole plan is computed before the first write, so anything
 that changes tags *during* phase 2 — the sibling plugin in §8, another browser tab, a running
 scan — is invisible to the plan that is being applied. Rescan is how the user converges: run,
@@ -441,6 +457,10 @@ cover:
 - **Exclusion filters** — each of the seven, including add/remove asymmetry, `hasOwnProperty`
   vs prototype keys, and that a skipped tag does not block its own parents in Roll Up.
 - **Two-phase dialog** — no mutation is issued before Proceed; Cancel issues none at all.
+- **Clear log** — one click during review, two once something has been written, the plan survives
+  it (Proceed still writes all 253), Copy log exports the cleared buffer, and a Rescan neither
+  re-arms nor makes the earlier writes forgettable. The arm's own expiry is not covered: the
+  harness runs on real timers, and a four-second wait is not worth it for a `setTimeout`.
 - **Grouping and chunking** — identical deltas collapse into one mutation, chunks cap at 100 ids,
   a failed chunk is isolated and its entities are not logged as changed.
 - **Task interception** — the click never reaches `runPluginTask`, and the fetch fallback catches

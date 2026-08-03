@@ -24,6 +24,7 @@
   var CHUNK_SIZE     = 100;   // entity ids per bulk mutation
   var LOG_RENDER_CAP = 1000;  // log lines kept in the DOM; all of them stay in memory
   var LOG_FLUSH_MS   = 100;
+  var CLEAR_ARM_MS   = 4000;  // how long Clear log stays armed for its second click
   var LEASE_TTL_MS   = 300000;
 
   function hasOwn(obj, key) {
@@ -463,6 +464,7 @@
           // cause twice - so the line is built per entry, not per batch.
           run.log(batch.mode, changeLine(graph, batch.type, entry.label, tid, entry.reason));
         });
+        run.wrote = true;
         run.applied++;
       });
     }, function (e) {
@@ -535,6 +537,10 @@
   function Run(taskName, mode) {
     this.taskName = taskName;
     this.mode = mode;
+    // Deliberately outside reset(): a Rescan clears the counters but keeps the log,
+    // so the log can still hold the record of writes an earlier pass made. This
+    // latches once and is what makes Clear log ask before discarding that record.
+    this.wrote = false;
     this.reset();
     this.build();
   }
@@ -581,6 +587,7 @@
     this.cancelBtn  = button('Cancel', 'npt-cancel');
     this.stopBtn    = button('Stop', 'npt-stop npt-hidden');
     this.copyBtn    = button('Copy log', 'npt-copy');
+    this.clearBtn   = button('Clear log', 'npt-clear');
     this.rescanBtn  = button('Rescan', 'npt-rescan npt-hidden');
     this.closeBtn   = button('Close', 'npt-close npt-hidden');
     this.proceedBtn.disabled = true;
@@ -589,11 +596,12 @@
     this.cancelBtn.addEventListener('click', function () { self.cancel(); });
     this.stopBtn.addEventListener('click', function () { self.stop(); });
     this.copyBtn.addEventListener('click', function () { self.copy(); });
+    this.clearBtn.addEventListener('click', function () { self.clearLog(); });
     this.rescanBtn.addEventListener('click', function () { self.rescan(); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
 
-    [this.proceedBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.rescanBtn, this.closeBtn]
-      .forEach(function (b) { foot.appendChild(b); });
+    [this.proceedBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.clearBtn,
+      this.rescanBtn, this.closeBtn].forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
     document.body.appendChild(this.backdrop);
@@ -860,6 +868,7 @@
   // anything that changes tags during phase 2 is invisible to the plan being
   // applied. Rescanning until the plan comes back empty is how a run converges.
   Run.prototype.rescan = function () {
+    this.disarmClear();
     var lines = this.lines.slice();
     this.reset();
     this.lines = lines;
@@ -900,7 +909,46 @@
     }
   };
 
+  // Empties the log: the rendered tail, and the `lines` array behind it that Copy
+  // log exports. The plan is deliberately untouched - this is the log buffer, not
+  // the run - so Proceed still has everything it needs afterwards.
+  //
+  // During review that is harmless; the log is a preview and nothing has been
+  // written. Once phase 2 has applied something the log is the only record of what
+  // was actually changed - Stash has no undo, and the plugin cannot rebuild the
+  // list from anywhere - so a click there arms the button and a second one within
+  // CLEAR_ARM_MS confirms it. The prompt lives in the button's own caption rather
+  // than a native confirm() stacked on top of our modal.
+  Run.prototype.clearLog = function () {
+    if (!this.lines.length) return;
+    var self = this;
+
+    if (this.wrote && !this.clearArmed) {
+      this.clearArmed = true;
+      this.clearBtn.textContent = 'Clear log?';
+      this.clearTimer = setTimeout(function () { self.disarmClear(); }, CLEAR_ARM_MS);
+      return;
+    }
+
+    this.disarmClear();
+    if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
+    this.lines = [];
+    this.pending = [];
+    while (this.logEl.firstChild) this.logEl.removeChild(this.logEl.firstChild);
+    // A marker rather than an empty log, so an exported copy shows that lines were
+    // dropped instead of reading as a run that did nothing.
+    this.log('INFO', 'Log cleared. Earlier lines are gone from Copy log too.');
+    this.renderProgress();
+  };
+
+  Run.prototype.disarmClear = function () {
+    if (this.clearTimer) { clearTimeout(this.clearTimer); this.clearTimer = null; }
+    this.clearArmed = false;
+    if (this.clearBtn) this.clearBtn.textContent = 'Clear log';
+  };
+
   Run.prototype.close = function () {
+    this.disarmClear();
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);

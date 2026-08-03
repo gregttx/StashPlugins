@@ -15,13 +15,14 @@
 > through a long life in other people's libraries — which is another reason to take the backup
 > above and to read the review log before pressing Proceed.
 
-A front-end-only Stash plugin that adds two library-wide tasks to **Settings → Tasks → Plugin
-Tasks**:
+A front-end-only Stash plugin that adds three tasks to **Settings → Tasks → Plugin Tasks** — two
+that change tag assignments, and one that only looks:
 
 - **Prune Parent Tags from Entities** — removes every tag on an entity that another tag on the
   *same* entity already implies.
 - **Roll Up Parent Tags onto Entities** — adds every parent tag, recursively, of the tags already
   on the entity.
+- **Show Tag Hierarchy** — a read-only browser of your tag tree. Writes nothing.
 
 Both open a dialog that lists every change *before* anything is written. Nothing is saved until
 you press **Proceed**.
@@ -97,6 +98,36 @@ useful for reading the next Rescan against a clean slate. It never touches the p
 **Proceed** still applies everything that was found. Once changes have actually been written the
 log is the only record of what happened, so the button asks for a second click before discarding
 it; copy the log first if you want to keep it.
+
+## Browsing the tag hierarchy
+
+A third task, **Show Tag Hierarchy**, opens a read-only browser of your whole tag tree. It writes
+nothing, so it is safe to open at any time — and it is the quickest way to understand what the
+other two tasks would do before running either.
+
+```
+▾ Hair Colour (45)                                    2 child(ren)
+  ▾ Blonde (12)                                       2 child(ren)
+      Platinum (47)          ◆ 2 parents  leaf
+      Ash (48)               ⛔ never removed: name filter   leaf
+  ▸ Rare (6)                 ↩ shown under "Body" (4)
+```
+
+- **◆ n parents** — the tag hangs off more than one parent. These are worth knowing about: Prune
+  treats *every* ancestor on *every* branch as implied.
+- **↩ shown under X** — the same tag reached by a second path. It is drawn in full in one place
+  only, so the tree stays readable.
+- **⛔** — an exclusion filter you have configured protects this tag, and it names which one.
+- **⚠ cycle** — a loop in the hierarchy. Both tasks refuse to touch tags in one; this is where you
+  can find them.
+
+Select any tag to see its parents, ancestors, children and descendants, plus a plain-language
+answer for what Prune and Roll Up would do with it. **Load counts** adds how many scenes, images,
+galleries and performers carry each tag — a separate query, so it is only made if you ask.
+
+**Copy as DOT** and **Copy as Mermaid** put a diagram of the hierarchy on the clipboard for
+Graphviz or mermaid.live. With a tag selected they export just that tag's ancestors and
+descendants, which is usually the only part that reads well as a picture.
 
 ## Entity types
 

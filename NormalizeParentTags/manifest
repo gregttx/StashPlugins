@@ -7,9 +7,11 @@ metadata:
     Prune removes every tag already implied by a descendant tag on the same entity,
     and Roll Up adds every ancestor of every tag on the entity. Both run from Settings
     - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing
-    is written until you press Proceed. Entity types are opt-in and are all off until
+    is written until you press Proceed. A third, read-only task browses the tag hierarchy
+    itself, marking multi-parent tags, protected tags and cycles, and exports it as a
+    Graphviz or Mermaid diagram. Entity types are opt-in and are all off until
     enabled in the plugin settings.
-version: 0.6.1
+version: 0.7.0
 date: "2026-08-02 00:00:00"
 requires: []
 files:

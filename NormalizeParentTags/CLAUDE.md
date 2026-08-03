@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.6.1.** This file is both the design and the map of the code — the
+**Status: implemented at 0.7.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -48,7 +48,7 @@ patchable component for that page (see the list in Stash's `UIPluginApi.md` — 
 `SettingGroup` are patchable but far too generic, and there is no `SettingsTasksPanel` or
 `PluginTasks`), so the placement is achieved a different way:
 
-**Declare the two tasks in `NormalizeParentTags.yml` under `tasks:` and let Stash render them.**
+**Declare the tasks in `NormalizeParentTags.yml` under `tasks:` and let Stash render them.**
 `PluginTasks.tsx` lists every enabled plugin with `tasks.length > 0`, so declaring tasks is
 enough to get a native, correctly-styled collapsible group named after the plugin, with one
 button per task. No DOM construction, no CSS guessing, no breakage when Stash restyles the page.
@@ -65,6 +65,7 @@ job queue. So the click is caught client-side, with two independent layers:
    to the enclosing `.setting`, and matching the button's text against our two declared task
    names *within* the plugin's own `SettingGroup` (match the group heading against the plugin
    name) — never by task name alone, or another plugin with a same-named task gets hijacked.
+   `TASKS` is the list; adding a task means adding it there as well as to the manifest.
 2. **Fallback — `window.fetch` wrapper.** If layer 1 misses (Stash restructures the page, the
    button is reached by keyboard in a way we did not anticipate), catch the `runPluginTask`
    mutation whose `plugin_id` is ours, return a synthesized successful response so the mutation
@@ -384,6 +385,48 @@ that changes tags *during* phase 2 — the sibling plugin in §8, another browse
 scan — is invisible to the plan that is being applied. Rescan is how the user converges: run,
 rescan, see an empty plan, and know the library is normalized.
 
+## 5a. The hierarchy viewer (0.7.0)
+
+A read-only third task, `Show Tag Hierarchy`, on the same entry-point machinery as the other two.
+It answers the questions the other two raise — *which tags does Prune consider redundant, why was
+that one left alone, where are the diamonds* — against the same graph they run on.
+
+**Deliberately not a node-link graph.** A real tag DAG is a hairball past a few hundred nodes, and
+drawing one needs a layout engine this repo has nowhere to put: no build step, no bundler, no
+runtime dependencies, and a plugin folder is copied as-is. A tag DAG is also *mostly a forest*, so
+a tree is the honest shape and the handful of multi-parent tags are marked rather than hidden.
+**Copy as DOT / Copy as Mermaid** exists for anyone who does want a drawn graph, in a tool built
+for it.
+
+How the DAG survives being drawn as a tree:
+
+- A tag with several parents is drawn in full under its **primary parent** — the first in Stash's
+  own sort order, so the choice is stable between runs — and appears under every other parent as a
+  `↩ shown under X` row that does not expand. Without that, a diamond duplicates its whole subtree
+  once per path.
+- The real row carries `◆ n parents`, which is where Prune surprises people: every parent on every
+  branch is implied.
+- **Cyclic tags are surfaced as roots.** They are unreachable from any real root, so a tree that
+  only walked downwards would hide exactly the tags both tasks refuse to touch — the one case
+  where a viewer earns its keep.
+
+**Badges come from `filters.protections(id)`, not from a second copy of the rules.** `makeFilters`
+returns a reason string rather than a bare boolean (`blockReason`), so the viewer can say *which*
+filter protects a tag and can never drift from what the run will actually do. That is the whole
+value of the badge; a re-implementation that agreed today and diverged in six months would be worse
+than no badge.
+
+**Counts are opt-in.** `scene_count` and friends are per-tag resolver fields and one query over
+thousands of tags is the expensive thing in this dialog, so they load on a button. `depth: 0` is
+passed **explicitly**: the count is for the tag itself rather than for it plus everything beneath
+it, and the server's default for an omitted `depth` is not documented in the schema — an ambiguous
+number on screen is worse than no number.
+
+**The export follows the selection.** With a tag selected it emits that tag's neighbourhood
+(ancestors + descendants + the edges among them), which is the part that is legible when drawn;
+with nothing selected, the whole DAG. Edges whose other end is outside the exported set are
+dropped, or the output references nodes it never declares.
+
 ## 6. Settings
 
 All settings are re-read at the start of every run (a single `{ configuration { plugins } }`
@@ -547,6 +590,11 @@ cover:
   name filters: several substrings each protecting on their own, padding and repeated whitespace
   yielding no empty term, and a blank setting protecting nothing rather than everything.
 - **Two-phase dialog** — no mutation is issued before Proceed; Cancel issues none at all.
+- **The hierarchy viewer** (`normalize-tree`) — that it issues no mutation and nothing beyond the
+  settings and tag queries, that a diamond appears under both parents with exactly one of them the
+  repeat, that cyclic tags are still reachable, that badges and the inspector name the filter
+  actually configured, search, the DOT/Mermaid exports including edge pruning at the selection
+  boundary, and counts being fetched only on demand and pinned to `depth: 0`.
 - **What a rescan resets** — the log-line counter describes the new pass rather than the session
   (including the reported case: a rescan finding nothing reports four lines and claims nothing
   hidden), Copy log still exports both passes, and the sibling warning clears when the setting it

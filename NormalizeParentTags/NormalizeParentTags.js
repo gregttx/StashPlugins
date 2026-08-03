@@ -18,7 +18,8 @@
 
   var TASK_PRUNE  = 'Prune Parent Tags from Entities';
   var TASK_ROLLUP = 'Roll Up Parent Tags onto Entities';
-  var TASKS = [TASK_PRUNE, TASK_ROLLUP];
+  var TASK_TREE   = 'Show Tag Hierarchy';
+  var TASKS = [TASK_PRUNE, TASK_ROLLUP, TASK_TREE];
 
   var PAGE_SIZE      = 1000;  // entities per find query
   var CHUNK_SIZE     = 100;   // entity ids per bulk mutation
@@ -213,9 +214,32 @@
       return out;
     }
 
+    // Children are only needed by the hierarchy viewer, so the map is built on
+    // first use rather than on every run.
+    var kids = null;
+    function childrenOf(id) {
+      if (!kids) {
+        kids = {};
+        for (var cid in parents) {
+          if (!hasOwn(parents, cid)) continue;
+          parents[cid].forEach(function (pid) {
+            if (!hasOwn(byId, pid)) return;      // dangling parent id
+            (kids[pid] = kids[pid] || []).push(cid);
+          });
+        }
+      }
+      return kids[id] || [];
+    }
+
     return {
       byId: byId,
       ancestorsOf: ancestorsOf,
+      // Only parents Stash still knows about: a dangling id implies nothing and
+      // must not be drawn as an edge either.
+      parentsOf: function (id) {
+        return (parents[id] || []).filter(function (pid) { return hasOwn(byId, pid); });
+      },
+      childrenOf: childrenOf,
       cyclic: cyclic,
       // Walk everything once so cycles are discovered during the scan rather than
       // whenever an affected entity happens to turn up.
@@ -267,21 +291,29 @@
     var addTerms    = splitTerms(settings.c2ExcludeAddTagNameContains, sep);
     var removeTerms = splitTerms(settings.c3ExcludeRemoveTagNameContains, sep);
 
-    function blocked(id, cfName, terms) {
+    // Returns why the tag is blocked, or null. A reason string rather than a bare
+    // boolean so the hierarchy viewer can say *which* filter is protecting a tag
+    // without a second copy of these rules going out of step with this one.
+    function blockReason(id, cfName, terms) {
       var t = graph.byId[id];
-      if (!t) return true;                       // unknown tag: never touch it
-      if (graph.cyclic[id]) return true;         // see buildGraph
-      if (settings.c1ExcludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return true;
+      if (!t) return 'unknown to Stash';         // never touch it
+      if (graph.cyclic[id]) return 'in a hierarchy cycle';
+      if (settings.c1ExcludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return 'Ignore auto tag';
       // Presence alone excludes; the value is never inspected. hasOwnProperty
       // rather than `in`, or inherited keys like "constructor" match every tag.
-      if (cfName && t.custom_fields && hasOwn(t.custom_fields, cfName)) return true;
-      if (terms.length && nameMatchesAny(t.name || '', terms)) return true;
-      return false;
+      if (cfName && t.custom_fields && hasOwn(t.custom_fields, cfName)) {
+        return 'custom field "' + cfName + '"';
+      }
+      if (terms.length && nameMatchesAny(t.name || '', terms)) return 'name filter';
+      return null;
     }
 
     return {
-      canAdd:    function (id) { return !blocked(id, addCF, addTerms); },
-      canRemove: function (id) { return !blocked(id, removeCF, removeTerms); },
+      canAdd:    function (id) { return !blockReason(id, addCF, addTerms); },
+      canRemove: function (id) { return !blockReason(id, removeCF, removeTerms); },
+      protections: function (id) {
+        return { add: blockReason(id, addCF, addTerms), remove: blockReason(id, removeCF, removeTerms) };
+      },
     };
   }
 
@@ -616,7 +648,26 @@
     '.npt-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
     'flex-wrap:wrap;align-items:center;}' +
     '.npt-foot button{margin-right:.5rem;}' +
-    '.npt-hidden{display:none;}';
+    '.npt-hidden{display:none;}' +
+    '.npt-search{padding:.5rem 1rem;border-bottom:1px solid #394b59;}' +
+    '.npt-search-input{width:100%;background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
+    'border-radius:3px;padding:.25rem .5rem;}' +
+    '.npt-split{flex:1 1 auto;display:flex;min-height:18rem;overflow:hidden;}' +
+    '.npt-tree{flex:2 1 0;overflow:auto;padding:.5rem 0;font-size:.85rem;}' +
+    '.npt-inspect{flex:1 1 0;overflow:auto;padding:.5rem 1rem;border-left:1px solid #394b59;' +
+    'font-size:.8rem;min-width:14rem;}' +
+    '.npt-row{padding:.1rem 1rem;cursor:pointer;white-space:nowrap;}' +
+    '.npt-row:hover{background:#3c4f5d;}' +
+    '.npt-row-sel{background:#425a6b;}' +
+    '.npt-twisty{display:inline-block;width:1.1rem;color:#a7b6c2;}' +
+    '.npt-tag-name{font-family:monospace;}' +
+    '.npt-badge{margin-left:.5rem;font-size:.72rem;padding:0 .3rem;border-radius:3px;}' +
+    '.npt-b-diamond{color:#7cc4ff;} .npt-b-repeat{color:#a7b6c2;font-style:italic;}' +
+    '.npt-b-prot{color:#ffb648;} .npt-b-cycle{color:#ff7373;} .npt-b-dim{color:#7d8f9c;}' +
+    '.npt-i-title{font-size:1rem;font-weight:600;margin-bottom:.4rem;font-family:monospace;}' +
+    '.npt-i-label{color:#7cc4ff;margin-top:.6rem;}' +
+    '.npt-i-body{color:#d6dee4;white-space:pre-wrap;word-break:break-word;}' +
+    '.npt-i-hint{color:#7d8f9c;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -645,6 +696,13 @@
 
   function startRun(taskName) {
     if (_active) { _active.focus(); return; }
+    // The viewer writes nothing and has no plan, so it is a different object
+    // rather than a third mode threaded through the run.
+    if (taskName === TASK_TREE) {
+      _active = new TreeView(taskName);
+      _active.build();
+      return;
+    }
     var mode = taskName === TASK_ROLLUP ? 'rollup' : 'prune';
     _active = new Run(taskName, mode);
     _active.begin();
@@ -1099,6 +1157,454 @@
       this.backdrop.parentNode.removeChild(this.backdrop);
     }
     if (_active === this) _active = null;
+  };
+
+  // ── Hierarchy viewer ──────────────────────────────────────────────────────
+  //
+  // A read-only third task. It answers the questions the other two raise -
+  // "which tags does Prune consider redundant", "why was that one left alone",
+  // "where are the diamonds" - against the same graph they run on.
+  //
+  // Deliberately NOT a node-link graph. A real tag DAG is a hairball past a few
+  // hundred nodes, and drawing one needs a layout engine this repo has nowhere to
+  // put: no build step, no bundler, no runtime dependencies. A tag DAG is also
+  // *mostly* a forest, so the tree is the honest shape - and the handful of tags
+  // with several parents are marked rather than hidden. Copy as DOT / Mermaid is
+  // there for anyone who does want a drawn graph, in a tool built for it.
+
+  var TREE_ROW_CAP = 4000;   // rows rendered at once by a search; see renderSearch
+
+  function TreeView(taskName) {
+    this.taskName = taskName;
+    this.expanded = {};       // tag id -> true
+    this.selected = null;
+    this.counts = null;       // tag id -> { scenes, images, galleries, performers }
+    this.query = '';
+  }
+
+  TreeView.prototype.build = function () {
+    injectStyle();
+    var self = this;
+
+    this.backdrop = el('div', 'npt-backdrop');
+    this.modal = el('div', 'npt-modal');
+    this.backdrop.appendChild(this.modal);
+
+    var head = el('div', 'npt-head');
+    head.appendChild(el('div', 'npt-title', PLUGIN_NAME + ' - ' + this.taskName));
+    head.appendChild(el('div', 'npt-note',
+      'Read-only. Nothing here writes anything. Badges reflect the exclusion filters ' +
+      'currently set in the plugin settings.'));
+    this.modal.appendChild(head);
+
+    this.progressEl = el('div', 'npt-progress', 'Loading tags...');
+    this.modal.appendChild(this.progressEl);
+
+    var searchRow = el('div', 'npt-search');
+    this.searchEl = el('input', 'npt-search-input');
+    this.searchEl.type = 'text';
+    this.searchEl.placeholder = 'Filter by name...';
+    this.searchEl.addEventListener('input', function () {
+      self.query = (self.searchEl.value || '').trim();
+      self.render();
+    });
+    searchRow.appendChild(this.searchEl);
+    this.modal.appendChild(searchRow);
+
+    var split = el('div', 'npt-split');
+    this.treeEl = el('div', 'npt-tree');
+    this.inspectEl = el('div', 'npt-inspect');
+    split.appendChild(this.treeEl);
+    split.appendChild(this.inspectEl);
+    this.modal.appendChild(split);
+
+    var foot = el('div', 'npt-foot');
+    this.expandBtn = button('Expand all', 'npt-expand');
+    this.collapseBtn = button('Collapse all', 'npt-collapse');
+    this.countsBtn = button('Load counts', 'npt-counts');
+    this.dotBtn = button('Copy as DOT', 'npt-dot');
+    this.mmdBtn = button('Copy as Mermaid', 'npt-mmd');
+    this.closeBtn = button('Close', 'npt-close');
+
+    this.expandBtn.addEventListener('click', function () { self.expandAll(true); });
+    this.collapseBtn.addEventListener('click', function () { self.expandAll(false); });
+    this.countsBtn.addEventListener('click', function () { self.loadCounts(); });
+    this.dotBtn.addEventListener('click', function () { self.copyGraph('dot'); });
+    this.mmdBtn.addEventListener('click', function () { self.copyGraph('mermaid'); });
+    this.closeBtn.addEventListener('click', function () { self.close(); });
+
+    [this.expandBtn, this.collapseBtn, this.countsBtn, this.dotBtn, this.mmdBtn, this.closeBtn]
+      .forEach(function (b) { foot.appendChild(b); });
+    this.modal.appendChild(foot);
+
+    document.body.appendChild(this.backdrop);
+    this.load();
+  };
+
+  TreeView.prototype.focus = function () {
+    if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
+  };
+
+  TreeView.prototype.close = function () {
+    if (this.backdrop && this.backdrop.parentNode) {
+      this.backdrop.parentNode.removeChild(this.backdrop);
+    }
+    if (_active === this) _active = null;
+  };
+
+  TreeView.prototype.load = function () {
+    var self = this;
+    loadSettings().then(function (loaded) {
+      self.settings = loaded.settings;
+      return gqlRequest(tagQuery(self.settings), null);
+    }).then(function (data) {
+      var tags = ((data.findTags || {}).tags) || [];
+      self.graph = buildGraph(tags);
+      self.graph.warmAll();
+      self.filters = makeFilters(self.settings, self.graph);
+      self.roots = self.computeRoots();
+      // Top level open, everything below it closed: a four-level namespace scheme
+      // renders in a screenful instead of thousands of rows.
+      self.roots.forEach(function (id) { self.expanded[id] = true; });
+      self.render();
+    }, function (e) {
+      self.progressEl.textContent = 'Could not load tags: ' + (e && e.message ? e.message : e);
+    });
+  };
+
+  // A root is a tag Stash knows with no parent Stash still knows. Tags inside a
+  // cycle have parents but can never be reached from a root, so they are surfaced
+  // as roots too rather than being invisible - which is the case where a viewer
+  // earns its keep.
+  TreeView.prototype.computeRoots = function () {
+    var g = this.graph, out = [], id;
+    var reachable = {};
+    for (id in g.byId) {
+      if (!hasOwn(g.byId, id)) continue;
+      if (!g.parentsOf(id).length) { out.push(id); reachable[id] = true; }
+    }
+    for (id in g.byId) {
+      if (!hasOwn(g.byId, id)) continue;
+      if (g.cyclic[id] && !hasOwn(reachable, id)) out.push(id);
+    }
+    return this.sortIds(out);
+  };
+
+  TreeView.prototype.sortIds = function (ids) {
+    var g = this.graph;
+    return ids.slice().sort(function (a, b) {
+      var c = collateNames(tagSortKey(g, a), tagSortKey(g, b));
+      if (c) return c;
+      return lowerId(a, b) ? -1 : 1;
+    });
+  };
+
+  // The parent a multi-parent tag is drawn under: the first in Stash's own order,
+  // so the choice is stable between runs. Everywhere else it appears as a repeat.
+  TreeView.prototype.primaryParent = function (id) {
+    var parents = this.sortIds(this.graph.parentsOf(id));
+    return parents.length ? parents[0] : null;
+  };
+
+  TreeView.prototype.expandAll = function (open) {
+    var g = this.graph, id;
+    this.expanded = {};
+    if (open) {
+      for (id in g.byId) if (hasOwn(g.byId, id)) this.expanded[id] = true;
+    } else {
+      this.roots.forEach(function (rid) { this.expanded[rid] = true; }, this);
+    }
+    this.render();
+  };
+
+  // ── Rendering ─────────────────────────────────────────────────────────────
+
+  TreeView.prototype.render = function () {
+    while (this.treeEl.firstChild) this.treeEl.removeChild(this.treeEl.firstChild);
+    var total = 0, id;
+    for (id in this.graph.byId) if (hasOwn(this.graph.byId, id)) total++;
+
+    var shown;
+    if (this.query) {
+      shown = this.renderSearch();
+      this.progressEl.textContent = shown + ' of ' + total + ' tag(s) match "' + this.query + '".';
+    } else {
+      shown = 0;
+      this.roots.forEach(function (rid) { shown += this.renderNode(rid, 0, null); }, this);
+      this.progressEl.textContent = total + ' tag(s), ' + this.roots.length + ' root(s). ' +
+        shown + ' row(s) shown - click a tag for what Prune and Roll Up would do with it.';
+    }
+    this.renderInspector();
+  };
+
+  // Search is flat on purpose: a name match deep in the tree is easier to act on
+  // as one row naming its parent than as a path the user has to expand into.
+  TreeView.prototype.renderSearch = function () {
+    var g = this.graph, q = this.query, hits = [], id;
+    for (id in g.byId) {
+      if (!hasOwn(g.byId, id)) continue;
+      if (((g.byId[id].name) || '').indexOf(q) !== -1) hits.push(id);
+    }
+    hits = this.sortIds(hits);
+    var capped = hits.length > TREE_ROW_CAP ? hits.slice(0, TREE_ROW_CAP) : hits;
+    capped.forEach(function (tid) { this.renderRow(tid, 0, this.primaryParent(tid), true); }, this);
+    return capped.length;
+  };
+
+  TreeView.prototype.renderNode = function (id, depth, under) {
+    var repeat = under !== null && this.primaryParent(id) !== under;
+    this.renderRow(id, depth, under, repeat);
+    var shown = 1;
+    // A repeat is a pointer, not a second copy of the subtree; a cyclic tag is not
+    // walked at all, since "children" there can lead back to where we started.
+    if (repeat || this.graph.cyclic[id] || !this.expanded[id]) return shown;
+    var kids = this.sortIds(this.graph.childrenOf(id));
+    kids.forEach(function (kid) { shown += this.renderNode(kid, depth + 1, id); }, this);
+    return shown;
+  };
+
+  TreeView.prototype.renderRow = function (id, depth, under, repeat) {
+    var self = this;
+    var g = this.graph;
+    var t = g.byId[id] || {};
+    var kids = g.childrenOf(id);
+    var parents = g.parentsOf(id);
+
+    var row = el('div', 'npt-row' + (this.selected === id ? ' npt-row-sel' : ''));
+    row.style = 'padding-left:' + (depth * 1.1) + 'rem';
+
+    var twisty = el('span', 'npt-twisty',
+      (repeat || g.cyclic[id] || !kids.length) ? '  ' : (this.expanded[id] ? '▾ ' : '▸ '));
+    if (kids.length && !repeat && !g.cyclic[id]) {
+      twisty.addEventListener('click', function (ev) {
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        self.expanded[id] = !self.expanded[id];
+        self.render();
+      });
+    }
+    row.appendChild(twisty);
+    row.appendChild(el('span', 'npt-tag-name', (t.name || 'unknown') + ' (' + id + ')'));
+
+    var badges = [];
+    if (g.cyclic[id]) badges.push({ cls: 'npt-b-cycle', text: '⚠ cycle' });
+    if (repeat && under) {
+      badges.push({ cls: 'npt-b-repeat', text: '↩ shown under ' + tagLabel(g, this.primaryParent(id)) });
+    } else if (parents.length > 1) {
+      badges.push({ cls: 'npt-b-diamond', text: '◆ ' + parents.length + ' parents' });
+    }
+    var prot = this.filters.protections(id);
+    if (prot.remove) badges.push({ cls: 'npt-b-prot', text: '⛔ never removed: ' + prot.remove });
+    if (prot.add) badges.push({ cls: 'npt-b-prot', text: '⛔ never added: ' + prot.add });
+    if (!kids.length) badges.push({ cls: 'npt-b-dim', text: 'leaf' });
+    else badges.push({ cls: 'npt-b-dim', text: kids.length + ' child(ren)' });
+    if (this.counts && hasOwn(this.counts, id)) badges.push({ cls: 'npt-b-dim', text: this.counts[id] });
+
+    badges.forEach(function (b) { row.appendChild(el('span', 'npt-badge ' + b.cls, b.text)); });
+
+    row.addEventListener('click', function () {
+      self.selected = id;
+      self.render();
+    });
+    this.treeEl.appendChild(row);
+  };
+
+  // ── Inspector ─────────────────────────────────────────────────────────────
+
+  TreeView.prototype.descendantsOf = function (id) {
+    var g = this.graph, seen = {}, out = [];
+    var stack = g.childrenOf(id).slice();
+    while (stack.length) {
+      var cur = stack.pop();
+      if (hasOwn(seen, cur)) continue;   // diamonds converge; cycles would not stop
+      seen[cur] = true;
+      out.push(cur);
+      g.childrenOf(cur).forEach(function (k) { stack.push(k); });
+    }
+    return this.sortIds(out);
+  };
+
+  TreeView.prototype.renderInspector = function () {
+    while (this.inspectEl.firstChild) this.inspectEl.removeChild(this.inspectEl.firstChild);
+    var g = this.graph;
+    var id = this.selected;
+    if (!id || !g.byId[id]) {
+      this.inspectEl.appendChild(el('div', 'npt-i-hint', 'Select a tag.'));
+      return;
+    }
+
+    var self = this;
+    function line(cls, text) { self.inspectEl.appendChild(el('div', cls, text)); }
+    function list(label, ids) {
+      if (!ids.length) return;
+      line('npt-i-label', label + ' (' + ids.length + ')');
+      line('npt-i-body', ids.slice(0, 24).map(function (tid) { return tagLabel(g, tid); }).join(', ') +
+        (ids.length > 24 ? ', and ' + (ids.length - 24) + ' more' : ''));
+    }
+
+    line('npt-i-title', tagLabel(g, id));
+
+    var anc = [], k, ancMap = g.ancestorsOf(id);
+    for (k in ancMap) if (hasOwn(ancMap, k)) anc.push(k);
+    anc = this.sortIds(anc);
+    var desc = this.descendantsOf(id);
+
+    list('Parents', this.sortIds(g.parentsOf(id)));
+    list('All ancestors', anc);
+    list('Children', this.sortIds(g.childrenOf(id)));
+    list('All descendants', desc);
+
+    line('npt-i-label', 'What the tasks would do');
+    var prot = this.filters.protections(id);
+    if (desc.length) {
+      line('npt-i-body', prot.remove
+        ? 'Prune would leave this in place - protected: ' + prot.remove + '.'
+        : 'Prune removes this from any entity that also carries one of its ' +
+          desc.length + ' descendant(s).');
+    } else {
+      line('npt-i-body', 'Prune never removes this: it has no descendants, so nothing on an ' +
+        'entity can imply it.');
+    }
+    if (anc.length) {
+      line('npt-i-body', 'Roll Up adds its ' + anc.length + ' ancestor(s) to every entity ' +
+        'carrying this tag.');
+    } else {
+      line('npt-i-body', 'Roll Up adds nothing for this tag: it has no ancestors.');
+    }
+    if (prot.add) line('npt-i-body', 'Roll Up would never add this tag itself - protected: ' + prot.add + '.');
+    if (g.cyclic[id]) {
+      line('npt-i-body', 'This tag is in a hierarchy cycle. Both tasks refuse to touch it: under ' +
+        'the plain rule every tag in a cycle implies every other, so all of them would be removed.');
+    }
+  };
+
+  // ── Counts ────────────────────────────────────────────────────────────────
+
+  // Opt-in, because these are per-tag resolver fields: one query over thousands of
+  // tags is the expensive thing in this dialog, and the tree is useful without it.
+  // depth: 0 is passed explicitly - the count is for the tag itself, not for it plus
+  // everything under it, and relying on the server's default would leave the number
+  // ambiguous.
+  TreeView.prototype.loadCounts = function () {
+    var self = this;
+    if (this._countsBusy) return;
+    this._countsBusy = true;
+    this.countsBtn.textContent = 'Loading...';
+    gqlRequest(
+      'query NPTTagCounts { findTags(filter: { per_page: -1 }) { tags { id ' +
+      'scene_count(depth: 0) image_count(depth: 0) gallery_count(depth: 0) ' +
+      'performer_count(depth: 0) } } }', null
+    ).then(function (data) {
+      var tags = ((data.findTags || {}).tags) || [];
+      self.counts = {};
+      tags.forEach(function (t) {
+        var parts = [];
+        if (t.scene_count) parts.push(t.scene_count + ' scenes');
+        if (t.image_count) parts.push(t.image_count + ' images');
+        if (t.gallery_count) parts.push(t.gallery_count + ' galleries');
+        if (t.performer_count) parts.push(t.performer_count + ' performers');
+        self.counts[t.id] = parts.length ? parts.join(' · ') : 'unused';
+      });
+      self.countsBtn.textContent = 'Counts loaded';
+      self._countsBusy = false;
+      self.render();
+    }, function (e) {
+      self.countsBtn.textContent = 'Counts failed';
+      self._countsBusy = false;
+      self.progressEl.textContent = 'Counts could not be loaded: ' + (e && e.message ? e.message : e);
+      setTimeout(function () { self.countsBtn.textContent = 'Load counts'; }, 3000);
+    });
+  };
+
+  // ── Export ────────────────────────────────────────────────────────────────
+
+  // With a tag selected, exports that tag's neighbourhood - ancestors, descendants
+  // and the edges between them - which is the part that is actually legible as a
+  // drawn graph. With nothing selected, the whole DAG.
+  TreeView.prototype.exportIds = function () {
+    var g = this.graph, ids = [], id;
+    if (this.selected && g.byId[this.selected]) {
+      var set = {}, k;
+      set[this.selected] = true;
+      var anc = g.ancestorsOf(this.selected);
+      for (k in anc) if (hasOwn(anc, k)) set[k] = true;
+      this.descendantsOf(this.selected).forEach(function (d) { set[d] = true; });
+      for (k in set) if (hasOwn(set, k)) ids.push(k);
+      return this.sortIds(ids);
+    }
+    for (id in g.byId) if (hasOwn(g.byId, id)) ids.push(id);
+    return this.sortIds(ids);
+  };
+
+  function dotEscape(s) {
+    return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  TreeView.prototype.graphText = function (kind) {
+    var g = this.graph;
+    var ids = this.exportIds();
+    var inSet = {};
+    ids.forEach(function (id) { inSet[id] = true; });
+    var out = [];
+
+    if (kind === 'mermaid') {
+      out.push('graph LR');
+      ids.forEach(function (id) {
+        out.push('  t' + id + '["' + dotEscape((g.byId[id] || {}).name) + ' (' + id + ')"]');
+      });
+      ids.forEach(function (id) {
+        g.parentsOf(id).forEach(function (pid) {
+          if (hasOwn(inSet, pid)) out.push('  t' + pid + ' --> t' + id);
+        });
+      });
+      return out.join('\n');
+    }
+
+    out.push('digraph tags {');
+    out.push('  rankdir=LR;');
+    out.push('  node [shape=box];');
+    ids.forEach(function (id) {
+      out.push('  "' + id + '" [label="' + dotEscape((g.byId[id] || {}).name) + '"];');
+    });
+    ids.forEach(function (id) {
+      g.parentsOf(id).forEach(function (pid) {
+        if (hasOwn(inSet, pid)) out.push('  "' + pid + '" -> "' + id + '";');
+      });
+    });
+    out.push('}');
+    return out.join('\n');
+  };
+
+  TreeView.prototype.copyGraph = function (kind) {
+    var text = this.graphText(kind);
+    var btn = kind === 'mermaid' ? this.mmdBtn : this.dotBtn;
+    var label = kind === 'mermaid' ? 'Copy as Mermaid' : 'Copy as DOT';
+    var scope = this.selected ? 'selection' : 'whole hierarchy';
+    function done(ok) {
+      btn.textContent = ok ? 'Copied ' + scope : 'Copy failed';
+      setTimeout(function () { btn.textContent = label; }, 2000);
+    }
+    var nav = window.navigator;
+    if (nav && nav.clipboard && nav.clipboard.writeText) {
+      nav.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallback()); });
+      return;
+    }
+    done(fallback());
+
+    // Stash is commonly served over plain HTTP on a LAN, where the async clipboard
+    // API is not available at all.
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        if (ta.select) ta.select();
+        var ok = document.execCommand ? document.execCommand('copy') : false;
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        return false;
+      }
+    }
   };
 
   // ── Task interception ─────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 name: Normalize Parent Tags
-description: "Requires Stash 0.31.0 or newer. BACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. Two library-wide tasks that normalize tag hierarchies on your entities: Prune removes every tag already implied by a descendant tag on the same entity, and Roll Up adds every ancestor of every tag on the entity. Both run from Settings - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing is written until you press Proceed. Entity types are opt-in and are all off until enabled below."
-version: 0.6.1
+description: "Requires Stash 0.31.0 or newer. BACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. Two library-wide tasks that normalize tag hierarchies on your entities: Prune removes every tag already implied by a descendant tag on the same entity, and Roll Up adds every ancestor of every tag on the entity. Both run from Settings - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing is written until you press Proceed. A third, read-only task browses the tag hierarchy itself, marking multi-parent tags, protected tags and cycles, and exports it as a Graphviz or Mermaid diagram. Entity types are opt-in and are all off until enabled below."
+version: 0.7.0
 ui:
   javascript:
     - NormalizeParentTags.js
@@ -9,6 +9,8 @@ tasks:
     description: Remove tags that another tag on the same entity already implies. Opens a dialog listing every removal for review before anything is written. Back up your database before the first run.
   - name: Roll Up Parent Tags onto Entities
     description: Add every parent tag, recursively, of the tags already on the entity. Opens a dialog listing every addition for review before anything is written. Back up your database before the first run.
+  - name: Show Tag Hierarchy
+    description: Read-only. Opens a browsable tree of the whole tag hierarchy, marking tags with more than one parent, tags protected by the exclusion filters below, and any cycle. Select a tag to see what Prune and Roll Up would do with it. Writes nothing, and can be exported as a Graphviz or Mermaid diagram.
 settings:
   a1EnablePerformers:
     displayName: Include Performers

@@ -107,3 +107,61 @@ Most of it needs no install. The `placement` suite needs `jsdom` and skips itsel
 Tests cover the plugin's own logic and its assumptions about Stash's markup and component props. They cannot confirm those assumptions still hold after a Stash upgrade, so a change that touches Stash's DOM or components still needs exercising in a live Stash instance.
 
 When fixing a bug, check the new test fails against the unfixed plugin before trusting it: `SRC=/path/to/old.js node tests/<suite>.test.js`.
+
+## Reference: custom fields in Stash
+
+Findings from reading `stashapp/stash` `graphql/schema/types/*` on `main`, 2026-08-04. Verify
+against the running Stash version before relying on any of it — this is a snapshot, not a contract.
+
+Seven entity types carry custom fields, marked by `custom_fields: Map!` on the object type: **Scene,
+Image, Gallery, Performer, Studio, Group, Tag**. Scene markers do not, nor do files or folders.
+
+Bulk mutations already accept custom fields for five of the seven. The field is
+`custom_fields: CustomFieldsInput` on the bulk input:
+
+| Entity | On type | Single update | Bulk update input |
+|---|---|---|---|
+| Scene | yes | yes | yes — `BulkSceneUpdateInput` |
+| Image | yes | yes | yes — `BulkImageUpdateInput` |
+| Gallery | yes | yes | yes — `BulkGalleryUpdateInput` |
+| Performer | yes | yes | yes — `BulkPerformerUpdateInput` |
+| Group | yes | yes | yes — `BulkGroupUpdateInput` |
+| Studio | yes | yes | **no** — `BulkStudioUpdateInput` |
+| Tag | yes | yes | **no** — `BulkTagUpdateInput` |
+
+So "Stash can't bulk edit custom fields" is a UI limitation, not an API one, for everything except
+Studio and Tag. No `Edit*Dialog.tsx` bulk modal exposes custom fields; `customFields` appears only in
+the per-object edit panels, detail panels, merge dialogs and filter components. A plugin can bulk
+edit custom fields today by calling the bulk mutation directly for the five supported types, and by
+looping single updates for Studio and Tag.
+
+The input type suits bulk work directly:
+
+```graphql
+input CustomFieldsInput {
+  full: Map         # replace the entire map
+  partial: Map      # update only the keys in this map
+  remove: [String!] # delete these keys
+}
+```
+
+`partial` sets a key across a selection without disturbing the others; `remove` clears one. Prefer
+these over `full`, which discards any key the caller did not send.
+
+Reading them back is the awkward part: there is no way to query objects for *whichever* custom
+fields they happen to have. Filtering goes through `custom_fields: [CustomFieldCriterionInput!]`
+(`field`, `value`, `modifier`), which requires naming the key up front. Any plugin offering a
+key-picker has to source the names from somewhere else — user input, or a scan of fetched objects.
+
+Upstream issues, none of which is a bulk-edit-values request (searched 2026-08-04, nothing filed):
+
+- [#6795](https://github.com/stashapp/stash/issues/6795) — globally defined custom fields rather
+  than per-record. Closest match; mentions bulk *management of definitions* (rename, delete,
+  reorder), not editing values across a selection. A contributor notes per-record was intentional,
+  with plugins expected to manage fields.
+- [#5336](https://github.com/stashapp/stash/issues/5336) — RFC replacing the bulk modal's
+  Overwrite/Add/Remove tabs with tri-state checkboxes. Multi-value fields only.
+- [#4823](https://github.com/stashapp/stash/issues/4823) — fields missing from the image bulk edit
+  modal. Same shape of complaint, different fields.
+- [#6394](https://github.com/stashapp/stash/issues/6394) — scrapers returning custom fields.
+- [#5970](https://github.com/stashapp/stash/issues/5970) — GraphQL sorting by custom field value.

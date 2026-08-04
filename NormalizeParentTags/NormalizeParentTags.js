@@ -26,6 +26,7 @@
   var LOG_RENDER_CAP = 1000;  // log lines kept in the DOM; all of them stay in memory
   var LOG_FLUSH_MS   = 100;
   var LEASE_TTL_MS   = 300000;
+  var UNDO_ARM_MS    = 4000;  // how long Undo stays armed for its second click
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
@@ -602,14 +603,34 @@
     return batches;
   }
 
-  function applyBatch(batch, run, graph) {
-    var query = 'mutation NPT_' + batch.type.bulk + '($input: ' + batch.type.bulkInput + '!) {' +
-      '  ' + batch.type.bulk + '(input: $input) { id }' +
+  function bulkMutation(type) {
+    return 'mutation NPT_' + type.bulk + '($input: ' + type.bulkInput + '!) {' +
+      '  ' + type.bulk + '(input: $input) { id }' +
       '}';
-    var ids = batch.entries.map(function (e) { return e.id; });
-    return gqlRequest(query, {
-      input: { ids: ids, tag_ids: { ids: batch.tagIds, mode: batch.mode } },
+  }
+
+  function batchIds(batch) {
+    return batch.entries.map(function (e) { return e.id; });
+  }
+
+  // Entities in a batch that could not be written are not counted as changed, and
+  // the ids are sampled rather than listed: a failed 100-id chunk should not put a
+  // hundred ids on one log line.
+  function batchFailed(batch, run, verb, e) {
+    var ids = batchIds(batch);
+    run.log('ERROR', batch.type.plural + ' - ' + verb + ' ' + batch.type.bulk + ' failed for ' +
+      ids.length + ' entities (' + ids.slice(0, 5).join(', ') +
+      (ids.length > 5 ? ', ...' : '') + '): ' + e.message);
+    run.errors++;
+  }
+
+  function applyBatch(batch, run, graph) {
+    return gqlRequest(bulkMutation(batch.type), {
+      input: { ids: batchIds(batch), tag_ids: { ids: batch.tagIds, mode: batch.mode } },
     }).then(function () {
+      // Recorded only once the server has taken it, so Undo can never try to
+      // reverse a write that never landed.
+      run.undoable.push(batch);
       batch.entries.forEach(function (entry) {
         batch.tagIds.forEach(function (tid) {
           // Entities are batched by identical delta, but each carries its own
@@ -623,12 +644,43 @@
     }, function (e) {
       // The whole batch failed, so none of its entities changed and none are
       // logged as changed.
-      run.log('ERROR', batch.type.plural + ' - ' + batch.type.bulk + ' failed for ' +
-        ids.length + ' entities (' + ids.slice(0, 5).join(', ') +
-        (ids.length > 5 ? ', ...' : '') + '): ' + e.message);
-      run.errors++;
+      batchFailed(batch, run, 'apply', e);
       run.failed += batch.entries.length;
     });
+  }
+
+  // The same mutation with ADD and REMOVE swapped. A delta, not a restore: it puts
+  // back exactly the tag assignments this batch changed and touches nothing else,
+  // which is what lets it run over a library that has moved on since - and equally
+  // what stops it from being a substitute for a database backup.
+  function undoBatch(batch, run, graph) {
+    var mode = batch.mode === 'ADD' ? 'REMOVE' : 'ADD';
+    return gqlRequest(bulkMutation(batch.type), {
+      input: { ids: batchIds(batch), tag_ids: { ids: batch.tagIds, mode: mode } },
+    }).then(function () {
+      // Dropped from the record as it is reversed, so a Stop halfway leaves behind
+      // exactly the batches that are still applied.
+      var at = run.undoable.indexOf(batch);
+      if (at !== -1) run.undoable.splice(at, 1);
+      batch.entries.forEach(function (entry) {
+        batch.tagIds.forEach(function (tid) {
+          // No "due to" clause: the reason explained why the tag was written, and
+          // this line is that write being taken back.
+          run.log(mode, 'Undo - ' + changeLine(graph, batch.type, entry.label, tid, null));
+          run.undoneTags[tid] = (hasOwn(run.undoneTags, tid) ? run.undoneTags[tid] : 0) + 1;
+        });
+        run.undone++;
+      });
+    }, function (e) {
+      batchFailed(batch, run, 'undo', e);
+      run.undoFailed += batch.entries.length;
+    });
+  }
+
+  function undoableCount(batches) {
+    var n = 0;
+    batches.forEach(function (b) { n += b.entries.length; });
+    return n;
   }
 
   // ── Dialog ────────────────────────────────────────────────────────────────
@@ -757,6 +809,16 @@
     this.applied = 0;
     this.appliedTags = {};
     this.failed = 0;
+    // What this dialog has written and can still take back: the batches the server
+    // accepted, newest last. Session-scoped like `lines` rather than pass-scoped -
+    // rescan() saves it across this call - because a rescan is how a run converges
+    // and losing the ability to undo the first pass at that point would be the
+    // moment the button was most wanted.
+    this.undoable = [];
+    this.undone = 0;
+    this.undoFailed = 0;
+    this.undoneTags = {};
+    this.undoTotal = 0;
     this.cancelled = false;
     this.stopped = false;
     this.lines = [];
@@ -782,8 +844,13 @@
 
     var head = el('div', 'npt-head');
     head.appendChild(el('div', 'npt-title', PLUGIN_NAME + ' - ' + this.taskName));
+    // The Undo button reverses this dialog's own writes while it is open. That is
+    // not a restore and must never be allowed to read as one, so the backup
+    // instruction keeps the position it has always had and the limits are stated
+    // beside it rather than left to be discovered.
     head.appendChild(el('div', 'npt-warn',
-      'This cannot be undone. Back up your database before proceeding.'));
+      'Back up your database before proceeding. Undo only reverses what this dialog wrote, ' +
+      'only while it stays open, and cannot account for changes made elsewhere in the meantime.'));
     this.noteEl = el('div', 'npt-note', '');
     head.appendChild(this.noteEl);
     this.modal.appendChild(head);
@@ -799,19 +866,23 @@
     this.cancelBtn  = button('Cancel', 'npt-cancel');
     this.stopBtn    = button('Stop', 'npt-stop npt-hidden');
     this.copyBtn    = button('Copy log', 'npt-copy');
+    this.undoBtn    = button('Undo', 'npt-undo npt-hidden');
     this.rescanBtn  = button('Rescan', 'npt-rescan npt-hidden');
     this.closeBtn   = button('Close', 'npt-close npt-hidden');
     this.proceedBtn.disabled = true;
+    this.undoBtn.title = 'Reverse every change this dialog has written, as an add/remove delta. ' +
+      'Only what this dialog wrote, and only while it stays open.';
 
     this.proceedBtn.addEventListener('click', function () { self.proceed(); });
     this.cancelBtn.addEventListener('click', function () { self.cancel(); });
     this.stopBtn.addEventListener('click', function () { self.stop(); });
     this.copyBtn.addEventListener('click', function () { self.copy(); });
+    this.undoBtn.addEventListener('click', function () { self.undo(); });
     this.rescanBtn.addEventListener('click', function () { self.rescan(); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
 
-    [this.proceedBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.rescanBtn, this.closeBtn]
-      .forEach(function (b) { foot.appendChild(b); });
+    [this.proceedBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.undoBtn,
+      this.rescanBtn, this.closeBtn].forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
     document.body.appendChild(this.backdrop);
@@ -829,9 +900,17 @@
     this.state = state;
     var scanning = state === 'scanning', ready = state === 'ready';
     var applying = state === 'applying', done = state === 'done';
+    // Undoing is a write like applying, so it offers Stop and nothing else: Rescan
+    // would plan against a library being changed underneath it, and Close would
+    // abandon the reversal halfway with no way back to it.
+    var undoing = state === 'undoing';
     this.show(this.proceedBtn, scanning || ready);
     this.show(this.cancelBtn, scanning || ready);
-    this.show(this.stopBtn, applying);
+    this.show(this.stopBtn, applying || undoing);
+    // Offered in ready as well as done: a rescan leaves the dialog holding a fresh
+    // plan over a library an earlier pass already changed, and that is exactly when
+    // the user is deciding between applying more and taking back what is there.
+    this.show(this.undoBtn, (ready || done) && this.undoable.length > 0);
     this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
     this.proceedBtn.disabled = !ready || !this.plan.length;
@@ -904,9 +983,12 @@
         this.viewLines + ' log line(s)';
     } else if (this.state === 'applying') {
       summary = 'Applying. ' + this.applied + ' of ' + this.plan.length + ' entities updated';
+    } else if (this.state === 'undoing') {
+      summary = 'Undoing. ' + this.undone + ' of ' + this.undoTotal + ' change(s) reversed';
     } else {
       summary = 'Finished. ' + this.applied + ' entity change(s) applied' +
-        (this.failed ? ', ' + this.failed + ' failed' : '');
+        (this.failed ? ', ' + this.failed + ' failed' : '') +
+        (this.undone ? ', ' + this.undone + ' reversed by Undo' : '');
     }
     if (this.errors) summary += ', ' + this.errors + ' error(s)';
     if (this.viewLines > LOG_RENDER_CAP) {
@@ -1100,8 +1182,91 @@
     this.flush();
   };
 
+  // ── Undo ──────────────────────────────────────────────────────────────────
+  //
+  // Reverses what this dialog has written, newest batch first, by replaying each
+  // accepted mutation with ADD and REMOVE swapped. What it is *not* is a restore:
+  // it reverses this dialog's own writes and nothing else, it cannot see a change
+  // made in between, and it dies with the tab. The head of the dialog says so and
+  // the backup instruction stays exactly where it was.
+  //
+  // Newest first because that is the order that composes: a rescan-and-apply cycle
+  // can write to an entity twice, and taking the second write back before the first
+  // is the only sequence that lands where the run started.
+  // Allowed from ready and done - anywhere the dialog is not itself mid-write. It
+  // finishes in done either way: once the writes are reversed, a plan reviewed
+  // against the library as it was no longer describes it, so Rescan is the honest
+  // next step rather than a Proceed left armed over stale ground.
+  Run.prototype.undo = function () {
+    if ((this.state !== 'ready' && this.state !== 'done') || !this.undoable.length) return;
+    var self = this;
+
+    // A single click here starts a library-wide write, in the one state where the
+    // user is most likely to be clicking around - Copy log, Rescan and Close are
+    // its neighbours - so it arms and asks. The count is what makes the prompt worth
+    // reading: it is the scope of the reversal, not a generic "are you sure".
+    if (!this.undoArmed) {
+      this.undoArmed = true;
+      this.undoBtn.textContent = 'Undo ' + undoableCount(this.undoable) + ' change(s)?';
+      this.undoTimer = setTimeout(function () { self.disarmUndo(); }, UNDO_ARM_MS);
+      return;
+    }
+    this.disarmUndo();
+
+    this.setState('undoing');
+    this.stopped = false;
+    this.undone = 0;
+    this.undoFailed = 0;
+    this.undoneTags = {};
+    this.undoTotal = undoableCount(this.undoable);
+    this.log('INFO', 'Undoing ' + this.undoTotal + ' entity change(s) - ' + new Date().toISOString());
+
+    var batches = this.undoable.slice().reverse();
+    // An undo is a bulk write like any other, so it announces itself the same way.
+    var lease = acquireLease(this.taskName + ' (undo)');
+    var i = 0;
+
+    function nextBatch() {
+      if (self.stopped || i >= batches.length) return Promise.resolve();
+      lease.renew();
+      return undoBatch(batches[i++], self, self.graph).then(function () {
+        self.renderProgress();
+        return nextBatch();
+      });
+    }
+
+    nextBatch().then(function () {
+      lease.release();
+      self.finishUndo();
+    }, function (e) {
+      lease.release();
+      self.log('ERROR', 'Undo aborted: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      self.finishUndo();
+    });
+  };
+
+  Run.prototype.finishUndo = function () {
+    this.log('INFO', 'Undo finished. ' + this.undone + ' entity change(s) reversed' +
+      (this.undoFailed ? ', ' + this.undoFailed + ' could not be' : '') +
+      (this.stopped ? ' (stopped early; what was reversed stays reversed)' : '') +
+      (this.undoable.length
+        ? '. ' + undoableCount(this.undoable) + ' change(s) are still applied.'
+        : '. Everything this dialog wrote has been taken back.'));
+    // Prune put tags back; Roll Up took its own additions off again.
+    this.logTagSummary(this.undoneTags, this.mode === 'prune' ? 'restored' : 'removed again');
+    this.setState('done');
+    this.flush();
+  };
+
+  Run.prototype.disarmUndo = function () {
+    if (this.undoTimer) { clearTimeout(this.undoTimer); this.undoTimer = null; }
+    this.undoArmed = false;
+    if (this.undoBtn) this.undoBtn.textContent = 'Undo';
+  };
+
   Run.prototype.stop = function () {
-    if (this.state !== 'applying') return;
+    if (this.state !== 'applying' && this.state !== 'undoing') return;
     this.stopped = true;
     this.log('WARN', 'Stopping after the current request...');
   };
@@ -1116,9 +1281,16 @@
   // anything that changes tags during phase 2 is invisible to the plan being
   // applied. Rescanning until the plan comes back empty is how a run converges.
   Run.prototype.rescan = function () {
+    this.disarmUndo();
     var lines = this.lines.slice();
+    // Carried across the reset for the same reason `lines` is: both are the record
+    // of what this dialog has already done, and a rescan starts a pass rather than
+    // a session. Converging on an empty plan must not cost the ability to undo the
+    // passes that got there.
+    var undoable = this.undoable;
     this.reset();
     this.lines = lines;
+    this.undoable = undoable;
     this.log('INFO', '--- Rescan ---');
     while (this.logEl.firstChild) this.logEl.removeChild(this.logEl.firstChild);
     this.begin();
@@ -1156,6 +1328,7 @@
   };
 
   Run.prototype.close = function () {
+    this.disarmUndo();
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);

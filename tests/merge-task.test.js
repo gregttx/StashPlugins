@@ -56,6 +56,11 @@ function makeResponder(opts) {
       return { data: { findScenes: { scenes: (opts.scenes || SCENES)[pid] || [] } } };
     }
     if (/findTags/.test(q)) return { data: { findTags: { tags: [] } } };
+    // Undo's delta write. Matched ahead of the single-scene mutation even though the
+    // two names do not actually collide, so the order cannot become load-bearing.
+    if (/bulkSceneUpdate/.test(q)) {
+      return { data: { bulkSceneUpdate: req.variables.input.ids.map((id) => ({ id })) } };
+    }
     if (/sceneUpdate/.test(q)) {
       if (opts.failScene && opts.failScene(req)) return { errors: [{ message: 'nope' }] };
       return { data: { sceneUpdate: { id: req.variables.input.id } } };
@@ -71,7 +76,11 @@ function open(opts) {
   return h.flush(150).then(() => ({ env, d: () => h.dialog(env.body, 'cpt2s') }));
 }
 
+// The forward merge writes one scene at a time; the undo goes out as a bulk delta.
+// The two names do not overlap as substrings - bulkSceneUpdate capitalises the S -
+// so a plain match on each is enough to tell them apart.
 const sceneUpdates = (calls) => calls.filter((c) => /sceneUpdate/.test(c.query || ''));
+const bulkSceneUpdates = (calls) => calls.filter((c) => /bulkSceneUpdate/.test(c.query || ''));
 const merges = (d) => d().lines.filter((l) => l.indexOf('[MERGE]') === 0);
 
 Promise.resolve()
@@ -369,6 +378,153 @@ Promise.resolve()
     }).then(() => {
       h.check('a stopped run releases its lease too',
         (env.ctx.window.StashPluginCoop.leases || []).length === 0);
+    });
+  })
+
+  // ── Undo ─────────────────────────────────────────────────────────────────
+  //
+  // The one place this plugin removes a tag. The apply writes each scene's whole tag
+  // list because it is building one; the undo must not, or it would revert whatever
+  // else changed since - so it goes out as a REMOVE delta, grouped and chunked.
+  .then(() => open()).then(({ env, d }) => {
+    h.check('nothing to undo before anything is written', !d().visible('Undo'));
+    d().button('Proceed').click();
+    return h.flush(200).then(() => {
+      h.check('Undo is offered once the merge has written',
+        d().visible('Undo') && sceneUpdates(env.calls).length === 3);
+
+      d().button('Undo').click();
+      return h.flush(5).then(() => {
+        h.check('the first click only arms, naming the scope',
+          bulkSceneUpdates(env.calls).length === 0 && d().visible('Undo 3 scene(s)?'),
+          'armed caption wrong');
+
+        d().button('Undo 3 scene(s)?').click();
+        return h.flush(200).then(() => {
+          const undo = bulkSceneUpdates(env.calls);
+          h.check('the undo goes out as a delta, not a rewritten tag list',
+            undo.length > 0 && undo.every((c) => c.variables.input.tag_ids.mode === 'REMOVE'),
+            JSON.stringify(undo.map((c) => c.variables.input.tag_ids)));
+          const scenes = undo.reduce((n, c) => n + c.variables.input.ids.length, 0);
+          h.check('covering every scene the merge wrote', scenes === 3, 'got ' + scenes);
+          // Scenes 102 and 103 got one tag each from different performers, 104 the
+          // other - identical deltas group, so this is fewer requests than scenes.
+          h.check('scenes sharing a delta are grouped into one request', undo.length === 2,
+            'got ' + undo.length);
+          h.check('the log records the reversal',
+            d().lines.some((l) => l.indexOf('[MERGE] Undo - Scene ') === 0),
+            d().lines.join(' | ').slice(-300));
+          h.check('and the closing line says everything was taken back',
+            d().lines.some((l) => l.indexOf('Everything this dialog added has been taken back') !== -1),
+            d().lines.join(' | ').slice(-200));
+          h.check('Undo disappears once there is nothing left to reverse', !d().visible('Undo'));
+        });
+      });
+    });
+  })
+
+  // bulkSceneUpdate is exactly what this plugin's own auto-merge watches for, so an
+  // unguarded undo would merge the tags straight back in.
+  .then(() => open({ settings: { a3AutoMergeOnSceneUpdate: true } })).then(({ env, d }) => {
+    d().button('Proceed').click();
+    return h.flush(200).then(() => {
+      const before = env.calls.filter((c) => /FindScene\(/.test(c.query || '')).length;
+      d().button('Undo').click();
+      return h.flush(5).then(() => {
+        d().button('Undo 3 scene(s)?').click();
+        return h.flush(200).then(() => {
+          const after = env.calls.filter((c) => /FindScene\(/.test(c.query || '')).length;
+          h.check('the undo does not re-enter its own auto-merge', after === before,
+            before + ' -> ' + after);
+        });
+      });
+    });
+  })
+
+  // A scene the server refused was never merged, so it must not be reversed either.
+  .then(() => {
+    const inner = makeResponder();
+    let seen = 0;
+    const env = h.makeEnv({
+      quiet: true,
+      respond: (req, calls) => {
+        if (/sceneUpdate/.test(req.query || '') && !/bulkSceneUpdate/.test(req.query || '')) {
+          if (++seen === 2) return { errors: [{ message: 'nope' }] };
+        }
+        return inner(req, calls);
+      },
+    });
+    h.run(env.ctx, SRC);
+    h.startTask(env.ctx, TASK, PLUGIN_ID);
+    const d = () => h.dialog(env.body, 'cpt2s');
+    return h.flush(150).then(() => {
+      d().button('Proceed').click();
+      return h.flush(200).then(() => {
+        d().button('Undo').click();
+        return h.flush(5).then(() => {
+          h.check('a failed scene drops out of what Undo offers',
+            d().visible('Undo 2 scene(s)?'), 'armed caption wrong');
+          d().button('Undo 2 scene(s)?').click();
+          return h.flush(200).then(() => {
+            const scenes = bulkSceneUpdates(env.calls)
+              .reduce((n, c) => n + c.variables.input.ids.length, 0);
+            h.check('and the undo reverses only the scenes that landed', scenes === 2,
+              'got ' + scenes);
+          });
+        });
+      });
+    });
+  })
+
+  // The lease covers the undo too: it is a bulk write like any other.
+  .then(() => {
+    const seen = [];
+    const inner = makeResponder();
+    let env;
+    env = h.makeEnv({
+      quiet: true,
+      respond: (req, calls) => {
+        const held = ((env.ctx.window.StashPluginCoop || {}).leases || []);
+        seen.push({
+          undo: /bulkSceneUpdate/.test(req.query || ''),
+          leases: held.length,
+          label: held.length ? held[0].label : null,
+        });
+        return inner(req, calls);
+      },
+    });
+    h.run(env.ctx, SRC);
+    h.startTask(env.ctx, TASK, PLUGIN_ID);
+    const d = () => h.dialog(env.body, 'cpt2s');
+    return h.flush(150).then(() => {
+      d().button('Proceed').click();
+      return h.flush(200).then(() => {
+        d().button('Undo').click();
+        return h.flush(5).then(() => {
+          d().button('Undo 3 scene(s)?').click();
+          return h.flush(200).then(() => {
+            const during = seen.filter((s) => s.undo);
+            h.check('a lease is held across the undo',
+              during.length === 2 && during.every((s) => s.leases === 1), JSON.stringify(during));
+            h.check('and it names itself as an undo',
+              during.every((s) => s.label === TASK + ' (undo)'), JSON.stringify(during[0]));
+            h.check('released when the undo finishes',
+              (env.ctx.window.StashPluginCoop.leases || []).length === 0);
+          });
+        });
+      });
+    });
+  })
+
+  // Rescan starts a pass, not a session.
+  .then(() => open()).then(({ d }) => {
+    d().button('Proceed').click();
+    return h.flush(200).then(() => {
+      d().button('Rescan').click();
+      return h.flush(200).then(() => {
+        h.check('a rescan keeps what Undo can still reverse',
+          d().visible('Undo') && d().visible('Proceed'));
+      });
     });
   })
 

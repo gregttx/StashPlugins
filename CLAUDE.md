@@ -90,7 +90,8 @@ Rules that make this safe:
 - **Take one for every bulk run, even with nothing listening.** Neither plugin here honours the
   other's lease today — `NormalizeParentTags` is not reactive — so a bulk run taking one changes
   nothing in this repo. It is still the rule: the protocol is not ours alone, and a bulk run that
-  does not announce itself is exactly what a third plugin could not defend against.
+  does not announce itself is exactly what a third plugin could not defend against. **An Undo is a
+  bulk run too**, and both dialogs lease theirs, labelled `<task> (undo)`.
 - **Warn on someone else's, never stand down for it.** A bulk run is started by hand, and §7 of
   `MergePerformerTagsToScenes`' CLAUDE.md is that manual actions are not suppressed. Both dialogs
   therefore *say* a lease is held and carry on — an advisory the user can act on, not a lock.

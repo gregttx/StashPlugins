@@ -5,15 +5,17 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.5.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.6.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
 
 ## 1. What it does, and the five paths that do it
 
-Performer tags are copied onto scenes. Tags are only ever **added**, never removed — which is the
-assumption behind half the decisions below, because a wrong merge cannot be undone by the plugin.
+Performer tags are copied onto scenes. Merging only ever **adds** tags — which is the assumption
+behind half the decisions below, because a wrong merge cannot be taken back by the button that made
+it. The single exception is the library-wide task's **Undo** (§7b), which removes tags that same
+dialog added, and it is deliberately the only code in this plugin that removes a tag at all.
 
 Five entry points share one core:
 
@@ -42,8 +44,8 @@ The file is sectioned with `── ... ─` comments, in this order:
 7. Staging — `installTagSelectPatch`, `findSceneTagControl`, `stageTagsIntoSceneForm`
 8. `mergeTagsIntoAllPerformerScenes`
 9. Settings loading and its throttle
-10. **Library-wide task** — the dialog, the walk over every performer, and layer 1 of the
-    task-click interception
+10. **Library-wide task** — the dialog, the walk over every performer, the apply and its
+    Undo, and layer 1 of the task-click interception
 11. Fetch interception (layer 2 of the task interception sits at the top of the wrapper)
 12. Performer button
 13. Scene button
@@ -304,6 +306,37 @@ are advisory because a task click is manual, and §7's rule is that manual actio
 suppressed. Taking one anyway is the point of a protocol that is not ours alone — until 1.5.0 this
 run wrote across the whole library announcing nothing, which is the case a third plugin could not
 have defended against.
+
+## 7b. Undo (1.6.0)
+
+The task dialog can take its own writes back. It is the **only** thing in this plugin that removes
+a tag, and §1's "merging only ever adds" is written around that exception rather than despite it.
+
+**It cannot be the apply inverted, the way the sibling's is.** `applyEntry` writes each scene's
+*whole* tag list, because it is building one — `existingIds.concat(tagIds)`. Replaying that
+inverted would mean writing `existingIds` back, which reverts anything changed since. So the undo
+uses `removeSceneTags`: a `bulkSceneUpdate` with `tag_ids: { ids, mode: REMOVE }`, carrying only
+the tags this run added. Delta, never a restore — the same rule as the sibling's, reached by a
+different route because the forward writes differ.
+
+**It groups where the apply cannot.** The apply is per scene because each scene's list is its own;
+the undo only names tags to remove, so `buildUndoBatches` groups scenes by identical tag set and
+chunks at `TASK_UNDO_CHUNK`, exactly as `NormalizeParentTags`' `buildBatches` does.
+
+**`guarded()` around the whole undo is load-bearing, not decoration.** `bulkSceneUpdate` is
+precisely what this plugin's own auto-merge watches for (§3, "the two regexes are not redundant").
+Without the guard, an undo with Auto Merge On Scene Updates enabled would merge the tags straight
+back into every scene it had just cleaned. The test for this drives an undo with that setting on
+and asserts no `FindScene` query follows.
+
+Everything else matches the sibling and the reasoning is in §5's Phase 3 of its CLAUDE.md rather than
+repeated here: recorded on success only, newest scene first, session-scoped across a Rescan,
+offered in `ready` as well as `done` and always finishing in `done`, an arm/confirm carrying the
+scope in the caption, and a lease labelled `<task> (undo)`.
+
+**The head warning changed with it.** It used to read "Tags are only ever added, never removed -
+but there is no undo", and both halves of that are now wrong for this dialog. It leads with what
+the merge does, keeps the backup instruction, and states Undo's limits.
 
 ## 8. Logging
 

@@ -19,6 +19,8 @@
   var TASK_PAGE_SIZE   = 500;   // performers per page while walking the library
   var TASK_LOG_CAP     = 1000;  // log lines kept in the DOM; all of them stay in memory
   var TASK_FLUSH_MS    = 100;
+  var TASK_UNDO_CHUNK  = 100;   // scene ids per undo mutation
+  var TASK_UNDO_ARM_MS = 4000;  // how long Undo stays armed for its second click
 
   var settings = {
     showManualMergeButtons: false,
@@ -180,6 +182,20 @@
     return gqlRequest(
       'mutation SceneUpdate($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }',
       { input: { id: sceneId, tag_ids: tagIds } }
+    );
+  }
+
+  // Takes tags off scenes as a delta, which is the one place this plugin removes a
+  // tag at all - see the Undo section of the task. REMOVE rather than a rewritten
+  // list on purpose: the forward merge writes the whole list because it is building
+  // one, but an undo that rewrote the list would revert anything changed since,
+  // which is exactly what an undo must not do.
+  function removeSceneTags(sceneIds, tagIds) {
+    return gqlRequest(
+      'mutation BulkSceneUpdate($input: BulkSceneUpdateInput!) {' +
+      '  bulkSceneUpdate(input: $input) { id }' +
+      '}',
+      { input: { ids: sceneIds, tag_ids: { ids: tagIds, mode: 'REMOVE' } } }
     );
   }
 
@@ -817,6 +833,16 @@
     this.scenesUpdated = 0;
     this.tagsAdded = 0;
     this.errors = 0;
+    // What this dialog has written and can still take back: one entry per scene the
+    // server accepted, holding only the tags this run put there. Session-scoped like
+    // `lines` rather than pass-scoped - rescan() saves it across this call - so
+    // converging on an empty plan does not cost the ability to undo the passes that
+    // got there. Same rule as the sibling's Run.undoable.
+    this.undoable = [];
+    this.undone = 0;
+    this.undoFailed = 0;
+    this.undoneTagCounts = {};
+    this.undoTotal = 0;
     this.cancelled = false;
     this.stopped = false;
     // `lines` is the export buffer and survives a Rescan, because Copy log is meant
@@ -842,9 +868,13 @@
 
     var head = taskEl('div', 'cpt2s-head');
     head.appendChild(taskEl('div', 'cpt2s-title', PLUGIN_NAME + ' - ' + this.taskName));
+    // The merge only ever adds tags. Undo is the single exception in this plugin -
+    // it takes back what this dialog itself added - and it is not a restore, so the
+    // backup instruction stays and its limits are stated beside it.
     head.appendChild(taskEl('div', 'cpt2s-warn',
-      'Tags are only ever added, never removed - but there is no undo. Back up your database ' +
-      'before the first run.'));
+      'The merge only ever adds tags. Back up your database before the first run: Undo reverses ' +
+      'what this dialog added, only while it stays open, and cannot account for changes made ' +
+      'elsewhere in the meantime.'));
     this.noteEl = taskEl('div', 'cpt2s-note', '');
     head.appendChild(this.noteEl);
     this.modal.appendChild(head);
@@ -860,19 +890,23 @@
     this.cancelBtn  = taskButton('Cancel', 'cpt2s-cancel');
     this.stopBtn    = taskButton('Stop', 'cpt2s-stop cpt2s-hidden');
     this.copyBtn    = taskButton('Copy log', 'cpt2s-copy');
+    this.undoBtn    = taskButton('Undo', 'cpt2s-undo cpt2s-hidden');
     this.rescanBtn  = taskButton('Rescan', 'cpt2s-rescan cpt2s-hidden');
     this.closeBtn   = taskButton('Close', 'cpt2s-close cpt2s-hidden');
     this.proceedBtn.disabled = true;
+    this.undoBtn.title = 'Remove the tags this dialog added, from the scenes it added them to. ' +
+      'Only what this dialog wrote, and only while it stays open.';
 
     this.proceedBtn.addEventListener('click', function () { self.proceed(); });
     this.cancelBtn.addEventListener('click', function () { self.cancel(); });
     this.stopBtn.addEventListener('click', function () { self.stop(); });
     this.copyBtn.addEventListener('click', function () { self.copy(); });
+    this.undoBtn.addEventListener('click', function () { self.undo(); });
     this.rescanBtn.addEventListener('click', function () { self.rescan(); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
 
-    [this.proceedBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.rescanBtn, this.closeBtn]
-      .forEach(function (b) { foot.appendChild(b); });
+    [this.proceedBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.undoBtn,
+      this.rescanBtn, this.closeBtn].forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
     document.body.appendChild(this.backdrop);
@@ -891,9 +925,17 @@
     this.state = state;
     var scanning = state === 'scanning', ready = state === 'ready';
     var applying = state === 'applying', done = state === 'done';
+    // Undoing is a write like applying, so it offers Stop and nothing else: Rescan
+    // would plan against a library being changed underneath it, and Close would
+    // abandon the reversal halfway with no way back to it.
+    var undoing = state === 'undoing';
     this.show(this.proceedBtn, scanning || ready);
     this.show(this.cancelBtn, scanning || ready);
-    this.show(this.stopBtn, applying);
+    this.show(this.stopBtn, applying || undoing);
+    // Offered in ready as well as done: a rescan leaves the dialog holding a fresh
+    // plan over a library an earlier pass already changed, and that is exactly when
+    // the user is deciding between merging more and taking back what is there.
+    this.show(this.undoBtn, (ready || done) && this.undoable.length > 0);
     this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
     this.proceedBtn.disabled = !ready || !this.plan.length;
@@ -958,9 +1000,12 @@
         this.tagsPlanned + ' tag assignment(s) to add. Nothing has been written.';
     } else if (this.state === 'applying') {
       summary = 'Merging. ' + this.scenesUpdated + ' of ' + this.plan.length + ' scene(s) updated';
+    } else if (this.state === 'undoing') {
+      summary = 'Undoing. ' + this.undone + ' of ' + this.undoTotal + ' scene(s) reversed';
     } else {
       summary = 'Finished. ' + this.scenesUpdated + ' scene(s) updated, ' +
         this.tagsAdded + ' tag assignment(s) added' +
+        (this.undone ? ', ' + this.undone + ' scene(s) reversed by Undo' : '') +
         (this.stopped ? ' (stopped early; what was written stays written)' : '');
     }
     if (this.errors) summary += ', ' + this.errors + ' error(s)';
@@ -1181,6 +1226,10 @@
   TaskRun.prototype.applyEntry = function (entry) {
     var self = this;
     return updateSceneTags(entry.scene.id, entry.existingIds.concat(entry.tagIds)).then(function () {
+      // Recorded only once the server has taken it, so Undo can never try to reverse
+      // a write that never landed. Only the tags this run added are kept: the scene's
+      // own tags are none of Undo's business.
+      self.undoable.push({ scene: entry.scene, tagIds: entry.tagIds.slice() });
       self.scenesUpdated++;
       self.tagsAdded += entry.tagIds.length;
       entry.tagIds.forEach(function (id) {
@@ -1221,10 +1270,156 @@
     }
   };
 
+  // ── Undo ──────────────────────────────────────────────────────────────────
+  //
+  // Takes back the tags this dialog added, as a REMOVE delta per scene. What it is
+  // *not* is a restore: it reverses this dialog's own writes and nothing else, it
+  // cannot see a change made in between, and it dies with the tab. The head of the
+  // dialog says so and the backup instruction stays where it was.
+  //
+  // The apply writes one scene at a time because it is building each scene's whole
+  // tag list; the undo has no such need, so it groups scenes by the set of tags to
+  // take off - the same trick as the sibling's buildBatches - and one mutation
+  // serves up to TASK_UNDO_CHUNK of them.
+  function buildUndoBatches(entries) {
+    var groups = {}, order = [];
+    entries.forEach(function (entry) {
+      var tagIds = entry.tagIds.slice().sort();
+      var key = tagIds.join(',');
+      if (!hasOwn(groups, key)) {
+        groups[key] = { tagIds: tagIds, entries: [] };
+        order.push(key);
+      }
+      groups[key].entries.push(entry);
+    });
+
+    var batches = [];
+    order.forEach(function (key) {
+      var g = groups[key];
+      for (var i = 0; i < g.entries.length; i += TASK_UNDO_CHUNK) {
+        batches.push({ tagIds: g.tagIds, entries: g.entries.slice(i, i + TASK_UNDO_CHUNK) });
+      }
+    });
+    return batches;
+  }
+
+  // Allowed from ready and done - anywhere the dialog is not itself mid-write. It
+  // finishes in done either way: once the writes are reversed, a plan reviewed
+  // against the library as it was no longer describes it, so Rescan is the honest
+  // next step rather than a Proceed left armed over stale ground.
+  TaskRun.prototype.undo = function () {
+    if ((this.state !== 'ready' && this.state !== 'done') || !this.undoable.length) return;
+    var self = this;
+
+    // A single click here starts a library-wide write, in the one state where the
+    // user is most likely to be clicking around - Copy log, Rescan and Close are its
+    // neighbours - so it arms and asks. The count is what makes the prompt worth
+    // reading: it is the scope of the reversal, not a generic "are you sure".
+    if (!this.undoArmed) {
+      this.undoArmed = true;
+      this.undoBtn.textContent = 'Undo ' + this.undoable.length + ' scene(s)?';
+      this.undoTimer = setTimeout(function () { self.disarmUndo(); }, TASK_UNDO_ARM_MS);
+      return;
+    }
+    this.disarmUndo();
+
+    this.setState('undoing');
+    this.stopped = false;
+    this.undone = 0;
+    this.undoFailed = 0;
+    this.undoneTagCounts = {};
+    this.undoTotal = this.undoable.length;
+    this.log('INFO', 'Undoing the merge on ' + this.undoTotal + ' scene(s) - ' +
+      new Date().toISOString());
+
+    // Newest first, the order that composes: a rescan-and-apply cycle can write to
+    // one scene twice, and taking the second write back before the first is the only
+    // sequence that lands where the run started.
+    var batches = buildUndoBatches(this.undoable.slice().reverse());
+    // An undo is a bulk write like any other, so it announces itself the same way.
+    var lease = acquireLease(this.taskName + ' (undo)');
+    var i = 0;
+
+    // One guard around the whole undo, exactly as the apply has: every scene it
+    // writes would otherwise look to our own fetch wrapper like a user edit - and
+    // bulkSceneUpdate is precisely what auto-merge on scene update watches for, so
+    // without this the plugin would merge the tags straight back in.
+    guarded(function () {
+      function nextBatch() {
+        if (self.stopped || i >= batches.length) return Promise.resolve();
+        lease.renew();
+        return self.undoBatch(batches[i++]).then(nextBatch);
+      }
+      return nextBatch();
+    }).then(function () {
+      lease.release();
+      self.finishUndo();
+    }, function (e) {
+      lease.release();
+      self.log('ERROR', 'Undo aborted: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      self.finishUndo();
+    });
+  };
+
+  TaskRun.prototype.undoBatch = function (batch) {
+    var self = this;
+    var ids = batch.entries.map(function (e) { return e.scene.id; });
+    return removeSceneTags(ids, batch.tagIds).then(function () {
+      batch.entries.forEach(function (entry) {
+        // Dropped from the record as it is reversed, so a Stop halfway leaves behind
+        // exactly the scenes that still carry what this run added.
+        var at = self.undoable.indexOf(entry);
+        if (at !== -1) self.undoable.splice(at, 1);
+        entry.tagIds.forEach(function (id) {
+          self.undoneTagCounts[id] = (hasOwn(self.undoneTagCounts, id) ? self.undoneTagCounts[id] : 0) + 1;
+        });
+        self.undone++;
+        self.log('MERGE', 'Undo - Scene ' + sceneLogLabel(entry.scene, entry.scene.id) + ' - ' +
+          entry.tagIds.length + ' tag(s) removed again');
+      });
+      self.renderProgress();
+    }, function (e) {
+      self.log('ERROR', 'Undo failed for ' + ids.length + ' scene(s) (' +
+        ids.slice(0, 5).join(', ') + (ids.length > 5 ? ', ...' : '') + '): ' +
+        (e && e.message ? e.message : e));
+      self.errors++;
+      self.undoFailed += batch.entries.length;
+    });
+  };
+
+  TaskRun.prototype.finishUndo = function () {
+    this.log('INFO', 'Undo finished. ' + this.undone + ' scene(s) reversed' +
+      (this.undoFailed ? ', ' + this.undoFailed + ' could not be' : '') +
+      (this.stopped ? ' (stopped early; what was reversed stays reversed)' : '') +
+      (this.undoable.length
+        ? '. ' + this.undoable.length + ' scene(s) still carry what this run added.'
+        : '. Everything this dialog added has been taken back.'));
+    this.logTagSummary(this.undoneTagCounts, 'removed again');
+    this.setState('done');
+    this.flush();
+
+    // Same reasoning as finishApply: evict the cached scene list directly rather
+    // than through refreshSceneList, whose fallback would reload the page and tear
+    // this dialog down along with its log.
+    var client = window.__APOLLO_CLIENT__;
+    if (client && client.cache && client.cache.evict) {
+      client.cache.evict({ id: 'ROOT_QUERY', fieldName: 'findScenes' });
+      client.cache.gc();
+    }
+  };
+
+  TaskRun.prototype.disarmUndo = function () {
+    if (this.undoTimer) { clearTimeout(this.undoTimer); this.undoTimer = null; }
+    this.undoArmed = false;
+    if (this.undoBtn) this.undoBtn.textContent = 'Undo';
+  };
+
   TaskRun.prototype.stop = function () {
-    if (this.state !== 'applying') return;
+    if (this.state !== 'applying' && this.state !== 'undoing') return;
     this.stopped = true;
-    this.log('WARN', 'Stopping after the current scene...');
+    this.log('WARN', 'Stopping after the current ' +
+      (this.state === 'undoing' ? 'request' : 'scene') + '...');
   };
 
   TaskRun.prototype.cancel = function () {
@@ -1238,9 +1433,16 @@
   // the plan being applied. Rescanning until it comes back empty is how a run
   // converges.
   TaskRun.prototype.rescan = function () {
+    this.disarmUndo();
     var lines = this.lines.slice();
+    // Carried across the reset for the same reason `lines` is: both are the record
+    // of what this dialog has already done, and a rescan starts a pass rather than
+    // a session. Converging on an empty plan must not cost the ability to undo the
+    // passes that got there.
+    var undoable = this.undoable;
     this.reset();
     this.lines = lines;
+    this.undoable = undoable;
     this.log('INFO', '--- Rescan ---');
     while (this.logEl.firstChild) this.logEl.removeChild(this.logEl.firstChild);
     this.begin();
@@ -1278,6 +1480,7 @@
   };
 
   TaskRun.prototype.close = function () {
+    this.disarmUndo();
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);

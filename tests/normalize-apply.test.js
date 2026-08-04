@@ -397,4 +397,192 @@ Promise.resolve()
     h.check('no lease means no note', d().note === '', d().note);
   })
 
+  // ── Undo ─────────────────────────────────────────────────────────────────
+  //
+  // The reversal is the same mutations with ADD and REMOVE swapped, so what matters
+  // is that it is a delta rather than a restore, that it only ever covers writes the
+  // server accepted, and that it cannot fire on one click.
+  .then(() => scan({ entities: bigLibrary() })).then(({ env, d }) => {
+    h.check('nothing to undo before anything is written', !d().visible('Undo'));
+    d().button('Proceed').click();
+    return h.flush().then(() => {
+      const applied = h.bulkCalls(env.calls).length;
+      h.check('Undo is offered once the apply has written', d().visible('Undo') && applied === 4);
+
+      // One click arms and writes nothing: Undo starts a library-wide write next to
+      // Copy log, Rescan and Close.
+      d().button('Undo').click();
+      return h.flush(5).then(() => {
+        h.check('the first click only arms, naming the scope',
+          h.bulkCalls(env.calls).length === applied && d().visible('Undo 253 change(s)?'),
+          d().button('Undo') ? 'still plain' : 'armed');
+
+        d().button('Undo 253 change(s)?').click();
+        return h.flush().then(() => {
+          const undo = h.bulkCalls(env.calls).slice(applied);
+          h.check('the undo issues one mutation per applied batch', undo.length === 4,
+            'got ' + undo.length);
+          h.check('and every one of them is the inverse mode',
+            undo.every((c) => c.variables.input.tag_ids.mode === 'ADD'),
+            JSON.stringify(undo.map((c) => c.variables.input.tag_ids.mode)));
+          // A rewritten tag list would revert whatever else changed since; a delta
+          // touches only what the run wrote.
+          h.check('the undo writes deltas, not whole tag lists',
+            undo.every((c) => Array.isArray(c.variables.input.tag_ids.ids) &&
+              Array.isArray(c.variables.input.ids)));
+          h.check('it reverses the same entities the apply wrote',
+            undo.reduce((n, c) => n + c.variables.input.ids.length, 0) === 253);
+          h.check('the log records the reversal',
+            d().lines.some((l) => l.indexOf('[ADD] Undo - ') === 0), d().lines.join(' | ').slice(0, 200));
+          h.check('and the closing line says everything was taken back',
+            d().lines.some((l) => l.indexOf('Everything this dialog wrote has been taken back') !== -1),
+            d().lines.join(' | ').slice(-200));
+          h.check('Undo disappears once there is nothing left to reverse', !d().visible('Undo'));
+          h.check('the dialog is closable again', d().visible('Close') && d().visible('Rescan'));
+        });
+      });
+    });
+  })
+
+  // Prune removes, so its undo adds; Roll Up adds, so its undo removes. The inverse
+  // is read off what was written, not off which task is running.
+  .then(() => scan({
+    entities: {
+      findScenes: {
+        node: 'scenes',
+        list: [{ id: '20', title: 'Leaf', organized: false, tags: [{ id: '3' }] }],
+      },
+    },
+  }, h.TASK_ROLLUP)).then(({ env, d }) => {
+    d().button('Proceed').click();
+    return h.flush().then(() => {
+      const applied = h.bulkCalls(env.calls);
+      h.check('a roll up writes ADD',
+        applied.length === 1 && applied[0].variables.input.tag_ids.mode === 'ADD');
+      d().button('Undo').click();
+      return h.flush(5).then(() => {
+        h.check('the roll up arms with its own count', d().visible('Undo 1 change(s)?'),
+          'armed caption wrong');
+        d().button('Undo 1 change(s)?').click();
+        return h.flush().then(() => {
+          const undo = h.bulkCalls(env.calls).slice(applied.length);
+          h.check("a roll up's undo removes what it added",
+            undo.length === 1 && undo[0].variables.input.tag_ids.mode === 'REMOVE',
+            JSON.stringify(undo.map((c) => c.variables.input.tag_ids.mode)));
+          h.check('taking back exactly the tags it added',
+            undo[0].variables.input.tag_ids.ids.join(',') ===
+            applied[0].variables.input.tag_ids.ids.join(','),
+            JSON.stringify(undo[0].variables.input.tag_ids.ids));
+        });
+      });
+    });
+  })
+
+  // A batch the server refused was never applied, so it must not be reversed either.
+  .then(() => {
+    let seen = 0;
+    const responder = h.makeResponder({ entities: bigLibrary() });
+    const env = h.makeEnv({
+      quiet: true,
+      respond: (req, calls) => {
+        // Fail the second of the four apply batches.
+        if (/mutation NPT_bulk/.test(req.query || '') && ++seen === 2) {
+          return { errors: [{ message: 'nope' }] };
+        }
+        return responder(req, calls);
+      },
+    });
+    h.run(env.ctx);
+    h.startTask(env.ctx, h.TASK_PRUNE);
+    return h.flush().then(() => {
+      const d = () => h.dialog(env.body);
+      d().button('Proceed').click();
+      return h.flush().then(() => {
+        h.check('a failed batch drops out of what Undo offers',
+          d().visible('Undo 153 change(s)?') === false && d().visible('Undo'));
+        d().button('Undo').click();
+        return h.flush(5).then(() => {
+          h.check('the armed count covers only the batches that landed',
+            d().visible('Undo 153 change(s)?'), 'armed caption wrong');
+          d().button('Undo 153 change(s)?').click();
+          return h.flush().then(() => {
+            const undo = h.bulkCalls(env.calls).filter(
+              (c) => c.variables.input.tag_ids.mode === 'ADD');
+            h.check('and the undo reverses only those',
+              undo.reduce((n, c) => n + c.variables.input.ids.length, 0) === 153);
+          });
+        });
+      });
+    });
+  })
+
+  // The lease covers the undo too: it is a bulk write like any other.
+  .then(() => {
+    const seen = [];
+    const responder = h.makeResponder({ entities: bigLibrary() });
+    let env;
+    env = h.makeEnv({
+      quiet: true,
+      respond: (req, calls) => {
+        const held = ((env.ctx.window.StashPluginCoop || {}).leases || []);
+        seen.push({
+          undo: /mutation NPT_bulk/.test(req.query || '') &&
+            (req.variables.input.tag_ids || {}).mode === 'ADD',
+          leases: held.length,
+          label: held.length ? held[0].label : null,
+        });
+        return responder(req, calls);
+      },
+    });
+    h.run(env.ctx);
+    h.startTask(env.ctx, h.TASK_PRUNE);
+    return h.flush().then(() => {
+      const d = () => h.dialog(env.body);
+      d().button('Proceed').click();
+      return h.flush().then(() => {
+        d().button('Undo').click();
+        return h.flush(5).then(() => {
+          d().button('Undo 253 change(s)?').click();
+          return h.flush().then(() => {
+            const during = seen.filter((s) => s.undo);
+            h.check('a lease is held across the undo',
+              during.length === 4 && during.every((s) => s.leases === 1),
+              JSON.stringify(during));
+            h.check('and it names itself as an undo',
+              during.every((s) => s.label === h.TASK_PRUNE + ' (undo)'), JSON.stringify(during[0]));
+            h.check('released when the undo finishes',
+              (env.ctx.window.StashPluginCoop.leases || []).length === 0);
+          });
+        });
+      });
+    });
+  })
+
+  // Rescan starts a pass, not a session: the record of what earlier passes wrote is
+  // exactly what Undo is for, and converging must not cost it.
+  .then(() => scan({ entities: bigLibrary() })).then(({ d }) => {
+    d().button('Proceed').click();
+    return h.flush().then(() => {
+      d().button('Rescan').click();
+      return h.flush().then(() => {
+        // The rescan lands in ready, holding a fresh plan over a library the first
+        // pass already changed - the moment Undo is most likely to be wanted.
+        h.check('a rescan keeps what Undo can still reverse',
+          d().visible('Undo') && d().visible('Proceed'));
+        d().button('Undo').click();
+        return h.flush(5).then(() => {
+          h.check('and still offers the whole session', d().visible('Undo 253 change(s)?'),
+            'armed caption wrong');
+          d().button('Undo 253 change(s)?').click();
+          return h.flush().then(() => {
+            // The reviewed plan predates the reversal, so Proceed must not stay armed
+            // over ground that has just moved.
+            h.check('undoing from ready ends in done, not back at Proceed',
+              d().visible('Rescan') && d().visible('Close') && !d().visible('Proceed'));
+          });
+        });
+      });
+    });
+  })
+
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

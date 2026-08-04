@@ -7,6 +7,10 @@
 > is restoring your database file. Stop Stash, copy `stash-go.sqlite` (next to your `config.yml`)
 > somewhere safe, start Stash again — then run the task. Review the dry-run log properly the
 > first time; that is what it is for.
+>
+> The dialog does have an **[Undo](#undo)** button, but it only reaches its own writes and only
+> while it stays open. It is a way out of a run you regret in the moment, not a safety net — the
+> backup is the safety net.
 
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (two of the exclusion filters) and the
 > `organized` flag on studios both depend on it.
@@ -96,6 +100,33 @@ screen (the dialog says how many are hidden); **Copy log** always copies all of 
 **Rescan** starts the next pass with an empty view, so there is nothing to clear by hand. Once
 changes have been written the log is the only record of what happened — **Copy log** it before you
 rescan if you want to keep it.
+
+## Undo
+
+Once a run has written something, an **Undo** button appears. It reverses every change the dialog
+has made — Prune puts the tags it removed back, Roll Up takes the tags it added off again — and it
+covers the whole session, so a run you applied, rescanned and applied again comes back in one go.
+
+The first click arms it and shows the scope (*"Undo 253 change(s)?"*); a second click within a few
+seconds carries it out. Clicking anything else, or waiting, disarms it.
+
+**Undo is not a database restore, and it is not a substitute for the backup.** Three limits, all of
+them worth knowing before you rely on it:
+
+- **It only lives as long as the dialog.** Close it, navigate away, or reload the page and the
+  record is gone. There is no way to undo a run from a later session.
+- **It only knows about its own writes.** It puts back exactly the tag assignments this dialog
+  changed and touches nothing else. That is deliberate — it is written as an add/remove delta
+  rather than by restoring an old tag list, so it cannot wipe out an unrelated edit you made in
+  between.
+- **It cannot see what happened in the meantime.** If you deliberately re-added a tag that Prune
+  removed, Undo will not notice and will add it again (harmlessly). If something else added a tag
+  that Roll Up also added, Undo removes it. Neither case loses anything Undo did not write, but the
+  result is not always exactly where you started.
+
+A failed request is never reversed, since nothing was written for it. **Stop** halts an undo after
+the current request; whatever it has already put back stays put back, and the button comes straight
+back for the rest.
 
 ## Browsing the tag hierarchy
 

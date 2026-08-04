@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.11.2.** This file is both the design and the map of the code — the
+**Status: implemented at 0.12.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -32,9 +32,11 @@ label, and the short form ("Prune Parent Tags") reads as though it edits the tag
 prepositions carry the direction as well as the target.
 
 **This plugin can destroy a tagging scheme in one click.** Prune deletes tag assignments library-
-wide, Stash has no undo, and the only recovery is a database restore. Every surface — manifest
-description, task descriptions, README, and the dry-run dialog itself — must tell the user to
-back up their database before the first run. Do not let that get edited out for brevity.
+wide, Stash has no undo, and the only recovery from a run you have walked away from is a database
+restore. Every surface — manifest description, task descriptions, README, and the dry-run dialog
+itself — must tell the user to back up their database before the first run. Do not let that get
+edited out for brevity, and in particular do not let the Undo button in §5 be presented as making
+the backup unnecessary: it reaches its own writes, and only while the dialog is open.
 
 The two are inverses in the useful sense: Roll Up then Prune returns the original antichain
 (minus whatever the exclusion filters protected).
@@ -207,7 +209,7 @@ test passed against the unfixed build until it did.
 A protected tag never breaks correctness: a parent kept back by a filter is still implied by its
 descendant, and the descendant's own status is unaffected.
 
-## 5. Scale and the two-phase dialog
+## 5. Scale and the dialog's three phases
 
 ### Fetching entities
 
@@ -377,6 +379,54 @@ is. Anything else parked in the head needs the same treatment.
 that changes tags *during* phase 2 — the sibling plugin in §8, another browser tab, a running
 scan — is invisible to the plan that is being applied. Rescan is how the user converges: run,
 rescan, see an empty plan, and know the library is normalized.
+
+### Phase 3 — undo (0.12.0)
+
+The dialog can take its own writes back. It exists because the review pass answers "is this what I
+meant?" only as well as the user reads it, and a six-figure log is not read closely — the first
+honest signal that a Prune was misconfigured is the library afterwards.
+
+**It is the apply, inverted.** `applyBatch` records each batch the server accepted on `undoable`;
+`undoBatch` replays it with `ADD` and `REMOVE` swapped. Nothing else is stored, and nothing is
+recomputed — the batch *is* the record, which is why the grouping that made the apply cheap makes
+the undo cheap too.
+
+**A delta, never a restore.** It would have been simpler to keep each entity's pre-run tag list and
+`SET` it back. That is wrong: it would revert every unrelated edit made in between, which is the
+one thing an undo must not do. `ADD`/`REMOVE` touches only the assignments the run itself changed,
+for the same reason phase 2 writes deltas in the first place (§5).
+
+**Newest batch first.** A rescan-and-apply cycle can write to one entity twice, and taking the
+second write back before the first is the only order that lands where the run started.
+
+**Recorded on success only.** A failed batch changed nothing, so it must not be reversed —
+otherwise a `REMOVE` that the server refused would be "undone" by an `ADD` that puts a tag
+somewhere it never was. This is the same discipline as the applied tag recap being counted from
+writes rather than from the plan.
+
+**Session-scoped, like `lines`.** `reset()` clears it and `rescan()` saves it across the call.
+Converging on an empty plan is the normal way to finish a run, and losing the ability to undo at
+exactly that moment would be the worst possible time.
+
+**Offered in `ready` as well as `done`,** because a rescan leaves the dialog holding a fresh plan
+over a library the previous pass already changed — precisely when the user is choosing between
+applying more and taking back what is there. It always finishes in `done`: a plan reviewed against
+the library as it was no longer describes it, so Rescan is the honest next step rather than a
+Proceed left armed over stale ground.
+
+**It arms and asks.** One click sets the caption to `Undo N change(s)?`, a second within
+`UNDO_ARM_MS` carries it out, and Rescan/Close disarm it. This is the same mechanism removed from
+Clear log at 0.10.0 and the reasoning is not in tension: Clear log's safe use was covered by another
+button and its unsafe use was discarding a log, whereas Undo has no alternative and starts a
+library-wide write from the state where Copy log, Rescan and Close are its immediate neighbours.
+The count is what earns the prompt — it states the scope rather than asking a generic "are you
+sure".
+
+**It takes a lease** labelled `<task> (undo)`, because it is a bulk write like any other (§8).
+
+**The head warning changed with it.** "This cannot be undone" was true and is no longer, so it now
+leads with the backup instruction and states Undo's three limits — own writes, open dialog, blind
+to concurrent changes — rather than leaving them to be discovered.
 
 ## 5a. The hierarchy viewer (0.7.0)
 
@@ -674,6 +724,12 @@ cover:
   `configuration { plugins }` response raises the dialog warning, and its absence does not.
 - **Someone else's lease** — one held at `begin()` is warned about, names its owner and label in
   the head, and does not disable Proceed; no lease leaves the head empty.
+- **Undo** — not offered before a write; one click arms with the scope in the caption and writes
+  nothing; the reversal issues one mutation per applied batch, every one of them the inverse mode
+  and a delta rather than a tag list; a failed batch is left out of both the armed count and the
+  reversal; a lease is held across it and named `(undo)`; a rescan keeps it; and undoing from
+  `ready` lands in `done` rather than back at Proceed. Roll Up is covered as well as Prune, since
+  the inverse is read off what was written and not off the task.
 
 The suites cannot confirm Stash's own behaviour (page markup, `BulkUpdateIds` semantics), so any
 change here still needs one run against a real instance — preferably a copy of the library.

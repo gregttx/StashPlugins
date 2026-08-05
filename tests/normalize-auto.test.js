@@ -332,28 +332,28 @@ Promise.resolve()
 
   // ── The both-modes-on notice on the settings page ─────────────────────────
   //
-  // Both modes on runs neither, which is safe and invisible. The notice is the
-  // only thing that makes it visible, and it must never do more than report.
+  // Both modes on runs neither, which is safe and invisible. The notice makes it
+  // visible, next to the two checkboxes, and must never do more than report.
   //
-  // The DOM here mirrors what Stash actually builds, because two earlier attempts
-  // at this were tested against markup invented from the same wrong guess as the
-  // code and so agreed with it rather than with Stash:
+  // The DOM mirrors what Stash builds. Earlier versions of this suite invented it
+  // from the same guesses as the code, so they agreed with the bugs:
   //
   //   <div class="setting-group collapsible">
-  //     <div class="setting"><div><h3>Normalize Parent Tags (1.2.1)</h3>...</div></div>
-  //     <div class="collapse">                     <- shut by default
-  //       <div class="setting">... <input id="plugin-NormalizeParentTags-a8..."></div>
+  //     <div class="setting"><div><h3>Normalize Parent Tags (1.2.5)</h3></div></div>
+  //     <div class="collapse">
+  //       <div class="setting"><input id="plugin-NormalizeParentTags-a8..." checked></div>
+  //       <div class="setting"><input id="plugin-NormalizeParentTags-a9..." checked></div>
   //     </div>
   //   </div>
 
   .then(() => {
-    // `opts.ids` builds the settings inputs Stash gives ids to; `opts.heading`
-    // sets the group heading text; either can be omitted to model an older Stash.
-    function settingsPage(settings, opts) {
+    // `checks` sets the two checkboxes; pass null for a Stash whose settings inputs
+    // cannot be read, which is the only case that falls back to querying the server.
+    function page(checks, opts) {
       opts = opts || {};
-      const env = boot(settings);
+      const env = boot(opts.settings);
       const other = h.makeElement('div');
-      other.className = 'setting-group collapsible';
+      other.className = 'setting-group';
       const otherH = h.makeElement('h3');
       otherH.textContent = 'Some Other Plugin (2.0.0)';
       other.appendChild(otherH);
@@ -364,51 +364,53 @@ Promise.resolve()
       header.className = 'setting';
       const headBox = h.makeElement('div');
       const heading = h.makeElement('h3');
-      heading.textContent = opts.heading === undefined
-        ? 'Normalize Parent Tags (1.2.1)' : opts.heading;
+      heading.textContent = 'Normalize Parent Tags (1.2.5)';
       headBox.appendChild(heading);
       header.appendChild(headBox);
       group.appendChild(header);
 
-      // The settings themselves sit inside the collapsed section.
       const collapsed = h.makeElement('div');
       collapsed.className = 'collapse';
-      if (opts.ids !== false) {
-        ['a8AutoPruneOnUpdate', 'a9AutoRollUpOnUpdate'].forEach((k) => {
-          const row = h.makeElement('div');
-          row.className = 'setting';
-          const input = h.makeElement('input');
-          input.id = 'plugin-NormalizeParentTags-' + k;
-          row.appendChild(input);
-          collapsed.appendChild(row);
-        });
-      }
+      const rows = {};
+      [['a8AutoPruneOnUpdate', 0], ['a9AutoRollUpOnUpdate', 1]].forEach(([k, i]) => {
+        const row = h.makeElement('div');
+        row.className = 'setting';
+        const input = h.makeElement('input');
+        input.id = 'plugin-NormalizeParentTags-' + k;
+        if (checks) input.checked = checks[i];
+        row.appendChild(input);
+        collapsed.appendChild(row);
+        rows[k] = { row, input };
+      });
       group.appendChild(collapsed);
 
       env.ctx.document.body.appendChild(other);
       env.ctx.document.body.appendChild(group);
-      return { env, group, other, header, collapsed };
+      return { env, group, other, collapsed, rows };
     }
     const notice = (env) => env.ctx.document.getElementById('npt-conflict-notice');
 
-    const a = settingsPage({ a9AutoRollUpOnUpdate: true });
+    const a = page([true, true]);
+    const before = a.env.calls.length;
     a.env.tick();
     return h.flush().then(() => {
       const n = notice(a.env);
-      h.check('both modes on shows a notice', !!n);
+      h.check('both boxes ticked shows a notice', !!n);
       h.check('it names both settings and says neither is running',
         !!n && n.textContent.indexOf('Auto Prune on Entity Updates') !== -1 &&
         n.textContent.indexOf('Auto Roll Up on Entity Updates') !== -1 &&
         n.textContent.indexOf('neither is running') !== -1, n && n.textContent);
-      // Top of the group box, not inside the collapsed section - otherwise it is
-      // hidden until you expand the group it is telling you to look at.
-      h.check('it goes at the top of our group box',
-        !!n && n.parentNode === a.group && a.group.childNodes.indexOf(n) === 0,
-        n ? String(a.group.childNodes.indexOf(n)) : 'missing');
-      h.check('and not inside the collapsed section',
-        a.collapsed.descendants().indexOf(n) === -1);
+      // Beside the checkboxes it is about, not up at the group header where an
+      // expanded group puts it off the top of the screen.
+      h.check('it sits immediately above the Auto Prune row',
+        !!n && n.parentNode === a.collapsed &&
+        a.collapsed.childNodes.indexOf(n) === a.collapsed.childNodes.indexOf(a.rows.a8AutoPruneOnUpdate.row) - 1,
+        n ? 'at ' + a.collapsed.childNodes.indexOf(n) : 'missing');
       h.check('and not in the other plugin group',
         a.other.descendants().indexOf(n) === -1);
+      // The whole point of reading the DOM: no round trip, so no lag.
+      h.check('reading the checkboxes costs no settings query',
+        a.env.calls.length === before, 'issued ' + (a.env.calls.length - before));
 
       a.env.tick();
       return h.flush().then(() => {
@@ -417,28 +419,49 @@ Promise.resolve()
         h.check('repeated ticks do not duplicate it', all.length === 1, 'got ' + all.length);
         h.check('it writes nothing', h.bulkCalls(a.env.calls).length === 0 &&
           !a.env.calls.some((c) => /configurePlugin/.test(c.query || '')));
+
+        // Untick one: the notice must follow the checkbox, not the saved config.
+        // The responder still reports both modes on, so anything reading the server
+        // would leave the notice up.
+        a.rows.a9AutoRollUpOnUpdate.input.checked = false;
+        a.env.tick();
+        return h.flush().then(() => {
+          h.check('unticking one takes it down at once, without waiting for a save',
+            !notice(a.env));
+          a.rows.a9AutoRollUpOnUpdate.input.checked = true;
+          a.env.tick();
+          return h.flush().then(() => {
+            h.check('and re-ticking brings it straight back', !!notice(a.env));
+          });
+        });
       });
     });
   })
 
-  // Only one mode on: no notice.
+  // One box ticked: nothing to say.
   .then(() => {
     const env = boot();
     const group = h.makeElement('div');
     group.className = 'setting-group';
-    const input = h.makeElement('input');
-    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
-    group.appendChild(input);
+    [['a8AutoPruneOnUpdate', true], ['a9AutoRollUpOnUpdate', false]].forEach(([k, c]) => {
+      const row = h.makeElement('div');
+      row.className = 'setting';
+      const input = h.makeElement('input');
+      input.id = 'plugin-NormalizeParentTags-' + k;
+      input.checked = c;
+      row.appendChild(input);
+      group.appendChild(row);
+    });
     env.ctx.document.body.appendChild(group);
     env.tick();
     return h.flush().then(() => {
-      h.check('one mode on shows no notice',
+      h.check('one box ticked shows no notice',
         !env.ctx.document.getElementById('npt-conflict-notice'));
     });
   })
 
-  // Our settings are not on the page at all: nothing rendered, and - since finding
-  // them is what stands in for a route test - not even a settings query.
+  // Our settings are not on the page: nothing rendered, and no settings query -
+  // finding them is what stands in for a route test.
   .then(() => {
     const env = boot({ a9AutoRollUpOnUpdate: true });
     const stranger = h.makeElement('div');
@@ -457,8 +480,30 @@ Promise.resolve()
     });
   })
 
-  // Fallback for a Stash that does not put ids on plugin settings: match the group
-  // heading instead. Each string below is one Stash template's exact output.
+  // Inputs present but unreadable (a Stash that renders these some other way):
+  // fall back to the saved config, lag and all.
+  .then(() => {
+    const env = boot({ a9AutoRollUpOnUpdate: true });
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    ['a8AutoPruneOnUpdate', 'a9AutoRollUpOnUpdate'].forEach((k) => {
+      const row = h.makeElement('div');
+      row.className = 'setting';
+      const input = h.makeElement('input');
+      input.id = 'plugin-NormalizeParentTags-' + k;   // no `checked` property
+      row.appendChild(input);
+      group.appendChild(row);
+    });
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    return h.flush().then(() => {
+      h.check('unreadable checkboxes fall back to the saved settings',
+        !!env.ctx.document.getElementById('npt-conflict-notice'));
+    });
+  })
+
+  // Fallback for a Stash that sets no ids at all: match the group heading. Each
+  // string is one Stash template's exact output.
   .then(() => {
     function headingOnly(text) {
       const env = boot({ a9AutoRollUpOnUpdate: true });
@@ -472,7 +517,7 @@ Promise.resolve()
         !!env.ctx.document.getElementById('npt-conflict-notice'));
     }
     return Promise.all([
-      headingOnly('Normalize Parent Tags (1.2.1)'),
+      headingOnly('Normalize Parent Tags (1.2.5)'),
       headingOnly('Normalize Parent Tags'),
       headingOnly('Normalize Parent Tags undefined'),
       headingOnly('Normalize Parent Tags Extra'),
@@ -483,144 +528,6 @@ Promise.resolve()
       h.check('heading fallback: and the "undefined" Stash renders with no version', noVersion);
       h.check('heading fallback: a near-namesake plugin is not', !namesake);
       h.check('heading fallback: nor an unrelated one', !other);
-    });
-  })
-
-  // Saving our settings re-reads them at once. Without this the notice answers a
-  // cache up to AUTO_SETTINGS_TTL_MS old, which is the several-second lag between
-  // ticking a box and the banner changing.
-  .then(() => {
-    let both = false;
-    const env = h.makeEnv({
-      quiet: true,
-      respond: (req) => {
-        if ((req.query || '').indexOf('configuration') !== -1) {
-          return { data: { configuration: { plugins: { NormalizeParentTags: {
-            a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: both,
-          } } } } };
-        }
-        return { data: { configurePlugin: {} } };
-      },
-    });
-    h.run(env.ctx);
-    const group = h.makeElement('div');
-    group.className = 'setting-group';
-    const input = h.makeElement('input');
-    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
-    group.appendChild(input);
-    env.ctx.document.body.appendChild(group);
-    env.tick();
-    return h.flush().then(() => {
-      h.check('no notice while only one mode is on',
-        !env.ctx.document.getElementById('npt-conflict-notice'));
-
-      // The user ticks the second box; Stash saves it.
-      both = true;
-      return env.ctx.window.fetch('/graphql', {
-        body: JSON.stringify({
-          query: 'mutation ConfigurePlugin($plugin_id: ID!, $input: Map!) { configurePlugin(plugin_id: $plugin_id, input: $input) }',
-          variables: { plugin_id: 'NormalizeParentTags', input: { a9AutoRollUpOnUpdate: true } },
-        }),
-      }).then(() => h.flush()).then(() => {
-        h.check('saving our settings shows the notice without waiting for the cache',
-          !!env.ctx.document.getElementById('npt-conflict-notice'));
-      });
-    });
-  })
-
-  // The belt to the invalidation's braces: even with no mutation to intercept, the
-  // notice must not be more than the page TTL behind the settings. This is the
-  // check that would have caught the 2-10s lag reported against 1.2.3.
-  .then(() => {
-    let both = false;
-    const env = h.makeEnv({
-      quiet: true,
-      respond: (req) => ((req.query || '').indexOf('configuration') !== -1
-        ? { data: { configuration: { plugins: { NormalizeParentTags: {
-            a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: both } } } } }
-        : { data: {} }),
-    });
-    h.run(env.ctx);
-    const group = h.makeElement('div');
-    group.className = 'setting-group';
-    const input = h.makeElement('input');
-    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
-    group.appendChild(input);
-    env.ctx.document.body.appendChild(group);
-    env.tick();
-    return h.flush().then(() => {
-      h.check('no notice with one mode on', !env.ctx.document.getElementById('npt-conflict-notice'));
-      // The setting changes with no mutation going through our wrapper at all -
-      // another tab, or an interception that missed. Only the page TTL saves us.
-      both = true;
-      env.ctx.Date = { now: () => Date.now() + 1500 };
-      env.tick();
-      return h.flush().then(() => {
-        h.check('the notice catches up within the page TTL even with no mutation seen',
-          !!env.ctx.document.getElementById('npt-conflict-notice'));
-      });
-    });
-  })
-
-  // Another plugin's settings save must not throw ours away.
-  .then(() => {
-    const env = boot({ a9AutoRollUpOnUpdate: true });
-    const group = h.makeElement('div');
-    group.className = 'setting-group';
-    const input = h.makeElement('input');
-    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
-    group.appendChild(input);
-    env.ctx.document.body.appendChild(group);
-    env.tick();
-    return h.flush().then(() => {
-      const before = env.calls.filter((c) => /configuration/.test(c.query || '')).length;
-      return env.ctx.window.fetch('/graphql', {
-        body: JSON.stringify({
-          query: 'mutation ConfigurePlugin($plugin_id: ID!, $input: Map!) { configurePlugin(plugin_id: $plugin_id, input: $input) }',
-          variables: { plugin_id: 'SomeOtherPlugin', input: {} },
-        }),
-      }).then(() => h.flush()).then(() => {
-        const after = env.calls.filter((c) => /configuration/.test(c.query || '')).length;
-        h.check('another plugin being configured does not re-read ours',
-          after === before, before + ' -> ' + after);
-      });
-    });
-  })
-
-  // Turning one off while the page is open takes the notice away again.
-  .then(() => {
-    let both = true;
-    const env = h.makeEnv({
-      quiet: true,
-      respond: (req) => {
-        if ((req.query || '').indexOf('configuration') !== -1) {
-          return { data: { configuration: { plugins: { NormalizeParentTags: {
-            a5EnableScenes: true, a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: both,
-          } } } } };
-        }
-        return { data: {} };
-      },
-    });
-    h.run(env.ctx);
-    const group = h.makeElement('div');
-    group.className = 'setting-group';
-    const input = h.makeElement('input');
-    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
-    group.appendChild(input);
-    env.ctx.document.body.appendChild(group);
-    env.tick();
-    return h.flush().then(() => {
-      h.check('notice is up while both are on',
-        !!env.ctx.document.getElementById('npt-conflict-notice'));
-      both = false;
-      // The settings cache is what the notice reads, so let its TTL lapse the way
-      // a real page would before ticking again.
-      env.ctx.Date = { now: () => Date.now() + 60000 };
-      env.tick();
-      return h.flush().then(() => {
-        h.check('and comes down once one is turned off',
-          !env.ctx.document.getElementById('npt-conflict-notice'));
-      });
     });
   })
 

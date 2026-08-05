@@ -2441,6 +2441,33 @@
     return null;
   }
 
+  // The `.setting` row a given setting lives in. `settingElement` returns the input
+  // itself - Stash puts the id on the Form.Switch, not on the row - so this walks up
+  // to the row the notice should sit against. ' setting ' is matched with its spaces
+  // so that "setting-group" is not mistaken for it.
+  function settingRow(key) {
+    var node = settingElement(key);
+    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (hasClass(node, 'setting')) return node;
+    }
+    return null;
+  }
+
+  // What the two checkboxes say *right now*, or null if they cannot be read.
+  //
+  // This is the state the user is looking at, and it is why the notice no longer
+  // asks the server what the settings are. Stash sets its own React state the moment
+  // you click, then debounces the save; a notice driven by re-reading the config
+  // therefore lagged the checkbox by seconds and disagreed with the screen while it
+  // did - which is worse than useless for a warning about which boxes are ticked.
+  function liveConflictState() {
+    var prune = settingElement('a8AutoPruneOnUpdate');
+    var rollup = settingElement('a9AutoRollUpOnUpdate');
+    if (!prune || !rollup) return null;
+    if (typeof prune.checked !== 'boolean' || typeof rollup.checked !== 'boolean') return null;
+    return prune.checked && rollup.checked;
+  }
+
   // The two pages that show a group headed with our name do not head it the same
   // way. Settings - Tasks passes the plugin name straight through
   // (`heading: o.name`), but Settings - Plugins appends the version:
@@ -2481,6 +2508,13 @@
   // heading. Returns null when neither is on the page, which is also how the tick
   // knows the plugins settings page is not showing.
   function conflictNoticeSlot() {
+    // Immediately above the two Auto settings, which is where the user is looking
+    // when they tick one. It used to go at the top of the group box so that it
+    // showed while the group was collapsed - but a collapsed group is one you
+    // cannot misconfigure from, and in an expanded one that put the notice off the
+    // top of the screen, far from the checkboxes it is about.
+    var row = settingRow('a8AutoPruneOnUpdate') || settingRow('a9AutoRollUpOnUpdate');
+    if (row && row.parentNode) return { parent: row.parentNode, before: row };
     var group = ownSettingGroup();
     if (group) return { parent: group, before: group.firstChild };
     var heading = ownSettingGroupHeading();
@@ -2516,10 +2550,15 @@
       removeConflictNotice();
       return;
     }
-    // Read at the page TTL rather than the reactive one. The configurePlugin
-    // invalidation below answers a click in well under a second when it fires, but
-    // it depends on seeing a mutation go past, and this does not depend on anything:
-    // whatever else happens, the notice is at most a second behind the checkbox.
+    // The checkboxes are the truth here, and reading them costs nothing and lags by
+    // nothing. Only where they cannot be read - a Stash that renders these settings
+    // some other way - does this fall back to asking the server, with the lag that
+    // implies.
+    var live = liveConflictState();
+    if (live !== null) {
+      renderConflictNotice(live);
+      return;
+    }
     autoSettings(AUTO_SETTINGS_PAGE_TTL_MS).then(function (s) {
       renderConflictNotice(!!s.a8AutoPruneOnUpdate && !!s.a9AutoRollUpOnUpdate);
     }, function () {
@@ -2536,7 +2575,14 @@
     window.addEventListener('load', settingsTick);
     window.addEventListener('popstate', function () { setTimeout(settingsTick, 300); });
   }
-  document.addEventListener('click', function () { setTimeout(settingsTick, 300); }, true);
+  // Twice, because the checkbox is a controlled input: the click hands off to React,
+  // which sets its state and re-renders, so a synchronous read still sees the old
+  // value. The 0ms tick lands after that in the normal case and makes the notice
+  // feel immediate; the 300ms one covers a slow render.
+  document.addEventListener('click', function () {
+    setTimeout(settingsTick, 0);
+    setTimeout(settingsTick, 300);
+  }, true);
   setInterval(settingsTick, 1000);
   settingsTick();
 

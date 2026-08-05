@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.2.4.** This file is both the design and the map of the code — the
+**Status: implemented at 1.2.5.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -640,6 +640,20 @@ on three counts, all worth keeping written down because the idea will come back:
 
 There is also no way to collapse the pair into one control: `PluginSettingTypeEnum` is
 `STRING | NUMBER | BOOLEAN`, so Stash has no dropdown for a plugin setting.
+
+**It reads the checkboxes, not the saved settings.** `liveConflictState()` returns
+`prune.checked && rollup.checked` off the two inputs. That is the state the user is looking at, it
+costs nothing, and it lags by nothing. Three releases tried to make a config-derived notice keep up
+with a click and none of them did: Stash sets its own React state immediately and debounces the
+save, so *anything* that re-reads the config is behind the checkbox and disagrees with the screen
+while it is — which is worse than useless for a warning about which boxes are ticked. Querying the
+server survives only as a fallback for a Stash whose inputs cannot be read.
+
+**And it sits immediately above the Auto Prune row**, not at the top of the group box. The original
+placement was chosen so the notice showed while the group was collapsed; but a collapsed group is
+one you cannot misconfigure from, and in an expanded one it put the notice off the top of the screen,
+far from the checkboxes it is about. Next to the controls is where a warning about those controls
+belongs.
 
 **Freshness has two mechanisms, and the slow one is the one that is guaranteed.**
 `settingsTick` reads at `AUTO_SETTINGS_PAGE_TTL_MS` rather than the reactive

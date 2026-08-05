@@ -87,11 +87,16 @@ Rules that make this safe:
 - **Not a re-entrancy guard.** A plugin suppressing reactions to *its own* writes (the
   `_mergeDepth` counter in `MergePerformerTagsToScenes`) is a separate, internal mechanism. Leases
   are about *other* plugins.
-- **Take one for every bulk run, even with nothing listening.** Neither plugin here honours the
-  other's lease today — `NormalizeParentTags` is not reactive — so a bulk run taking one changes
-  nothing in this repo. It is still the rule: the protocol is not ours alone, and a bulk run that
-  does not announce itself is exactly what a third plugin could not defend against. **An Undo is a
-  bulk run too**, and both dialogs lease theirs, labelled `<task> (undo)`.
+- **Take one for every bulk run, even with nothing listening.** Both plugins here are now on both
+  sides — `NormalizeParentTags` gained reactive auto-prune/roll-up modes at its 1.1.0 — so a lease
+  taken in this repo is honoured in this repo. It was still the rule while nothing listened: the
+  protocol is not ours alone, and a bulk run that does not announce itself is exactly what a third
+  plugin could not defend against. **An Undo is a bulk run too**, and both dialogs lease theirs,
+  labelled `<task> (undo)`.
+- **A reactive run can be bulk enough to need one.** `NormalizeParentTags`' auto mode reacts to a
+  bulk mutation by rewriting every entity it touched, which is a bulk write by any measure, so it
+  leases too — with a much shorter TTL, measured in the seconds one reaction lasts rather than the
+  minutes a library-wide task does. The TTL is what a crashed tab leaves behind; size it to the work.
 - **Warn on someone else's, never stand down for it.** A bulk run is started by hand, and §7 of
   `MergePerformerTagsToScenes`' CLAUDE.md is that manual actions are not suppressed. Both dialogs
   therefore *say* a lease is held and carry on — an advisory the user can act on, not a lock.

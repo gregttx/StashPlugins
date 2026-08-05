@@ -31,6 +31,10 @@ that change tag assignments, and one that only looks:
 The first two open a dialog that lists every change *before* anything is written. Nothing is
 saved until you press **Proceed**. The third never writes at all.
 
+Either direction can also be kept up **automatically**, applying to each entity as Stash saves it
+rather than to the whole library at once — see [Automatic mode](#automatic-mode). That path has no
+dialog and no undo, and it is off by default.
+
 ## Why
 
 Stash tag hierarchies imply downward. If `Blonde` has the parent `Hair Colour`, then an entity
@@ -206,6 +210,41 @@ of its ordinary tags. The primary tag is never added and never removed — but i
 present, so a marker whose primary tag is `Blonde` will have `Hair Colour` pruned from its other
 tags.
 
+## Automatic mode
+
+The two tasks normalize your library **once**. These two settings keep it that way:
+
+| Setting | Does |
+| --- | --- |
+| **Auto Prune on Entity Updates** | Every time Stash saves an entity, remove any tag on it that another tag on the same entity already implies |
+| **Auto Roll Up on Entity Updates** | Every time Stash saves an entity, add every ancestor of the tags on it |
+
+> ### ⚠ There is no dialog and no undo out here
+>
+> The tasks show you a plan and wait for **Proceed**. Automatic mode does not: it writes the moment
+> you press Save. **Auto Prune deletes tag assignments**, silently, one save at a time, and the
+> only record is a line in your browser's developer console (F12). If it is misconfigured you will
+> find out from your library, not from a log you can still read.
+>
+> Run the **Prune** task manually at least once, and read what it plans, before you turn this on.
+
+Things worth knowing:
+
+- **Both settings on does nothing at all.** They are exact opposites — one adds precisely what the
+  other removes — so turning both on runs neither, and writes a warning to the console. Pick one.
+- **Which entity types are covered is the same "Include …" toggles** the tasks use, so a type you
+  have not enabled is not touched here either. That also means you cannot auto-prune only scenes
+  while the task covers everything; it is one list.
+- **All the exclusion filters below still apply**, entity-level and tag-level alike.
+- **Bulk edits count.** Editing 500 scenes from Stash's bulk edit dialog normalizes all 500. This
+  is usually what you want and it is also the largest thing this mode does without asking.
+- **It only reacts in the tab it is running in**, like anything else that lives in the browser. A
+  change made by the server, by a scan, or in another browser is picked up the next time that
+  entity is saved in *this* tab — or by running the task.
+- If another plugin fights it — something that puts a parent tag back as fast as Prune removes it —
+  the plugin backs off that entity for a few seconds rather than trading writes with it forever.
+  The other plugin's tag stays; run the Prune task if you want it gone.
+
 ## Exclusion filters
 
 Two filters protect whole entities:
@@ -296,10 +335,12 @@ mid-run, that means the changes already written stay written and the rest are ne
   them. If one is ever found anyway, the tags involved are reported as an error and skipped —
   under the plain rule, every tag in a cycle implies every other one, so all of them would
   otherwise be deleted.
-- Installing this plugin does not undo anything you have already tagged. It only ever acts when
-  you click one of the two tasks and then press Proceed.
+- Installing this plugin does not undo anything you have already tagged. Out of the box it only
+  ever acts when you click one of the two tasks and then press Proceed — automatic mode is off
+  until you turn it on.
 - Settings are read at the start of each run, so a change takes effect on the next run without a
-  page reload.
+  page reload. Automatic mode re-reads them at most every ten seconds, so a change there can take
+  a few seconds to bite.
 
 ## If you also use Merge Performer Tags To Scenes
 
@@ -316,6 +357,13 @@ to cooperate: **while this plugin is applying changes, it asks Merge Performer T
 stand down, and it does.** Auto-merge resumes the moment the apply finishes — including if it
 fails, if you press Stop, or if you close the tab mid-run. Nothing is switched off in the
 settings, and other browser tabs are unaffected.
+
+That cooperation now runs both ways. This plugin's [automatic mode](#automatic-mode) stands down
+in turn while *that* plugin's library-wide task is writing, and it takes its own short-lived
+notice while it writes, so auto-merge does not chase each automatic prune. If you run **Auto
+Prune** and **Auto Merge On Scene Updates** together you are still asking for two opposite things
+on every save — the tags a performer contributes will keep arriving, and Prune will keep removing
+the redundant ones — but they will not trade writes back and forth over the same scene.
 
 That plugin also has a library-wide task of its own, which rewrites scenes the same way this one
 does. If it is mid-run when you start a task here, the dialog says so and names what it is doing.

@@ -1,6 +1,6 @@
 name: Normalize Parent Tags
-description: "Requires Stash 0.31.0 or newer. BACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. Two library-wide tasks that normalize tag hierarchies on your entities: Prune removes every tag already implied by a descendant tag on the same entity, and Roll Up adds every ancestor of every tag on the entity. Both run from Settings - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing is written until you press Proceed, and an Undo button reverses the run while the dialog stays open. A third, read-only task browses the tag hierarchy itself, marking multi-parent tags, protected tags and cycles, and exports it as a Graphviz or Mermaid diagram. Entity types are opt-in and are all off until enabled below."
-version: 1.0.0
+description: "Requires Stash 0.31.0 or newer. BACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. Two library-wide tasks that normalize tag hierarchies on your entities: Prune removes every tag already implied by a descendant tag on the same entity, and Roll Up adds every ancestor of every tag on the entity. Both run from Settings - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing is written until you press Proceed, and an Undo button reverses the run while the dialog stays open. Either direction can also be applied automatically to each entity as Stash saves it - see the two Auto settings, which write silently, with no dialog and no undo. A third, read-only task browses the tag hierarchy itself, marking multi-parent tags, protected tags and cycles, and exports it as a Graphviz or Mermaid diagram. Entity types are opt-in and are all off until enabled below."
+version: 1.1.0
 ui:
   javascript:
     - NormalizeParentTags.js
@@ -39,6 +39,14 @@ settings:
   a7EnableMarkers:
     displayName: Include Scene Markers
     description: Process the tags of scene markers when a Normalize Parent Tags task is run. A marker's primary tag is always kept and is never added or removed, but it does count as present, so parents it implies can be pruned from the marker's other tags.
+    type: BOOLEAN
+  a8AutoPruneOnUpdate:
+    displayName: Auto Prune on Entity Updates
+    description: "Whenever Stash saves an entity of an enabled type above, immediately remove any tag on it that another tag on the same entity already implies. WARNING - this writes as soon as you press Save, with no dialog, no review and no undo, and it deletes tag assignments. The exclusion filters below still apply. Leave this off until a manual Prune task has shown you what it does to your library. Has no effect if Auto Roll Up is also enabled."
+    type: BOOLEAN
+  a9AutoRollUpOnUpdate:
+    displayName: Auto Roll Up on Entity Updates
+    description: "Whenever Stash saves an entity of an enabled type above, immediately add every ancestor, recursively, of the tags on it. Writes as soon as you press Save, with no dialog and no undo, but only ever adds tags. The exclusion filters below still apply. Has no effect if Auto Prune is also enabled - the two are exact opposites, so turning both on runs neither."
     type: BOOLEAN
   b1ExcludeEntityWithTagName:
     displayName: Exclude entities carrying this tag

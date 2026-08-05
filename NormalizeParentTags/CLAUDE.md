@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 0.12.0.** This file is both the design and the map of the code — the
+**Status: implemented at 1.1.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -31,12 +31,20 @@ The task names are deliberately long: the name is both the `SettingGroup` headin
 label, and the short form ("Prune Parent Tags") reads as though it edits the tag hierarchy. The
 prepositions carry the direction as well as the target.
 
+Either direction can also run **automatically**, on every entity Stash saves, rather than as a
+library-wide pass — see §5b. Same planning code, no dialog.
+
 **This plugin can destroy a tagging scheme in one click.** Prune deletes tag assignments library-
 wide, Stash has no undo, and the only recovery from a run you have walked away from is a database
 restore. Every surface — manifest description, task descriptions, README, and the dry-run dialog
 itself — must tell the user to back up their database before the first run. Do not let that get
 edited out for brevity, and in particular do not let the Undo button in §5 be presented as making
 the backup unnecessary: it reaches its own writes, and only while the dialog is open.
+
+**Auto mode can destroy one without any click at all**, which is why §5b is written the way it is:
+it has no dialog, no review, no tag summary and no Undo, and a console line is the only record it
+leaves. It is off by default, gated behind the same all-off entity toggles, and its two setting
+descriptions carry the warning in place of the dialog that is not there.
 
 The two are inverses in the useful sense: Roll Up then Prune returns the original antichain
 (minus whatever the exclusion filters protected).
@@ -516,6 +524,105 @@ protect or skip tags by accident — see §4.
 with nothing selected, the whole DAG. Edges whose other end is outside the exported set are
 dropped, or the output references nodes it never declares.
 
+## 5b. Auto mode (1.1.0)
+
+`a8AutoPruneOnUpdate` and `a9AutoRollUpOnUpdate` make the plugin **reactive** as well as bulk: it
+wraps `fetch`, and every entity Stash saves is re-normalized in the chosen direction immediately.
+The tasks answer "normalize my library once"; these answer "and keep it that way".
+
+**This breaks the invariant the rest of the plugin is built on.** Everywhere else, nothing is
+written without a plan on screen and a Proceed, and §5's Undo exists because a six-figure review log
+is not read closely. Out here there is no dialog, so there is no review, no tag summary and no Undo —
+a `[REMOVE]` line in the browser console is the entire record. Auto Prune in particular deletes tag
+assignments one save at a time, silently. The two setting descriptions say so in those words; they
+are the only warning the user gets, so do not trim them for length.
+
+**Which types are covered is `a1`–`a7`**, the same toggles that scope the tasks. One list rather than
+a second set of seven, so the settings page cannot describe two different libraries — and the
+all-off default carries over, which means a fresh install reacts to nothing until the user has said
+which types they have thought about. The cost is real and worth stating: you cannot auto-prune only
+scenes while the task covers everything.
+
+Both single and bulk mutations are watched (`sceneUpdate` *and* `bulkSceneUpdate`), so a bulk edit
+of 500 scenes normalizes all 500. That is usually the point, and it is also the largest silent write
+this plugin can make without a dialog.
+
+### Watching the mutations
+
+`TYPES` gained a `single` field to go with `bulk`. The two never collide under a `\b`-anchored
+regex because Stash capitalises the type inside the bulk name: `bulkSceneUpdate` does not contain
+`sceneUpdate`, and neither contains `sceneMarkerUpdate`. The regexes are compiled once and cached on
+the type (`autoRe`) — the wrapper runs on every GraphQL request the page makes, and compiling
+fourteen of them per request is a cost paid overwhelmingly on queries that never match.
+
+`mutationSucceeded` is copied from the sibling and for the same reason: `fetch` resolves for HTTP 500
+and for GraphQL errors returned with HTTP 200, so "the request came back" is not "the edit was
+saved". Normalizing a save Stash rejected would write changes the user never made.
+
+**Known gap: `scenesUpdate` / `imagesUpdate`** — the array-input plural mutations — are not watched.
+Stash's UI does not use them for tag edits. If that changes they need their own branch, reading ids
+out of an array of inputs rather than one `input.ids`.
+
+### Reading entities
+
+Every plural find query takes `ids: [ID!]`, markers included, so `autoEntityQuery` fetches exactly
+the touched entities in one request and `planEntity` runs against them unchanged. No paging, no
+`count`, and no second planning implementation — `planEntity`, `buildBatches` and `applyBatch` are
+the same code the tasks use. `applyBatch` writes into an `autoSink()` instead of a `Run`: same
+fields, console instead of a DOM. Its `undoable` array is collected and dropped, because there is no
+dialog to offer it from.
+
+### Caching
+
+The tasks read settings once per run. Auto mode has no run to hang that off, and no main loop
+either — the tasks were the only entry point until now. So both reads are cached on demand rather
+than polled: settings for `AUTO_SETTINGS_TTL_MS`, the tag hierarchy for `AUTO_GRAPH_TTL_MS`. **An
+idle tab issues no queries at all**, which is better than the sibling's 10s timer, and the price is
+that a settings change takes up to ten seconds to take effect.
+
+The graph cache is also **invalidated outright by any tag mutation** seen in the wrapper. Without
+that, a parent created in another tab would be ignored for a minute — and a plugin whose whole
+subject is the hierarchy cannot be a minute behind it.
+
+### The four things that stop it eating a library
+
+1. **Both modes on does nothing.** They are exact inverses, so whichever ran second would undo the
+   first on every save. `autoMode` returns null and warns once. Picking one silently is a trap
+   dressed as a convenience, and there is no ordering that makes both coherent.
+2. **`guarded()` / `_writeDepth`**, the internal re-entrancy guard, modelled on the sibling's
+   `_mergeDepth` and a counter for the same reason. It wraps the auto writes *and both task write
+   paths*: phase 2 and Undo issue `bulk*Update` for every batch, which is precisely what the wrapper
+   watches for, so without it a Prune task with Auto Prune enabled re-plans each batch it has just
+   written — and an Undo would have its reversal put straight back.
+3. **A lease**, so other reactive plugins stand down while we write. This is what stops the
+   sibling's auto-merge from bouncing a prune straight back. It is short — `AUTO_LEASE_TTL_MS`, not
+   the tasks' five minutes — because a crashed tab must not stand the sibling down for five minutes
+   over one scene save. We honour our own lease no differently from anyone else's; §8 explains why
+   that is correct rather than a self-inflicted deadlock.
+4. **A per-entity cooldown**, for when 3 is not honoured. A plugin older than the protocol, or a
+   server-side `hooks:` plugin that never sees this `window`, can still write our removals back.
+   Without a cooldown, Prune and that plugin ping-pong over one entity for as long as the tab is
+   open. After writing to an entity we ignore further updates to it for `AUTO_COOLDOWN_MS`, which
+   caps the exchange at one round and leaves the other plugin's write standing — the safe direction,
+   since it means fewer deletions rather than more.
+
+Only entities we **wrote to** go on cooldown, never everything a mutation touched: marking an entity
+we planned nothing for would suppress a later, legitimate reaction to it. The map is swept of
+expired entries once it passes `AUTO_COOLDOWN_MAX` rather than capped, since a bulk edit can put
+tens of thousands of ids in it and each expires on its own schedule.
+
+Note that 2 and 4 overlap on the auto path — a self-reaction always targets ids marked a moment
+earlier, so either alone would stop it. They do **not** overlap on the task path, where nothing
+marks a cooldown, and that is where `_writeDepth` is doing work nothing else does. The test suite
+says so explicitly, because a check that passes for the wrong reason is worse than no check.
+
+### The exclusion tag
+
+`b1ExcludeEntityWithTagName` resolving to nothing **stops auto mode** rather than letting it run
+unfiltered, exactly as it aborts a task run — running unfiltered would touch the very entities the
+user asked to protect. The dialog can stop a run and say so; out here there is nothing to stop, so
+it warns once to the console and keeps refusing quietly until the setting is fixed or cleared.
+
 ## 6. Settings
 
 All settings are re-read at the start of every run (a single `{ configuration { plugins } }`
@@ -532,6 +639,10 @@ can read top to bottom:
 
 - `a1`–`a7` — the entity toggles, in the §5 processing order, so the settings page and the run
   agree about what happens first.
+- `a8`–`a9` — the two auto modes (§5b). They read better at the head of the block, above the toggles
+  that scope them, and they are at its foot anyway: a key is the storage key, so renumbering `a1`–`a7`
+  to make room would silently reset every entity toggle on every existing install. Directly under
+  the toggles is the next best place, and it is where the settings page puts them.
 - `b1`–`b2` — the entity-level exclusions.
 - `c1`–`c6` — the tag-level filters: the both-directions one first, then the add/remove name pair,
   then `c4TagNameSeparator` directly under the two settings it splits, then the add/remove
@@ -610,8 +721,20 @@ and `MergePerformerTagsToScenes` checks for one before auto-merging. The contrac
 the repo-root `CLAUDE.md` (§ Cross-plugin cooperation) because it is not ours alone; the parts
 specific to this plugin:
 
+- **Since 1.1.0 this plugin is on both sides of the protocol**, like the sibling and for the same
+  reason: the roles are per *run*, not per plugin. The tasks are bulk; auto mode (§5b) is reactive.
+  So it registers as a respecter at load and stands down for anyone else's lease before reacting —
+  which is what makes the sibling's "will it stand down" warning, and ours, true in both directions.
+  Registration is unconditional rather than gated on an auto mode being enabled: the flag means this
+  copy honours the protocol, which is true whatever the settings say.
+- **Auto mode honours our own lease no differently from anyone else's**, which sounds like a plugin
+  standing itself down and is not. `guarded()` has already excluded every write we issue, so the
+  only thing that can reach the check while our lease is held is a *user's* save in the same tab —
+  precisely one that should wait for the bulk run to finish. The sibling's §7 documents the mirror
+  image of this.
 - The lease is taken **around phase 2 only**. Phase 1 writes nothing, so there is nothing to
   suppress, and holding a lease through a long scan would disable the sibling for no reason.
+  Auto mode takes its own, much shorter one (§5b).
 - Take it in a `try`/`finally` so a thrown error, a failed chunk or **Stop** cannot leave it
   latched. Leases also carry an expiry that is renewed per chunk, so a crashed tab releases it
   by itself.
@@ -669,7 +792,8 @@ looking at its own.
 
 ## 9. Testing
 
-Three suites cover this plugin — `normalize-plan`, `normalize-apply`, `normalize-tasks` — plus
+Five suites cover this plugin — `normalize-plan`, `normalize-apply`, `normalize-tasks`,
+`normalize-tree`, `normalize-auto` — plus
 `coop` for the sibling's half of the lease. They run on `npt-harness.js`, which differs from the
 sibling's harness in having a fake DOM real enough to build and read back a dialog, and which
 starts runs by posting a `runPluginTask` mutation rather than by simulating a click. What they
@@ -731,8 +855,28 @@ cover:
   `ready` lands in `done` rather than back at Proceed. Roll Up is covered as well as Prune, since
   the inverse is read off what was written and not off the task.
 
+- **Auto mode** (`normalize-auto`) — that a save triggers exactly one delta write in the configured
+  direction; that an already-normalized entity costs a read and no write; every gate (both modes
+  off, both modes on, a disabled entity type); that a bulk mutation is reacted to as one write
+  covering only the entities that needed changing; that an auto write does not cascade; the
+  cooldown, including that an entity we planned nothing for is *not* on it; standing down for a live
+  lease but not an expired one; registering as a respecter; a lease held across the write and
+  released after; a save Stash rejected not being reacted to; the exclusion filters still applying,
+  including an unresolvable exclusion tag stopping auto mode outright; **the task's apply not being
+  reacted to**, which is `_writeDepth`'s own test; and the tag-graph cache, fetched once and
+  invalidated by a tag mutation.
+
+  Every guard in §5b was confirmed against a deliberately broken copy before being trusted —
+  `_writeDepth`, the task guard, the cooldown, the lease check, the both-modes rule and
+  `mutationSucceeded` each have a mutant that fails exactly one check. That exercise is also what
+  showed that the "does not cascade" check passes with `_writeDepth` removed, because the cooldown
+  covers the same case; the check is named for the outcome it proves rather than the mechanism it
+  does not, and the task-apply case is where the guard is isolated.
+
 The suites cannot confirm Stash's own behaviour (page markup, `BulkUpdateIds` semantics), so any
-change here still needs one run against a real instance — preferably a copy of the library.
+change here still needs one run against a real instance — preferably a copy of the library. That
+goes double for auto mode, whose whole surface is a `fetch` wrapper reacting to mutation names this
+repo can only assert against its own fake Stash.
 
 ## 10. Versioning
 

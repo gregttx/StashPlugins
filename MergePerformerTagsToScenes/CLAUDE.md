@@ -300,12 +300,13 @@ settled library and the button alone does not say so.
 **It takes a lease while it writes, warns about anyone else's, and stands down for neither.** The
 lease covers phase 2 only — phase 1 writes nothing, so there is nothing to suppress, and holding
 one across a library-wide review would stand a reactive plugin down for the half of the run that
-cannot disturb it. Nothing in this repo honours it: `NormalizeParentTags` is not reactive, and it
-warns about ours rather than yielding to it, exactly as this dialog warns about its. Both warnings
-are advisory because a task click is manual, and §7's rule is that manual actions are never
-suppressed. Taking one anyway is the point of a protocol that is not ours alone — until 1.5.0 this
-run wrote across the whole library announcing nothing, which is the case a third plugin could not
-have defended against.
+cannot disturb it. Since `NormalizeParentTags` 1.1.0 the lease is actually honoured in this repo:
+its auto-prune / auto-roll-up modes are reactive and stand down for ours, so this task no longer
+has to rely on the user having turned them off. Its *dialog* still only warns about ours rather
+than yielding to it, exactly as this one warns about its — both warnings are advisory because a
+task click is manual, and §7's rule is that manual actions are never suppressed. Taking one anyway
+was the point even while nothing listened: until 1.5.0 this run wrote across the whole library
+announcing nothing, which is the case a third plugin could not have defended against.
 
 ## 7b. Undo (1.6.0)
 

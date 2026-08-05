@@ -28,6 +28,16 @@
   var LEASE_TTL_MS   = 300000;
   var UNDO_ARM_MS    = 4000;  // how long Undo stays armed for its second click
 
+  // Auto mode (see "Auto normalize on entity updates" below). The lease it takes is
+  // measured in the seconds one reaction lasts, not the minutes a library-wide task
+  // does, so it gets its own much shorter TTL - a crashed tab must not stand the
+  // sibling down for five minutes over a single scene save.
+  var AUTO_LEASE_TTL_MS  = 30000;
+  var AUTO_SETTINGS_TTL_MS = 10000;  // settings are re-read at most this often
+  var AUTO_GRAPH_TTL_MS    = 60000;  // and the tag hierarchy at most this often
+  var AUTO_COOLDOWN_MS     = 8000;   // per-entity: how long after our own write we ignore it
+  var AUTO_COOLDOWN_MAX    = 2000;   // entries kept before the expired ones are swept
+
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
   }
@@ -43,32 +53,37 @@
   // `organized` records which types actually have the flag - in Stash 0.31 that is
   // scenes, images, galleries and studios. Flipping one entry here is all it takes
   // if a later Stash adds it elsewhere.
+  //
+  // `single` is the per-entity update mutation, watched by auto mode alongside
+  // `bulk`. The two names never collide under a \b-anchored regex because Stash
+  // capitalises the type inside the bulk name: "bulkSceneUpdate" does not contain
+  // "sceneUpdate", and neither contains "sceneMarkerUpdate".
   var TYPES = [
     { key: 'performers', setting: 'a1EnablePerformers', label: 'Performer', plural: 'Performers',
       find: 'findPerformers', node: 'performers',
-      bulk: 'bulkPerformerUpdate', bulkInput: 'BulkPerformerUpdateInput',
+      bulk: 'bulkPerformerUpdate', bulkInput: 'BulkPerformerUpdateInput', single: 'performerUpdate',
       organized: false, fields: 'id name' },
     { key: 'studios', setting: 'a2EnableStudios', label: 'Studio', plural: 'Studios',
       find: 'findStudios', node: 'studios',
-      bulk: 'bulkStudioUpdate', bulkInput: 'BulkStudioUpdateInput',
+      bulk: 'bulkStudioUpdate', bulkInput: 'BulkStudioUpdateInput', single: 'studioUpdate',
       organized: true, fields: 'id name' },
     { key: 'groups', setting: 'a3EnableGroups', label: 'Group', plural: 'Groups',
       find: 'findGroups', node: 'groups',
-      bulk: 'bulkGroupUpdate', bulkInput: 'BulkGroupUpdateInput',
+      bulk: 'bulkGroupUpdate', bulkInput: 'BulkGroupUpdateInput', single: 'groupUpdate',
       organized: false, fields: 'id name' },
     { key: 'galleries', setting: 'a4EnableGalleries', label: 'Gallery', plural: 'Galleries',
       find: 'findGalleries', node: 'galleries',
-      bulk: 'bulkGalleryUpdate', bulkInput: 'BulkGalleryUpdateInput',
+      bulk: 'bulkGalleryUpdate', bulkInput: 'BulkGalleryUpdateInput', single: 'galleryUpdate',
       // A gallery is a zip (often .cbz) or a folder, and either way the title is
       // optional - so both fallbacks are needed to name one in the log.
       organized: true, fields: 'id title files { basename } folder { basename }' },
     { key: 'scenes', setting: 'a5EnableScenes', label: 'Scene', plural: 'Scenes',
       find: 'findScenes', node: 'scenes',
-      bulk: 'bulkSceneUpdate', bulkInput: 'BulkSceneUpdateInput',
+      bulk: 'bulkSceneUpdate', bulkInput: 'BulkSceneUpdateInput', single: 'sceneUpdate',
       organized: true, fields: 'id title files { basename }' },
     { key: 'images', setting: 'a6EnableImages', label: 'Image', plural: 'Images',
       find: 'findImages', node: 'images',
-      bulk: 'bulkImageUpdate', bulkInput: 'BulkImageUpdateInput',
+      bulk: 'bulkImageUpdate', bulkInput: 'BulkImageUpdateInput', single: 'imageUpdate',
       // Image.files is deprecated in favour of visual_files, which is a union of
       // ImageFile and VideoFile - hence the two inline fragments rather than a
       // plain basename selection. Both implement BaseFile, but naming the concrete
@@ -77,7 +92,7 @@
       fields: 'id title visual_files { ... on ImageFile { basename } ... on VideoFile { basename } }' },
     { key: 'markers', setting: 'a7EnableMarkers', label: 'Scene Marker', plural: 'Scene Markers',
       find: 'findSceneMarkers', node: 'scene_markers',
-      bulk: 'bulkSceneMarkerUpdate', bulkInput: 'BulkSceneMarkerUpdateInput',
+      bulk: 'bulkSceneMarkerUpdate', bulkInput: 'BulkSceneMarkerUpdateInput', single: 'sceneMarkerUpdate',
       organized: false, fields: 'id title primary_tag { id name }' },
   ];
 
@@ -94,12 +109,13 @@
     return c;
   }
 
-  function acquireLease(label) {
+  function acquireLease(label, ttl) {
     var c = coop();
-    var lease = { owner: PLUGIN_ID, label: label, until: Date.now() + LEASE_TTL_MS };
+    var ms = ttl || LEASE_TTL_MS;
+    var lease = { owner: PLUGIN_ID, label: label, until: Date.now() + ms };
     c.leases.push(lease);
     return {
-      renew: function () { lease.until = Date.now() + LEASE_TTL_MS; },
+      renew: function () { lease.until = Date.now() + ms; },
       release: function () {
         var i = c.leases.indexOf(lease);
         if (i !== -1) c.leases.splice(i, 1);
@@ -109,6 +125,54 @@
 
   function siblingRespectsLeases() {
     return !!coop().respecters[SIBLING_ID];
+  }
+
+  // Registered at load, because auto mode (below) makes this plugin reactive as well
+  // as bulk. It is what lets another plugin's bulk run tell "will stand down" apart
+  // from "too old to know about leases" - the same signal this plugin's own dialog
+  // reads off the sibling. Registering unconditionally, rather than only while an
+  // auto mode is enabled, is deliberate: the flag says this copy honours the
+  // protocol, which is true whatever the settings happen to be.
+  coop().respecters[PLUGIN_ID] = true;
+
+  var _standDownAnnounced = false;
+  function autoSuppressed() {
+    var c = coop();
+    var now = Date.now();
+    // Expired leases are dropped rather than honoured: a tab that crashed mid-run
+    // must not disable auto mode until the next page reload.
+    for (var i = c.leases.length - 1; i >= 0; i--) {
+      if (!c.leases[i] || !(c.leases[i].until > now)) c.leases.splice(i, 1);
+    }
+    if (!c.leases.length) { _standDownAnnounced = false; return false; }
+    if (!_standDownAnnounced) {
+      _standDownAnnounced = true;
+      console.info('[npt] auto mode is standing down while ' + c.leases[0].owner +
+        ' applies bulk changes (' + c.leases[0].label + ')');
+    }
+    return true;
+  }
+
+  // Depth of write work in flight. A counter rather than a boolean because flows
+  // overlap - a task apply racing an auto reaction, two auto reactions from one
+  // bulk edit - and the first to finish must not re-open interception while the
+  // others are still writing. Strictly internal: suppressing *other* plugins is
+  // what the lease is for.
+  var _writeDepth = 0;
+
+  function guarded(fn) {
+    _writeDepth++;
+    var p;
+    try {
+      p = fn();
+    } catch (e) {
+      _writeDepth--;
+      throw e;
+    }
+    return p.then(
+      function (v) { _writeDepth--; return v; },
+      function (e) { _writeDepth--; throw e; }
+    );
   }
 
   // ── GraphQL ───────────────────────────────────────────────────────────────
@@ -147,6 +211,12 @@
     a5EnableScenes: false,
     a6EnableImages: false,
     a7EnableMarkers: false,
+    // The auto modes sit at the end of the `a` block rather than at its head, where
+    // they read better, because a key is also the storage key: renumbering a1-a7 to
+    // make room would silently reset every entity toggle on an existing install. They
+    // still land under the toggles that scope them, which is the next best place.
+    a8AutoPruneOnUpdate: false,
+    a9AutoRollUpOnUpdate: false,
     b1ExcludeEntityWithTagName: '',
     b2ExcludeOrganized: false,
     c1ExcludeTagWithIgnoreAutoTag: false,
@@ -1159,7 +1229,13 @@
 
     // The lease is released in every outcome - success, failure, or Stop - so a
     // reactive plugin is never left standing down.
-    nextBatch().then(function () {
+    //
+    // guarded() is the other half of that, pointed inwards: every batch here is a
+    // bulk*Update, which is exactly what this plugin's own auto mode watches for, so
+    // without it a Prune task with Auto Prune enabled would re-plan each batch it had
+    // just written. The lease cannot do this job - it is advisory and we honour our
+    // own leases no more than anyone else's.
+    guarded(nextBatch).then(function () {
       lease.release();
       self.finishApply();
     }, function (e) {
@@ -1235,7 +1311,10 @@
       });
     }
 
-    nextBatch().then(function () {
+    // Guarded for the same reason the apply is, and more sharply: an undo writes the
+    // inverse delta, so an auto mode reacting to it would put back exactly what the
+    // user just asked to have taken away.
+    guarded(nextBatch).then(function () {
       lease.release();
       self.finishUndo();
     }, function (e) {
@@ -1992,6 +2071,303 @@
     }
   };
 
+  // ── Auto normalize on entity updates ──────────────────────────────────────
+  //
+  // The two tasks answer "normalize my whole library, once". These two settings
+  // answer "and keep it that way": every entity Stash saves is re-normalized in the
+  // chosen direction, immediately, with no dialog.
+  //
+  // That is a deliberate departure from everything else in this plugin, where
+  // nothing is written without a plan on screen and a Proceed. Auto Prune deletes
+  // tag assignments silently, one save at a time, and the console lines it writes
+  // are the only record - there is no Undo out here, because there is no dialog to
+  // hang one on. The setting descriptions say so; do not soften them.
+  //
+  // Which entity types are covered is the a1-a7 toggles, the same ones that scope
+  // the tasks. One list, so the settings page cannot describe two different
+  // libraries, and the all-off default carries over unchanged: a fresh install
+  // reacts to nothing until the user has said which types they have thought about.
+  //
+  // Four things keep this from eating a library:
+  //
+  // 1. Prune and Roll Up are exact inverses, so both at once is incoherent rather
+  //    than merely redundant. Enabling both does nothing at all (see autoMode) - the
+  //    alternative, picking one silently, is a trap dressed as a convenience.
+  // 2. guarded() stops our own writes - auto or task - from re-entering.
+  // 3. A lease, so *other* reactive plugins stand down while we write. This is what
+  //    keeps the sibling's auto-merge from bouncing our prune straight back.
+  // 4. A per-entity cooldown, for when 3 is not honoured. A plugin older than the
+  //    protocol, or a server-side `hooks:` plugin that never sees this window, can
+  //    still write back the tags we removed; without the cooldown, prune and that
+  //    plugin ping-pong over one entity for as long as the tab is open. After we
+  //    write to an entity we ignore further updates to it for AUTO_COOLDOWN_MS,
+  //    which caps the exchange at one round and leaves the other plugin's write
+  //    standing - the safe direction, since it means fewer deletions, not more.
+  //
+  // Known gap: `scenesUpdate`/`imagesUpdate` (the array-input plural mutations) are
+  // not watched, only the singular and bulk forms. Stash's own UI does not use them
+  // for tag edits; if that changes, they need their own branch reading ids out of
+  // an array of inputs rather than one `input.ids`.
+
+  // fetch resolves for HTTP 500 and for GraphQL errors returned with HTTP 200, so
+  // "the request came back" is not "the edit was saved". Inspect a clone - our
+  // handler runs before Apollo's, so the body is still unread - and treat a clone
+  // failure as success rather than skipping the reaction.
+  function mutationSucceeded(p) {
+    return p.then(function (resp) {
+      if (!resp || !resp.ok) return false;
+      var clone;
+      try {
+        clone = resp.clone();
+      } catch (e) {
+        return true;
+      }
+      return clone.json().then(
+        function (json) { return !json || !json.errors; },
+        function () { return true; }
+      );
+    }, function () { return false; });
+  }
+
+  var AUTO_PRUNE_NAME  = 'Auto Prune on Entity Updates';
+  var AUTO_ROLLUP_NAME = 'Auto Roll Up on Entity Updates';
+
+  var _autoBothWarned = false;
+
+  // 'prune', 'rollup', or null for "do nothing". Both flags on is a configuration
+  // error rather than a preference: one adds exactly what the other removes, so
+  // whichever ran second would undo the first on every save.
+  function autoMode(s) {
+    var prune = !!s.a8AutoPruneOnUpdate, rollup = !!s.a9AutoRollUpOnUpdate;
+    if (prune && rollup) {
+      if (!_autoBothWarned) {
+        _autoBothWarned = true;
+        console.warn('[npt] "' + AUTO_PRUNE_NAME + '" and "' + AUTO_ROLLUP_NAME +
+          '" are both enabled. They are exact opposites - one adds every tag the ' +
+          'other removes - so neither is running. Turn one of them off.');
+      }
+      return null;
+    }
+    _autoBothWarned = false;
+    return prune ? 'prune' : (rollup ? 'rollup' : null);
+  }
+
+  // Settings are re-read on demand and cached, rather than polled on a timer the way
+  // the sibling does. The tasks were this plugin's only entry point until now, so
+  // there is no main loop to hang a poll off, and an idle tab should cost nothing:
+  // this way a library nobody is editing issues no queries at all.
+  var _autoSettings = null, _autoSettingsAt = 0, _autoSettingsPending = null;
+
+  function autoSettings() {
+    var now = Date.now();
+    if (_autoSettings && now - _autoSettingsAt < AUTO_SETTINGS_TTL_MS) {
+      return Promise.resolve(_autoSettings);
+    }
+    if (_autoSettingsPending) return _autoSettingsPending;
+    _autoSettingsPending = loadSettings().then(function (loaded) {
+      _autoSettings = loaded.settings;
+      _autoSettingsAt = Date.now();
+      _autoSettingsPending = null;
+      return _autoSettings;
+    }, function (e) {
+      _autoSettingsPending = null;
+      throw e;
+    });
+    return _autoSettingsPending;
+  }
+
+  // The hierarchy is the expensive read - every tag in the library - and it changes
+  // far less often than entities do, so it is cached for longer and invalidated
+  // outright whenever a tag mutation goes past (see the fetch wrapper). Without that
+  // invalidation a newly created parent would not be honoured for a minute.
+  var _autoGraph = null, _autoGraphAt = 0, _autoGraphPending = null;
+
+  function invalidateAutoGraph() {
+    _autoGraph = null;
+    _autoGraphAt = 0;
+  }
+
+  function autoGraph(settings) {
+    var now = Date.now();
+    if (_autoGraph && now - _autoGraphAt < AUTO_GRAPH_TTL_MS) return Promise.resolve(_autoGraph);
+    if (_autoGraphPending) return _autoGraphPending;
+    _autoGraphPending = gqlRequest(tagQuery(settings), null).then(function (data) {
+      var graph = buildGraph(((data.findTags || {}).tags) || []);
+      graph.warmAll();
+      _autoGraph = graph;
+      _autoGraphAt = Date.now();
+      _autoGraphPending = null;
+      return graph;
+    }, function (e) {
+      _autoGraphPending = null;
+      throw e;
+    });
+    return _autoGraphPending;
+  }
+
+  // Entity ids we have written to recently, as key -> timestamp. See point 4 above.
+  var _autoRecent = {};
+
+  function cooledDown(type, id) {
+    var at = _autoRecent[type.key + ':' + id];
+    return at != null && Date.now() - at < AUTO_COOLDOWN_MS;
+  }
+
+  function markWritten(type, ids) {
+    var now = Date.now();
+    ids.forEach(function (id) { _autoRecent[type.key + ':' + id] = now; });
+
+    // Swept rather than capped: a bulk edit of a large library can put tens of
+    // thousands of ids in here, and every one of them expires on its own schedule.
+    var keys = Object.keys(_autoRecent);
+    if (keys.length <= AUTO_COOLDOWN_MAX) return;
+    keys.forEach(function (k) {
+      if (now - _autoRecent[k] >= AUTO_COOLDOWN_MS) delete _autoRecent[k];
+    });
+  }
+
+  // Enough of a Run for applyBatch to write into. The dialog's version renders to
+  // the DOM and feeds Undo; this one only has a console, which is the whole
+  // difference between the two modes and the reason the setting descriptions warn
+  // about it. `undoable` is collected and dropped on the floor deliberately -
+  // applyBatch pushes to it, and there is no dialog here to offer it from.
+  function autoSink() {
+    return {
+      undoable: [], appliedTags: {}, applied: 0, failed: 0, errors: 0,
+      log: function (kind, message) {
+        var line = '[' + PLUGIN_ID + '] ' + message;
+        if (kind === 'ERROR') console.error(line);
+        else console.info(line);
+      },
+    };
+  }
+
+  // Every plural find query takes `ids: [ID!]`, markers included, so one query
+  // fetches exactly the entities that were touched and planEntity runs against them
+  // unchanged. No paging, no count - the caller already knows which ids it wants.
+  function autoEntityQuery(type) {
+    return 'query NPTAuto_' + type.find + '($ids: [ID!]) {' +
+      '  ' + type.find + '(ids: $ids) {' +
+      '    ' + type.node + ' { ' + type.fields + (type.organized ? ' organized' : '') +
+      ' tags { id } }' +
+      '  }' +
+      '}';
+  }
+
+  var _autoExcludeWarned = false;
+
+  // Resolves b1ExcludeEntityWithTagName against the graph in hand, exactly as
+  // begin() does. Returns false when the name is set but matches no tag: running
+  // unfiltered would touch the entities the user asked to protect, so the reaction
+  // is abandoned instead. The dialog stops the whole run for this; out here there is
+  // nothing to stop, so it warns once and keeps refusing quietly.
+  function autoExcludeTagId(graph, settings) {
+    var name = (settings.b1ExcludeEntityWithTagName || '').trim();
+    if (!name) { _autoExcludeWarned = false; return null; }
+    for (var id in graph.byId) {
+      if (hasOwn(graph.byId, id) && graph.byId[id].name === name) {
+        _autoExcludeWarned = false;
+        return id;
+      }
+    }
+    if (!_autoExcludeWarned) {
+      _autoExcludeWarned = true;
+      console.warn('[npt] no tag is named "' + name + '" (exact, case-sensitive), so the ' +
+        '"Exclude entities carrying this tag" filter cannot be applied. Auto mode is doing ' +
+        'nothing until that setting is fixed or cleared.');
+    }
+    return false;
+  }
+
+  function autoNormalize(type, ids) {
+    var wanted = [];
+    ids.forEach(function (id) {
+      var sid = String(id);
+      if (sid && !cooledDown(type, sid) && wanted.indexOf(sid) === -1) wanted.push(sid);
+    });
+    if (!wanted.length) return Promise.resolve();
+
+    return autoSettings().then(function (s) {
+      var mode = autoMode(s);
+      // Re-checked here rather than only at the call site: settings can have been
+      // refreshed between the mutation going out and this running.
+      if (!mode || !s[type.setting]) return;
+
+      // Someone else is rewriting entities in bulk right now. Their writes look
+      // exactly like user edits from in here, and normalizing each one as it lands
+      // is how two plugins undo each other. Ours is taken further down, and
+      // guarded() has already excluded every write we issue ourselves - so the only
+      // thing that can reach this while our own lease is held is a user's save in
+      // this tab, which is precisely one that should wait.
+      if (autoSuppressed()) return;
+
+      return autoGraph(s).then(function (graph) {
+        var excludeTagId = autoExcludeTagId(graph, s);
+        if (excludeTagId === false) return;
+
+        var ctx = {
+          settings: s, graph: graph,
+          filters: makeFilters(s, graph),
+          excludeTagId: excludeTagId,
+        };
+
+        return gqlRequest(autoEntityQuery(type), { ids: wanted }).then(function (data) {
+          var list = (data[type.find] || {})[type.node] || [];
+          var plan = [];
+          list.forEach(function (ent) {
+            var delta = planEntity(type, ent, mode, ctx);
+            if (!delta) return;
+            plan.push({
+              type: type, id: ent.id, label: entityLabel(type, ent),
+              add: delta.add, remove: delta.remove, reason: delta.reason,
+            });
+          });
+          if (!plan.length) return;
+
+          var sink = autoSink();
+          var batches = buildBatches(plan);
+          // Marked before the write, not after: the window has to cover the time the
+          // mutation is in flight, which is exactly when another plugin reacting to
+          // it will come back at us.
+          markWritten(type, plan.map(function (e) { return String(e.id); }));
+
+          var lease = acquireLease(mode === 'prune' ? AUTO_PRUNE_NAME : AUTO_ROLLUP_NAME,
+            AUTO_LEASE_TTL_MS);
+          var i = 0;
+          function nextBatch() {
+            if (i >= batches.length) return Promise.resolve();
+            lease.renew();
+            return applyBatch(batches[i++], sink, graph).then(nextBatch);
+          }
+          return guarded(nextBatch).then(function () {
+            lease.release();
+          }, function (e) {
+            lease.release();
+            throw e;
+          });
+        });
+      });
+    }).catch(function (e) {
+      console.error('[npt] auto ' + type.plural.toLowerCase() + ': ' +
+        (e && e.message ? e.message : e));
+    });
+  }
+
+  // Called from the fetch wrapper once the mutation is known to have succeeded.
+  function autoReact(type, ids) {
+    if (!ids || !ids.length) return;
+    autoNormalize(type, ids);
+  }
+
+  // Built once per type per slot and cached on the type: the wrapper runs on every
+  // GraphQL request the page makes, and compiling fourteen regexes each time is a
+  // cost paid on queries that were never going to match.
+  function autoRe(type, slot) {
+    var key = '_re_' + slot;
+    if (!type[key]) type[key] = new RegExp('\\b' + type[slot] + '\\b');
+    return type[key];
+  }
+
   // ── Task interception ─────────────────────────────────────────────────────
   //
   // Layer 1: capture-phase click. React attaches its handlers to the root
@@ -2044,6 +2420,9 @@
 
   var _fetch = window.fetch;
   window.fetch = function (url, opts) {
+    // The task backstop stays first and ahead of the _writeDepth check below: the
+    // mutation has to be *answered* rather than forwarded, and a task click is a
+    // user action whether or not a write happens to be in flight.
     if (typeof url === 'string' && url.indexOf('/graphql') !== -1 && opts && opts.body) {
       try {
         var parsed = JSON.parse(opts.body);
@@ -2056,6 +2435,43 @@
         // Not JSON, or no variables - nothing to match on; fall through.
       }
     }
-    return _fetch.apply(this, arguments);
+
+    var p = _fetch.apply(this, arguments);
+    if (_writeDepth > 0 || typeof url !== 'string' || url.indexOf('/graphql') === -1 ||
+        !opts || !opts.body) {
+      return p;
+    }
+
+    try {
+      var req = JSON.parse(opts.body);
+      var q = req.query || '';
+      var v = req.variables || {};
+
+      // Any tag mutation invalidates the cached hierarchy. Cheap to test, and
+      // without it a parent added in another tab is ignored for up to a minute.
+      if (/\btag(s)?(Create|Update|Destroy|Merge)\b/.test(q) || /\bbulkTagUpdate\b/.test(q)) {
+        invalidateAutoGraph();
+      }
+
+      // One type at most can match: Stash capitalises the type inside the bulk name,
+      // so no \b-anchored single name is a substring of a bulk one.
+      TYPES.forEach(function (type) {
+        var bulk = autoRe(type, 'bulk').test(q);
+        if (!bulk && !autoRe(type, 'single').test(q)) return;
+        var ids = bulk
+          ? (v.input && v.input.ids)
+          : (v.input && v.input.id != null ? [v.input.id] : null);
+        if (!ids || !ids.length) return;
+        // Whether to stand down for someone else's lease is decided inside
+        // autoNormalize, once the settings say an auto mode is actually on - asking
+        // here would announce "standing down" for a plugin that is not running.
+        mutationSucceeded(p).then(function (ok) {
+          if (ok) autoReact(type, ids);
+        });
+      });
+    } catch (e) {
+      // Not JSON, or no variables - nothing to match on.
+    }
+    return p;
   };
 })();

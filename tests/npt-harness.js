@@ -223,6 +223,21 @@ function makeResponder(opts) {
     if (q.indexOf('NPTTags') !== -1) {
       return { data: { findTags: { tags: opts.tags || TAGS } } };
     }
+    // Auto mode fetches exactly the entities a mutation touched, by id, rather than
+    // paging - so it answers from the same `entities` table but filtered, and
+    // carries no `count`.
+    const auto = /query NPTAuto_(\w+)\(/.exec(q);
+    if (auto) {
+      const name = auto[1];
+      if (opts.failFind === name) return { errors: [{ message: 'boom' }] };
+      const spec = entities[name] || { node: 'scenes', list: [] };
+      const want = (req.variables.ids || []).map(String);
+      const out = {};
+      out[spec.node] = spec.list.filter((e) => want.indexOf(String(e.id)) !== -1);
+      const data = {};
+      data[name] = out;
+      return { data: data };
+    }
     const find = /query NPT_(\w+)\(/.exec(q);
     if (find) {
       const name = find[1];
@@ -250,9 +265,21 @@ function makeResponder(opts) {
 
 const bulkCalls = (calls) => calls.filter((c) => /mutation NPT_bulk/.test(c.query || ''));
 
+// Posts an entity update the way Stash's own UI would, so the plugin's fetch
+// wrapper sees a mutation it might react to. `field` is the mutation name
+// (sceneUpdate, bulkSceneUpdate, ...); a bulk one takes `ids`, a single one `id`.
+function entityUpdate(ctx, field, input) {
+  return ctx.window.fetch('/graphql', {
+    body: JSON.stringify({
+      query: 'mutation Stash_' + field + '($input: X!) { ' + field + '(input: $input) { id } }',
+      variables: { input: input },
+    }),
+  });
+}
+
 module.exports = {
   SRC, PLUGIN_ID, TASK_PRUNE, TASK_ROLLUP, TAGS,
   makeEnv, run, startTask, flush, dialog, hasClass, makeElement,
-  check, finish, makeResponder, bulkCalls,
+  check, finish, makeResponder, bulkCalls, entityUpdate,
   results: () => failures,
 };

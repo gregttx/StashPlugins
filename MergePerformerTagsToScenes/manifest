@@ -12,7 +12,7 @@ metadata:
     browser's JavaScript console (F12 - Console); being a UI plugin, it cannot write
     to the Stash server log or the Logs page. Auto-merge stands down while another
     plugin (such as Normalize Parent Tags) is applying bulk changes. The library-wide task also reports whether Normalize Parent Tags' own auto modes are active, and what they would do to the merge.
-version: 1.7.0
+version: 1.7.1
 date: "2026-08-05 00:00:00"
 requires: []
 files:

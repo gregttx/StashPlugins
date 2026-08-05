@@ -1,5 +1,22 @@
 # Merge Performer Tags To Scenes
 
+> ## ⚠ Back up your database before the first library-wide run
+>
+> The task below adds tags to potentially **every scene in your library** in one go, and **Stash
+> has no undo**. Merging only ever adds, so it cannot strip a tagging scheme the way a bad prune
+> can — but a merge you did not mean is thousands of scenes carrying tags you now have to find and
+> remove, and there is no practical way to do that by hand. Stop Stash, copy `stash-go.sqlite`
+> (next to your `config.yml`) somewhere safe, start Stash again — then run the task. Read the
+> review log properly the first time; that is what it is for.
+>
+> The dialog does have an **[Undo](#undoing-a-run)** button, but it only reaches its own writes and
+> only while it stays open. It is a way out of a run you regret in the moment, not a safety net —
+> the backup is the safety net.
+>
+> The two **auto-merge** settings deserve the same caution for a different reason: they write on
+> every save, with no dialog and nothing to undo them. The manual buttons are the safe way to try
+> this plugin out.
+
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (the custom-field exclusion filter) and UI plugin component patching (staging tags in the scene edit form) both depend on it.
 
 > **Upgrading to 1.1.1 from an earlier version resets the plugin's settings.** The settings were
@@ -128,10 +145,17 @@ Only tags that actually changed something are logged: a tag the scene already ca
 
 This setting is independent of everything else — it does not change what gets merged, only what is reported. The extra fields the log line needs (tag names, scene titles) are requested from Stash only while it is enabled.
 
-## Working alongside Normalize Parent Tags
+## If you also use Normalize Parent Tags
 
-Auto-merge reacts to *any* scene or performer save it sees, including saves made by another
-plugin. **Normalize Parent Tags** rewrites tags across the whole library, so without cooperation
+That plugin's writes look like any other edit from in here, and this plugin's two auto-merge
+settings react to *any* scene or performer save they see:
+
+- **Auto Merge On Scene Updates** — every scene that plugin touches gets its performers' tags
+  merged back in, parents included.
+- **Auto Merge On Performer Updates** — every performer it touches has their tags pushed out to
+  *all* of their scenes.
+
+**Normalize Parent Tags** rewrites tags across the whole library, so without cooperation
 auto-merge would merge performer tags — parents included — straight back into everything it had
 just changed.
 
@@ -166,6 +190,13 @@ library-wide task, the dialog tells you which, and what it would do to the merge
 If that plugin is new enough to stand down for the claim, the dialog says so and there is nothing
 to do. If it is not — or if it is switched off in Stash, which looks the same from here — you get a
 warning instead, naming the setting. It never stops the run; you pressed the button.
+
+If none of those settings are on, there is no interaction at all.
+
+This only covers plugins running in your browser. A plugin with server-side **hooks** — the
+Python or executable kind that Stash runs on `Scene.Update.Post` and similar — runs inside Stash
+itself, cannot be asked to stand down from here, and will react to this plugin's changes like any
+other edit. If you have one that touches tags, disable it for the run.
 
 ## How it works
 

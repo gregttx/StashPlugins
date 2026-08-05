@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.6.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.7.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -44,8 +44,8 @@ The file is sectioned with `── ... ─` comments, in this order:
 7. Staging — `installTagSelectPatch`, `findSceneTagControl`, `stageTagsIntoSceneForm`
 8. `mergeTagsIntoAllPerformerScenes`
 9. Settings loading and its throttle
-10. **Library-wide task** — the dialog, the walk over every performer, the apply and its
-    Undo, and layer 1 of the task-click interception
+10. **Library-wide task** — the dialog, `checkSibling()`, the walk over every performer, the apply
+    and its Undo, and layer 1 of the task-click interception
 11. Fetch interception (layer 2 of the task interception sits at the top of the wrapper)
 12. Performer button
 13. Scene button
@@ -339,6 +339,44 @@ scope in the caption, and a lease labelled `<task> (undo)`.
 but there is no undo", and both halves of that are now wrong for this dialog. It leads with what
 the merge does, keeps the backup instruction, and states Undo's limits.
 
+## 7c. Warning about the sibling's reactive modes (1.7.0)
+
+`NormalizeParentTags` 1.1.0 gained **Auto Prune / Auto Roll Up on Entity Updates**, which react to
+entity saves the way our auto-merge does. `checkSibling()` is the mirror of the check that plugin
+has always run against *us*: it reads the sibling's flags out of the shared
+`configuration { plugins }` response — which we already pay for — and reports them at the top of
+the task dialog.
+
+**Both of its directions collide with a merge, differently, so the warning names which.** Auto
+Prune removes the parent tags this merge adds, wherever a more specific tag on the same scene
+implies them; Auto Roll Up piles further ancestors on top of them. A generic "the sibling is
+active" would leave the user to work out which of those they are looking at.
+
+**Both of its modes on at once is silence, not a double warning.** That is the sibling's own
+documented no-op — they are exact inverses, so it runs neither — and warning about a mode that is
+not running would send the user to switch off something already inert. `prune === rollup` covers
+that and the both-off case in one test.
+
+**Registered means reported; unregistered means warned.** `coop().respecters[SIBLING_ID]` is the
+same signal the sibling reads about us, and a registered copy stands down for the lease the apply
+takes, so it is an `INFO` line rather than a head warning.
+
+**The unregistered branch is deliberately two-handed.** Not being registered means either the
+plugin is disabled in Stash — its settings linger in the config response while nothing is running —
+or the installed copy predates the protocol. There is no way to tell those apart from here, and
+asserting the alarming one would cry wolf at every user who has the plugin installed but switched
+off. The wording says both and leads with "if it is running". *(The sibling's mirror of this is
+more assertive than ours; if that side is ever revised, align the two.)*
+
+**It reads the last loaded settings rather than reloading.** The sibling's version reloads because
+its dialog loads settings per run anyway; ours shares the plugin-wide `settings` refresh — the 10s
+timer and the navigation triggers in §6 — which is the same freshness `describeFilters()` has always
+run on. The failure mode is a task clicked within a second of a hard reload showing no warning,
+which is the safe direction: no warning rather than a wrong one.
+
+**It never blocks.** Same rule as the lease warning above it: a task click is manual, and §7's rule
+is that manual actions are not suppressed.
+
 ## 8. Logging
 
 Two different prefixes, deliberately: user-facing merge lines use the full `[MergePerformerTagsToScenes]`
@@ -373,6 +411,13 @@ failed scene isolated and not logged as merged, **Stop**, **Rescan**, and the cl
 both phases (including its Stash-order sorting and a failed scene dropping out of the applied
 count). The Stop case presses the button from inside the responder on
 the fifth write, so the moment it lands does not depend on how many ticks a flush happens to take.
+
+It also covers §7c: a registered sibling reported rather than warned about, an unregistered one
+warning in the dialog head with the effect named per direction, both of its modes on producing
+silence, and neither a sibling without an auto mode nor an absent one being mentioned at all. Those
+cases start the task through `openAfterSettings`, which lets the bootstrap settings load land first —
+`checkSibling` reads what that stored, so a helper that races it would test nothing. All four
+behaviours were confirmed against deliberately broken copies before being trusted.
 
 `staging.test.js` is the most exposed, because it *models* `useTagsEdit` rather than calling it.
 Anything touching §4 needs a click in a real Stash before it is believed. Same for §5: the suites

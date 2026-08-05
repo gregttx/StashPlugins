@@ -153,6 +153,20 @@ library, so while it is applying changes **it takes the same kind of claim**, fo
 watches for one. And if you start it while another plugin is mid-run, the dialog says so and lets
 you decide — running both at once means each may undo part of the other.
 
+Normalize Parent Tags also has two settings of its own that react to every save — **Auto Prune on
+Entity Updates** and **Auto Roll Up on Entity Updates**. If either is on when you start the
+library-wide task, the dialog tells you which, and what it would do to the merge:
+
+- **Auto Prune** removes the parent tags this merge adds, wherever a more specific tag on the same
+  scene already implies them. That is often exactly what you want — merge everything, then let the
+  redundant parents fall away — but it is worth knowing before you read the result.
+- **Auto Roll Up** adds every ancestor of the tags this merge adds, so scenes end up with more tags
+  than the review listed.
+
+If that plugin is new enough to stand down for the claim, the dialog says so and there is nothing
+to do. If it is not — or if it is switched off in Stash, which looks the same from here — you get a
+warning instead, naming the setting. It never stops the run; you pressed the button.
+
 ## How it works
 
 This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.

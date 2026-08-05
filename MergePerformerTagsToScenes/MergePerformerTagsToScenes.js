@@ -8,6 +8,8 @@
 
   var PLUGIN_ID           = 'MergePerformerTagsToScenes';
   var PLUGIN_NAME         = 'Merge Performer Tags To Scenes';
+  var SIBLING_ID          = 'NormalizeParentTags';
+  var SIBLING_NAME        = 'Normalize Parent Tags';
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
 
@@ -643,6 +645,7 @@
   var LOAD_SETTINGS_MIN_INTERVAL_MS = 2000;
   var _settingsLoadedAt = 0;
   var _settingsInFlight = false;
+  var _siblingSettings = null;
 
   // force skips the rate limit but never the in-flight check — there is nothing to be
   // gained by stacking a second copy of the same query on a slow connection.
@@ -669,6 +672,12 @@
         settings.excludeTagWithIgnoreAutoTag    = !!ps.c1ExcludeTagWithIgnoreAutoTag;
         settings.excludeTagWithCustomFieldName  = ps.c2ExcludeTagWithCustomFieldName || '';
         settings.logMergesToConsole             = !!ps.d1LogMergesToConsole;
+        // Every plugin's settings arrive in this one response - Stash cannot scope
+        // it - so the sibling's are already paid for, and the task dialog uses them
+        // to warn (see checkSibling). Kept as the raw object rather than unpacked
+        // into named flags: they are somebody else's wire names, and the one place
+        // that reads them is the one place that should know them.
+        _siblingSettings = ((data.configuration || {}).plugins || {})[SIBLING_ID] || null;
         announceLogging();
       })
       .catch(function () {})
@@ -1033,6 +1042,8 @@
         'each may undo part of the other; let it finish first.');
     }
 
+    this.checkSibling();
+
     resolveExclusionTagId().then(function (exclTagId) {
       return self.walk(1, exclTagId);
     }).then(function () {
@@ -1042,6 +1053,47 @@
       self.errors++;
       self.finishScan();
     });
+  };
+
+  // The mirror of NormalizeParentTags' own check: it reads our auto-merge flags out
+  // of the shared settings response and says whether we will stand down, and since
+  // its 1.1.0 it has reactive modes worth the same treatment in reverse. Both of its
+  // directions collide with a merge - Prune strips the parent tags we add straight
+  // back out, Roll Up piles more ancestors on top - so the warning names which.
+  //
+  // Unlike its version, this reads the last loaded copy rather than reloading: the
+  // task shares `settings` with the rest of the plugin, which is refreshed on
+  // navigation and on the 10s timer. That is the same freshness describeFilters()
+  // already runs on.
+  TaskRun.prototype.checkSibling = function () {
+    var ps = _siblingSettings;
+    if (!ps) return;
+
+    var prune = !!ps.a8AutoPruneOnUpdate, rollup = !!ps.a9AutoRollUpOnUpdate;
+    // Both at once is that plugin's own documented no-op - they are exact inverses,
+    // so it runs neither - and warning about a mode that is not running would send
+    // the user to turn off something already inert.
+    if (prune === rollup) return;
+
+    var mode = prune ? 'Auto Prune on Entity Updates' : 'Auto Roll Up on Entity Updates';
+    var effect = prune
+      ? 'it will remove the parent tags this merge adds, wherever a more specific tag on the ' +
+        'same scene already implies them'
+      : 'it will add every ancestor of the tags this merge adds';
+
+    if (coop().respecters[SIBLING_ID]) {
+      this.log('INFO', SIBLING_NAME + ' has ' + mode + ' enabled; it will stand down while ' +
+        'this task writes.');
+      return;
+    }
+    // Not registered means one of two things and there is no way to tell them apart
+    // from here: the plugin is disabled in Stash (so its settings linger in the
+    // config but nothing is running), or the installed copy predates the lease
+    // protocol. Say both rather than assert the alarming one.
+    this.note(SIBLING_NAME + ' has ' + mode + ' enabled in its settings but has not registered ' +
+      'as honouring bulk-edit leases - either it is disabled in Stash, or the installed copy is ' +
+      'older than the protocol. If it is running, ' + effect + '. Turn it off for the duration, ' +
+      'or check the result afterwards.');
   };
 
   TaskRun.prototype.describeFilters = function () {

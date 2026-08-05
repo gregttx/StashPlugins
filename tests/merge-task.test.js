@@ -38,7 +38,11 @@ function makeResponder(opts) {
   return function (req) {
     const q = req.query || '';
     if (q.indexOf('configuration') !== -1) {
-      return { data: { configuration: { plugins: { [PLUGIN_ID]: settings } } } };
+      const plugins = { [PLUGIN_ID]: settings };
+      // Stash cannot scope this query to one plugin, so the sibling's settings
+      // arrive in the same response - which is what checkSibling reads.
+      if (opts.siblingSettings) plugins.NormalizeParentTags = opts.siblingSettings;
+      return { data: { configuration: { plugins } } };
     }
     if (/CPT2S_TaskPerformers|findPerformers/.test(q)) {
       const per = req.variables.per;
@@ -74,6 +78,19 @@ function open(opts) {
   h.run(env.ctx, SRC);
   h.startTask(env.ctx, TASK, PLUGIN_ID);
   return h.flush(150).then(() => ({ env, d: () => h.dialog(env.body, 'cpt2s') }));
+}
+
+// Same, but the bootstrap settings load is allowed to land before the task starts,
+// because checkSibling reads what that call stored rather than reloading. `respecter`
+// simulates a Normalize Parent Tags new enough to have registered itself at load.
+function openAfterSettings(opts, respecter) {
+  const env = h.makeEnv({ quiet: true, respond: makeResponder(opts || {}) });
+  h.run(env.ctx, SRC);
+  if (respecter) env.ctx.window.StashPluginCoop.respecters.NormalizeParentTags = true;
+  return h.flush(20).then(() => {
+    h.startTask(env.ctx, TASK, PLUGIN_ID);
+    return h.flush(150).then(() => ({ env, d: () => h.dialog(env.body, 'cpt2s') }));
+  });
 }
 
 // The forward merge writes one scene at a time; the undo goes out as a bulk delta.
@@ -526,6 +543,60 @@ Promise.resolve()
           d().visible('Undo') && d().visible('Proceed'));
       });
     });
+  })
+
+  // ── The sibling's reactive modes ──────────────────────────────────────────
+  //
+  // The mirror of NormalizeParentTags' own warning about our auto-merge flags.
+
+  .then(() => openAfterSettings({ siblingSettings: { a8AutoPruneOnUpdate: true } }, true))
+  .then(({ d }) => {
+    h.check('a registered sibling with Auto Prune on is reported, not warned about',
+      d().lines.some((l) => l.indexOf('Normalize Parent Tags has Auto Prune on Entity Updates ' +
+        'enabled; it will stand down while this task writes.') !== -1),
+      d().lines.join(' | '));
+    h.check('and nothing lands in the dialog head', d().note === '', d().note);
+  })
+
+  .then(() => openAfterSettings({ siblingSettings: { a8AutoPruneOnUpdate: true } }, false))
+  .then(({ d }) => {
+    h.check('an unregistered sibling with Auto Prune on warns in the head',
+      d().note.indexOf('Auto Prune on Entity Updates') !== -1, d().note);
+    h.check('the warning names what Prune would do to the merge',
+      d().note.indexOf('remove the parent tags this merge adds') !== -1, d().note);
+    h.check('and does not disable Proceed', d().button('Proceed').disabled === false);
+  })
+
+  .then(() => openAfterSettings({ siblingSettings: { a9AutoRollUpOnUpdate: true } }, false))
+  .then(({ d }) => {
+    h.check('Roll Up is named and described in its own terms',
+      d().note.indexOf('Auto Roll Up on Entity Updates') !== -1 &&
+      d().note.indexOf('add every ancestor of the tags this merge adds') !== -1, d().note);
+  })
+
+  // Both on is that plugin's own no-op, so there is nothing to warn about.
+  .then(() => openAfterSettings({
+    siblingSettings: { a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: true },
+  }, false))
+  .then(({ d }) => {
+    h.check('both sibling modes on warns about neither', d().note === '', d().note);
+    h.check('and says nothing in the log either',
+      !d().lines.some((l) => l.indexOf('Normalize Parent Tags') !== -1),
+      d().lines.join(' | '));
+  })
+
+  .then(() => openAfterSettings({ siblingSettings: { a5EnableScenes: true } }, false))
+  .then(({ d }) => {
+    h.check('a sibling with no auto mode on is not mentioned',
+      d().note === '' && !d().lines.some((l) => l.indexOf('Normalize Parent Tags') !== -1),
+      d().note + ' | ' + d().lines.join(' | '));
+  })
+
+  .then(() => openAfterSettings({}, false))
+  .then(({ d }) => {
+    h.check('a sibling that is not installed is not mentioned',
+      d().note === '' && !d().lines.some((l) => l.indexOf('Normalize Parent Tags') !== -1),
+      d().note);
   })
 
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

@@ -16,6 +16,28 @@
   var PLUGIN_NAME = 'Normalize Parent Tags';
   var SIBLING_ID  = 'MergePerformerTagsToScenes';
 
+  // The one version that proves anything. Everything the settings page shows is read
+  // from the manifest over GraphQL and updates the moment plugins are reloaded, while
+  // the browser can go on running a script it cached before the edit - so a heading
+  // reading 1.4.4 over 1.4.0 behaviour is the normal look of a stale script, not a
+  // contradiction. This constant travels inside the file, so the line below says
+  // which script is actually running. Bump it with the manifest and the yml; the
+  // `version` suite fails if the three disagree.
+  var PLUGIN_VERSION = '1.4.4';
+
+  // Printed before anything else runs, so a script that loads and then throws is
+  // told apart from one that never loaded at all: banner plus error means the new
+  // code is running and broken, no banner means the browser is still on the old one.
+  // Through whatever the console offers rather than console.info directly: this is
+  // the first statement in the file, so a console without it would take the whole
+  // plugin down before anything loaded. The sibling's logInfo has always done this.
+  if (typeof console !== 'undefined' && (console.info || console.log)) {
+    (console.info || console.log).call(console,
+      '[npt] NormalizeParentTags.js ' + PLUGIN_VERSION + ' loaded. This is the running ' +
+      'script own version - the settings page reads the manifest instead, which can be newer ' +
+      'than the script your browser has cached.');
+  }
+
   var TASK_PRUNE  = 'Prune Parent Tags from Entities';
   var TASK_ROLLUP = 'Roll Up Parent Tags onto Entities';
   var TASK_TREE   = 'Show Tag Hierarchy';

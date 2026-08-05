@@ -356,6 +356,31 @@ Two things worth knowing about the tag-level filters:
 4. Refresh your browser (F5) so the plugin's JavaScript is loaded.
 5. Enable the entity types you want in **Settings → Plugins → Normalize Parent Tags**.
 
+### Checking which version is actually running
+
+**Reload plugins cannot replace the script your browser is already running.** It re-reads the
+plugin folder on the server; the JavaScript in your open page was fetched and executed when the
+page loaded, and it stays until the page reloads. So an update always needs at least an F5, and
+sometimes a hard refresh (**Ctrl+Shift+R**, or **Cmd+Shift+R**) if your browser served the file
+from cache.
+
+The version beside the plugin's name in **Settings → Plugins** does not settle this: it is read
+from the manifest, which is current the instant you reload plugins, even when the script running in
+the page is older. That combination — new version in the heading, old behaviour on screen — is
+exactly what a cached script looks like.
+
+The plugin therefore says which script is running, in your browser's console (**F12** → Console) on
+every page load:
+
+```
+[npt] NormalizeParentTags.js 1.4.4 loaded. This is the running script own version - the settings
+page reads the manifest instead, which can be newer than the script your browser has cached.
+```
+
+If that number is not the one you just installed, the page is running an old copy: hard-refresh,
+and if that still does not do it, open DevTools → **Network**, tick **Disable cache**, and reload
+with DevTools open.
+
 ## How it works
 
 Pure client-side JavaScript (`ui.javascript` in the manifest). It calls Stash's `/graphql`

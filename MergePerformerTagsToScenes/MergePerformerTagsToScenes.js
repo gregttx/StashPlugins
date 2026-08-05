@@ -10,6 +10,27 @@
   var PLUGIN_NAME         = 'Merge Performer Tags To Scenes';
   var SIBLING_ID          = 'NormalizeParentTags';
   var SIBLING_NAME        = 'Normalize Parent Tags';
+
+  // The one version that proves anything. The settings page reads the manifest over
+  // GraphQL and updates as soon as plugins are reloaded, while the browser can still
+  // be running a script it cached before the edit — a heading reading 1.8.3 over
+  // 1.8.0 behaviour is the normal look of a stale script. This constant travels
+  // inside the file. Bump it with the manifest and the yml; the `version` suite
+  // fails if the three disagree.
+  var PLUGIN_VERSION      = '1.8.3';
+
+  // Printed before anything else runs, so a script that loads and then throws is told
+  // apart from one that never loaded: banner plus error means the new code is running
+  // and broken, no banner means the browser is still on the old one.
+  // Through whatever the console offers rather than console.info directly, the way
+  // logInfo already does: this is the first statement in the file, so a console
+  // without it would take the whole plugin down before anything loaded.
+  if (typeof console !== 'undefined' && (console.info || console.log)) {
+    (console.info || console.log).call(console,
+      '[cpt2s] MergePerformerTagsToScenes.js ' + PLUGIN_VERSION + ' loaded. This is the ' +
+      'running script’s own version — the settings page reads the manifest instead, which can ' +
+      'be newer than the script your browser has cached.');
+  }
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
 

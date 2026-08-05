@@ -196,6 +196,20 @@ The two buttons appear in different places, because each one sits where the cont
 
 **Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it has at least one performer, an **"Add Perf Tags"** button appears next to the Save/Delete buttons of the edit form. Click it to add all tags from all performers in that scene into the scene's tag list.
 
+### Checking which version is actually running
+
+**Reload plugins cannot replace the script your browser is already running.** It re-reads the plugin folder on the server; the JavaScript in your open page was fetched and executed when the page loaded, and stays until the page reloads. An update always needs at least an F5, and sometimes a hard refresh (**Ctrl+Shift+R**, or **Cmd+Shift+R**) if the browser served the file from cache.
+
+The version beside the plugin's name in **Settings → Plugins** does not settle it — that comes from the manifest, which is current the instant you reload plugins even when the running script is older. New version in the heading with old behaviour on screen is exactly what a cached script looks like.
+
+So the plugin says which script is running, in the browser console (**F12** → Console) on every page load, whether or not merge logging is enabled:
+
+```
+[cpt2s] MergePerformerTagsToScenes.js 1.8.3 loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
+```
+
+If that is not the version you just installed, hard-refresh; if it still is not, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
+
 ## How it works
 
 This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.

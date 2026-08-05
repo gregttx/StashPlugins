@@ -1068,3 +1068,13 @@ repo can only assert against its own fake Stash.
 
 Per the repo convention: bump the patch digit in **both** `NormalizeParentTags.yml` and
 `manifest` on every change; bump the minor digit and reset the patch for a new feature.
+
+**Three places, not two, since 1.4.4.** `PLUGIN_VERSION` at the top of the script is the third,
+and it is the only one that says anything about the code actually running: the yml and the manifest
+are read by Stash over GraphQL and go current the moment plugins are reloaded, while the browser may
+still be executing a script it cached before the edit. The constant is printed to the console at
+load, so "which version am I running" has an answer that a stale script cannot fake — a heading
+reading 1.4.4 over older behaviour is the normal look of a cached script, not a contradiction.
+`tests/version.test.js` loads the plugin and fails if the printed version and the manifest disagree,
+which is what stops the third place from drifting.
+

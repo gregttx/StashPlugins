@@ -87,8 +87,8 @@ Promise.resolve()
         h.check('the first auto write says the brackets hold a Stash id',
           legends().length === 1 && legends()[0].indexOf('Stash id') !== -1, info.join(' | '));
         h.check('and it comes before the line it explains',
-          info.indexOf(legends()[0]) === 0 &&
-          info.findIndex((l) => l.indexOf('Scene "Ten" (10)') !== -1) > 0, info.join(' | '));
+          info.indexOf(legends()[0]) <
+          info.findIndex((l) => l.indexOf('Scene "Ten" (10)') !== -1), info.join(' | '));
         return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '20' }).then(() => h.flush());
       })
       .then(() => {

@@ -481,3 +481,13 @@ Patch digit for fixes, minor for features, in **both** `MergePerformerTagsToScen
 `manifest` — and the `description` lives in both files too, so a wording change means editing
 both. The `manifest` `files:` list ships `js`, `yml` and `README.md`; this file is development
 material and stays out of it.
+
+**Three places, not two, since 1.8.3.** `PLUGIN_VERSION` at the top of the script is the third,
+and it is the only one that says anything about the code actually running: the yml and the manifest
+are read by Stash over GraphQL and go current the moment plugins are reloaded, while the browser may
+still be executing a script it cached before the edit. The constant is printed to the console at
+load, so "which version am I running" has an answer that a stale script cannot fake — a heading
+reading 1.8.3 over older behaviour is the normal look of a cached script, not a contradiction.
+`tests/version.test.js` loads the plugin and fails if the printed version and the manifest disagree,
+which is what stops the third place from drifting.
+

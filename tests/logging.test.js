@@ -13,10 +13,14 @@ function captureConsole(ctx) {
   return info;
 }
 
-// The "logging enabled" banner is emitted once on settings load; the per-tag lines are
-// what the merge assertions are about.
+// Two lines are not merges: the "logging enabled" banner, emitted once on settings
+// load, and the version banner every load prints whatever the settings say - it is
+// the only proof of which script the browser is running, so it cannot be gated on a
+// setting. The per-tag lines are what the merge assertions are about.
 const isBanner = (line) => line.indexOf('merge logging enabled') !== -1;
-const merges = (info) => info.filter((l) => !isBanner(l));
+const isVersion = (line) => line.indexOf('MergePerformerTagsToScenes.js') !== -1 &&
+  line.indexOf('loaded') !== -1;
+const merges = (info) => info.filter((l) => !isBanner(l) && !isVersion(l));
 
 function stashSceneSave(ctx, id) {
   return ctx.fetch('/graphql', {
@@ -57,7 +61,11 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     await stashSceneSave(ctx, 1);
     await H.flush(80);
     H.check('setting off logs nothing at all, not even the banner',
-      info.length === 0, info.join(' | '));
+      info.filter((l) => !isVersion(l)).length === 0, info.join(' | '));
+    // The exception, and the reason it is one: a version the console does not show
+    // cannot answer "is the browser running my new script?".
+    H.check('but the version line is printed regardless',
+      info.filter(isVersion).length === 1, info.join(' | '));
     const q = calls.filter((c) => c.query.indexOf('query FindScene(') !== -1)[0];
     H.check('setting off does not request the scene title or file name',
       q && q.query.indexOf('title') === -1 && q.query.indexOf('basename') === -1, q && q.query);

@@ -707,7 +707,7 @@
   var TASK_CSS =
     '.cpt2s-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
     'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
-    '.cpt2s-modal{background:#30404d;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
+    '.cpt2s-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
     'width:min(56rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
     '.cpt2s-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
     '.cpt2s-title{font-size:1.1rem;font-weight:600;}' +

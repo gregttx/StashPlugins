@@ -876,12 +876,13 @@
     // two dialogs overlap, down to the hex values. They are separate strings because
     // the plugins share no module, not because they are meant to look different -
     // and they did drift, from #202b33 here against #30404d there, because nothing
-    // compared them. #30404d is Stash's own raised-surface grey, the one its cards
-    // and modals use; #202b33 is the page underneath, which made this dialog read as
-    // flush with the page rather than floating above it. `style` pins the overlap.
+    // compared them. `style` pins the overlap now. #202b33 is Blueprint's dark-gray2,
+    // the step Stash's page uses; every dim grey in these dialogs was chosen against
+    // it - the log's #a7b6c2 and #7d8f9c, and the tree's #3c4f5d hover and #425a6b
+    // selection - and they separate better on it than on the lighter #30404d.
     '.npt-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
     'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
-    '.npt-modal{background:#30404d;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
+    '.npt-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
     'width:min(56rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
     '.npt-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
     '.npt-title{font-size:1.1rem;font-weight:600;}' +

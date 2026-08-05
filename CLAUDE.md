@@ -121,10 +121,14 @@ Only the overlap is pinned. Rules the other dialog has no use for — the hierar
 inspector, each plugin's own log-line kinds (`REMOVE`/`ADD` against `MERGE`) — are free to differ,
 and the suite ignores selectors it finds on one side only.
 
-**`#30404d` is the modal background**, Stash's raised-surface grey: it is what its cards and modals
-use, where `#202b33` is the page underneath. A dialog in the page colour reads as flush with the
-page rather than floating above it. Both are Blueprint dark greys and both look native, which is
-exactly why the drift went unnoticed.
+**`#202b33` is the modal background** — Blueprint's `dark-gray2`, the step Stash's own page uses.
+The alternative the two drifted between, `#30404d` (`dark-gray4`), is what Stash puts on raised
+surfaces like cards, and it is the more conventional choice for a modal. It lost on contrast:
+every dim grey in these dialogs was picked against `#202b33` — the log's `#a7b6c2` INFO and
+`#7d8f9c` legend, and the hierarchy viewer's `#3c4f5d` row hover and `#425a6b` selection — and all
+of them separate less on the lighter panel. Changing the modal means re-tuning those, so change
+them together or not at all. Both greys are Blueprint and both look native, which is exactly why
+the drift went unnoticed for four months.
 
 ## Tests
 

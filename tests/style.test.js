@@ -73,9 +73,10 @@ shared.forEach((selector) => {
 
 // The modal is the one people see first, and the two values it drifted between are
 // both plausible Stash greys - so name the one that is right rather than leaving the
-// check to say only that they agree.
-h.check('the modal uses Stash raised-surface grey, not the page grey',
-  /background:#30404d/.test(npt.rules['.modal'] || '') &&
-  !/#202b33/.test(npt.rules['.modal'] || ''), npt.rules['.modal']);
+// check to say only that they agree. #202b33 is what the dim greys in the log and the
+// tree were chosen against, and it is what both dialogs settled on.
+h.check('the modal uses the grey the rest of the palette was picked against',
+  /background:#202b33/.test(npt.rules['.modal'] || '') &&
+  !/#30404d/.test(npt.rules['.modal'] || ''), npt.rules['.modal']);
 
 h.finish();

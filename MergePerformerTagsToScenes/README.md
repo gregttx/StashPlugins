@@ -205,10 +205,13 @@ The version beside the plugin's name in **Settings → Plugins** does not settle
 So the plugin says which script is running, in the browser console (**F12** → Console) on every page load, whether or not merge logging is enabled:
 
 ```
-[cpt2s] MergePerformerTagsToScenes.js 1.8.3 loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
+[cpt2s] MergePerformerTagsToScenes.js 1.9.0 loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
 ```
 
 If that is not the version you just installed, hard-refresh; if it still is not, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
+
+**The task checks this for you.** Opening the library-wide task asks Stash which version is installed and compares it with the running script. If they differ the dialog says so at the top and **Proceed stays disabled** until you reload the page. An unknown answer — an older Stash, a failed request — blocks nothing; only a definite mismatch does. It cannot catch an edit made without changing the version, since both numbers stay equal.
+
 
 ## How it works
 

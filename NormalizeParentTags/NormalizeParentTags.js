@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.4.4';
+  var PLUGIN_VERSION = '1.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -31,12 +31,15 @@
   // Through whatever the console offers rather than console.info directly: this is
   // the first statement in the file, so a console without it would take the whole
   // plugin down before anything loaded. The sibling's logInfo has always done this.
-  if (typeof console !== 'undefined' && (console.info || console.log)) {
-    (console.info || console.log).call(console,
-      '[npt] NormalizeParentTags.js ' + PLUGIN_VERSION + ' loaded. This is the running ' +
-      'script own version - the settings page reads the manifest instead, which can be newer ' +
-      'than the script your browser has cached.');
+  function npt(message) {
+    if (typeof console !== 'undefined' && (console.info || console.log)) {
+      (console.info || console.log).call(console, message);
+    }
   }
+
+  npt('[npt] NormalizeParentTags.js ' + PLUGIN_VERSION + ' loaded. This is the running ' +
+    'script own version - the settings page reads the manifest instead, which can be newer ' +
+    'than the script your browser has cached.');
 
   var TASK_PRUNE  = 'Prune Parent Tags from Entities';
   var TASK_ROLLUP = 'Roll Up Parent Tags onto Entities';
@@ -979,6 +982,33 @@
     return b;
   }
 
+  // ── Is this script the one Stash has installed? ───────────────────────────
+  //
+  // "Reload plugins" re-reads the plugin folder on the server; it cannot replace a
+  // script this page already fetched and executed. So the manifest can say 1.4.5
+  // while the browser is still running 1.4.4, and every surface Stash renders - the
+  // version beside the plugin name included - will show the new number, because they
+  // all come from the manifest over GraphQL. Comparing the two is the only way the
+  // script can notice it is the stale one.
+  //
+  // Resolves to null wherever the answer is unknown: a Stash too old for the field, a
+  // plugin it cannot see, a failed request. Unknown is not a mismatch, and a run must
+  // never be blocked because one more query failed.
+  //
+  // It catches only what a version bump makes visible. Editing the file without
+  // bumping it leaves both numbers equal and this check blind - which is the practical
+  // reason the repo bumps the patch digit on every change.
+  function installedVersion() {
+    return gqlRequest('query NPTPluginVersion { plugins { id version } }', null)
+      .then(function (data) {
+        var list = (data && data.plugins) || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && String(list[i].id) === PLUGIN_ID) return list[i].version || null;
+        }
+        return null;
+      }, function () { return null; });
+  }
+
   // ── A run ─────────────────────────────────────────────────────────────────
 
   // An input with the × that empties it, in a wrapper the icon positions against.
@@ -1021,6 +1051,9 @@
 
   Run.prototype.reset = function () {
     this.plan = [];
+    // Set by checkVersion when the running script is not the installed one. Per pass,
+    // because a rescan re-checks - the user may have reloaded plugins in between.
+    this.stale = false;
     // Counts the passes, so a recap whose tooltip query is still in flight when
     // Rescan is pressed is dropped rather than landing in the next pass's log.
     this.pass = (this.pass || 0) + 1;
@@ -1141,7 +1174,10 @@
     this.show(this.undoBtn, (ready || done) && this.undoable.length > 0);
     this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
-    this.proceedBtn.disabled = !ready || !this.plan.length;
+    // Undo is deliberately not gated on `stale`: it reverses writes this dialog has
+    // already made, and stranding the user with changes they cannot take back would
+    // be a worse outcome than the mismatch it is protecting them from.
+    this.proceedBtn.disabled = !ready || !this.plan.length || this.stale;
   };
 
   // A run-level warning: into the log, where Copy log will carry it, and into the
@@ -1272,6 +1308,11 @@
         'means each may undo part of the other; let it finish first.');
     }
 
+    // Not chained ahead of the scan: it is one small query against a pass that reads
+    // the whole library, and holding the scan up for it would buy nothing. It lands
+    // long before Proceed is reachable, and setState is re-applied when it does.
+    this.checkVersion();
+
     loadSettings().then(function (loaded) {
       self.settings = loaded.settings;
       self.checkSibling(loaded.sibling);
@@ -1368,6 +1409,39 @@
     this.note('Merge Performer Tags To Scenes has ' + on.join(' and ') + ' enabled, and this copy ' +
       'is too old to stand down. It will merge performer tags back into entities this run changes. ' +
       'Turn it off for the duration, or press Rescan afterwards.');
+  };
+
+  // Called from begin(), so a rescan re-checks: the script cannot change without a
+  // page reload, but the *installed* version can, if the user reloads plugins while
+  // this dialog is open - which is exactly what they do after noticing the warning.
+  Run.prototype.checkVersion = function () {
+    var self = this;
+    return installedVersion().then(function (installed) {
+      // The two quiet outcomes go to the console, next to the load banner, rather
+      // than into the log: this dialog's log is about the library, a matching version
+      // is the boring case, and a line that arrives whenever one small query happens
+      // to resolve would land in a different place in the log every run.
+      if (!installed) {
+        npt('[npt] version check: Stash reported no installed version; running ' +
+          PLUGIN_VERSION + '.');
+        return;
+      }
+      if (installed === PLUGIN_VERSION) {
+        npt('[npt] version check: running ' + PLUGIN_VERSION + ', which is what is installed.');
+        return;
+      }
+      // The plan below is being computed by code that is not what is installed, so
+      // Proceed is held back until the page is reloaded. This is the one warning in
+      // this dialog that blocks, and the reason is that every other warning is about
+      // the library or another plugin, where the user knows more than the dialog
+      // does - here the dialog knows something the user cannot see.
+      self.stale = true;
+      self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but ' +
+        installed + ' is installed. Reload the page (Ctrl+Shift+R) and run the task again; ' +
+        'Proceed stays disabled until the script matches, since the plan would be computed ' +
+        'by the older code.');
+      self.setState(self.state);
+    });
   };
 
   Run.prototype.finishScan = function () {

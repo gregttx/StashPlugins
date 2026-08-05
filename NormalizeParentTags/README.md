@@ -373,13 +373,23 @@ The plugin therefore says which script is running, in your browser's console (**
 every page load:
 
 ```
-[npt] NormalizeParentTags.js 1.4.4 loaded. This is the running script own version - the settings
+[npt] NormalizeParentTags.js 1.5.0 loaded. This is the running script own version - the settings
 page reads the manifest instead, which can be newer than the script your browser has cached.
 ```
 
 If that number is not the one you just installed, the page is running an old copy: hard-refresh,
 and if that still does not do it, open DevTools → **Network**, tick **Disable cache**, and reload
 with DevTools open.
+
+**The tasks check this for you.** Opening Prune or Roll Up asks Stash which version of the plugin
+is installed and compares it with the script that is running. If they differ, the dialog says so at
+the top and **Proceed stays disabled** until you reload the page — the plan would otherwise be
+computed by the code you replaced. Nothing is blocked when the answer is simply unknown (an older
+Stash, a failed request); only a definite mismatch holds a run back.
+
+It cannot catch an edit made without changing the version — both numbers stay equal and there is
+nothing to compare.
+
 
 ## How it works
 

@@ -311,6 +311,50 @@ Promise.resolve()
     });
   })
 
+  // ── Running the installed script ─────────────────────────────────────────
+  //
+  // Reload plugins swaps the manifest, not the script this page already executed, so
+  // the dialog can be planning a library-wide write with code the user replaced ten
+  // minutes ago. The manifest version is the only thing it can compare itself with.
+  .then(() => scan({ entities: bigLibrary(), installed: { id: 'NormalizeParentTags', version: '9.9.9' } }))
+    .then(({ d }) => {
+      h.check('a version mismatch is named in the dialog head',
+        d().note.indexOf('9.9.9 is installed') !== -1 && /running Normalize Parent Tags \d/.test(d().note),
+        d().note);
+      h.check('and says how to fix it', d().note.indexOf('Ctrl+Shift+R') !== -1, d().note);
+      // The one blocking warning in this dialog: every other one is about the library
+      // or another plugin, where the user knows more than the dialog does.
+      h.check('Proceed is held back even with a plan',
+        d().button('Proceed').disabled === true && d().lines.some((l) => l.indexOf('to remove') !== -1),
+        d().progress);
+      h.check('and Cancel still works', d().visible('Cancel'));
+    })
+
+  // The version the script carries. Read from the plugin rather than hard-coded, so
+  // a bump does not have to be made in a fourth place.
+  .then(() => {
+    const version = /var PLUGIN_VERSION\s*=\s*'([^']+)'/
+      .exec(require('fs').readFileSync(h.SRC, 'utf8'))[1];
+    return scan({ entities: bigLibrary(), installed: { id: 'NormalizeParentTags', version } })
+      .then(({ d }) => {
+        h.check('a matching version says nothing in the dialog', d().note === '', d().note);
+        h.check('and leaves Proceed alone', d().button('Proceed').disabled === false);
+      });
+  })
+
+  // Unknown is not a mismatch. An old Stash without the field, a plugin it cannot
+  // see, a failed request - none of them may block a run.
+  .then(() => scan({ entities: bigLibrary(), failVersion: true })).then(({ d }) => {
+    h.check('a failed version query does not warn', d().note === '', d().note);
+    h.check('and does not block', d().button('Proceed').disabled === false);
+  })
+
+  .then(() => scan({ entities: bigLibrary(), installed: { id: 'SomeOtherPlugin', version: '9.9.9' } }))
+    .then(({ d }) => {
+      h.check('a version for another plugin is ignored', d().note === '', d().note);
+      h.check('and does not block either', d().button('Proceed').disabled === false);
+    })
+
   // ── The closing tag summary ──────────────────────────────────────────────
   .then(() => scan({ entities: bigLibrary() })).then(({ d }) => {
     const planned = d().lines[d().lines.length - 1];

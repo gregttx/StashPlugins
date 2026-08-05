@@ -61,6 +61,14 @@ function makeResponder(opts) {
     }
     // The recap's tooltips: aliases and descriptions for the tags the run moved,
     // fetched by id once the plan is known rather than during the performer walk.
+    // What Stash says is installed, which the dialog compares against the version
+    // compiled into the script. Absent unless a case asks for it, so every other case
+    // exercises the unknown path - which must not warn or block.
+    if (/PluginVersion/.test(q)) {
+      if (opts.failVersion) return { errors: [{ message: 'no such field' }] };
+      return { data: { plugins: opts.installed
+        ? [{ id: opts.installed.id, version: opts.installed.version }] : [] } };
+    }
     if (/CPT2STagDetail/.test(q)) {
       if (opts.failTagDetail) return { errors: [{ message: 'too expensive' }] };
       const want = req.variables.ids;
@@ -264,6 +272,39 @@ Promise.resolve()
         d().progress.indexOf(written + ' scene(s) updated') !== -1, d().progress);
       h.check('Stop leaves the dialog closable', d().visible('Close') && !d().visible('Stop'));
     });
+  })
+
+  // ── Running the installed script ─────────────────────────────────────────
+  //
+  // Reload plugins swaps the manifest, not the script this page already executed, so
+  // the dialog can be planning a library-wide merge with code the user replaced ten
+  // minutes ago. The manifest version is the only thing it can compare itself with.
+  .then(() => open({ installed: { id: PLUGIN_ID, version: '9.9.9' } })).then(({ d }) => {
+    h.check('a version mismatch is named in the dialog head',
+      d().note.indexOf('9.9.9 is installed') !== -1 &&
+      d().note.indexOf('Ctrl+Shift+R') !== -1, d().note);
+    // The one blocking warning in this dialog: every other one is about the library
+    // or another plugin, where the user knows more than the dialog does.
+    h.check('Proceed is held back even with a plan',
+      d().button('Proceed').disabled === true && merges(d).length > 0, d().progress);
+  })
+
+  // The version the script carries, read from the plugin rather than hard-coded, so
+  // a bump does not have to be made in a fourth place.
+  .then(() => {
+    const version = /var PLUGIN_VERSION\s*=\s*'([^']+)'/
+      .exec(require('fs').readFileSync(SRC, 'utf8'))[1];
+    return open({ installed: { id: PLUGIN_ID, version: version } }).then(({ d }) => {
+      h.check('a matching version says nothing in the dialog', d().note === '', d().note);
+      h.check('and leaves Proceed alone', d().button('Proceed').disabled === false);
+    });
+  })
+
+  // Unknown is not a mismatch: an old Stash without the field, a plugin it cannot
+  // see, a failed request - none of them may block a run.
+  .then(() => open({ failVersion: true })).then(({ d }) => {
+    h.check('a failed version query does not warn', d().note === '', d().note);
+    h.check('and does not block', d().button('Proceed').disabled === false);
   })
 
   // ── The closing tag recap ────────────────────────────────────────────────

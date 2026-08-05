@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.8.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.9.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -481,6 +481,32 @@ Patch digit for fixes, minor for features, in **both** `MergePerformerTagsToScen
 `manifest` — and the `description` lives in both files too, so a wording change means editing
 both. The `manifest` `files:` list ships `js`, `yml` and `README.md`; this file is development
 material and stays out of it.
+
+**The dialog refuses to write with a stale script** (1.9.0). `checkVersion` asks Stash what version
+of this plugin is installed (`query CPT2SPluginVersion { plugins { id version } }`) and compares it with `PLUGIN_VERSION`. On a
+mismatch it warns in the head, naming both numbers and the fix, and **disables Proceed** until the
+page is reloaded. Four things make that safe rather than obstructive:
+
+- **Unknown is not a mismatch.** A Stash too old for the field, a plugin it cannot see, a failed
+  request — all resolve to `null` and change nothing. The check exists to catch a stale script, not
+  to make a run depend on one more query succeeding.
+- **Only the two quiet outcomes go to the console**, beside the load banner. A matching version is
+  the boring case, and a log line arriving whenever one small query resolves would land somewhere
+  different every run — the dialog's log is about the library.
+- **Undo is never gated on it.** It reverses writes this dialog already made; stranding the user
+  with changes they cannot take back would be worse than the mismatch being guarded against.
+- **It is the only warning here that blocks**, and the reason is worth keeping straight: every
+  other one — the lease, the sibling's auto modes — is about the library or another plugin, where
+  the user knows more than the dialog does. This one is about the dialog itself running code the
+  user has already replaced, which is the one thing they cannot see.
+
+It is not fired ahead of the scan but alongside it: one small query against a pass that reads the
+whole library, landing long before Proceed is reachable, with `setState` re-applied when it does.
+`begin()` calls it, so a rescan re-checks — the script cannot change without a page reload, but the
+installed version can, and reloading plugins is exactly what the user does after seeing the warning.
+
+**What it cannot catch:** an edit with no version bump. Both numbers stay equal and the check is
+blind, which is the practical argument for bumping the patch digit on every change.
 
 **Three places, not two, since 1.8.3.** `PLUGIN_VERSION` at the top of the script is the third,
 and it is the only one that says anything about the code actually running: the yml and the manifest

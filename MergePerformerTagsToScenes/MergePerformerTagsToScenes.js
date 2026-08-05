@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.8.3';
+  var PLUGIN_VERSION      = '1.9.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -25,12 +25,15 @@
   // Through whatever the console offers rather than console.info directly, the way
   // logInfo already does: this is the first statement in the file, so a console
   // without it would take the whole plugin down before anything loaded.
-  if (typeof console !== 'undefined' && (console.info || console.log)) {
-    (console.info || console.log).call(console,
-      '[cpt2s] MergePerformerTagsToScenes.js ' + PLUGIN_VERSION + ' loaded. This is the ' +
-      'running script’s own version — the settings page reads the manifest instead, which can ' +
-      'be newer than the script your browser has cached.');
+  function cpt2s(message) {
+    if (typeof console !== 'undefined' && (console.info || console.log)) {
+      (console.info || console.log).call(console, message);
+    }
   }
+
+  cpt2s('[cpt2s] MergePerformerTagsToScenes.js ' + PLUGIN_VERSION + ' loaded. This is the ' +
+    'running script’s own version — the settings page reads the manifest instead, which can ' +
+    'be newer than the script your browser has cached.');
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
 
@@ -909,6 +912,30 @@
     return '"' + (p.name || 'unnamed') + '" (' + p.id + ')';
   }
 
+  // What Stash has installed, as opposed to what this file says it is. "Reload
+  // plugins" re-reads the plugin folder on the server but cannot replace a script
+  // this page already executed, so the manifest can say 1.8.4 while the browser runs
+  // 1.8.3 — and every version Stash renders comes from that manifest. Comparing the
+  // two is the only way the script can notice it is the stale one. The sibling has
+  // the same check; see its §5 for the reasoning, and the repo-root CLAUDE.md for
+  // why the two are separate implementations.
+  //
+  // Resolves to null wherever the answer is unknown - a Stash too old for the field,
+  // a plugin it cannot see, a failed request - because unknown is not a mismatch and
+  // a run must not be blocked by one more query failing. It catches only what a
+  // version bump makes visible: editing the file without bumping it leaves both
+  // numbers equal and this check blind.
+  function installedVersion() {
+    return gqlRequest('query CPT2SPluginVersion { plugins { id version } }', null)
+      .then(function (data) {
+        var list = (data && data.plugins) || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && String(list[i].id) === PLUGIN_ID) return list[i].version || null;
+        }
+        return null;
+      }, function () { return null; });
+  }
+
   var _activeTask = null;
 
   function startTaskRun(taskName) {
@@ -932,6 +959,9 @@
     // tags - drop what the first one added. See planScene.
     this.plan = [];
     this.planByScene = {};
+    // Set by checkVersion when the running script is not the installed one. Per pass,
+    // because a rescan re-checks - the user may have reloaded plugins in between.
+    this.stale = false;
     // Scenes per tag, for the closing recap: what the plan would touch, and what the
     // apply actually wrote. `tagsById` carries the names and sort keys for both.
     this.plannedTagCounts = {};
@@ -1060,7 +1090,10 @@
     this.show(this.undoBtn, (ready || done) && this.undoable.length > 0);
     this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
-    this.proceedBtn.disabled = !ready || !this.plan.length;
+    // Undo is deliberately not gated on `stale`: it takes back tags this dialog has
+    // already added, and stranding the user with a merge they cannot reverse would be
+    // worse than the mismatch it is protecting them from.
+    this.proceedBtn.disabled = !ready || !this.plan.length || this.stale;
   };
 
   // A run-level warning: into the log, where Copy log will carry it, and into the
@@ -1203,6 +1236,10 @@
     }
 
     this.checkSibling();
+    // Not chained ahead of the walk: one small query against a pass that reads every
+    // performer in the library. It lands long before Proceed is reachable, and
+    // setState is re-applied when it does.
+    this.checkVersion();
 
     resolveExclusionTagId().then(function (exclTagId) {
       return self.walk(1, exclTagId);
@@ -1377,6 +1414,39 @@
         sceneLogLabel(scene, scene.id) + ' - ' + added.length + ' tag(s): ' +
         added.map(function (t) { return '"' + (t.name || 'unnamed') + '" (' + t.id + ')'; }).join(', '));
     }
+  };
+
+  // Called from begin(), so a rescan re-checks: the script cannot change without a
+  // page reload, but the installed version can, if the user reloads plugins while
+  // this dialog is open - which is what they do after seeing the warning.
+  TaskRun.prototype.checkVersion = function () {
+    var self = this;
+    return installedVersion().then(function (installed) {
+      // The two quiet outcomes go to the console, beside the load banner, rather than
+      // into the log: this log is about the library, a matching version is the boring
+      // case, and a line arriving whenever one small query resolves would land in a
+      // different place every run.
+      if (!installed) {
+        cpt2s('[cpt2s] version check: Stash reported no installed version; running ' +
+          PLUGIN_VERSION + '.');
+        return;
+      }
+      if (installed === PLUGIN_VERSION) {
+        cpt2s('[cpt2s] version check: running ' + PLUGIN_VERSION + ', which is what is installed.');
+        return;
+      }
+      // The plan is being computed by code that is not what is installed, so Proceed
+      // is held back until the page is reloaded. This is the one warning in this
+      // dialog that blocks: every other one is about the library or another plugin,
+      // where the user knows more than the dialog does - here the dialog knows
+      // something the user cannot see.
+      self.stale = true;
+      self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but ' +
+        installed + ' is installed. Reload the page (Ctrl+Shift+R) and run the task again; ' +
+        'Proceed stays disabled until the script matches, since the plan would be computed ' +
+        'by the older code.');
+      self.setState(self.state);
+    });
   };
 
   TaskRun.prototype.finishScan = function () {

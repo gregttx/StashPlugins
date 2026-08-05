@@ -249,6 +249,14 @@ function makeResponder(opts) {
     }
     // The recap's tooltips: aliases and descriptions for the tags a run touched,
     // fetched by id once the plan is known rather than carried on the hierarchy.
+    // What Stash says is installed, which the dialog compares against the version
+    // compiled into the script. Absent unless a case asks for it, so every other
+    // case exercises the unknown path - which must not warn or block.
+    if (/PluginVersion/.test(q)) {
+      if (opts.failVersion) return { errors: [{ message: 'no such field' }] };
+      return { data: { plugins: opts.installed
+        ? [{ id: opts.installed.id, version: opts.installed.version }] : [] } };
+    }
     if (q.indexOf('NPTTagDetail') !== -1) {
       if (opts.failTagDetail) return { errors: [{ message: 'too expensive' }] };
       const want = req.variables.ids;

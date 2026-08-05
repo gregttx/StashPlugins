@@ -2391,13 +2391,39 @@
     ' are both enabled. They are exact opposites - one adds every tag the other ' +
     'removes - so neither is running. Turn one of them off.';
 
-  // pathname + search + hash rather than any one of them: Stash routes the settings
-  // tabs through a query parameter, and reading the whole location keeps this
-  // working whichever part it ends up in.
-  function onPluginSettingsPage() {
-    var l = window.location || {};
-    var s = String(l.pathname || '') + String(l.search || '') + String(l.hash || '');
-    return s.indexOf('/settings') !== -1 && s.indexOf('tab=plugins') !== -1;
+  // Where the notice goes, found by the one hook on that page that is not a
+  // formatted display string: Stash gives every plugin setting an element id it
+  // derives from the plugin id and the setting key -
+  //
+  //   id: `plugin-${pluginID}-${setting.name}`   (SettingsPluginsPanel.tsx)
+  //
+  // so `plugin-NormalizeParentTags-a8AutoPruneOnUpdate` is ours by construction. No
+  // version suffix, no localisation, nothing to guess. Two earlier attempts matched
+  // the group's heading text instead and both were wrong about what it says; the
+  // heading is now only a fallback, for a Stash that does not set those ids.
+  //
+  // Finding the id is also what tells us we are on the plugins settings page, so
+  // there is no route test either. It was another assumption with nothing checking
+  // it, and the ids cannot exist anywhere else.
+  function hasClass(node, name) {
+    return (' ' + String((node && node.className) || '') + ' ').indexOf(' ' + name + ' ') !== -1;
+  }
+
+  function settingElement(key) {
+    return document.getElementById('plugin-' + PLUGIN_ID + '-' + key);
+  }
+
+  // Walks up from one of our settings to the group box that contains it. The notice
+  // goes at the top of that box rather than beside the setting, because the settings
+  // themselves live inside a <Collapse> that is shut by default - a notice in there
+  // would be invisible until the user expanded the very group it is telling them to
+  // look at.
+  function ownSettingGroup() {
+    var node = settingElement('a8AutoPruneOnUpdate') || settingElement('a9AutoRollUpOnUpdate');
+    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (hasClass(node, 'setting-group')) return node;
+    }
+    return null;
   }
 
   // The two pages that show a group headed with our name do not head it the same
@@ -2436,28 +2462,42 @@
     if (node && node.parentNode) node.parentNode.removeChild(node);
   }
 
+  // Top of our own group box where the ids are available, otherwise under the
+  // heading. Returns null when neither is on the page, which is also how the tick
+  // knows the plugins settings page is not showing.
+  function conflictNoticeSlot() {
+    var group = ownSettingGroup();
+    if (group) return { parent: group, before: group.firstChild };
+    var heading = ownSettingGroupHeading();
+    if (heading && heading.parentNode) {
+      return { parent: heading.parentNode, before: heading.nextSibling };
+    }
+    return null;
+  }
+
   function renderConflictNotice(show) {
-    var heading = show ? ownSettingGroupHeading() : null;
-    if (!heading || !heading.parentNode) { removeConflictNotice(); return; }
-    // Idempotent: tick() runs on a timer and on every navigation, so an already
-    // correctly placed notice must not be rebuilt - and one left behind by a
+    var slot = show ? conflictNoticeSlot() : null;
+    if (!slot) { removeConflictNotice(); return; }
+    // Idempotent: the tick runs on a timer and on every navigation, so an already
+    // correctly placed notice must not be rebuilt - and one left behind by a React
     // re-render must not be duplicated.
     var existing = document.getElementById(CONFLICT_ID);
     if (existing) {
-      if (existing.parentNode === heading.parentNode) return;
+      if (existing.parentNode === slot.parent) return;
       removeConflictNotice();
     }
     injectStyle();
     var note = el('div', 'npt-conflict', CONFLICT_TEXT);
     note.id = CONFLICT_ID;
-    if (heading.nextSibling) heading.parentNode.insertBefore(note, heading.nextSibling);
-    else heading.parentNode.appendChild(note);
+    if (slot.before) slot.parent.insertBefore(note, slot.before);
+    else slot.parent.appendChild(note);
   }
 
-  // Settings are only read while our group is actually on screen, so a tab parked
-  // anywhere else in Stash costs two string comparisons a second and no queries.
+  // Settings are only read while our own group is actually on the page, so a tab
+  // parked anywhere else in Stash costs two getElementById calls a second and no
+  // queries.
   function settingsTick() {
-    if (!onPluginSettingsPage() || !ownSettingGroupHeading()) {
+    if (!conflictNoticeSlot()) {
       removeConflictNotice();
       return;
     }

@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.2.1.** This file is both the design and the map of the code — the
+**Status: implemented at 1.2.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -645,7 +645,31 @@ Mechanics worth keeping: the group is found by a **heading carrying the plugin n
 position, since the page lists every installed plugin — the same rule as the task interception in
 §2.
 
-**The two pages do not head that group the same way, and 1.2.0 shipped broken because of it.**
+**Anchor on the setting element ids, not on any heading.** `SettingsPluginsPanel.tsx` gives every
+plugin setting an id built from the plugin id and the setting key:
+
+```jsx
+id: `plugin-${pluginID}-${setting.name}`   // plugin-NormalizeParentTags-a8AutoPruneOnUpdate
+```
+
+That is ours by construction — no version suffix, no localisation, nothing formatted for display.
+`ownSettingGroup()` finds one of ours and walks up to the enclosing `.setting-group`. Finding it is
+*also* what tells us the plugins settings page is showing, so there is no route test either; that
+was one more assumption with nothing checking it, and those ids cannot exist on another page.
+
+The notice goes at the **top of the group box**, not beside the setting: the settings themselves sit
+inside a `<Collapse>` that `SettingsPluginsPanel` shuts by default, so a notice in there would be
+invisible until the user expanded the very group it is telling them to look at. The group header is
+outside the Collapse, so the top of the box is visible either way.
+
+**Two releases shipped this broken by matching the heading text instead, and the tests agreed with
+the bug both times** — they were written from the same guess as the code, so they modelled a DOM
+Stash never produces. The heading match survives only as a fallback for a Stash that does not set
+those ids, and `normalize-auto` now builds the real structure: group box, header, collapsed section,
+and inputs carrying the real ids. Removing the id anchor fails the placement checks; the old
+heading-only matcher failed seven.
+
+**The two pages do not head that group the same way, which is what broke 1.2.0.**
 Settings → Tasks passes the name straight through (`heading: o.name` in `PluginTasks.tsx`), but
 Settings → Plugins appends the version:
 

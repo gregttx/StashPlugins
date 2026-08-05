@@ -334,34 +334,63 @@ Promise.resolve()
   //
   // Both modes on runs neither, which is safe and invisible. The notice is the
   // only thing that makes it visible, and it must never do more than report.
+  //
+  // The DOM here mirrors what Stash actually builds, because two earlier attempts
+  // at this were tested against markup invented from the same wrong guess as the
+  // code and so agreed with it rather than with Stash:
+  //
+  //   <div class="setting-group collapsible">
+  //     <div class="setting"><div><h3>Normalize Parent Tags (1.2.1)</h3>...</div></div>
+  //     <div class="collapse">                     <- shut by default
+  //       <div class="setting">... <input id="plugin-NormalizeParentTags-a8..."></div>
+  //     </div>
+  //   </div>
 
   .then(() => {
-    // A settings page with our own SettingGroup on it, plus another plugin's, so
-    // the notice has to pick the right heading rather than the first one.
-    function settingsPage(settings, path) {
+    // `opts.ids` builds the settings inputs Stash gives ids to; `opts.heading`
+    // sets the group heading text; either can be omitted to model an older Stash.
+    function settingsPage(settings, opts) {
+      opts = opts || {};
       const env = boot(settings);
-      env.ctx.location.pathname = path || '/settings';
-      env.ctx.location.search = path ? '' : '?tab=plugins';
       const other = h.makeElement('div');
+      other.className = 'setting-group collapsible';
       const otherH = h.makeElement('h3');
-      otherH.textContent = 'Some Other Plugin';
+      otherH.textContent = 'Some Other Plugin (2.0.0)';
       other.appendChild(otherH);
+
       const group = h.makeElement('div');
+      group.className = 'setting-group collapsible';
+      const header = h.makeElement('div');
+      header.className = 'setting';
+      const headBox = h.makeElement('div');
       const heading = h.makeElement('h3');
-      // Stash's plugins panel appends the version to the group heading:
-      // `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`.
-      heading.textContent = 'Normalize Parent Tags (1.2.0)';
-      const firstSetting = h.makeElement('div');
-      firstSetting.textContent = 'Include Performers';
-      group.appendChild(heading);
-      group.appendChild(firstSetting);
+      heading.textContent = opts.heading === undefined
+        ? 'Normalize Parent Tags (1.2.1)' : opts.heading;
+      headBox.appendChild(heading);
+      header.appendChild(headBox);
+      group.appendChild(header);
+
+      // The settings themselves sit inside the collapsed section.
+      const collapsed = h.makeElement('div');
+      collapsed.className = 'collapse';
+      if (opts.ids !== false) {
+        ['a8AutoPruneOnUpdate', 'a9AutoRollUpOnUpdate'].forEach((k) => {
+          const row = h.makeElement('div');
+          row.className = 'setting';
+          const input = h.makeElement('input');
+          input.id = 'plugin-NormalizeParentTags-' + k;
+          row.appendChild(input);
+          collapsed.appendChild(row);
+        });
+      }
+      group.appendChild(collapsed);
+
       env.ctx.document.body.appendChild(other);
       env.ctx.document.body.appendChild(group);
-      return { env, group, other, heading, firstSetting };
+      return { env, group, other, header, collapsed };
     }
     const notice = (env) => env.ctx.document.getElementById('npt-conflict-notice');
 
-    // Both on.
     const a = settingsPage({ a9AutoRollUpOnUpdate: true });
     a.env.tick();
     return h.flush().then(() => {
@@ -371,33 +400,68 @@ Promise.resolve()
         !!n && n.textContent.indexOf('Auto Prune on Entity Updates') !== -1 &&
         n.textContent.indexOf('Auto Roll Up on Entity Updates') !== -1 &&
         n.textContent.indexOf('neither is running') !== -1, n && n.textContent);
-      h.check('it lands inside our own group, under its heading',
-        !!n && n.parentNode === a.group && a.group.childNodes.indexOf(n) === 1,
+      // Top of the group box, not inside the collapsed section - otherwise it is
+      // hidden until you expand the group it is telling you to look at.
+      h.check('it goes at the top of our group box',
+        !!n && n.parentNode === a.group && a.group.childNodes.indexOf(n) === 0,
         n ? String(a.group.childNodes.indexOf(n)) : 'missing');
+      h.check('and not inside the collapsed section',
+        a.collapsed.descendants().indexOf(n) === -1);
       h.check('and not in the other plugin group',
         a.other.descendants().indexOf(n) === -1);
 
-      // Ticking again must not stack a second copy.
       a.env.tick();
       return h.flush().then(() => {
         const all = a.env.ctx.document.body.descendants()
           .filter((x) => x.id === 'npt-conflict-notice');
         h.check('repeated ticks do not duplicate it', all.length === 1, 'got ' + all.length);
-
         h.check('it writes nothing', h.bulkCalls(a.env.calls).length === 0 &&
           !a.env.calls.some((c) => /configurePlugin/.test(c.query || '')));
       });
     });
   })
 
-  // The heading text differs between the two pages that carry our name, and a
-  // near-namesake plugin must not be mistaken for us. Each of these is the exact
-  // string one of Stash's own templates produces.
+  // Only one mode on: no notice.
   .then(() => {
-    function headingCase(text) {
+    const env = boot();
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    const input = h.makeElement('input');
+    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
+    group.appendChild(input);
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    return h.flush().then(() => {
+      h.check('one mode on shows no notice',
+        !env.ctx.document.getElementById('npt-conflict-notice'));
+    });
+  })
+
+  // Our settings are not on the page at all: nothing rendered, and - since finding
+  // them is what stands in for a route test - not even a settings query.
+  .then(() => {
+    const env = boot({ a9AutoRollUpOnUpdate: true });
+    const stranger = h.makeElement('div');
+    stranger.className = 'setting-group';
+    const input = h.makeElement('input');
+    input.id = 'plugin-SomeOtherPlugin-a1Whatever';
+    stranger.appendChild(input);
+    env.ctx.document.body.appendChild(stranger);
+    const before = env.calls.length;
+    env.tick();
+    return h.flush().then(() => {
+      h.check('no notice where our settings are not rendered',
+        !env.ctx.document.getElementById('npt-conflict-notice'));
+      h.check('and no settings query is issued there',
+        env.calls.length === before, 'issued ' + (env.calls.length - before));
+    });
+  })
+
+  // Fallback for a Stash that does not put ids on plugin settings: match the group
+  // heading instead. Each string below is one Stash template's exact output.
+  .then(() => {
+    function headingOnly(text) {
       const env = boot({ a9AutoRollUpOnUpdate: true });
-      env.ctx.location.pathname = '/settings';
-      env.ctx.location.search = '?tab=plugins';
       const group = h.makeElement('div');
       const heading = h.makeElement('h3');
       heading.textContent = text;
@@ -408,54 +472,17 @@ Promise.resolve()
         !!env.ctx.document.getElementById('npt-conflict-notice'));
     }
     return Promise.all([
-      headingCase('Normalize Parent Tags (1.2.0)'),
-      headingCase('Normalize Parent Tags'),
-      headingCase('Normalize Parent Tags undefined'),
-      headingCase('Normalize Parent Tags Extra'),
-      headingCase('Some Other Plugin (1.0.0)'),
+      headingOnly('Normalize Parent Tags (1.2.1)'),
+      headingOnly('Normalize Parent Tags'),
+      headingOnly('Normalize Parent Tags undefined'),
+      headingOnly('Normalize Parent Tags Extra'),
+      headingOnly('Some Other Plugin (1.0.0)'),
     ]).then(([withVersion, plain, noVersion, namesake, other]) => {
-      h.check('the settings page heading carries the version, and is matched', withVersion);
-      h.check('the bare name is matched too (the tasks page form)', plain);
-      h.check('so is the "undefined" version Stash renders when there is none', noVersion);
-      h.check('a plugin whose name merely starts with ours is not', !namesake);
-      h.check('nor an unrelated one', !other);
-    });
-  })
-
-  // Only one mode on: no notice.
-  .then(() => {
-    const env = boot();
-    env.ctx.location.pathname = '/settings';
-    env.ctx.location.search = '?tab=plugins';
-    const group = h.makeElement('div');
-    const heading = h.makeElement('h3');
-    heading.textContent = 'Normalize Parent Tags (1.2.0)';
-    group.appendChild(heading);
-    env.ctx.document.body.appendChild(group);
-    env.tick();
-    return h.flush().then(() => {
-      h.check('one mode on shows no notice',
-        !env.ctx.document.getElementById('npt-conflict-notice'));
-    });
-  })
-
-  // Off a settings page it must neither render nor cost a settings query.
-  .then(() => {
-    const env = boot({ a9AutoRollUpOnUpdate: true });
-    env.ctx.location.pathname = '/scenes';
-    env.ctx.location.search = '';
-    const group = h.makeElement('div');
-    const heading = h.makeElement('h3');
-    heading.textContent = 'Normalize Parent Tags (1.2.0)';
-    group.appendChild(heading);
-    env.ctx.document.body.appendChild(group);
-    const before = env.calls.length;
-    env.tick();
-    return h.flush().then(() => {
-      h.check('no notice away from the settings page',
-        !env.ctx.document.getElementById('npt-conflict-notice'));
-      h.check('and no settings query is issued there',
-        env.calls.length === before, 'issued ' + (env.calls.length - before));
+      h.check('heading fallback: the versioned form is matched', withVersion);
+      h.check('heading fallback: the bare name too (the tasks page form)', plain);
+      h.check('heading fallback: and the "undefined" Stash renders with no version', noVersion);
+      h.check('heading fallback: a near-namesake plugin is not', !namesake);
+      h.check('heading fallback: nor an unrelated one', !other);
     });
   })
 
@@ -474,12 +501,11 @@ Promise.resolve()
       },
     });
     h.run(env.ctx);
-    env.ctx.location.pathname = '/settings';
-    env.ctx.location.search = '?tab=plugins';
     const group = h.makeElement('div');
-    const heading = h.makeElement('h3');
-    heading.textContent = 'Normalize Parent Tags (1.2.0)';
-    group.appendChild(heading);
+    group.className = 'setting-group';
+    const input = h.makeElement('input');
+    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
+    group.appendChild(input);
     env.ctx.document.body.appendChild(group);
     env.tick();
     return h.flush().then(() => {

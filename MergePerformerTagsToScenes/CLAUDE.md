@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.8.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.8.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -298,9 +298,11 @@ tooltip, in the one place this dialog enumerates tags. Four things hold it up:
   takes an optional `parts`; `flush` builds a span per segment when it is there and keeps the plain
   `textContent` path for every other line. `lines` still gets the joined string, because Copy log
   hands over text and a tooltip is not text.
-- **Only tags with something to add are underlined.** The span already reads `"Tattoo" (11) x18`,
-  so a tooltip repeating that is noise with a cursor — and an underline that appears on every tag
-  stops meaning "there is more here". `taskTagHasDetail` is the gate. The sibling's rows tooltip
+- **Only tags with something to add carry a tooltip.** The span already reads `"Tattoo" (11) x18`,
+  so a tooltip repeating that would open on a hover to say what is already on the line.
+  `taskTagHasDetail` is the gate. Nothing marks which tags have one — 1.8.1 removed the dotted
+  underline and help cursor 1.8.0 shipped with, because they read as decoration in a log that has
+  none elsewhere — so a hover that opens has to earn it. The sibling's rows tooltip
   unconditionally, and that is not an inconsistency: there the full name is itself information,
   since a long one is cut off by the row.
 - **One query, scoped to the recap.** `loadTagDetail` fetches `aliases` and `description` by id for

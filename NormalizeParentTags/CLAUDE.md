@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.4.0.** This file is both the design and the map of the code — the
+**Status: implemented at 1.4.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -326,10 +326,11 @@ no PluginApi). It shows:
   - `tagSummaryParts` returns segments instead of a string and `log()` takes an optional `parts`;
     `flush` builds a span per segment when it is there and keeps the plain `textContent` path for
     every other line. `lines` still gets the joined string, because Copy log hands over text.
-  - **Only tags with something to add are underlined** (`tagHasDetail`). The span already reads
-    `"Body" (4) x3`; a tooltip repeating that is noise with a cursor, and an underline on every tag
-    would stop meaning "there is more here". The viewer's rows are the deliberate exception — see
-    §5a.
+  - **Only tags with something to add carry a tooltip** (`tagHasDetail`). The span already reads
+    `"Body" (4) x3`; a tooltip repeating that would open on a hover to say what is already on the
+    line. Nothing marks which tags have one — 1.4.1 removed the dotted underline and help cursor
+    1.4.0 shipped with, because they read as decoration in a log that has none elsewhere — so a
+    hover that opens has to earn it. The viewer's rows are the deliberate exception; see §5a.
   - **`loadTagDetail` fetches by id**, for the tens of tags a recap names rather than the thousands
     the hierarchy holds. This is the same rule as `tagQuery(settings, detail)` and it assumes
     `findTags(ids:)`; verify that against a live Stash like every other API assumption here.

@@ -18,13 +18,15 @@ function bigLibrary() {
 }
 
 // The hoverable segments of a recap line: only the tags with something to say beyond
-// the caption carry a title, so this is also the list of what got underlined.
-const recapTips = (env, verb) => {
-  const line = env.body.descendants().filter((n) => h.hasClass(n, 'npt-line') &&
-    n.textContent.indexOf('tag(s) ' + verb + ':') !== -1)[0];
-  return line ? line.descendants().filter((n) => n.title)
-    .map((n) => ({ text: n.textContent, title: n.title })) : [];
+// the caption carry a title, and nothing else about the line changes.
+const recapLine = (env, verb) => env.body.descendants().filter((n) => h.hasClass(n, 'npt-line') &&
+  n.textContent.indexOf('tag(s) ' + verb + ':') !== -1)[0] || null;
+const recapSpans = (env, verb) => {
+  const line = recapLine(env, verb);
+  return line ? line.descendants() : [];
 };
+const recapTips = (env, verb) => recapSpans(env, verb).filter((n) => n.title)
+  .map((n) => ({ text: n.textContent, title: n.title }));
 
 function scan(opts, task) {
   const env = h.makeEnv({ quiet: true, respond: h.makeResponder(opts), clipboard: opts.clipboard });
@@ -343,9 +345,15 @@ Promise.resolve()
       tips.length === 1 && tips[0].text.indexOf('"Hair Colour" (1)') === 0 &&
       tips[0].title === 'Hair Colour\nStash tag id 1\nAliases: Hair Color, Haircolour\n' +
         'Description: Colour of the hair, natural or dyed.', JSON.stringify(tips));
-    // An underline that appears on every tag stops meaning "there is more here".
+    // Nothing marks which tags hover, so a hover that opens has to say something the
+    // line does not already.
     h.check('a tag with neither is left plain',
       !tips.some((t) => t.text.indexOf('Body') !== -1), JSON.stringify(tips));
+    // The spans exist to hang a title on. Styling them read as decoration in a log
+    // that has none elsewhere, so the recap has to look like every other line.
+    h.check('and the tags are not styled, only titled',
+      recapSpans(env, 'to remove').every((n) => !n.className), 
+      recapSpans(env, 'to remove').map((n) => n.className).join('|'));
     h.check('and the line itself is unchanged as text',
       d().lines[d().lines.length - 1] ===
         '[INFO] 2 tag(s) to remove: "Body" (4) x3, "Hair Colour" (1) x250',

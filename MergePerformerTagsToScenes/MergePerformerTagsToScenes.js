@@ -719,7 +719,6 @@
     '.cpt2s-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;' +
     'font-size:.8rem;line-height:1.35;min-height:14rem;}' +
     '.cpt2s-line{white-space:pre-wrap;word-break:break-word;}' +
-    '.cpt2s-tip{text-decoration:underline dotted;text-underline-offset:2px;cursor:help;}' +
     '.cpt2s-ERROR{color:#ff7373;} .cpt2s-WARN{color:#ffb648;} .cpt2s-MERGE{color:#84d68a;}' +
     '.cpt2s-INFO{color:#a7b6c2;}' +
     '.cpt2s-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
@@ -821,9 +820,10 @@
 
   // Whether the tag has anything to say that the recap does not already show. The
   // span already reads `"Tattoo" (11) x18`, so a tooltip repeating the name and id
-  // would be noise with a cursor - and worse, it would make the underline stop
-  // meaning "there is more here". (The tree's rows tooltip unconditionally, because
-  // there the full name is itself information: a long one is cut off by the row.)
+  // would open on a hover only to repeat the line underneath it - and since nothing
+  // marks which tags have one, every hover that does open had better say something
+  // new. (The sibling's tree rows tooltip unconditionally, because there the full
+  // name is itself information: a long one is cut off by the row.)
   function taskTagHasDetail(t) {
     return !!(taskAliasList(t).length || taskOneLine(t && t.description));
   }
@@ -1118,12 +1118,13 @@
     this.pending = [];
     pending.forEach(function (p) {
       var node = taskEl('div', 'cpt2s-line cpt2s-' + p.kind, p.parts ? null : p.line);
-      // The kind prefix stays plain text; only the tag segments are hoverable, and
-      // they are marked as such - an underline is what says a tooltip is there.
+      // The line looks exactly like every other one: the spans exist to hang a
+      // title on, and carry no styling of their own. An underline and a help cursor
+      // were tried at 1.8.0 and read as decoration on a log that has none elsewhere.
       if (p.parts) {
         node.appendChild(taskEl('span', null, '[' + p.kind + '] '));
         p.parts.forEach(function (seg) {
-          var span = taskEl('span', seg.title ? 'cpt2s-tip' : null, seg.text);
+          var span = taskEl('span', null, seg.text);
           if (seg.title) span.title = seg.title;
           node.appendChild(span);
         });

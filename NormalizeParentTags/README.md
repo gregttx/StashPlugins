@@ -99,8 +99,8 @@ Description: Every hair colour that occurs naturally, plus the dyed ones…
 ```
 
 This is the line you approve a Prune from, so it is worth being sure the tags on it are the tags
-you think they are. Only those with aliases or a description are underlined and hover; the rest
-have nothing to add beyond the name and id already shown. Long lists and long descriptions are
+you think they are. Only those with aliases or a description hover at all; the rest have nothing
+to add beyond the name and id already shown. Long lists and long descriptions are
 shortened — the aliases say how many more there are. It costs one extra query per recap, for the
 handful of tags named there rather than for every tag in your hierarchy, and if it fails the line
 simply reads as it always did.

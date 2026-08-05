@@ -363,10 +363,11 @@
   }
 
   // Whether a tag has anything to say beyond its name and id. The recap's spans
-  // already carry both, so a tooltip there would be noise with a cursor - and an
-  // underline that appears on every tag stops meaning "there is more here". The
-  // viewer's rows tooltip unconditionally instead, because there the full name is
-  // itself information: a long one is cut off by the row.
+  // already carry both, so a tooltip there would open on a hover and repeat the line
+  // underneath it - and since nothing marks which tags have one, every hover that
+  // does open had better say something new. The viewer's rows tooltip
+  // unconditionally instead, because there the full name is itself information: a
+  // long one is cut off by the row.
   function tagHasDetail(t) {
     return !!(aliasList(t).length || oneLine(t && t.description));
   }
@@ -885,7 +886,6 @@
     '.npt-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;font-size:.8rem;' +
     'line-height:1.35;min-height:14rem;}' +
     '.npt-line{white-space:pre-wrap;word-break:break-word;}' +
-    '.npt-tip{text-decoration:underline dotted;text-underline-offset:2px;cursor:help;}' +
     '.npt-ERROR{color:#ff7373;} .npt-WARN{color:#ffb648;} .npt-REMOVE{color:#7cc4ff;}' +
     '.npt-ADD{color:#84d68a;} .npt-INFO{color:#a7b6c2;}' +
     '.npt-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
@@ -1170,12 +1170,13 @@
     this.pending = [];
     pending.forEach(function (p) {
       var node = el('div', 'npt-line npt-' + p.kind, p.parts ? null : p.line);
-      // The kind prefix stays plain text; only the tag segments are hoverable, and
-      // they are marked as such - an underline is what says a tooltip is there.
+      // The line looks exactly like every other one: the spans exist to hang a
+      // title on, and carry no styling of their own. An underline and a help cursor
+      // were tried at 1.4.0 and read as decoration on a log that has none elsewhere.
       if (p.parts) {
         node.appendChild(el('span', null, '[' + p.kind + '] '));
         p.parts.forEach(function (seg) {
-          var span = el('span', seg.title ? 'npt-tip' : null, seg.text);
+          var span = el('span', null, seg.text);
           if (seg.title) span.title = seg.title;
           node.appendChild(span);
         });

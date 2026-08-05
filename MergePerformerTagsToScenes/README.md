@@ -72,8 +72,8 @@ There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks*
   Description: Natural or dyed light hair…
   ```
 
-  Only the tags that have aliases or a description are underlined and hover; the rest have nothing
-  to add beyond the name and id already on the line. Long alias lists and long descriptions are
+  Only the tags that have aliases or a description hover at all; the rest have nothing to add
+  beyond the name and id already on the line. Long alias lists and long descriptions are
   shortened — the aliases say how many more there are — so the tooltip cannot bury the log. This
   costs one extra query per phase, for the handful of tags the recap names rather than for every
   tag met while scanning, and if it fails the recap simply reads as it always did.

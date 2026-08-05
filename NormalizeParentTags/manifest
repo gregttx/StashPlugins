@@ -14,7 +14,7 @@ metadata:
     itself, marking multi-parent tags, protected tags and cycles, and exports it as a
     Graphviz or Mermaid diagram. Entity types are opt-in and are all off until
     enabled in the plugin settings.
-version: 1.1.4
+version: 1.1.5
 date: "2026-08-04 00:00:00"
 requires: []
 files:

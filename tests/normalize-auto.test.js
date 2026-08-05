@@ -348,7 +348,9 @@ Promise.resolve()
       other.appendChild(otherH);
       const group = h.makeElement('div');
       const heading = h.makeElement('h3');
-      heading.textContent = 'Normalize Parent Tags';
+      // Stash's plugins panel appends the version to the group heading:
+      // `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`.
+      heading.textContent = 'Normalize Parent Tags (1.2.0)';
       const firstSetting = h.makeElement('div');
       firstSetting.textContent = 'Include Performers';
       group.appendChild(heading);
@@ -388,6 +390,38 @@ Promise.resolve()
     });
   })
 
+  // The heading text differs between the two pages that carry our name, and a
+  // near-namesake plugin must not be mistaken for us. Each of these is the exact
+  // string one of Stash's own templates produces.
+  .then(() => {
+    function headingCase(text) {
+      const env = boot({ a9AutoRollUpOnUpdate: true });
+      env.ctx.location.pathname = '/settings';
+      env.ctx.location.search = '?tab=plugins';
+      const group = h.makeElement('div');
+      const heading = h.makeElement('h3');
+      heading.textContent = text;
+      group.appendChild(heading);
+      env.ctx.document.body.appendChild(group);
+      env.tick();
+      return h.flush().then(() =>
+        !!env.ctx.document.getElementById('npt-conflict-notice'));
+    }
+    return Promise.all([
+      headingCase('Normalize Parent Tags (1.2.0)'),
+      headingCase('Normalize Parent Tags'),
+      headingCase('Normalize Parent Tags undefined'),
+      headingCase('Normalize Parent Tags Extra'),
+      headingCase('Some Other Plugin (1.0.0)'),
+    ]).then(([withVersion, plain, noVersion, namesake, other]) => {
+      h.check('the settings page heading carries the version, and is matched', withVersion);
+      h.check('the bare name is matched too (the tasks page form)', plain);
+      h.check('so is the "undefined" version Stash renders when there is none', noVersion);
+      h.check('a plugin whose name merely starts with ours is not', !namesake);
+      h.check('nor an unrelated one', !other);
+    });
+  })
+
   // Only one mode on: no notice.
   .then(() => {
     const env = boot();
@@ -395,7 +429,7 @@ Promise.resolve()
     env.ctx.location.search = '?tab=plugins';
     const group = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'Normalize Parent Tags';
+    heading.textContent = 'Normalize Parent Tags (1.2.0)';
     group.appendChild(heading);
     env.ctx.document.body.appendChild(group);
     env.tick();
@@ -412,7 +446,7 @@ Promise.resolve()
     env.ctx.location.search = '';
     const group = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'Normalize Parent Tags';
+    heading.textContent = 'Normalize Parent Tags (1.2.0)';
     group.appendChild(heading);
     env.ctx.document.body.appendChild(group);
     const before = env.calls.length;
@@ -444,7 +478,7 @@ Promise.resolve()
     env.ctx.location.search = '?tab=plugins';
     const group = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'Normalize Parent Tags';
+    heading.textContent = 'Normalize Parent Tags (1.2.0)';
     group.appendChild(heading);
     env.ctx.document.body.appendChild(group);
     env.tick();

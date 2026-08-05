@@ -2400,13 +2400,33 @@
     return s.indexOf('/settings') !== -1 && s.indexOf('tab=plugins') !== -1;
   }
 
+  // The two pages that show a group headed with our name do not head it the same
+  // way. Settings - Tasks passes the plugin name straight through
+  // (`heading: o.name`), but Settings - Plugins appends the version:
+  //
+  //   heading: `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`
+  //
+  // so the h3 there reads "Normalize Parent Tags (1.2.0)" - and, because that
+  // template interpolates the literal when there is no version at all, sometimes
+  // "Normalize Parent Tags undefined". Matching the bare name found neither, which
+  // is why the notice never appeared at 1.2.0.
+  //
+  // Strip the suffix and compare exactly, rather than testing a prefix: a plugin
+  // called "Normalize Parent Tags Extra" must not be mistaken for ours.
+  function headingIsOurs(text) {
+    var t = String(text == null ? '' : text).trim();
+    if (t === PLUGIN_NAME) return true;
+    t = t.replace(/\s*\([^()]*\)$/, '').replace(/\s+undefined$/, '').trim();
+    return t === PLUGIN_NAME;
+  }
+
   // Our own SettingGroup, found the way the task interception finds its own: by a
   // heading carrying the plugin name. Never by position - the page lists every
   // installed plugin, and which one we are is the only thing we can be sure of.
   function ownSettingGroupHeading() {
     var nodes = document.querySelectorAll ? document.querySelectorAll('h3') : [];
     for (var i = 0; i < nodes.length; i++) {
-      if ((nodes[i].textContent || '').trim() === PLUGIN_NAME) return nodes[i];
+      if (headingIsOurs(nodes[i].textContent)) return nodes[i];
     }
     return null;
   }

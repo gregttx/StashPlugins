@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.2.0.** This file is both the design and the map of the code — the
+**Status: implemented at 1.2.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -643,7 +643,26 @@ There is also no way to collapse the pair into one control: `PluginSettingTypeEn
 
 Mechanics worth keeping: the group is found by a **heading carrying the plugin name**, never by
 position, since the page lists every installed plugin — the same rule as the task interception in
-§2. Rendering is idempotent, because the tick runs on a timer and on every navigation. Settings are
+§2.
+
+**The two pages do not head that group the same way, and 1.2.0 shipped broken because of it.**
+Settings → Tasks passes the name straight through (`heading: o.name` in `PluginTasks.tsx`), but
+Settings → Plugins appends the version:
+
+```jsx
+heading: `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`
+```
+
+so the `h3` there reads `Normalize Parent Tags (1.2.0)` — and, since that template interpolates the
+literal when a plugin has no version, sometimes `Normalize Parent Tags undefined`. Matching the bare
+name found neither, so the notice never appeared. `headingIsOurs` strips the suffix and compares
+**exactly**; do not relax it to a prefix test, or a plugin called `Normalize Parent Tags Extra`
+becomes us. All five spellings are pinned in `normalize-auto`, and both the original bug and the
+prefix-match "fix" fail those checks.
+
+The lesson generalises: every one of this plugin's footholds in Stash's markup is a guess until it
+runs against a real Stash, and a test written from the same guess confirms nothing. When a DOM
+assumption is added here, read the component that produces it. Rendering is idempotent, because the tick runs on a timer and on every navigation. Settings are
 only read while that page is showing, so a tab parked anywhere else costs two string comparisons a
 second and no queries. And a failed settings read leaves whatever is on screen rather than
 flickering the notice off and back on. There is deliberately **no MutationObserver** here, unlike

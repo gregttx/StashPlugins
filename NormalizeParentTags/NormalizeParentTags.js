@@ -2160,6 +2160,11 @@
   // this way a library nobody is editing issues no queries at all.
   var _autoSettings = null, _autoSettingsAt = 0, _autoSettingsPending = null;
 
+  function invalidateAutoSettings() {
+    _autoSettings = null;
+    _autoSettingsAt = 0;
+  }
+
   function autoSettings() {
     var now = Date.now();
     if (_autoSettings && now - _autoSettingsAt < AUTO_SETTINGS_TTL_MS) {
@@ -2604,6 +2609,19 @@
       // without it a parent added in another tab is ignored for up to a minute.
       if (/\btag(s)?(Create|Update|Destroy|Merge)\b/.test(q) || /\bbulkTagUpdate\b/.test(q)) {
         invalidateAutoGraph();
+      }
+
+      // Our own settings being saved. Without this the both-modes notice reads a
+      // cache up to AUTO_SETTINGS_TTL_MS old, so a checkbox took several seconds to
+      // change what it said - the delay reported against 1.2.2. Re-read only once
+      // the mutation has landed, or we fetch the old values straight back and cache
+      // them again for another ten seconds.
+      if (/\bconfigurePlugin\b/.test(q) && v.plugin_id === PLUGIN_ID) {
+        mutationSucceeded(p).then(function (ok) {
+          if (!ok) return;
+          invalidateAutoSettings();
+          settingsTick();
+        });
       }
 
       // One type at most can match: Stash capitalises the type inside the bulk name,

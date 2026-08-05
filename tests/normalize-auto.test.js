@@ -486,6 +486,73 @@ Promise.resolve()
     });
   })
 
+  // Saving our settings re-reads them at once. Without this the notice answers a
+  // cache up to AUTO_SETTINGS_TTL_MS old, which is the several-second lag between
+  // ticking a box and the banner changing.
+  .then(() => {
+    let both = false;
+    const env = h.makeEnv({
+      quiet: true,
+      respond: (req) => {
+        if ((req.query || '').indexOf('configuration') !== -1) {
+          return { data: { configuration: { plugins: { NormalizeParentTags: {
+            a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: both,
+          } } } } };
+        }
+        return { data: { configurePlugin: {} } };
+      },
+    });
+    h.run(env.ctx);
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    const input = h.makeElement('input');
+    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
+    group.appendChild(input);
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    return h.flush().then(() => {
+      h.check('no notice while only one mode is on',
+        !env.ctx.document.getElementById('npt-conflict-notice'));
+
+      // The user ticks the second box; Stash saves it.
+      both = true;
+      return env.ctx.window.fetch('/graphql', {
+        body: JSON.stringify({
+          query: 'mutation ConfigurePlugin($plugin_id: ID!, $input: Map!) { configurePlugin(plugin_id: $plugin_id, input: $input) }',
+          variables: { plugin_id: 'NormalizeParentTags', input: { a9AutoRollUpOnUpdate: true } },
+        }),
+      }).then(() => h.flush()).then(() => {
+        h.check('saving our settings shows the notice without waiting for the cache',
+          !!env.ctx.document.getElementById('npt-conflict-notice'));
+      });
+    });
+  })
+
+  // Another plugin's settings save must not throw ours away.
+  .then(() => {
+    const env = boot({ a9AutoRollUpOnUpdate: true });
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    const input = h.makeElement('input');
+    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
+    group.appendChild(input);
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    return h.flush().then(() => {
+      const before = env.calls.filter((c) => /configuration/.test(c.query || '')).length;
+      return env.ctx.window.fetch('/graphql', {
+        body: JSON.stringify({
+          query: 'mutation ConfigurePlugin($plugin_id: ID!, $input: Map!) { configurePlugin(plugin_id: $plugin_id, input: $input) }',
+          variables: { plugin_id: 'SomeOtherPlugin', input: {} },
+        }),
+      }).then(() => h.flush()).then(() => {
+        const after = env.calls.filter((c) => /configuration/.test(c.query || '')).length;
+        h.check('another plugin being configured does not re-read ours',
+          after === before, before + ' -> ' + after);
+      });
+    });
+  })
+
   // Turning one off while the page is open takes the notice away again.
   .then(() => {
     let both = true;

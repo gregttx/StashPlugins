@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.2.2.** This file is both the design and the map of the code — the
+**Status: implemented at 1.2.3.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -640,6 +640,15 @@ on three counts, all worth keeping written down because the idea will come back:
 
 There is also no way to collapse the pair into one control: `PluginSettingTypeEnum` is
 `STRING | NUMBER | BOOLEAN`, so Stash has no dropdown for a plugin setting.
+
+**A settings save re-reads them at once.** `autoSettings()` caches for `AUTO_SETTINGS_TTL_MS`, which
+is right for the reactive path — an idle tab should cost nothing — and wrong for a banner sitting on
+the page where those settings are edited: 1.2.2 took five to eight seconds to notice a checkbox. The
+`fetch` wrapper watches for `configurePlugin` carrying our own `plugin_id`, drops the cache and ticks,
+so the notice answers the click rather than the cache. Two details: re-read only **after**
+`mutationSucceeded`, or the old values come straight back and get cached for another ten seconds; and
+scope it to our `plugin_id`, since the settings page saves each plugin in its own mutation and
+another plugin's save is nothing to do with us.
 
 Mechanics worth keeping: the group is found by a **heading carrying the plugin name**, never by
 position, since the page lists every installed plugin — the same rule as the task interception in

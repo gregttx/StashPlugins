@@ -808,7 +808,9 @@
     '.npt-i-title{font-size:1rem;font-weight:600;margin-bottom:.4rem;font-family:monospace;}' +
     '.npt-i-label{color:#7cc4ff;margin-top:.6rem;}' +
     '.npt-i-body{color:#d6dee4;white-space:pre-wrap;word-break:break-word;}' +
-    '.npt-i-hint{color:#7d8f9c;}';
+    '.npt-i-hint{color:#7d8f9c;}' +
+    '.npt-conflict{margin:.5rem 0;padding:.5rem .75rem;border-left:3px solid #ffb648;' +
+    'background:rgba(255,182,72,.12);color:#ffb648;font-size:.9rem;line-height:1.4;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -2367,6 +2369,97 @@
     if (!type[key]) type[key] = new RegExp('\\b' + type[slot] + '\\b');
     return type[key];
   }
+
+  // ── The both-modes-on notice ──────────────────────────────────────────────
+  //
+  // Turning on both auto modes runs neither (see autoMode), which is the safe
+  // reading but an invisible one: the only signal was a console line, and nobody
+  // has the console open while ticking a checkbox. So the plugin says so where the
+  // mistake is made - in its own settings group, for as long as both are on.
+  //
+  // It only ever *reports*. Switching one of them off from here was the obvious
+  // alternative and was rejected twice over: plugin settings are server-side and
+  // shared by every tab and every user of that Stash, and Stash's settings page
+  // holds them in React component state, so a configurePlugin write would leave the
+  // checkbox visibly ticked until a reload - fixing the config and lying about it.
+  // Driving Stash's own onChange through PluginApi.patch would work, but it turns
+  // "both ticked does nothing" into "the second one you ticked is now live", which
+  // for Auto Prune means silent deletions starting from a click that used to be
+  // inert. A notice changes no behaviour and cannot surprise anyone.
+  var CONFLICT_ID = 'npt-conflict-notice';
+  var CONFLICT_TEXT = '⚠ ' + AUTO_PRUNE_NAME + ' and ' + AUTO_ROLLUP_NAME +
+    ' are both enabled. They are exact opposites - one adds every tag the other ' +
+    'removes - so neither is running. Turn one of them off.';
+
+  // pathname + search + hash rather than any one of them: Stash routes the settings
+  // tabs through a query parameter, and reading the whole location keeps this
+  // working whichever part it ends up in.
+  function onPluginSettingsPage() {
+    var l = window.location || {};
+    var s = String(l.pathname || '') + String(l.search || '') + String(l.hash || '');
+    return s.indexOf('/settings') !== -1 && s.indexOf('tab=plugins') !== -1;
+  }
+
+  // Our own SettingGroup, found the way the task interception finds its own: by a
+  // heading carrying the plugin name. Never by position - the page lists every
+  // installed plugin, and which one we are is the only thing we can be sure of.
+  function ownSettingGroupHeading() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('h3') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if ((nodes[i].textContent || '').trim() === PLUGIN_NAME) return nodes[i];
+    }
+    return null;
+  }
+
+  function removeConflictNotice() {
+    var node = document.getElementById(CONFLICT_ID);
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+  }
+
+  function renderConflictNotice(show) {
+    var heading = show ? ownSettingGroupHeading() : null;
+    if (!heading || !heading.parentNode) { removeConflictNotice(); return; }
+    // Idempotent: tick() runs on a timer and on every navigation, so an already
+    // correctly placed notice must not be rebuilt - and one left behind by a
+    // re-render must not be duplicated.
+    var existing = document.getElementById(CONFLICT_ID);
+    if (existing) {
+      if (existing.parentNode === heading.parentNode) return;
+      removeConflictNotice();
+    }
+    injectStyle();
+    var note = el('div', 'npt-conflict', CONFLICT_TEXT);
+    note.id = CONFLICT_ID;
+    if (heading.nextSibling) heading.parentNode.insertBefore(note, heading.nextSibling);
+    else heading.parentNode.appendChild(note);
+  }
+
+  // Settings are only read while our group is actually on screen, so a tab parked
+  // anywhere else in Stash costs two string comparisons a second and no queries.
+  function settingsTick() {
+    if (!onPluginSettingsPage() || !ownSettingGroupHeading()) {
+      removeConflictNotice();
+      return;
+    }
+    autoSettings().then(function (s) {
+      renderConflictNotice(!!s.a8AutoPruneOnUpdate && !!s.a9AutoRollUpOnUpdate);
+    }, function () {
+      // A failed settings read says nothing about the conflict either way; leave
+      // whatever is on screen rather than flickering it off and back on.
+    });
+  }
+
+  // No MutationObserver here, unlike the sibling's button injection: this is a
+  // banner in a settings panel, not something that has to land before the user can
+  // click it, and a second of delay after a re-render costs nothing. The timer plus
+  // the navigation hooks are enough, and they cannot fight a React re-render.
+  if (window.addEventListener) {
+    window.addEventListener('load', settingsTick);
+    window.addEventListener('popstate', function () { setTimeout(settingsTick, 300); });
+  }
+  document.addEventListener('click', function () { setTimeout(settingsTick, 300); }, true);
+  setInterval(settingsTick, 1000);
+  settingsTick();
 
   // ── Task interception ─────────────────────────────────────────────────────
   //

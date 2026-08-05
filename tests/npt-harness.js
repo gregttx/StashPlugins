@@ -52,6 +52,24 @@ function makeElement(tag) {
       child.parentNode = null;
       return child;
     },
+    // Only the form the plugin uses: a reference node that is a direct child, or
+    // null meaning append. Real insertBefore throws on anything else, and so does
+    // this, rather than quietly appending and hiding a placement bug.
+    insertBefore(child, ref) {
+      if (ref == null) return this.appendChild(child);
+      const i = this.childNodes.indexOf(ref);
+      if (i === -1) throw new Error('insertBefore: reference node is not a child');
+      if (child.parentNode) child.parentNode.removeChild(child);
+      child.parentNode = this;
+      this.childNodes.splice(i, 0, child);
+      this._text = null;
+      return child;
+    },
+    get nextSibling() {
+      if (!this.parentNode) return null;
+      const sibs = this.parentNode.childNodes;
+      return sibs[sibs.indexOf(this) + 1] || null;
+    },
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
     click() { (this.handlers.click || []).forEach((fn) => fn({ preventDefault() {}, stopPropagation() {} })); },
     select() {},
@@ -89,9 +107,13 @@ function hasClass(node, name) {
 
 function makeEnv(opts) {
   const calls = [];
+  // Intervals are recorded rather than started - a suite must not be at the mercy
+  // of a 1s timer - but recording them lets a test drive a tick on demand.
+  const intervals = [];
   const ctx = {
     console: opts.quiet ? { log() {}, info() {}, warn() {}, error() {} } : console,
-    setTimeout, clearTimeout, setInterval: () => 0, clearInterval,
+    setTimeout, clearTimeout, clearInterval,
+    setInterval: (fn) => intervals.push(fn),
     Promise, JSON, Date, Object, Error, String, Math, RegExp, Array, Boolean, Number,
     MutationObserver: function () { this.observe = function () {}; },
   };
@@ -112,7 +134,9 @@ function makeEnv(opts) {
     getElementById: (id) => head.descendants().concat(body.descendants())
       .filter((n) => n.id === id)[0] || null,
     querySelector: () => null,
-    querySelectorAll: () => [],
+    // Tag-name selectors only, which is all the plugin asks document for.
+    querySelectorAll: (sel) => body.descendants()
+      .filter((n) => n.tagName === String(sel).toUpperCase()),
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
     handlers: {},
     execCommand: () => (opts.execCommand !== false),
@@ -133,7 +157,7 @@ function makeEnv(opts) {
   };
   ctx.window.fetch = ctx.fetch;
 
-  return { ctx, calls, body };
+  return { ctx, calls, body, intervals, tick: () => intervals.forEach((fn) => fn()) };
 }
 
 // `src` defaults to NormalizeParentTags; the merge-task suite passes the sibling's

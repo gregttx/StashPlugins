@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.1.5.** This file is both the design and the map of the code — the
+**Status: implemented at 1.2.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -615,6 +615,40 @@ Note that 2 and 4 overlap on the auto path — a self-reaction always targets id
 earlier, so either alone would stop it. They do **not** overlap on the task path, where nothing
 marks a cooldown, and that is where `_writeDepth` is doing work nothing else does. The test suite
 says so explicitly, because a check that passes for the wrong reason is worse than no check.
+
+### Saying so on the settings page (1.2.0)
+
+Both modes on runs neither, which is the safe reading and an invisible one — the only signal was a
+console line, and nobody has the console open while ticking a checkbox. `settingsTick()` puts a
+notice inside the plugin's own `SettingGroup` for as long as both are on.
+
+**It reports and does nothing else.** Switching one off automatically was considered and rejected
+on three counts, all worth keeping written down because the idea will come back:
+
+- Plugin settings are **server-side and shared** by every tab and every user of that Stash. A
+  checkbox that silently unticks another unticks it for everybody.
+- `configurePlugin(plugin_id, input)` exists, but Stash's settings page holds plugin config in
+  **React component state** (`SettingStateContext` → `setPlugins`), not in the Apollo cache. An
+  out-of-band write therefore leaves the box visibly ticked until a reload — it would fix the
+  config and lie about it, and Apollo eviction (the sibling's trick for scene lists) cannot reach
+  React state.
+- Driving Stash's own `onChange` through `PluginApi.patch` *would* keep the UI honest, and is the
+  only version that works. But it turns "both ticked does nothing" into "the second one you ticked
+  is now live" — for Auto Prune, silent deletions starting from a click that used to be inert. That
+  is a move from failing safe to failing on, and it would make the settings' own
+  "Has no effect if …" wording false.
+
+There is also no way to collapse the pair into one control: `PluginSettingTypeEnum` is
+`STRING | NUMBER | BOOLEAN`, so Stash has no dropdown for a plugin setting.
+
+Mechanics worth keeping: the group is found by a **heading carrying the plugin name**, never by
+position, since the page lists every installed plugin — the same rule as the task interception in
+§2. Rendering is idempotent, because the tick runs on a timer and on every navigation. Settings are
+only read while that page is showing, so a tab parked anywhere else costs two string comparisons a
+second and no queries. And a failed settings read leaves whatever is on screen rather than
+flickering the notice off and back on. There is deliberately **no MutationObserver** here, unlike
+the sibling's button injection: a banner in a settings panel does not have to land before the user
+can click it, so the timer plus the navigation hooks are enough and cannot fight a React re-render.
 
 ### The exclusion tag
 

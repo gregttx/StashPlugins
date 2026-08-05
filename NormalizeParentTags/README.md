@@ -231,7 +231,10 @@ The two tasks normalize your library **once**. These two settings keep it that w
 Things worth knowing:
 
 - **Both settings on does nothing at all.** They are exact opposites — one adds precisely what the
-  other removes — so turning both on runs neither, and writes a warning to the console. Pick one.
+  other removes — so turning both on runs neither. The plugin says so on its own settings page, in
+  a notice that stays up until you turn one of them off. It will not switch one off for you: these
+  settings live on the Stash server and are shared by every tab and every user of it, so the plugin
+  reports the clash rather than resolving it behind your back.
 - **Which entity types are covered is the same "Include …" toggles** the tasks use, so a type you
   have not enabled is not touched here either. That also means you cannot auto-prune only scenes
   while the task covers everything; it is one list.

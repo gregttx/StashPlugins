@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.2.7.** This file is both the design and the map of the code — the
+**Status: implemented at 1.3.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -467,9 +467,25 @@ How the DAG survives being drawn as a tree:
 - The real row carries `◆ n parents`, which is where Prune surprises people: every parent on every
   branch is implied.
 
+**The row tooltip carries name, id, aliases and description** (1.3.0). The row itself can only show
+a name and an id, and neither answers "is this the tag I think it is" for a scheme with namespaced
+duplicates. Three rules hold it together:
+
+- **Both free-text fields are capped**, aliases at eight names or `TIP_ALIAS_CHARS`, whichever cuts
+  first, and the description at `TIP_DESC_CHARS` on a word boundary. A tag with forty aliases would
+  otherwise put a wall of text under the pointer, which is worse than the id alone.
+- **The tail is counted, never dropped.** `and 4 more` is what stops a truncated list from reading
+  as a complete one, and it is why the aliases are filtered for blanks *before* the count is taken.
+  The first alias is always named, excerpted if it has to be — `and 12 more` listing nothing is not
+  a tooltip.
+- **`aliases` and `description` are fetched only by the viewer**, through `tagQuery(settings,
+  detail)`. A description is free text and can run to paragraphs; asking for one per tag on every
+  prune of a library with thousands of them buys a payload no code path reads. Same rule as
+  `custom_fields` being conditional, and as counts being opt-in below.
+
 **A row is `Name (id)`, a badge is a count** (1.2.7). This dialog is the one place where the two
 kinds of number sit side by side on the same row — `Hair Colour (45)   2 child(ren)` — so it says so
-in the head, the tag name carries a `Stash tag id 45` tooltip, and the inspector's list headings were
+in the head, the tag name carries a tooltip repeating the id, and the inspector's list headings were
 changed from `Parents (3)` to `Parents: 3`. That last one was the actual bug: a heading in brackets
 over a list of tags, in a dialog where brackets mean ids, reads as the tag with id 3. Keep counts
 out of brackets here, or the head legend is lying about the row beneath it.
@@ -971,7 +987,10 @@ cover:
 - **The id legend** — the run dialog's head says a bracketed number is a Stash id and a count is
   written `x250`; the viewer's says the same for its rows, its name tooltip repeats it, and the
   inspector's headings are asserted to count *outside* brackets (`All descendants: 4`) since that is
-  the rule the legend depends on. Auto mode's console legend is checked for being printed once,
+  the rule the legend depends on. The tooltip's own content is covered too: the aliases and
+  description it adds, both caps (eight names, then a counted tail; an excerpt cut on a word
+  boundary), a tag with neither field saying nothing about them, and — in `normalize-plan` — a run
+  *not* asking for either field. Auto mode's console legend is checked for being printed once,
   ahead of the first line it explains, and not repeated on the next reaction.
 - **No Clear log** — the run dialog does not offer one. Pinned so a reintroduction has to argue
   with §5 rather than slip back in.

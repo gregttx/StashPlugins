@@ -69,6 +69,9 @@ const rowFor = (env, name) => env.body.descendants()
   .filter((n) => h.hasClass(n, 'npt-row') && n.textContent.indexOf(name + ' (') !== -1)[0] || null;
 const inspector = (env) => (env.body.descendants()
   .filter((n) => h.hasClass(n, 'npt-inspect'))[0] || {}).textContent || '';
+// The row's tooltip: what a hover says about a tag beyond its own caption.
+const tip = (env, name) => (((rowFor(env, name) || { descendants: () => [] }).descendants()
+  .filter((n) => h.hasClass(n, 'npt-tag-name'))[0] || {}).title) || '';
 const btn = (env, label) => env.body.descendants()
   .filter((n) => n.tagName === 'BUTTON' && n.textContent === label)[0] || null;
 
@@ -199,10 +202,8 @@ Promise.resolve()
     h.check('the head says the bracketed number is a tag id',
       d().legend.indexOf('Stash id') !== -1 && d().legend.indexOf('not a count') !== -1,
       d().legend);
-    const name = (rowFor(env, 'Root') || { descendants: () => [] }).descendants()
-      .filter((n) => h.hasClass(n, 'npt-tag-name'))[0] || {};
     h.check('and the tag name repeats it as a tooltip',
-      name.title === 'Stash tag id 1', name.title);
+      tip(env, 'Root').indexOf('Stash tag id 1') !== -1, tip(env, 'Root'));
 
     rowFor(env, 'Root').click();
     const i = inspector(env);
@@ -210,6 +211,58 @@ Promise.resolve()
       i.indexOf('All descendants: 4') !== -1, i);
     h.check('and never in them, where a number means a tag id',
       i.indexOf('All descendants (4)') === -1, i);
+  })
+
+  // The tooltip is the only place the viewer says what a tag *means* rather than
+  // where it sits. Both fields are free text, so both are capped rather than trusted
+  // to be short - a tag with forty aliases would otherwise cover the tree.
+  .then(() => {
+    const many = [];
+    for (let i = 1; i <= 12; i++) many.push('A' + i);
+    const long = 'Every hair colour that occurs naturally, plus the dyed ones that pass for ' +
+      'natural, but not the ones nobody would mistake for a colour hair grows in - those hang ' +
+      'off Unnatural Colour instead, which is a sibling of this tag rather than a child of it.';
+    return open({ tags: [
+      { id: '1', name: 'Root', ignore_auto_tag: false, parents: [],
+        aliases: ['Alpha', 'Beta'], description: 'Top of\nthe   tree.' },
+      { id: '2', name: 'Mid', ignore_auto_tag: false, parents: [{ id: '1' }],
+        aliases: many, description: long },
+      { id: '3', name: 'Bare', ignore_auto_tag: false, parents: [{ id: '1' }],
+        aliases: [], description: null },
+    ] }).then(({ env }) => {
+      h.check('the tooltip names the tag and its aliases',
+        tip(env, 'Root').indexOf('Root\nStash tag id 1\nAliases: Alpha, Beta') === 0,
+        JSON.stringify(tip(env, 'Root')));
+      // A description is a paragraph of free text; a tooltip line is a line.
+      h.check('and its description, collapsed onto one line',
+        tip(env, 'Root').indexOf('Description: Top of the tree.') !== -1,
+        JSON.stringify(tip(env, 'Root')));
+      h.check('a tag with neither says nothing about them',
+        tip(env, 'Bare') === 'Bare\nStash tag id 3', JSON.stringify(tip(env, 'Bare')));
+
+      const mid = tip(env, 'Mid');
+      const listed = mid.split('\n').filter((l) => l.indexOf('Aliases: ') === 0)[0] || '';
+      h.check('a long alias list is capped',
+        listed.indexOf('A1, A2, A3, A4, A5, A6, A7, A8, and 4 more') !== -1, listed);
+      // Counted rather than dropped: a truncated list that does not say it is
+      // truncated is worse than no list.
+      h.check('and the rest are counted, not dropped', listed.indexOf('A9') === -1, listed);
+
+      const desc = mid.split('\n').filter((l) => l.indexOf('Description: ') === 0)[0] || '';
+      const body = desc.slice('Description: '.length);
+      h.check('a long description is excerpted',
+        body.length < long.length && body.charAt(body.length - 1) === '…', body.length + ' of ' + long.length);
+      h.check('and cut on a word boundary, not mid-word',
+        long.indexOf(body.slice(0, -1)) === 0 && long.charAt(body.length - 1) === ' ', body);
+    });
+  })
+
+  // The two fields are asked for here and nowhere else: a run over a library with
+  // thousands of tags would be paying for descriptions no code path reads.
+  .then(() => open()).then(({ env }) => {
+    const q = env.calls.filter((c) => /NPTTags/.test(c.query || ''))[0].query;
+    h.check('the viewer asks for aliases and description',
+      q.indexOf('aliases') !== -1 && q.indexOf('description') !== -1, q);
   })
 
   // Search is how a four-level namespace scheme stays usable at a few thousand tags.

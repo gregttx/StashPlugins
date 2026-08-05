@@ -242,7 +242,12 @@
 
   // ── Tag graph ─────────────────────────────────────────────────────────────
 
-  function tagQuery(settings) {
+  // `detail` adds the two fields nothing in a run needs: aliases and description,
+  // which only the viewer's tooltips read. A description is free text and can be
+  // paragraphs long, so asking for it on every prune of a library with thousands of
+  // tags would be paying for a payload no code path looks at - the same reasoning
+  // that keeps custom_fields conditional below.
+  function tagQuery(settings, detail) {
     // sort_name is what Stash sorts by when it is set; it costs one nullable string
     // per tag on a query that is already fetching the whole hierarchy.
     var fields = 'id name sort_name ignore_auto_tag parents { id }';
@@ -250,6 +255,7 @@
         (settings.c6ExcludeRemoveTagWithCustomFieldName || '').trim()) {
       fields += ' custom_fields';
     }
+    if (detail) fields += ' aliases description';
     // per_page: -1 means "no paging, return everything". Right for tags (thousands
     // at most) and wrong for scenes and images, which is why they page instead.
     return 'query NPTTags { findTags(filter: { per_page: -1 }) { tags { ' + fields + ' } } }';
@@ -1440,6 +1446,56 @@
 
   var TREE_ROW_CAP = 4000;   // rows rendered at once by a search; see renderSearch
 
+  var TIP_ALIASES = 8;        // aliases named in a tooltip before the rest are a count
+  var TIP_ALIAS_CHARS = 120;  // and the width that can cut the list shorter still
+  var TIP_DESC_CHARS = 240;   // how much of a description the excerpt carries
+
+  // Free text arrives with newlines and runs of spaces in it, and a tooltip line is
+  // one line however the description was written.
+  function oneLine(text) {
+    return String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  }
+
+  // Cut on the last space before the limit so a word is never sliced in half - unless
+  // the only space is near the start, where honouring it would throw most of the
+  // excerpt away and say less than the blunt cut would.
+  function excerpt(text, max) {
+    var s = oneLine(text);
+    if (s.length <= max) return s;
+    var cut = s.slice(0, max);
+    var space = cut.lastIndexOf(' ');
+    if (space > max * 0.6) cut = cut.slice(0, space);
+    return cut.replace(/[\s,;:.\-]+$/, '') + '…';
+  }
+
+  // What the row cannot show: the full name, the id it is logged under, and the two
+  // fields that say what a tag actually means. Both lists are capped rather than
+  // rendered whole - a tag with forty aliases or a paragraph of description would
+  // otherwise put a wall of text under the pointer, which is worse than the caption
+  // it replaced. The tail is counted rather than dropped silently, so a truncated
+  // list still says there is more, and the tag page is where to read all of it.
+  function tagTooltip(t, id) {
+    var lines = [oneLine((t && t.name) || 'unknown'), 'Stash tag id ' + id];
+
+    var aliases = (((t && t.aliases) || []).map(oneLine)).filter(function (a) { return !!a; });
+    if (aliases.length) {
+      var shown = [], used = 0;
+      for (var i = 0; i < aliases.length; i++) {
+        // The first alias is always named, excerpted if it has to be: "and 3 more"
+        // on its own would leave the tooltip listing nothing at all.
+        if (shown.length && (shown.length >= TIP_ALIASES || used + aliases[i].length > TIP_ALIAS_CHARS)) break;
+        shown.push(shown.length ? aliases[i] : excerpt(aliases[i], TIP_ALIAS_CHARS));
+        used += aliases[i].length + 2;
+      }
+      var rest = aliases.length - shown.length;
+      lines.push('Aliases: ' + shown.join(', ') + (rest > 0 ? ', and ' + rest + ' more' : ''));
+    }
+
+    var desc = oneLine(t && t.description);
+    if (desc) lines.push('Description: ' + excerpt(desc, TIP_DESC_CHARS));
+    return lines.join('\n');
+  }
+
   function TreeView(taskName) {
     this.taskName = taskName;
     this.expanded = {};       // tag id -> true
@@ -1671,7 +1727,7 @@
     var self = this;
     loadSettings().then(function (loaded) {
       self.settings = loaded.settings;
-      return gqlRequest(tagQuery(self.settings), null);
+      return gqlRequest(tagQuery(self.settings, true), null);
     }).then(function (data) {
       var tags = ((data.findTags || {}).tags) || [];
       self.graph = buildGraph(tags);
@@ -1808,9 +1864,11 @@
     }
     row.appendChild(twisty);
     // The tooltip says what the head legend says, at the one place a user hovers to
-    // ask: brackets are the tag's Stash id, the same id the run logs it under.
+    // ask: brackets are the tag's Stash id, the same id the run logs it under. It
+    // also carries the aliases and description, which is what answers "is this the
+    // tag I think it is" without leaving the viewer for the tag page.
     var nameEl = el('span', 'npt-tag-name', (t.name || 'unknown') + ' (' + id + ')');
-    nameEl.title = 'Stash tag id ' + id;
+    nameEl.title = tagTooltip(t, id);
     row.appendChild(nameEl);
 
     var badges = [];

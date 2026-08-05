@@ -290,6 +290,11 @@ Promise.resolve()
     h.check('custom_fields is left out when no custom-field filter is set',
       calls.some((c) => /NPTTags/.test(c.query || '')) &&
       !calls.some((c) => /NPTTags/.test(c.query || '') && c.query.indexOf('custom_fields') !== -1));
+    // Aliases and descriptions are the hierarchy viewer's tooltips and nothing else.
+    // A run reading them would be paying for a paragraph per tag it never looks at.
+    h.check('and so are the viewer-only aliases and description',
+      !calls.some((c) => /NPTTags/.test(c.query || '') &&
+        (c.query.indexOf('aliases') !== -1 || c.query.indexOf('description') !== -1)));
     h.check('baseline still prunes', removals(d).length === 2);
   })
 

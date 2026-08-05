@@ -156,10 +156,24 @@ other two tasks would do before running either.
 ```
 
 Each row reads **tag name followed by its Stash id in brackets** — `Hair Colour (45)` is the tag
-with id 45, the same id the review log names it by and the one in `/tags/45`. Hovering the name
-says so. The numbers that *are* counts sit outside the brackets, in the badges on the right
-(`2 child(ren)`, `◆ 2 parents`), and the inspector's headings spell them out the same way —
-`Parents: 3`, never `Parents (3)`.
+with id 45, the same id the review log names it by and the one in `/tags/45`. The numbers that
+*are* counts sit outside the brackets, in the badges on the right (`2 child(ren)`, `◆ 2 parents`),
+and the inspector's headings spell them out the same way — `Parents: 3`, never `Parents (3)`.
+
+**Hovering a tag name** shows what the row has no space for — the full name, the id, the tag's
+aliases and its description:
+
+```
+Hair Colour
+Stash tag id 45
+Aliases: Hair Color, Haircolour, Hårfarge, and 4 more
+Description: Every hair colour that occurs naturally, plus the dyed ones that pass for…
+```
+
+That is usually enough to settle "is this the tag I think it is" without leaving the viewer. Long
+alias lists and long descriptions are shortened — the aliases say how many more there are, the
+description ends in `…` — so a tag with forty aliases cannot bury the tree under a tooltip. The tag
+page has the whole of both.
 
 - **◆ n parents** — the tag hangs off more than one parent. These are worth knowing about: Prune
   treats *every* ancestor on *every* branch as implied. **Click the badge to go and see the next

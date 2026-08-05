@@ -528,6 +528,40 @@ Promise.resolve()
     });
   })
 
+  // The belt to the invalidation's braces: even with no mutation to intercept, the
+  // notice must not be more than the page TTL behind the settings. This is the
+  // check that would have caught the 2-10s lag reported against 1.2.3.
+  .then(() => {
+    let both = false;
+    const env = h.makeEnv({
+      quiet: true,
+      respond: (req) => ((req.query || '').indexOf('configuration') !== -1
+        ? { data: { configuration: { plugins: { NormalizeParentTags: {
+            a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: both } } } } }
+        : { data: {} }),
+    });
+    h.run(env.ctx);
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    const input = h.makeElement('input');
+    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
+    group.appendChild(input);
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    return h.flush().then(() => {
+      h.check('no notice with one mode on', !env.ctx.document.getElementById('npt-conflict-notice'));
+      // The setting changes with no mutation going through our wrapper at all -
+      // another tab, or an interception that missed. Only the page TTL saves us.
+      both = true;
+      env.ctx.Date = { now: () => Date.now() + 1500 };
+      env.tick();
+      return h.flush().then(() => {
+        h.check('the notice catches up within the page TTL even with no mutation seen',
+          !!env.ctx.document.getElementById('npt-conflict-notice'));
+      });
+    });
+  })
+
   // Another plugin's settings save must not throw ours away.
   .then(() => {
     const env = boot({ a9AutoRollUpOnUpdate: true });

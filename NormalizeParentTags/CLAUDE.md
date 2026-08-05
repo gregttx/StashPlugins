@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.2.3.** This file is both the design and the map of the code — the
+**Status: implemented at 1.2.4.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -641,7 +641,15 @@ on three counts, all worth keeping written down because the idea will come back:
 There is also no way to collapse the pair into one control: `PluginSettingTypeEnum` is
 `STRING | NUMBER | BOOLEAN`, so Stash has no dropdown for a plugin setting.
 
-**A settings save re-reads them at once.** `autoSettings()` caches for `AUTO_SETTINGS_TTL_MS`, which
+**Freshness has two mechanisms, and the slow one is the one that is guaranteed.**
+`settingsTick` reads at `AUTO_SETTINGS_PAGE_TTL_MS` rather than the reactive
+`AUTO_SETTINGS_TTL_MS`, so the notice is never more than a second behind the checkbox no matter what
+else happens. That costs one small query a second, and only while our own settings group is on the
+page — nowhere else in Stash issues it. 1.2.3 tried to solve this with the mutation interception
+alone and the lag survived, which is the argument for having a mechanism that depends on nothing
+being intercepted at all.
+
+**A settings save also re-reads them at once.** `autoSettings()` caches for `AUTO_SETTINGS_TTL_MS`, which
 is right for the reactive path — an idle tab should cost nothing — and wrong for a banner sitting on
 the page where those settings are edited: 1.2.2 took five to eight seconds to notice a checkbox. The
 `fetch` wrapper watches for `configurePlugin` carrying our own `plugin_id`, drops the cache and ticks,

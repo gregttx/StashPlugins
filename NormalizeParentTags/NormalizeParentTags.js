@@ -34,6 +34,9 @@
   // sibling down for five minutes over a single scene save.
   var AUTO_LEASE_TTL_MS  = 30000;
   var AUTO_SETTINGS_TTL_MS = 10000;  // settings are re-read at most this often
+  // ...except while the plugins settings page is open, where the user is watching
+  // for the effect of a click. One small query a second, only on that page.
+  var AUTO_SETTINGS_PAGE_TTL_MS = 1000;
   var AUTO_GRAPH_TTL_MS    = 60000;  // and the tag hierarchy at most this often
   var AUTO_COOLDOWN_MS     = 8000;   // per-entity: how long after our own write we ignore it
   var AUTO_COOLDOWN_MAX    = 2000;   // entries kept before the expired ones are swept
@@ -2165,11 +2168,18 @@
     _autoSettingsAt = 0;
   }
 
-  function autoSettings() {
+  // `maxAge` lets a caller insist on fresher settings than the reactive path needs.
+  // The default is right for auto mode - an idle tab should cost nothing - and far
+  // too slow for the settings page, where the user is watching for the effect of a
+  // click they have just made.
+  function autoSettings(maxAge) {
     var now = Date.now();
-    if (_autoSettings && now - _autoSettingsAt < AUTO_SETTINGS_TTL_MS) {
+    if (_autoSettings && now - _autoSettingsAt < (maxAge || AUTO_SETTINGS_TTL_MS)) {
       return Promise.resolve(_autoSettings);
     }
+    // An in-flight read is reused whatever the caller asked for: it was issued a
+    // moment ago, so it is as fresh as a new one, and stacking a second query per
+    // tick is exactly what the throttle exists to stop.
     if (_autoSettingsPending) return _autoSettingsPending;
     _autoSettingsPending = loadSettings().then(function (loaded) {
       _autoSettings = loaded.settings;
@@ -2506,7 +2516,11 @@
       removeConflictNotice();
       return;
     }
-    autoSettings().then(function (s) {
+    // Read at the page TTL rather than the reactive one. The configurePlugin
+    // invalidation below answers a click in well under a second when it fires, but
+    // it depends on seeing a mutation go past, and this does not depend on anything:
+    // whatever else happens, the notice is at most a second behind the checkbox.
+    autoSettings(AUTO_SETTINGS_PAGE_TTL_MS).then(function (s) {
       renderConflictNotice(!!s.a8AutoPruneOnUpdate && !!s.a9AutoRollUpOnUpdate);
     }, function () {
       // A failed settings read says nothing about the conflict either way; leave

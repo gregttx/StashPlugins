@@ -342,7 +342,7 @@ mid-run, that means the changes already written stay written and the rest are ne
   page reload. Automatic mode re-reads them at most every ten seconds, so a change there can take
   a few seconds to bite.
 
-## If you also use Merge Performer Tags To Scenes
+## If you also use the Merge Performer Tags To Scenes plugin
 
 That plugin's two auto-merge settings react to *this* plugin's writes, because from its point of
 view they look like any other edit:

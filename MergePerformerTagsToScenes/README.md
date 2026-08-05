@@ -149,7 +149,58 @@ Only tags that actually changed something are logged: a tag the scene already ca
 
 This setting is independent of everything else — it does not change what gets merged, only what is reported. The extra fields the log line needs (tag names, scene titles) are requested from Stash only while it is enabled.
 
-## If you also use Normalize Parent Tags
+## Installation
+
+0. Check your Stash version is **0.31.0 or newer** (**Settings → System**, or the version in the footer). Older versions are not supported.
+1. Find your Stash plugins directory. This is the `plugins` folder inside the directory that holds your `config.yml` (the same place as your Stash database, typically shown at the top of **Settings → System**). If no `plugins` folder exists yet, create one.
+2. Copy the whole `MergePerformerTagsToScenes` folder into that `plugins` folder:
+   ```
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.yml
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.js
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/manifest
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/README.md
+   ```
+3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
+4. If using multiple browser instances, refresh your browser (F5) so the new plugin JavaScript is loaded in all of them.
+
+## Usage
+
+The two buttons appear in different places, because each one sits where the content it acts on is visible.
+
+**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, an **"Add Tags to Scene(s)"** button appears in the button bar on the detail view, just before the Delete button. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped, and the button counts through the scenes as it goes.
+
+**The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Add Perf Tags" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
+
+**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it has at least one performer, an **"Add Perf Tags"** button appears next to the Save/Delete buttons of the edit form. Click it to add all tags from all performers in that scene into the scene's tag list.
+
+## How it works
+
+This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.
+
+## Notes / limitations
+
+- The performer-page button's eligibility (does the performer have tags and scenes) is only re-checked when the performer is saved or when you navigate to a different performer, not on every tick — so it stays correct without a page reload after you add tags to a previously tag-less performer, but a change made from elsewhere (bulk tag edit, another tab) is not noticed until one of those events happens.
+- The performer-page button (and auto-merge on performer update) always covers every scene featuring the performer. Neither reads the scene list's filter or selection — the scenes come from a server query keyed only on the performer, so the plugin never sees what the list is showing. The only things that narrow it are the exclusion filters below.
+- The performer-page button (and auto-merge on performer update) processes scenes one at a time sequentially to avoid hammering the server. If one scene fails to update, the remaining scenes are still processed and a summary of the failures is reported at the end (details go to the browser console).
+- Auto-merge only runs when the edit that triggered it actually succeeded; a save that Stash rejects does not cause a merge.
+- All settings (including exclusion filters) are re-read every 10 seconds, and also shortly after you navigate, so a change takes effect without a page reload. The navigation refresh is rate limited to once every 2 seconds, so browsing quickly does not turn every click into a settings query.
+- Exclusion filters apply to both manual button clicks and auto-merge.
+- The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive). Stash's own name search is case-insensitive and treats `_` and `%` as wildcards, so the plugin fetches all candidates and re-checks the name on the client to be sure it excludes the tag you meant.
+- The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive). The plugin only queries tag custom fields when this setting is non-empty, so leaving it blank keeps them out of every merge query.
+- If the exclusion-tag lookup fails (server restart, network blip), the merge aborts rather than running unfiltered — merging into a scene you meant to protect is not something a button click can take back, since merging only ever adds tags. A manual button click reports this in an alert; an auto-merge reports it only to the browser console, so nothing visibly happens in the UI.
+- The exclusion-tag lookup is cached, so a change to the tag itself takes up to a minute to be noticed. A successful lookup is reused for 60 seconds and a failed one for 10 seconds, both keyed on the configured name. Two consequences: a merge run just after you create the tag can still go unfiltered, and — because a deleted or renamed tag leaves an ID that no longer matches anything — so can one run just after you remove it. Waiting the window out is enough; reload the page if you want to merge immediately, since navigating within Stash does not clear the cache. Editing the setting to a different name also takes effect at once. A stale ID is reported to the browser console when it is next re-checked.
+- When the scene-page button finds nothing to do (the scene is excluded by a filter, or already has every performer tag) it briefly shows "No changes".
+- When staging, the exclusion filters still apply, so an excluded scene reports "Scene excluded" and stages nothing. The tags to add are diffed against what is currently in the tag box rather than what is on the server, so tags you have added or removed by hand before clicking are preserved.
+- Staging works by observing Stash's tag control through the UI plugin API. The plugin picks the most recently rendered control whose contents match what it expects the scene's tag box to hold — the scene's saved tags to begin with, then whatever it last staged there. If it cannot identify a control it reports an error rather than writing tags into the wrong one.
+- Clicking the button again without saving reports "No changes", because the count is measured against the tag box as it stands, not against the saved scene.
+- Console logging reports a staged tag as soon as it lands in the tag box, not when you save. If you then remove it, or press Cancel, the line has already been logged — "staged" means exactly that, and nothing more.
+- Stash uses the same container class for the performer detail view's Edit/Delete bar and for the performer edit form, so the plugin identifies the detail view by its Delete button. If a future Stash release changes that markup, the performer button will simply not appear rather than showing up in the wrong place.
+- While a merge is running, auto-merge ignores other edits saved in the meantime; this is what stops the plugin from reacting to its own updates.
+- A merge submits the scene's tags as a complete list, so a tag edit made in another tab at the same time can be overwritten — exactly as it would be if you saved the same scene from two Stash tabs at once. For the same reason the plugin does not try to keep data fresh across tabs: whether a performer's button appears, and what the scene page shows just after a merge, reflect what was loaded rather than what another tab has since changed. Reload the page if you have been editing the same scene or performer elsewhere.
+- Merging only ever adds tags. The single exception is the library-wide task's **Undo** button,
+  which removes tags that same dialog added — see [Undoing a run](#undoing-a-run).
+
+## If you also use the Normalize Parent Tags plugin
 
 That plugin's writes look like any other edit from in here, and this plugin's two auto-merge
 settings react to *any* scene or performer save they see:
@@ -202,53 +253,3 @@ Python or executable kind that Stash runs on `Scene.Update.Post` and similar —
 itself, cannot be asked to stand down from here, and will react to this plugin's changes like any
 other edit. If you have one that touches tags, disable it for the run.
 
-## How it works
-
-This plugin is pure client-side JavaScript (`ui.javascript` in the manifest, no backend task). It calls Stash's `/graphql` endpoint directly from the browser using your existing logged-in session — no server-side plugin task or Python runtime required.
-
-## Installation
-
-0. Check your Stash version is **0.31.0 or newer** (**Settings → System**, or the version in the footer). Older versions are not supported.
-1. Find your Stash plugins directory. This is the `plugins` folder inside the directory that holds your `config.yml` (the same place as your Stash database, typically shown at the top of **Settings → System**). If no `plugins` folder exists yet, create one.
-2. Copy the whole `MergePerformerTagsToScenes` folder into that `plugins` folder:
-   ```
-   <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.yml
-   <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.js
-   <stash-config-dir>/plugins/MergePerformerTagsToScenes/manifest
-   <stash-config-dir>/plugins/MergePerformerTagsToScenes/README.md
-   ```
-3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
-4. If using multiple browser instances, refresh your browser (F5) so the new plugin JavaScript is loaded in all of them.
-
-## Usage
-
-The two buttons appear in different places, because each one sits where the content it acts on is visible.
-
-**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, an **"Add Tags to Scene(s)"** button appears in the button bar on the detail view, just before the Delete button. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped, and the button counts through the scenes as it goes.
-
-**The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Add Perf Tags" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
-
-**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it has at least one performer, an **"Add Perf Tags"** button appears next to the Save/Delete buttons of the edit form. Click it to add all tags from all performers in that scene into the scene's tag list.
-
-## Notes / limitations
-
-- The performer-page button's eligibility (does the performer have tags and scenes) is only re-checked when the performer is saved or when you navigate to a different performer, not on every tick — so it stays correct without a page reload after you add tags to a previously tag-less performer, but a change made from elsewhere (bulk tag edit, another tab) is not noticed until one of those events happens.
-- The performer-page button (and auto-merge on performer update) always covers every scene featuring the performer. Neither reads the scene list's filter or selection — the scenes come from a server query keyed only on the performer, so the plugin never sees what the list is showing. The only things that narrow it are the exclusion filters below.
-- The performer-page button (and auto-merge on performer update) processes scenes one at a time sequentially to avoid hammering the server. If one scene fails to update, the remaining scenes are still processed and a summary of the failures is reported at the end (details go to the browser console).
-- Auto-merge only runs when the edit that triggered it actually succeeded; a save that Stash rejects does not cause a merge.
-- All settings (including exclusion filters) are re-read every 10 seconds, and also shortly after you navigate, so a change takes effect without a page reload. The navigation refresh is rate limited to once every 2 seconds, so browsing quickly does not turn every click into a settings query.
-- Exclusion filters apply to both manual button clicks and auto-merge.
-- The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive). Stash's own name search is case-insensitive and treats `_` and `%` as wildcards, so the plugin fetches all candidates and re-checks the name on the client to be sure it excludes the tag you meant.
-- The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive). The plugin only queries tag custom fields when this setting is non-empty, so leaving it blank keeps them out of every merge query.
-- If the exclusion-tag lookup fails (server restart, network blip), the merge aborts rather than running unfiltered — merging into a scene you meant to protect is not something a button click can take back, since merging only ever adds tags. A manual button click reports this in an alert; an auto-merge reports it only to the browser console, so nothing visibly happens in the UI.
-- The exclusion-tag lookup is cached, so a change to the tag itself takes up to a minute to be noticed. A successful lookup is reused for 60 seconds and a failed one for 10 seconds, both keyed on the configured name. Two consequences: a merge run just after you create the tag can still go unfiltered, and — because a deleted or renamed tag leaves an ID that no longer matches anything — so can one run just after you remove it. Waiting the window out is enough; reload the page if you want to merge immediately, since navigating within Stash does not clear the cache. Editing the setting to a different name also takes effect at once. A stale ID is reported to the browser console when it is next re-checked.
-- When the scene-page button finds nothing to do (the scene is excluded by a filter, or already has every performer tag) it briefly shows "No changes".
-- When staging, the exclusion filters still apply, so an excluded scene reports "Scene excluded" and stages nothing. The tags to add are diffed against what is currently in the tag box rather than what is on the server, so tags you have added or removed by hand before clicking are preserved.
-- Staging works by observing Stash's tag control through the UI plugin API. The plugin picks the most recently rendered control whose contents match what it expects the scene's tag box to hold — the scene's saved tags to begin with, then whatever it last staged there. If it cannot identify a control it reports an error rather than writing tags into the wrong one.
-- Clicking the button again without saving reports "No changes", because the count is measured against the tag box as it stands, not against the saved scene.
-- Console logging reports a staged tag as soon as it lands in the tag box, not when you save. If you then remove it, or press Cancel, the line has already been logged — "staged" means exactly that, and nothing more.
-- Stash uses the same container class for the performer detail view's Edit/Delete bar and for the performer edit form, so the plugin identifies the detail view by its Delete button. If a future Stash release changes that markup, the performer button will simply not appear rather than showing up in the wrong place.
-- While a merge is running, auto-merge ignores other edits saved in the meantime; this is what stops the plugin from reacting to its own updates.
-- A merge submits the scene's tags as a complete list, so a tag edit made in another tab at the same time can be overwritten — exactly as it would be if you saved the same scene from two Stash tabs at once. For the same reason the plugin does not try to keep data fresh across tabs: whether a performer's button appears, and what the scene page shows just after a merge, reflect what was loaded rather than what another tab has since changed. Reload the page if you have been editing the same scene or performer elsewhere.
-- Merging only ever adds tags. The single exception is the library-wide task's **Undo** button,
-  which removes tags that same dialog added — see [Undoing a run](#undoing-a-run).

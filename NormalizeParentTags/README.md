@@ -328,8 +328,6 @@ mid-run, that means the changes already written stay written and the rest are ne
 - Changes are written as add/remove deltas rather than as a wholesale rewrite of each entity's
   tag list, so a tag added from another browser tab between the review and the apply is not
   reverted. It may, however, mean the applied result differs slightly from the reviewed plan.
-- Entities that need the same change are updated together in one request, so a run makes far
-  fewer requests than it lists changes.
 - If a request fails, the entities in it are reported as errors and are not counted as changed;
   the rest of the run continues.
 - Cycles in a tag hierarchy are impossible to create through Stash's UI or API, which rejects
@@ -342,6 +340,8 @@ mid-run, that means the changes already written stay written and the rest are ne
 - Settings are read at the start of each run, so a change takes effect on the next run without a
   page reload. Automatic mode re-reads them at most every ten seconds, so a change there can take
   a few seconds to bite.
+- Entities that need the same change are updated together in one request, so a run makes far
+  fewer requests than it lists changes.
 
 ## If you also use the Merge Performer Tags To Scenes plugin
 

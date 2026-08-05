@@ -195,30 +195,22 @@ Three details that explain behaviour you might otherwise read as a bug:
 ## Notes / limitations
 
 - **Read carefully:** [⚠ Back up your database before the first library-wide run](#-back-up-your-database-before-the-first-library-wide-run)
-
-### The performer button
-
-- Its eligibility (does the performer have tags and scenes) is only re-checked when the performer is saved or when you navigate to a different performer, not on every tick — so it stays correct without a page reload after you add tags to a previously tag-less performer, but a change made from elsewhere (bulk tag edit, another tab) is not noticed until one of those events happens.
-- It always covers **every scene featuring the performer**, as does auto-merge on performer update. Neither reads the scene list's filter or selection — the scenes come from a server query keyed only on the performer, so the plugin never sees what the list is showing. Only the exclusion filters narrow it.
-
-### Exclusion filters
-
-- They apply to both manual button clicks and auto-merge.
-- The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive). Stash's own name search is case-insensitive and treats `_` and `%` as wildcards, so the plugin fetches all candidates and re-checks the name on the client to be sure it excludes the tag you meant.
-- The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive). The plugin only queries tag custom fields when this setting is non-empty, so leaving it blank keeps them out of every merge query.
-- If the exclusion-tag lookup fails (server restart, network blip), the merge aborts rather than running unfiltered — merging into a scene you meant to protect is not something a button click can take back, since merging only ever adds tags. A manual click reports this in an alert; an auto-merge reports it only to the browser console, so nothing visibly happens in the UI.
-- That lookup is cached — 60 seconds for a hit, 10 for a miss — so creating, renaming or deleting the tag takes up to a minute to be noticed, and a merge in the meantime can run unfiltered. Waiting the window out is enough; reload the page to apply it at once, since navigating within Stash does not clear the cache. Pointing the setting at a different name takes effect immediately.
-
-### Auto-merge and staging
-
-- Auto-merge only runs when the edit that triggered it actually succeeded; a save that Stash rejects does not cause a merge.
-- While a merge is running, auto-merge ignores other edits saved in the meantime; this is what stops the plugin from reacting to its own updates.
-- Staging diffs against the tag box as it stands, not against the saved scene, so tags you added or removed by hand before clicking are preserved — and clicking again without saving reports "No changes". The exclusion filters still apply, so an excluded scene stages nothing.
-
-### Settings and concurrent edits
-
-- All settings (including exclusion filters) are re-read every 10 seconds, and also shortly after you navigate, so a change takes effect without a page reload. The navigation refresh is rate limited to once every 2 seconds, so browsing quickly does not turn every click into a settings query.
-- A merge submits the scene's tags as a complete list, so a tag edit made in another tab at the same time can be overwritten — exactly as it would be if you saved the same scene from two Stash tabs at once. For the same reason nothing is kept fresh across tabs: reload the page if you have been editing the same scene or performer elsewhere.
+- **The performer button**
+  - Its eligibility (does the performer have tags and scenes) is only re-checked when the performer is saved or when you navigate to a different performer, not on every tick — so it stays correct without a page reload after you add tags to a previously tag-less performer, but a change made from elsewhere (bulk tag edit, another tab) is not noticed until one of those events happens.
+  - It always covers **every scene featuring the performer**, as does auto-merge on performer update. Neither reads the scene list's filter or selection — the scenes come from a server query keyed only on the performer, so the plugin never sees what the list is showing. Only the exclusion filters narrow it.
+- **Exclusion filters**
+  - They apply to both manual button clicks and auto-merge.
+  - The "Exclude Scenes with specified Tag Name" value must match the tag name exactly (case-sensitive). Stash's own name search is case-insensitive and treats `_` and `%` as wildcards, so the plugin fetches all candidates and re-checks the name on the client to be sure it excludes the tag you meant.
+  - The "Exclude Tags marked via a Custom Field" value must match the custom field name exactly (case-sensitive). The plugin only queries tag custom fields when this setting is non-empty, so leaving it blank keeps them out of every merge query.
+  - If the exclusion-tag lookup fails (server restart, network blip), the merge aborts rather than running unfiltered — merging into a scene you meant to protect is not something a button click can take back, since merging only ever adds tags. A manual click reports this in an alert; an auto-merge reports it only to the browser console, so nothing visibly happens in the UI.
+  - That lookup is cached — 60 seconds for a hit, 10 for a miss — so creating, renaming or deleting the tag takes up to a minute to be noticed, and a merge in the meantime can run unfiltered. Waiting the window out is enough; reload the page to apply it at once, since navigating within Stash does not clear the cache. Pointing the setting at a different name takes effect immediately.
+- **Auto-merge and staging**
+  - Auto-merge only runs when the edit that triggered it actually succeeded; a save that Stash rejects does not cause a merge.
+  - While a merge is running, auto-merge ignores other edits saved in the meantime; this is what stops the plugin from reacting to its own updates.
+  - Staging diffs against the tag box as it stands, not against the saved scene, so tags you added or removed by hand before clicking are preserved — and clicking again without saving reports "No changes". The exclusion filters still apply, so an excluded scene stages nothing.
+- **Settings and concurrent edits**
+  - All settings (including exclusion filters) are re-read every 10 seconds, and also shortly after you navigate, so a change takes effect without a page reload. The navigation refresh is rate limited to once every 2 seconds, so browsing quickly does not turn every click into a settings query.
+  - A merge submits the scene's tags as a complete list, so a tag edit made in another tab at the same time can be overwritten — exactly as it would be if you saved the same scene from two Stash tabs at once. For the same reason nothing is kept fresh across tabs: reload the page if you have been editing the same scene or performer elsewhere.
 
 ## If you also use the Normalize Parent Tags plugin
 

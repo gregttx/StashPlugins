@@ -17,6 +17,15 @@ function bigLibrary() {
   return { findScenes: { node: 'scenes', list: list } };
 }
 
+// The hoverable segments of a recap line: only the tags with something to say beyond
+// the caption carry a title, so this is also the list of what got underlined.
+const recapTips = (env, verb) => {
+  const line = env.body.descendants().filter((n) => h.hasClass(n, 'npt-line') &&
+    n.textContent.indexOf('tag(s) ' + verb + ':') !== -1)[0];
+  return line ? line.descendants().filter((n) => n.title)
+    .map((n) => ({ text: n.textContent, title: n.title })) : [];
+};
+
 function scan(opts, task) {
   const env = h.makeEnv({ quiet: true, respond: h.makeResponder(opts), clipboard: opts.clipboard });
   h.run(env.ctx);
@@ -311,6 +320,54 @@ Promise.resolve()
       h.check('the run ends with what was actually written',
         applied === '[INFO] 2 tag(s) removed: "Body" (4) x3, "Hair Colour" (1) x250', applied);
     });
+  })
+
+  // The recap is where a run enumerates the tags it is about to change, so it is
+  // where a tag can say what it *is* - the sibling viewer's tooltip, on the line the
+  // Proceed decision is actually made from.
+  .then(() => scan({ entities: bigLibrary(), tagDetail: [
+    { id: '1', name: 'Hair Colour', aliases: ['Hair Color', 'Haircolour'],
+      description: 'Colour of the\n  hair, natural or dyed.' },
+    { id: '4', name: 'Body', aliases: [], description: null },
+  ] })).then(({ env, d }) => {
+    const detail = env.calls.filter((c) => /NPTTagDetail/.test(c.query || ''));
+    h.check('the detail query is scoped to the tags the recap names',
+      detail.length === 1 && detail[0].variables.ids.slice().sort().join() === '1,4',
+      JSON.stringify(detail.map((c) => c.variables)));
+    const detailQuery = (detail[0] || {}).query || '';
+    h.check('and asks for the two fields the hierarchy query does not',
+      /aliases/.test(detailQuery) && /description/.test(detailQuery), detailQuery);
+
+    const tips = recapTips(env, 'to remove');
+    h.check('a tag with aliases and a description hovers to them',
+      tips.length === 1 && tips[0].text.indexOf('"Hair Colour" (1)') === 0 &&
+      tips[0].title === 'Hair Colour\nStash tag id 1\nAliases: Hair Color, Haircolour\n' +
+        'Description: Colour of the hair, natural or dyed.', JSON.stringify(tips));
+    // An underline that appears on every tag stops meaning "there is more here".
+    h.check('a tag with neither is left plain',
+      !tips.some((t) => t.text.indexOf('Body') !== -1), JSON.stringify(tips));
+    h.check('and the line itself is unchanged as text',
+      d().lines[d().lines.length - 1] ===
+        '[INFO] 2 tag(s) to remove: "Body" (4) x3, "Hair Colour" (1) x250',
+      d().lines[d().lines.length - 1]);
+
+    // The apply's own recap is a second pass over the same tags, and a second query.
+    d().button('Proceed').click();
+    return h.flush().then(() => {
+      h.check('the applied recap hovers too',
+        recapTips(env, 'removed').length === 1, JSON.stringify(recapTips(env, 'removed')));
+    });
+  })
+
+  // A tooltip is worth a query, not a run: the recap must read the same when the
+  // query fails, and must not spend an [ERROR] line on it.
+  .then(() => scan({ entities: bigLibrary(), failTagDetail: true })).then(({ env, d }) => {
+    const planned = d().lines[d().lines.length - 1];
+    h.check('a failed detail query still leaves the recap',
+      planned === '[INFO] 2 tag(s) to remove: "Body" (4) x3, "Hair Colour" (1) x250', planned);
+    h.check('and says nothing about it',
+      !d().lines.some((l) => l.indexOf('[ERROR]') === 0), d().lines.join(' | '));
+    h.check('and nothing hovers', recapTips(env, 'to remove').length === 0);
   })
 
   // The 250-entity delta is three chunks; failing the one holding id 1 must take

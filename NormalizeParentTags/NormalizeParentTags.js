@@ -328,6 +328,93 @@
     return '"' + ((t && t.name) || 'unknown') + '" (' + id + ')';
   }
 
+  // ── Tag tooltips ──────────────────────────────────────────────────────────
+  //
+  // What a name and an id cannot say: the aliases and description that tell two
+  // similarly named tags apart. Two callers - the viewer's rows, where they are the
+  // whole point of hovering, and the run dialog's closing recap, where the tags are
+  // the only ones a user is deciding about. Neither is worth putting `description` on
+  // the run's own tag query for; both fetch it where it is needed. See §5a.
+
+  var TIP_ALIASES = 8;        // aliases named in a tooltip before the rest are a count
+  var TIP_ALIAS_CHARS = 120;  // and the width that can cut the list shorter still
+  var TIP_DESC_CHARS = 240;   // how much of a description the excerpt carries
+
+  // Free text arrives with newlines and runs of spaces in it, and a tooltip line is
+  // one line however the description was written.
+  function oneLine(text) {
+    return String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  }
+
+  // Cut on the last space before the limit so a word is never sliced in half - unless
+  // the only space is near the start, where honouring it would throw most of the
+  // excerpt away and say less than the blunt cut would.
+  function excerpt(text, max) {
+    var s = oneLine(text);
+    if (s.length <= max) return s;
+    var cut = s.slice(0, max);
+    var space = cut.lastIndexOf(' ');
+    if (space > max * 0.6) cut = cut.slice(0, space);
+    return cut.replace(/[\s,;:.\-]+$/, '') + '…';
+  }
+
+  function aliasList(t) {
+    return (((t && t.aliases) || []).map(oneLine)).filter(function (a) { return !!a; });
+  }
+
+  // Whether a tag has anything to say beyond its name and id. The recap's spans
+  // already carry both, so a tooltip there would be noise with a cursor - and an
+  // underline that appears on every tag stops meaning "there is more here". The
+  // viewer's rows tooltip unconditionally instead, because there the full name is
+  // itself information: a long one is cut off by the row.
+  function tagHasDetail(t) {
+    return !!(aliasList(t).length || oneLine(t && t.description));
+  }
+
+  // Both lists are capped rather than rendered whole - a tag with forty aliases or a
+  // paragraph of description would otherwise put a wall of text under the pointer,
+  // which is worse than the caption it replaced. The tail is counted rather than
+  // dropped silently, so a truncated list still says there is more, and the tag page
+  // is where to read all of it.
+  function tagTooltip(t, id) {
+    var lines = [oneLine((t && t.name) || 'unknown'), 'Stash tag id ' + id];
+
+    var aliases = aliasList(t);
+    if (aliases.length) {
+      var shown = [], used = 0;
+      for (var i = 0; i < aliases.length; i++) {
+        // The first alias is always named, excerpted if it has to be: "and 3 more"
+        // on its own would leave the tooltip listing nothing at all.
+        if (shown.length && (shown.length >= TIP_ALIASES || used + aliases[i].length > TIP_ALIAS_CHARS)) break;
+        shown.push(shown.length ? aliases[i] : excerpt(aliases[i], TIP_ALIAS_CHARS));
+        used += aliases[i].length + 2;
+      }
+      var rest = aliases.length - shown.length;
+      lines.push('Aliases: ' + shown.join(', ') + (rest > 0 ? ', and ' + rest + ' more' : ''));
+    }
+
+    var desc = oneLine(t && t.description);
+    if (desc) lines.push('Description: ' + excerpt(desc, TIP_DESC_CHARS));
+    return lines.join('\n');
+  }
+
+  // One query for the tags a recap names - tens of them, after a scan that read the
+  // library - rather than two more fields on every tag in the hierarchy. Resolves to
+  // a map, and to an empty one if the query fails: this buys a tooltip, not a run,
+  // and an [ERROR] line about it in a log being read for what was written would cost
+  // more than a recap that does not hover.
+  function loadTagDetail(ids) {
+    if (!ids.length) return Promise.resolve({});
+    return gqlRequest(
+      'query NPTTagDetail($ids: [ID!]) { findTags(ids: $ids) ' +
+      '{ tags { id name aliases description } } }', { ids: ids }
+    ).then(function (data) {
+      var out = {};
+      (((data.findTags || {}).tags) || []).forEach(function (t) { out[t.id] = t; });
+      return out;
+    }, function () { return {}; });
+  }
+
   // ── Exclusion filters ─────────────────────────────────────────────────────
 
   // The name filters take a list of substrings, and a tag is excluded when its
@@ -501,18 +588,39 @@
   // line can be read against the tag list in the UI without re-sorting it by eye,
   // with the id as the final tie-break - Stash uses one too, and two tags in
   // different parts of the hierarchy are allowed to share a name.
-  function tagSummaryLine(graph, counts, verb) {
+  // Returned as segments rather than a string: each tag becomes its own span so it
+  // can carry the tooltip above, which is what tells two tags with the same name
+  // apart without leaving the dialog. `detail` is optional - without it the line is
+  // exactly what it always was, which is also what a failed detail query leaves.
+  function tagSummaryParts(graph, counts, verb, detail) {
     var ids = [], id;
     for (id in counts) if (hasOwn(counts, id)) ids.push(id);
-    if (!ids.length) return '';
+    if (!ids.length) return null;
     ids.sort(function (a, b) {
       var c = collateNames(tagSortKey(graph, a), tagSortKey(graph, b));
       if (c) return c;
       return lowerId(a, b) ? -1 : 1;
     });
-    return ids.length + ' tag(s) ' + verb + ': ' + ids.map(function (tid) {
-      return tagLabel(graph, tid) + ' x' + counts[tid];
-    }).join(', ');
+    var parts = [{ text: ids.length + ' tag(s) ' + verb + ': ' }];
+    ids.forEach(function (tid, i) {
+      var d = detail && hasOwn(detail, tid) ? detail[tid] : null;
+      parts.push({
+        text: tagLabel(graph, tid) + ' x' + counts[tid],
+        title: d && tagHasDetail(d) ? tagTooltip(d, tid) : null,
+      });
+      if (i < ids.length - 1) parts.push({ text: ', ' });
+    });
+    return parts;
+  }
+
+  function partsText(parts) {
+    return parts.map(function (p) { return p.text; }).join('');
+  }
+
+  function summaryTagIds(counts) {
+    var ids = [], id;
+    for (id in counts) if (hasOwn(counts, id)) ids.push(id);
+    return ids;
   }
 
   // One log line for one tag on one entity, in either direction.
@@ -777,6 +885,7 @@
     '.npt-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;font-size:.8rem;' +
     'line-height:1.35;min-height:14rem;}' +
     '.npt-line{white-space:pre-wrap;word-break:break-word;}' +
+    '.npt-tip{text-decoration:underline dotted;text-underline-offset:2px;cursor:help;}' +
     '.npt-ERROR{color:#ff7373;} .npt-WARN{color:#ffb648;} .npt-REMOVE{color:#7cc4ff;}' +
     '.npt-ADD{color:#84d68a;} .npt-INFO{color:#a7b6c2;}' +
     '.npt-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
@@ -882,6 +991,9 @@
 
   Run.prototype.reset = function () {
     this.plan = [];
+    // Counts the passes, so a recap whose tooltip query is still in flight when
+    // Rescan is pressed is dropped rather than landing in the next pass's log.
+    this.pass = (this.pass || 0) + 1;
     this.scanned = {};
     this.total = {};
     this.errors = 0;
@@ -1015,16 +1127,28 @@
   Run.prototype.logTagSummary = function (counts, verb) {
     // A run that stops before the tag query - no types enabled, settings failed -
     // has no graph to name anything with, and nothing to summarise either.
-    if (!this.graph) return;
-    var line = tagSummaryLine(this.graph, counts, verb);
-    if (line) this.log('INFO', line);
+    if (!this.graph) return Promise.resolve();
+    var self = this;
+    // A rescan empties the log while the detail query is in flight, and a recap of
+    // the pass before it would land in the middle of the new one. The pass token is
+    // what makes waiting for a query safe here.
+    var pass = this.pass;
+    return loadTagDetail(summaryTagIds(counts)).then(function (detail) {
+      if (self.pass !== pass) return;
+      var parts = tagSummaryParts(self.graph, counts, verb, detail);
+      if (parts) self.log('INFO', partsText(parts), parts);
+      self.flush();
+    });
   };
 
-  Run.prototype.log = function (kind, message) {
+  // `parts` is optional, and only the tag recap passes it: that line is rendered as
+  // spans so each tag can carry its own tooltip. `lines` keeps the plain string
+  // either way - Copy log hands over text, and a tooltip is not text.
+  Run.prototype.log = function (kind, message, parts) {
     var line = '[' + kind + '] ' + message;
     this.lines.push(line);
     this.viewLines++;
-    this.pending.push({ kind: kind, line: line });
+    this.pending.push({ kind: kind, line: line, parts: parts || null });
     this.scheduleFlush();
   };
 
@@ -1045,7 +1169,18 @@
     var pending = this.pending;
     this.pending = [];
     pending.forEach(function (p) {
-      this.logEl.appendChild(el('div', 'npt-line npt-' + p.kind, p.line));
+      var node = el('div', 'npt-line npt-' + p.kind, p.parts ? null : p.line);
+      // The kind prefix stays plain text; only the tag segments are hoverable, and
+      // they are marked as such - an underline is what says a tooltip is there.
+      if (p.parts) {
+        node.appendChild(el('span', null, '[' + p.kind + '] '));
+        p.parts.forEach(function (seg) {
+          var span = el('span', seg.title ? 'npt-tip' : null, seg.text);
+          if (seg.title) span.title = seg.title;
+          node.appendChild(span);
+        });
+      }
+      this.logEl.appendChild(node);
     }, this);
     while (this.logEl.childNodes && this.logEl.childNodes.length > LOG_RENDER_CAP) {
       this.logEl.removeChild(this.logEl.firstChild);
@@ -1445,56 +1580,6 @@
   // there for anyone who does want a drawn graph, in a tool built for it.
 
   var TREE_ROW_CAP = 4000;   // rows rendered at once by a search; see renderSearch
-
-  var TIP_ALIASES = 8;        // aliases named in a tooltip before the rest are a count
-  var TIP_ALIAS_CHARS = 120;  // and the width that can cut the list shorter still
-  var TIP_DESC_CHARS = 240;   // how much of a description the excerpt carries
-
-  // Free text arrives with newlines and runs of spaces in it, and a tooltip line is
-  // one line however the description was written.
-  function oneLine(text) {
-    return String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
-  }
-
-  // Cut on the last space before the limit so a word is never sliced in half - unless
-  // the only space is near the start, where honouring it would throw most of the
-  // excerpt away and say less than the blunt cut would.
-  function excerpt(text, max) {
-    var s = oneLine(text);
-    if (s.length <= max) return s;
-    var cut = s.slice(0, max);
-    var space = cut.lastIndexOf(' ');
-    if (space > max * 0.6) cut = cut.slice(0, space);
-    return cut.replace(/[\s,;:.\-]+$/, '') + '…';
-  }
-
-  // What the row cannot show: the full name, the id it is logged under, and the two
-  // fields that say what a tag actually means. Both lists are capped rather than
-  // rendered whole - a tag with forty aliases or a paragraph of description would
-  // otherwise put a wall of text under the pointer, which is worse than the caption
-  // it replaced. The tail is counted rather than dropped silently, so a truncated
-  // list still says there is more, and the tag page is where to read all of it.
-  function tagTooltip(t, id) {
-    var lines = [oneLine((t && t.name) || 'unknown'), 'Stash tag id ' + id];
-
-    var aliases = (((t && t.aliases) || []).map(oneLine)).filter(function (a) { return !!a; });
-    if (aliases.length) {
-      var shown = [], used = 0;
-      for (var i = 0; i < aliases.length; i++) {
-        // The first alias is always named, excerpted if it has to be: "and 3 more"
-        // on its own would leave the tooltip listing nothing at all.
-        if (shown.length && (shown.length >= TIP_ALIASES || used + aliases[i].length > TIP_ALIAS_CHARS)) break;
-        shown.push(shown.length ? aliases[i] : excerpt(aliases[i], TIP_ALIAS_CHARS));
-        used += aliases[i].length + 2;
-      }
-      var rest = aliases.length - shown.length;
-      lines.push('Aliases: ' + shown.join(', ') + (rest > 0 ? ', and ' + rest + ' more' : ''));
-    }
-
-    var desc = oneLine(t && t.description);
-    if (desc) lines.push('Description: ' + excerpt(desc, TIP_DESC_CHARS));
-    return lines.join('\n');
-  }
 
   function TreeView(taskName) {
     this.taskName = taskName;

@@ -247,6 +247,13 @@ function makeResponder(opts) {
       if (opts.siblingSettings) plugins.MergePerformerTagsToScenes = opts.siblingSettings;
       return { data: { configuration: { plugins } } };
     }
+    // The recap's tooltips: aliases and descriptions for the tags a run touched,
+    // fetched by id once the plan is known rather than carried on the hierarchy.
+    if (q.indexOf('NPTTagDetail') !== -1) {
+      if (opts.failTagDetail) return { errors: [{ message: 'too expensive' }] };
+      const want = req.variables.ids;
+      return { data: { findTags: { tags: (opts.tagDetail || []).filter((t) => want.indexOf(t.id) !== -1) } } };
+    }
     if (q.indexOf('NPTTags') !== -1) {
       return { data: { findTags: { tags: opts.tags || TAGS } } };
     }

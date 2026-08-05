@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.3.0.** This file is both the design and the map of the code — the
+**Status: implemented at 1.4.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -319,6 +319,28 @@ no PluginApi). It shows:
   Phase 2 emits its own, counted from `appliedTags` — accumulated where a batch **succeeds**, not
   from the plan — so a failed batch or a **Stop** is not summarised as though it had landed. The
   two lines differing is meaningful, not a bug.
+
+  **Its tags hover** (1.4.0), naming their aliases and description — the viewer's row tooltip, on
+  the line the Proceed decision is actually made from. The mechanics:
+
+  - `tagSummaryParts` returns segments instead of a string and `log()` takes an optional `parts`;
+    `flush` builds a span per segment when it is there and keeps the plain `textContent` path for
+    every other line. `lines` still gets the joined string, because Copy log hands over text.
+  - **Only tags with something to add are underlined** (`tagHasDetail`). The span already reads
+    `"Body" (4) x3`; a tooltip repeating that is noise with a cursor, and an underline on every tag
+    would stop meaning "there is more here". The viewer's rows are the deliberate exception — see
+    §5a.
+  - **`loadTagDetail` fetches by id**, for the tens of tags a recap names rather than the thousands
+    the hierarchy holds. This is the same rule as `tagQuery(settings, detail)` and it assumes
+    `findTags(ids:)`; verify that against a live Stash like every other API assumption here.
+  - **Failure is silent.** It buys a tooltip, not a run. The rejection handler resolves to an empty
+    map and the line renders plain.
+  - `reset()` bumps `pass` and `logTagSummary` captures it, so a recap whose query is still in
+    flight when **Rescan** is pressed is dropped instead of landing in the next pass's log.
+
+  The tooltip helpers live in their own section next to `tagLabel` rather than in the viewer, since
+  1.4.0 made them two callers' code. The sibling has its own copy for the same reason its collator
+  does: no shared module.
 - Buttons: **Proceed** (enabled once the scan finishes, and disabled outright when there is
   nothing to do) and **Cancel** (abandons the run; during the scan it stops paging).
 
@@ -977,7 +999,11 @@ cover:
   warns about is turned off.
 - **The tag summary** — the exact closing line in both directions and both phases, the per-tag
   entity counts, an empty plan producing none, and a failed batch dropping its 100 entities out
-  of the applied count rather than out of the plan's. Ordering is covered against all three parts
+  of the applied count rather than out of the plan's. Its tooltips too: the detail query scoped by
+  id to the tags the recap names and asking for the two fields the hierarchy query does not, the
+  tooltip's contents, a tag with neither field left plain, both phases' recaps hovering, the line's
+  text unchanged so Copy log is unaffected, and a failed detail query leaving the line readable and
+  unremarked. Ordering is covered against all three parts
   of Stash's rule at once (a `sort_name` override, case-insensitivity, and `Volume 2` before
   `Volume 10`), plus that the tag query actually requests `sort_name`.
 - **Naming an untitled entity** — a zip gallery falls back to its file, a folder gallery to its

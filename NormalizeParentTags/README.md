@@ -89,6 +89,22 @@ The tags are listed in the same order Stash itself sorts them — by **Sort Name
 one, otherwise by name, ignoring case and treating numbers as numbers (`Volume 2` before
 `Volume 10`) — so the line reads straight against your tag list without re-sorting it by eye.
 
+**Hovering a tag in that line** shows what it is — its aliases and its description:
+
+```
+Hair Colour
+Stash tag id 45
+Aliases: Hair Color, Haircolour, and 2 more
+Description: Every hair colour that occurs naturally, plus the dyed ones…
+```
+
+This is the line you approve a Prune from, so it is worth being sure the tags on it are the tags
+you think they are. Only those with aliases or a description are underlined and hover; the rest
+have nothing to add beyond the name and id already shown. Long lists and long descriptions are
+shortened — the aliases say how many more there are. It costs one extra query per recap, for the
+handful of tags named there rather than for every tag in your hierarchy, and if it fails the line
+simply reads as it always did.
+
 The **due to** tag is the reason the change was planned: the tag already on the entity that
 implies the one being written. Where several tags on the entity imply it, the lowest one in the
 hierarchy is named — for Prune that tag is always one that survives the run, so the line reads as

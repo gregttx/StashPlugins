@@ -872,10 +872,17 @@
 
   var STYLE_ID = 'npt-style';
   var CSS =
+    // Kept literally identical to MergePerformerTagsToScenes' TASK_CSS wherever the
+    // two dialogs overlap, down to the hex values. They are separate strings because
+    // the plugins share no module, not because they are meant to look different -
+    // and they did drift, from #202b33 here against #30404d there, because nothing
+    // compared them. #30404d is Stash's own raised-surface grey, the one its cards
+    // and modals use; #202b33 is the page underneath, which made this dialog read as
+    // flush with the page rather than floating above it. `style` pins the overlap.
     '.npt-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
-    'z-index:2000;display:flex;align-items:center;justify-content:center;}' +
-    '.npt-modal{background:#202b33;color:#e8eaed;border:1px solid #394b59;border-radius:4px;' +
-    'width:min(900px,92vw);max-height:88vh;display:flex;flex-direction:column;font-size:.9rem;}' +
+    'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
+    '.npt-modal{background:#30404d;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
+    'width:min(56rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
     '.npt-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
     '.npt-title{font-size:1.1rem;font-weight:600;}' +
     '.npt-warn{color:#ffb648;margin-top:.35rem;}' +

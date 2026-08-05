@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.4.1.** This file is both the design and the map of the code — the
+**Status: implemented at 1.4.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1019,6 +1019,9 @@ cover:
   boundary), a tag with neither field saying nothing about them, and — in `normalize-plan` — a run
   *not* asking for either field. Auto mode's console legend is checked for being printed once,
   ahead of the first line it explains, and not repeated on the next reaction.
+- **The dialog chrome** (`style`, repo-level) — every CSS rule this dialog shares with the
+  sibling's is compared against it and has to match. See the repo-root CLAUDE.md; this is the check
+  that would have caught the modal being `#202b33` here and `#30404d` there.
 - **No Clear log** — the run dialog does not offer one. Pinned so a reintroduction has to argue
   with §5 rather than slip back in.
 - **Grouping and chunking** — identical deltas collapse into one mutation, chunks cap at 100 ids,

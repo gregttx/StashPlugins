@@ -103,6 +103,29 @@ Rules that make this safe:
 - **UI plugins only.** A server-side `hooks:` plugin runs in the Stash process, never sees this
   `window`, and cannot be leased against. Do not let documentation imply otherwise.
 
+## Cross-plugin cooperation: the shared dialog chrome
+
+Both plugins put up a full-screen review dialog, and they are one design: same head with a warning
+and a legend, same monospace log with a rendered tail, same footer of Proceed / Stop / Copy log /
+Rescan / Undo / Close, same `btn btn-secondary btn-sm` buttons borrowed from Stash. A plugin folder
+is copied as-is, with no build step and no shared module, so neither can import the other's
+stylesheet: each carries its own CSS string, `CSS` in `NormalizeParentTags` and `TASK_CSS` in
+`MergePerformerTagsToScenes`.
+
+**Keep the overlapping rules byte-identical.** They drifted once — the modal was `#202b33` in one
+and `#30404d` in the other, with a `font-size` and a `z-index` to match — because the second dialog
+was written a day after the first and nobody compared them. `tests/style.test.js` now parses both
+strings, strips the `npt-` / `cpt2s-` prefixes and fails on any selector the two define differently.
+
+Only the overlap is pinned. Rules the other dialog has no use for — the hierarchy viewer's tree and
+inspector, each plugin's own log-line kinds (`REMOVE`/`ADD` against `MERGE`) — are free to differ,
+and the suite ignores selectors it finds on one side only.
+
+**`#30404d` is the modal background**, Stash's raised-surface grey: it is what its cards and modals
+use, where `#202b33` is the page underneath. A dialog in the page colour reads as flush with the
+page rather than floating above it. Both are Blueprint dark greys and both look native, which is
+exactly why the drift went unnoticed.
+
 ## Tests
 
 `node tests/run.js` (or `npm test`) runs the suites in `tests/`. They evaluate a plugin inside a `vm` context holding a hand-rolled browser and drive it by answering its GraphQL requests — see `tests/README.md`.

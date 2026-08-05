@@ -463,6 +463,10 @@ cases start the task through `openAfterSettings`, which lets the bootstrap setti
 `checkSibling` reads what that stored, so a helper that races it would test nothing. All four
 behaviours were confirmed against deliberately broken copies before being trusted.
 
+`style.test.js` needs no harness at all: it reads both plugins' CSS strings as text and fails on any
+rule the two dialogs define differently. The shared-chrome rule it enforces is in the repo-root
+CLAUDE.md.
+
 `staging.test.js` is the most exposed, because it *models* `useTagsEdit` rather than calling it.
 Anything touching §4 needs a click in a real Stash before it is believed. Same for §5: the suites
 reproduce Stash's markup from memory, so they prove the plugin picks the right container out of

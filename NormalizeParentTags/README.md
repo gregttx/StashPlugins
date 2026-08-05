@@ -322,6 +322,7 @@ mid-run, that means the changes already written stay written and the rest are ne
 
 ## Notes / limitations
 
+- **Read carefully:** [⚠ Back up your database before the first run](#-back-up-your-database-before-the-first-run)
 - Both tasks always cover your whole library. Filters and selections in the scene, image or
   performer lists are not read.
 - Changes are written as add/remove deltas rather than as a wholesale rewrite of each entity's

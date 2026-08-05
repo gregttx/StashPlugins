@@ -330,6 +330,69 @@ Promise.resolve()
       });
   })
 
+  // ── A settings save reaches auto mode at once ─────────────────────────────
+  //
+  // Settings are cached for AUTO_SETTINGS_TTL_MS, so without invalidating on our own
+  // configurePlugin, enabling a mode and immediately saving an entity would still be
+  // governed by the old settings for up to ten seconds.
+  .then(() => {
+    let prune = false;
+    const inner = h.makeResponder({ entities: LIB, settings: { a5EnableScenes: true } });
+    const env = h.makeEnv({
+      quiet: true,
+      respond: (req, calls) => {
+        if ((req.query || '').indexOf('configuration') !== -1) {
+          return { data: { configuration: { plugins: { NormalizeParentTags: {
+            a5EnableScenes: true, a8AutoPruneOnUpdate: prune } } } } };
+        }
+        return inner(req, calls);
+      },
+    });
+    h.run(env.ctx);
+    return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
+      .then(() => h.flush()).then(() => {
+        h.check('with the mode off, a save is not acted on',
+          h.bulkCalls(env.calls).length === 0);
+        prune = true;   // the user ticks Auto Prune; Stash saves it
+        return env.ctx.window.fetch('/graphql', {
+          body: JSON.stringify({
+            query: 'mutation ConfigurePlugin($plugin_id: ID!, $input: Map!) { configurePlugin(plugin_id: $plugin_id, input: $input) }',
+            variables: { plugin_id: 'NormalizeParentTags', input: { a8AutoPruneOnUpdate: true } },
+          }),
+        }).then(() => h.flush())
+          .then(() => h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' }))
+          .then(() => h.flush()).then(() => {
+            h.check('after saving settings the very next save is acted on',
+              h.bulkCalls(env.calls).length === 1,
+              'got ' + h.bulkCalls(env.calls).length);
+          });
+      });
+  })
+
+  // Another plugin's settings save is nothing to do with us: our cache must survive
+  // it. Proven by the *next* reaction still being served from cache - scene 20 is
+  // used because scene 10 would be inside the write cooldown and never get that far.
+  .then(() => {
+    const env = boot();
+    const settingsReads = () => env.calls.filter((c) => /configuration/.test(c.query || '')).length;
+    return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '20' })
+      .then(() => h.flush()).then(() => {
+        const before = settingsReads();
+        h.check('the first reaction reads settings once', before === 1, 'got ' + before);
+        return env.ctx.window.fetch('/graphql', {
+          body: JSON.stringify({
+            query: 'mutation ConfigurePlugin($plugin_id: ID!, $input: Map!) { configurePlugin(plugin_id: $plugin_id, input: $input) }',
+            variables: { plugin_id: 'SomeOtherPlugin', input: {} },
+          }),
+        }).then(() => h.flush())
+          .then(() => h.entityUpdate(env.ctx, 'sceneUpdate', { id: '20' }))
+          .then(() => h.flush()).then(() => {
+            h.check('another plugin being configured leaves our cache alone',
+              settingsReads() === before, before + ' -> ' + settingsReads());
+          });
+      });
+  })
+
   // ── The both-modes-on notice on the settings page ─────────────────────────
   //
   // Both modes on runs neither, which is safe and invisible. The notice makes it

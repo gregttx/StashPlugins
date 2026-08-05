@@ -34,9 +34,6 @@
   // sibling down for five minutes over a single scene save.
   var AUTO_LEASE_TTL_MS  = 30000;
   var AUTO_SETTINGS_TTL_MS = 10000;  // settings are re-read at most this often
-  // ...except while the plugins settings page is open, where the user is watching
-  // for the effect of a click. One small query a second, only on that page.
-  var AUTO_SETTINGS_PAGE_TTL_MS = 1000;
   var AUTO_GRAPH_TTL_MS    = 60000;  // and the tag hierarchy at most this often
   var AUTO_COOLDOWN_MS     = 8000;   // per-entity: how long after our own write we ignore it
   var AUTO_COOLDOWN_MAX    = 2000;   // entries kept before the expired ones are swept
@@ -2168,18 +2165,13 @@
     _autoSettingsAt = 0;
   }
 
-  // `maxAge` lets a caller insist on fresher settings than the reactive path needs.
-  // The default is right for auto mode - an idle tab should cost nothing - and far
-  // too slow for the settings page, where the user is watching for the effect of a
-  // click they have just made.
-  function autoSettings(maxAge) {
+  function autoSettings() {
     var now = Date.now();
-    if (_autoSettings && now - _autoSettingsAt < (maxAge || AUTO_SETTINGS_TTL_MS)) {
+    if (_autoSettings && now - _autoSettingsAt < AUTO_SETTINGS_TTL_MS) {
       return Promise.resolve(_autoSettings);
     }
-    // An in-flight read is reused whatever the caller asked for: it was issued a
-    // moment ago, so it is as fresh as a new one, and stacking a second query per
-    // tick is exactly what the throttle exists to stop.
+    // An in-flight read is reused rather than stacking a second query behind it,
+    // which is what the throttle exists to stop.
     if (_autoSettingsPending) return _autoSettingsPending;
     _autoSettingsPending = loadSettings().then(function (loaded) {
       _autoSettings = loaded.settings;
@@ -2559,7 +2551,7 @@
       renderConflictNotice(live);
       return;
     }
-    autoSettings(AUTO_SETTINGS_PAGE_TTL_MS).then(function (s) {
+    autoSettings().then(function (s) {
       renderConflictNotice(!!s.a8AutoPruneOnUpdate && !!s.a9AutoRollUpOnUpdate);
     }, function () {
       // A failed settings read says nothing about the conflict either way; leave
@@ -2671,11 +2663,13 @@
         invalidateAutoGraph();
       }
 
-      // Our own settings being saved. Without this the both-modes notice reads a
-      // cache up to AUTO_SETTINGS_TTL_MS old, so a checkbox took several seconds to
-      // change what it said - the delay reported against 1.2.2. Re-read only once
-      // the mutation has landed, or we fetch the old values straight back and cache
-      // them again for another ten seconds.
+      // Our own settings being saved. Auto mode caches them for
+      // AUTO_SETTINGS_TTL_MS, so without this, turning a mode on and immediately
+      // saving an entity would be governed by the old settings for up to ten
+      // seconds. Two details: re-read only once the mutation has landed, or the old
+      // values come straight back and are cached for another ten seconds; and scope
+      // it to our own plugin_id, since the settings page saves each plugin in its
+      // own mutation.
       if (/\bconfigurePlugin\b/.test(q) && v.plugin_id === PLUGIN_ID) {
         mutationSucceeded(p).then(function (ok) {
           if (!ok) return;

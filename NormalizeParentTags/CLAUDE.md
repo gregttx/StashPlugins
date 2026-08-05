@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.2.5.** This file is both the design and the map of the code — the
+**Status: implemented at 1.2.6.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -655,22 +655,23 @@ one you cannot misconfigure from, and in an expanded one it put the notice off t
 far from the checkboxes it is about. Next to the controls is where a warning about those controls
 belongs.
 
-**Freshness has two mechanisms, and the slow one is the one that is guaranteed.**
-`settingsTick` reads at `AUTO_SETTINGS_PAGE_TTL_MS` rather than the reactive
-`AUTO_SETTINGS_TTL_MS`, so the notice is never more than a second behind the checkbox no matter what
-else happens. That costs one small query a second, and only while our own settings group is on the
-page — nowhere else in Stash issues it. 1.2.3 tried to solve this with the mutation interception
-alone and the lag survived, which is the argument for having a mechanism that depends on nothing
-being intercepted at all.
+**A settings save invalidates the settings cache** — the `fetch` wrapper watches for
+`configurePlugin` carrying our own `plugin_id` and drops it. This is nothing to do with the notice,
+which reads the DOM: it is for **auto mode**, which caches settings for `AUTO_SETTINGS_TTL_MS` and
+would otherwise keep writing under the old ones for up to ten seconds after you enable a mode. Two
+details: re-read only **after** `mutationSucceeded`, or the old values come straight back and are
+cached for another ten seconds; and scope it to our `plugin_id`, since the settings page saves each
+plugin in its own mutation.
 
-**A settings save also re-reads them at once.** `autoSettings()` caches for `AUTO_SETTINGS_TTL_MS`, which
-is right for the reactive path — an idle tab should cost nothing — and wrong for a banner sitting on
-the page where those settings are edited: 1.2.2 took five to eight seconds to notice a checkbox. The
-`fetch` wrapper watches for `configurePlugin` carrying our own `plugin_id`, drops the cache and ticks,
-so the notice answers the click rather than the cache. Two details: re-read only **after**
-`mutationSucceeded`, or the old values come straight back and get cached for another ten seconds; and
-scope it to our `plugin_id`, since the settings page saves each plugin in its own mutation and
-another plugin's save is nothing to do with us.
+> **A detour worth not repeating.** 1.2.3 and 1.2.4 both tried to make a *config-derived* notice keep
+> up with a click — first by invalidating on `configurePlugin`, then by polling settings once a
+> second while the page was open. Neither helped, because the delay being chased was a stale
+> `NormalizeParentTags.js` in the browser, not the cache. The version in the settings group heading
+> comes from the manifest and reloads instantly, so it read the new version throughout while the old
+> script ran. Two lessons: **get one measurement off the live instance before shipping a second fix
+> for the same symptom**, and remember that a plugin's *displayed* version proves nothing about the
+> code running. The per-second poll is gone; the invalidation stayed only because auto mode wants it
+> for its own reasons.
 
 Mechanics worth keeping: the group is found by a **heading carrying the plugin name**, never by
 position, since the page lists every installed plugin — the same rule as the task interception in

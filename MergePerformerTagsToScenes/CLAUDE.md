@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.7.6.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.8.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -291,6 +291,32 @@ same rule is documented at greater length in §3 of `NormalizeParentTags`' CLAUD
 implementations are separate because the plugins share no module, so a change to one is a
 deliberate decision about the other.
 
+**The recap's tags hover** (1.8.0), naming their aliases and description — the sibling's tree-row
+tooltip, in the one place this dialog enumerates tags. Four things hold it up:
+
+- **The line is rendered as spans, not text.** `taskTagSummaryParts` returns segments and `log()`
+  takes an optional `parts`; `flush` builds a span per segment when it is there and keeps the plain
+  `textContent` path for every other line. `lines` still gets the joined string, because Copy log
+  hands over text and a tooltip is not text.
+- **Only tags with something to add are underlined.** The span already reads `"Tattoo" (11) x18`,
+  so a tooltip repeating that is noise with a cursor — and an underline that appears on every tag
+  stops meaning "there is more here". `taskTagHasDetail` is the gate. The sibling's rows tooltip
+  unconditionally, and that is not an inconsistency: there the full name is itself information,
+  since a long one is cut off by the row.
+- **One query, scoped to the recap.** `loadTagDetail` fetches `aliases` and `description` by id for
+  the tags the recap names — tens of them, after a walk that read tens of thousands of performers.
+  Putting the two fields on `taskTagFields()` instead would carry a paragraph of description on
+  every performer's tag list, for a tooltip on a line at the end. This is the same trade as the
+  sibling's viewer-only `tagQuery(settings, detail)`, and it assumes `findTags(ids:)` — verify that
+  against a live Stash, as with every other assumption about its API.
+- **Failure is silent.** It buys a tooltip, not a merge. An `[ERROR]` line in a log being read for
+  what was written would cost more than a recap that does not hover, so the rejection handler does
+  nothing and the line renders plain.
+
+The wait is what makes `pass` necessary: `reset()` bumps it and `logTagSummary` captures it, so a
+recap whose detail query is still in flight when the user presses **Rescan** is dropped instead of
+landing in the middle of the next pass's log.
+
 **Rescan** exists for the same reason it does in the sibling: the plan is computed before the first
 write, so anything that changes tags during phase 2 — another tab, a scan, the auto-merge modes —
 is invisible to the plan being applied. Since 1.4.2 `finishApply` closes with *"Press Rescan to
@@ -423,7 +449,10 @@ the fifth write, so the moment it lands does not depend on how many ticks a flus
 
 It also covers the id legend from §8, in both of the places a log line is first met: the task
 dialog's head, and — in `logging.test.js` — the "logging enabled" banner that stands in for a head
-on the console path.
+on the console path. And the recap's tooltips from §7a: the detail query scoped to the tags the
+recap names and asking for the two fields the performer walk does not, the tooltip's contents, a tag
+with neither field left plain, the line's text unchanged so Copy log is unaffected, and a failed
+detail query leaving the recap readable and unremarked.
 
 It also covers §7c: a registered sibling reported rather than warned about, an unregistered one
 warning in the dialog head with the effect named per direction, both of its modes on producing

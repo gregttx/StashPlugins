@@ -59,6 +59,13 @@ function makeResponder(opts) {
       const pid = req.variables.scene_filter.performers.value[0];
       return { data: { findScenes: { scenes: (opts.scenes || SCENES)[pid] || [] } } };
     }
+    // The recap's tooltips: aliases and descriptions for the tags the run moved,
+    // fetched by id once the plan is known rather than during the performer walk.
+    if (/CPT2STagDetail/.test(q)) {
+      if (opts.failTagDetail) return { errors: [{ message: 'too expensive' }] };
+      const want = req.variables.ids;
+      return { data: { findTags: { tags: (opts.tagDetail || []).filter((t) => want.indexOf(t.id) !== -1) } } };
+    }
     if (/findTags/.test(q)) return { data: { findTags: { tags: [] } } };
     // Undo's delta write. Matched ahead of the single-scene mutation even though the
     // two names do not actually collide, so the order cannot become load-bearing.
@@ -99,6 +106,14 @@ function openAfterSettings(opts, respecter) {
 const sceneUpdates = (calls) => calls.filter((c) => /sceneUpdate/.test(c.query || ''));
 const bulkSceneUpdates = (calls) => calls.filter((c) => /bulkSceneUpdate/.test(c.query || ''));
 const merges = (d) => d().lines.filter((l) => l.indexOf('[MERGE]') === 0);
+// The hoverable segments of a recap line: only the tags with something to say beyond
+// the caption carry a title, so this is also the list of what got underlined.
+const recapTips = (env, verb) => {
+  const line = env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-line') &&
+    n.textContent.indexOf('tag(s) ' + verb + ':') !== -1)[0];
+  return line ? line.descendants().filter((n) => n.title)
+    .map((n) => ({ text: n.textContent, title: n.title })) : [];
+};
 
 Promise.resolve()
 
@@ -279,6 +294,53 @@ Promise.resolve()
           applied);
       });
     });
+  })
+
+  // The recap is the one place the dialog enumerates tags, so it is where a tag can
+  // say what it *is*. Hovering it names the aliases and description; the log lines
+  // themselves stay plain text, which is what Copy log hands over.
+  .then(() => open({ tagDetail: [
+    { id: '10', name: 'Blonde', aliases: ['Blond', 'Blonde Hair'],
+      description: 'Light hair,\n  natural or dyed.' },
+    { id: '11', name: 'Tattoo', aliases: [], description: null },
+  ] })).then(({ env, d }) => {
+    const detail = env.calls.filter((c) => /CPT2STagDetail/.test(c.query || ''));
+    h.check('the detail query is scoped to the tags the recap names',
+      detail.length === 1 && detail[0].variables.ids.slice().sort().join() === '10,11',
+      JSON.stringify(detail.map((c) => c.variables)));
+    // Read defensively: a build that never issues the query must fail this check
+    // rather than throw and take the rest of the suite down with it.
+    const detailQuery = (detail[0] || {}).query || '';
+    h.check('and asks for the two fields the walk does not',
+      /aliases/.test(detailQuery) && /description/.test(detailQuery), detailQuery);
+    // The walk reads every performer in the library; a description on that query
+    // would be a paragraph per performer's tag list.
+    h.check('the performer walk still asks for neither',
+      !env.calls.some((c) => /TaskPerformers|findPerformers/.test(c.query || '') &&
+        (/aliases/.test(c.query) || /description/.test(c.query))));
+
+    const tips = recapTips(env, 'to add');
+    h.check('the tag with aliases and a description hovers to them',
+      tips.length === 1 && tips[0].text.indexOf('"Blonde" (10)') === 0 &&
+      tips[0].title === 'Blonde\nStash tag id 10\nAliases: Blond, Blonde Hair\n' +
+        'Description: Light hair, natural or dyed.', JSON.stringify(tips));
+    // An underline that appears on every tag stops meaning "there is more here".
+    h.check('a tag with neither is left plain',
+      !tips.some((t) => t.text.indexOf('Tattoo') !== -1), JSON.stringify(tips));
+    h.check('and the line itself is unchanged as text',
+      d().lines[d().lines.length - 1] ===
+        '[INFO] 2 tag(s) to add: "Blonde" (10) x1, "Tattoo" (11) x2',
+      d().lines[d().lines.length - 1]);
+  })
+
+  // A tooltip is worth a query, not a run: the recap must read the same when the
+  // query fails, and must not spend an [ERROR] line on it.
+  .then(() => open({ failTagDetail: true })).then(({ d }) => {
+    const planned = d().lines[d().lines.length - 1];
+    h.check('a failed detail query still leaves the recap',
+      planned === '[INFO] 2 tag(s) to add: "Blonde" (10) x1, "Tattoo" (11) x2', planned);
+    h.check('and says nothing about it',
+      !d().lines.some((l) => l.indexOf('[ERROR]') === 0), d().lines.join(' | '));
   })
 
   // A failed scene must drop out of the applied recap without touching the planned one.

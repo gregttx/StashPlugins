@@ -719,6 +719,7 @@
     '.cpt2s-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;' +
     'font-size:.8rem;line-height:1.35;min-height:14rem;}' +
     '.cpt2s-line{white-space:pre-wrap;word-break:break-word;}' +
+    '.cpt2s-tip{text-decoration:underline dotted;text-underline-offset:2px;cursor:help;}' +
     '.cpt2s-ERROR{color:#ff7373;} .cpt2s-WARN{color:#ffb648;} .cpt2s-MERGE{color:#84d68a;}' +
     '.cpt2s-INFO{color:#a7b6c2;}' +
     '.cpt2s-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
@@ -787,23 +788,100 @@
     return String(a) < String(b);
   }
 
+  var TIP_ALIASES = 8;        // aliases named in a tooltip before the rest are a count
+  var TIP_ALIAS_CHARS = 120;  // and the width that can cut the list shorter still
+  var TIP_DESC_CHARS = 240;   // how much of a description the excerpt carries
+
+  // Free text arrives with newlines and runs of spaces in it, and a tooltip line is
+  // one line however the description was written.
+  function taskOneLine(text) {
+    return String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  }
+
+  // Cut on the last space before the limit so a word is never sliced in half - unless
+  // the only space is near the start, where honouring it would throw most of the
+  // excerpt away.
+  function taskExcerpt(text, max) {
+    var s = taskOneLine(text);
+    if (s.length <= max) return s;
+    var cut = s.slice(0, max);
+    var space = cut.lastIndexOf(' ');
+    if (space > max * 0.6) cut = cut.slice(0, space);
+    return cut.replace(/[\s,;:.\-]+$/, '') + '…';
+  }
+
+  // The recap names a tag; this says what the tag *is*. Both free-text fields are
+  // capped, and the tail of the alias list is counted rather than dropped - a
+  // shortened list that does not say it is shortened reads as a complete one. Same
+  // shape as NormalizeParentTags' tagTooltip, separate because the plugins share no
+  // module; keep the two readable against each other.
+  function taskAliasList(t) {
+    return (((t && t.aliases) || []).map(taskOneLine)).filter(function (a) { return !!a; });
+  }
+
+  // Whether the tag has anything to say that the recap does not already show. The
+  // span already reads `"Tattoo" (11) x18`, so a tooltip repeating the name and id
+  // would be noise with a cursor - and worse, it would make the underline stop
+  // meaning "there is more here". (The tree's rows tooltip unconditionally, because
+  // there the full name is itself information: a long one is cut off by the row.)
+  function taskTagHasDetail(t) {
+    return !!(taskAliasList(t).length || taskOneLine(t && t.description));
+  }
+
+  function taskTagTooltip(t, id) {
+    var lines = [taskOneLine((t && t.name) || 'unnamed'), 'Stash tag id ' + id];
+
+    var aliases = taskAliasList(t);
+    if (aliases.length) {
+      var shown = [], used = 0;
+      for (var i = 0; i < aliases.length; i++) {
+        if (shown.length && (shown.length >= TIP_ALIASES || used + aliases[i].length > TIP_ALIAS_CHARS)) break;
+        shown.push(shown.length ? aliases[i] : taskExcerpt(aliases[i], TIP_ALIAS_CHARS));
+        used += aliases[i].length + 2;
+      }
+      var rest = aliases.length - shown.length;
+      lines.push('Aliases: ' + shown.join(', ') + (rest > 0 ? ', and ' + rest + ' more' : ''));
+    }
+
+    var desc = taskOneLine(t && t.description);
+    if (desc) lines.push('Description: ' + taskExcerpt(desc, TIP_DESC_CHARS));
+    return lines.join('\n');
+  }
+
   // The per-scene lines answer "what happened to this scene". This answers "which
   // tags did this run move, and onto how many scenes" - the question worth asking
   // before approving a library-wide merge, and one a six-figure log cannot be read
   // for.
-  function taskTagSummary(counts, tagsById, verb) {
+  //
+  // Returned as segments rather than a string: each tag becomes its own span so it
+  // can carry a tooltip naming its aliases and description, which is what tells two
+  // tags with the same name apart without leaving the dialog. `detail` is optional -
+  // without it the line is exactly what it always was, which is also what happens
+  // when the detail query fails.
+  function taskTagSummaryParts(counts, tagsById, verb, detail) {
     var ids = [], id;
     for (id in counts) if (hasOwn(counts, id)) ids.push(id);
-    if (!ids.length) return '';
+    if (!ids.length) return null;
     ids.sort(function (a, b) {
       var c = taskCollate(taskTagSortKey(tagsById[a]), taskTagSortKey(tagsById[b]));
       if (c) return c;
       return taskLowerId(a, b) ? -1 : 1;
     });
-    return ids.length + ' tag(s) ' + verb + ': ' + ids.map(function (tid) {
+    var parts = [{ text: ids.length + ' tag(s) ' + verb + ': ' }];
+    ids.forEach(function (tid, i) {
       var t = tagsById[tid];
-      return '"' + ((t && t.name) || 'unnamed') + '" (' + tid + ') x' + counts[tid];
-    }).join(', ');
+      var d = detail && hasOwn(detail, tid) ? detail[tid] : null;
+      parts.push({
+        text: '"' + ((t && t.name) || 'unnamed') + '" (' + tid + ') x' + counts[tid],
+        title: d && taskTagHasDetail(d) ? taskTagTooltip(d, tid) : null,
+      });
+      if (i < ids.length - 1) parts.push({ text: ', ' });
+    });
+    return parts;
+  }
+
+  function taskPartsText(parts) {
+    return parts.map(function (p) { return p.text; }).join('');
   }
 
   function performerLabel(p) {
@@ -838,6 +916,11 @@
     this.plannedTagCounts = {};
     this.appliedTagCounts = {};
     this.tagsById = {};
+    // Aliases and descriptions for the recap's tooltips, fetched per recap rather
+    // than during the walk. `pass` counts the passes so a recap whose detail query
+    // is still in flight when Rescan is pressed cannot land in the next one's log.
+    this.tagDetail = {};
+    this.pass = (this.pass || 0) + 1;
     this.tagsPlanned = 0;
     this.performersSeen = 0;
     this.performersTotal = 0;
@@ -969,16 +1052,51 @@
       ? this.noteEl.textContent + ' ' + msg : msg;
   };
 
-  TaskRun.prototype.logTagSummary = function (counts, verb) {
-    var line = taskTagSummary(counts, this.tagsById, verb);
-    if (line) this.log('INFO', line);
+  // The distinct tags a run moves are a bounded set - tens, where the walk that
+  // found them read tens of thousands of performers - so their aliases and
+  // descriptions are worth one query here and would be worth nothing on
+  // taskTagFields(), where the same text would ride along on every performer's tag
+  // list. A description can run to paragraphs; see NormalizeParentTags' §5a for the
+  // same trade in its viewer.
+  //
+  // Failure is silent by design. This buys a tooltip, not a merge, and an [ERROR]
+  // line in a log the user is reading for what was written would be a worse outcome
+  // than a recap that hovers to nothing.
+  TaskRun.prototype.loadTagDetail = function (counts) {
+    var ids = [], id;
+    for (id in counts) if (hasOwn(counts, id)) ids.push(id);
+    if (!ids.length) return Promise.resolve();
+    var self = this;
+    return gqlRequest(
+      'query CPT2STagDetail($ids: [ID!]) { findTags(ids: $ids) ' +
+      '{ tags { id name aliases description } } }', { ids: ids }
+    ).then(function (data) {
+      (((data.findTags || {}).tags) || []).forEach(function (t) { self.tagDetail[t.id] = t; });
+    }, function () { /* the recap still reads; it just does not hover */ });
   };
 
-  TaskRun.prototype.log = function (kind, message) {
+  TaskRun.prototype.logTagSummary = function (counts, verb) {
+    var self = this;
+    // A rescan empties the log while this is in flight, and a recap of the pass
+    // before it would land in the middle of the new one. The pass token is what
+    // makes the wait safe.
+    var pass = this.pass;
+    return this.loadTagDetail(counts).then(function () {
+      if (self.pass !== pass) return;
+      var parts = taskTagSummaryParts(counts, self.tagsById, verb, self.tagDetail);
+      if (parts) self.log('INFO', taskPartsText(parts), parts);
+      self.flush();
+    });
+  };
+
+  // `parts` is optional, and only the tag recap passes it: the line is rendered as
+  // spans so each tag can carry its own tooltip. `lines` keeps the plain string
+  // either way - Copy log hands over text, and a tooltip is not text.
+  TaskRun.prototype.log = function (kind, message, parts) {
     var line = '[' + kind + '] ' + message;
     this.lines.push(line);
     this.viewLines++;
-    this.pending.push({ kind: kind, line: line });
+    this.pending.push({ kind: kind, line: line, parts: parts || null });
     this.scheduleFlush();
   };
 
@@ -999,7 +1117,18 @@
     var pending = this.pending;
     this.pending = [];
     pending.forEach(function (p) {
-      this.logEl.appendChild(taskEl('div', 'cpt2s-line cpt2s-' + p.kind, p.line));
+      var node = taskEl('div', 'cpt2s-line cpt2s-' + p.kind, p.parts ? null : p.line);
+      // The kind prefix stays plain text; only the tag segments are hoverable, and
+      // they are marked as such - an underline is what says a tooltip is there.
+      if (p.parts) {
+        node.appendChild(taskEl('span', null, '[' + p.kind + '] '));
+        p.parts.forEach(function (seg) {
+          var span = taskEl('span', seg.title ? 'cpt2s-tip' : null, seg.text);
+          if (seg.title) span.title = seg.title;
+          node.appendChild(span);
+        });
+      }
+      this.logEl.appendChild(node);
     }, this);
     while (this.logEl.childNodes && this.logEl.childNodes.length > TASK_LOG_CAP) {
       this.logEl.removeChild(this.logEl.firstChild);

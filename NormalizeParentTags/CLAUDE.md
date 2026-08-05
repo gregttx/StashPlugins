@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.2.6.** This file is both the design and the map of the code — the
+**Status: implemented at 1.2.7.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -287,6 +287,15 @@ no PluginApi). It shows:
   The **due to** clause names the tag already on the entity that implies the one being written -
   the entry's *reason*. Both the entity and the tag put their id outside the quotes, so a name
   containing brackets cannot be misread as one.
+- A **legend** under the warning (`npt-legend`, 1.2.7) saying that the bracketed number is a Stash
+  id and that counts are written `x250`. The convention was only obvious to whoever wrote it —
+  `"Hair Colour" (45) x250` puts an id and a count on one line, and nothing said which was which.
+  It states a rule the rest of the plugin has to keep: **brackets are ids, counts are not**. That is
+  why the inspector's list headings read `Parents: 3` rather than `Parents (3)` (§5a) and why a
+  failed batch logs `5 entities (ids 1, 2, …)`. A new surface putting a count in brackets does not
+  merely read oddly, it makes the legend false. The sibling carries the same line, in the same two
+  places (its dialog, and the console banner that stands in for one) — keep the wordings
+  recognisable against each other.
 - A closing **tag summary** as the last line of the phase, listing every distinct tag the run
   touches and how many entities each lands on:
   `[INFO] 2 tag(s) to remove: "Blonde" (2) x1, "Hair Colour" (1) x250`
@@ -458,6 +467,13 @@ How the DAG survives being drawn as a tree:
 - The real row carries `◆ n parents`, which is where Prune surprises people: every parent on every
   branch is implied.
 
+**A row is `Name (id)`, a badge is a count** (1.2.7). This dialog is the one place where the two
+kinds of number sit side by side on the same row — `Hair Colour (45)   2 child(ren)` — so it says so
+in the head, the tag name carries a `Stash tag id 45` tooltip, and the inspector's list headings were
+changed from `Parents (3)` to `Parents: 3`. That last one was the actual bug: a heading in brackets
+over a list of tags, in a dialog where brackets mean ids, reads as the tag with id 3. Keep counts
+out of brackets here, or the head legend is lying about the row beneath it.
+
 **Both of those badges are jumps** (0.9.0). A count of three parents that cannot be followed leaves
 the user knowing a tag hangs off three branches and with no way to see the other two — the badge
 states the problem and withholds the answer. `◆` walks to the **next** parent in sort order counting
@@ -571,6 +587,13 @@ the touched entities in one request and `planEntity` runs against them unchanged
 the same code the tasks use. `applyBatch` writes into an `autoSink()` instead of a `Run`: same
 fields, console instead of a DOM. Its `undoable` array is collected and dropped, because there is no
 dialog to offer it from.
+
+Those console lines are the dialog's lines, so they need the dialog's legend and have no head to put
+it in. `autoLegend()` prints it once, from the first `log()` any sink makes — once per page rather
+than once per reaction, since a mode that reacts to every save would otherwise repeat it forever, and
+a line printed only at load would scroll away long before the first write it explains. The flag is
+module-scoped for that reason: `autoSink()` returns a fresh object per reaction and could not carry
+it.
 
 ### Caching
 
@@ -945,6 +968,11 @@ cover:
   folder, an image to its `visual_files` basename, and a real title still wins over all of them.
   The queries are asserted too: the fallback fields are useless if they are never requested, and
   that combination is exactly what shipped broken.
+- **The id legend** — the run dialog's head says a bracketed number is a Stash id and a count is
+  written `x250`; the viewer's says the same for its rows, its name tooltip repeats it, and the
+  inspector's headings are asserted to count *outside* brackets (`All descendants: 4`) since that is
+  the rule the legend depends on. Auto mode's console legend is checked for being printed once,
+  ahead of the first line it explains, and not repeated on the next reaction.
 - **No Clear log** — the run dialog does not offer one. Pinned so a reintroduction has to argue
   with §5 rather than slip back in.
 - **Grouping and chunking** — identical deltas collapse into one mutation, chunks cap at 100 ids,

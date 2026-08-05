@@ -67,6 +67,36 @@ Promise.resolve()
       });
   })
 
+  // The console lines are the dialog's lines with no dialog around them, so the
+  // notation has to be explained out here too - once per page, ahead of the first
+  // line that uses it, and not again on every entity the mode reacts to.
+  .then(() => {
+    const info = [];
+    const env = h.makeEnv({
+      quiet: true,
+      respond: h.makeResponder({
+        entities: LIB,
+        settings: { a5EnableScenes: true, a9AutoRollUpOnUpdate: true },
+      }),
+    });
+    env.ctx.console = { log() {}, info: (m) => info.push(m), warn() {}, error() {} };
+    h.run(env.ctx);
+    const legends = () => info.filter((l) => l.indexOf('brackets') !== -1);
+    return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
+      .then(() => h.flush()).then(() => {
+        h.check('the first auto write says the brackets hold a Stash id',
+          legends().length === 1 && legends()[0].indexOf('Stash id') !== -1, info.join(' | '));
+        h.check('and it comes before the line it explains',
+          info.indexOf(legends()[0]) === 0 &&
+          info.findIndex((l) => l.indexOf('Scene "Ten" (10)') !== -1) > 0, info.join(' | '));
+        return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '20' }).then(() => h.flush());
+      })
+      .then(() => {
+        h.check('a second reaction does not repeat it',
+          h.bulkCalls(env.calls).length === 2 && legends().length === 1, info.join(' | '));
+      });
+  })
+
   // A scene that is already normalized costs a read and no write.
   .then(() => {
     const env = boot();

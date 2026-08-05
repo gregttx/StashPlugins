@@ -28,6 +28,10 @@ Promise.resolve()
 
   .then(() => scan({ entities: bigLibrary() })).then(({ env, d }) => {
     h.check('phase 1 writes nothing', h.bulkCalls(env.calls).length === 0);
+    // The log puts an id and a count on the same summary line - "Hair Colour" (1)
+    // x250 - and nothing else in the dialog says which bracket means what.
+    h.check('the head explains the ids in the log',
+      d().legend.indexOf('Stash id') !== -1 && d().legend.indexOf('x250') !== -1, d().legend);
     h.check('Proceed and Cancel are the phase 1 buttons',
       d().visible('Proceed') && d().visible('Cancel') && !d().visible('Close') && !d().visible('Stop'));
     h.check('Proceed is enabled once a plan exists', d().button('Proceed').disabled === false);

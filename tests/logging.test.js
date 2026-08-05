@@ -84,6 +84,10 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     // "logging is on but nothing needed merging" from "logging is not running at all".
     H.check('switching the setting on announces itself once',
       info.filter(isBanner).length === 1, info.join(' | '));
+    // The console has no dialog head to carry the legend, so the banner is where the
+    // bracketed number gets named as an id - before the first line that uses one.
+    H.check('and says what the number in brackets is',
+      info.filter(isBanner)[0].indexOf('Stash id') !== -1, info.filter(isBanner)[0]);
     H.check('one line for the one tag merged', merges(info).length === 1, info.join(' | '));
     H.check('line matches the documented format',
       merges(info)[0] === PREFIX + ' Tag "Tattoo" (11) saved to Scene "My Scene" (1)',

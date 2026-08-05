@@ -63,6 +63,12 @@ There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks*
   The tags are listed in the same order Stash sorts them — by **Sort Name** where a tag has one,
   otherwise by name, ignoring case and treating numbers as numbers.
 
+  **The number in brackets after a name is that scene's, performer's or tag's Stash id**, never a
+  count and never part of the name — `"Blonde" (12)` is the tag with id 12, the one at `/tags/12`,
+  which is also how two tags with the same name are told apart. The id sits *outside* the quotes so
+  that a scene genuinely titled `My Scene (2)` cannot be misread as an id. Counts are written
+  differently: `x250` above means 250 scenes. The dialog repeats this in a line under its warning.
+
   The task needs no settings turned on: the buttons and auto-merge modes are separate, and it runs
   whether or not they are enabled. The merge only ever adds tags, and **Undo** takes back what it
   added — but only while the dialog is open, so back up your database before the first run.
@@ -130,12 +136,14 @@ Enable **Log Tag merges to the Browser Console (Info level)** to have every tag 
 [MergePerformerTagsToScenes] Tag "Tattoo" (17) staged to Scene "My Scene" (345)
 ```
 
+**The number in brackets after each name is that tag's or scene's Stash id** — `"Blonde" (12)` is the tag at `/tags/12` and `"My Scene" (345)` the scene at `/scenes/345`. It is not a count, and it is not part of the name: the id is deliberately outside the quotes, so a scene actually titled `My Scene (2)` reads as `"My Scene (2)" (345)` rather than ambiguously. Use it to open exactly the scene or tag a line is about, and to tell two same-named tags apart.
+
 **These lines go to your browser's own JavaScript console — not to Stash.** Open it with **F12** (or Ctrl+Shift+J / Cmd+Option+J) and pick the **Console** tab. This plugin runs entirely in the browser, so it has no way to write to the Stash server console or the **Settings → Logs** page; nothing will ever appear in either of those.
 
 As soon as the plugin picks the setting up it says so once, so you can tell it is running before anything has been merged:
 
 ```
-[MergePerformerTagsToScenes] merge logging enabled — one line will appear here per tag merged into a scene
+[MergePerformerTagsToScenes] merge logging enabled — one line will appear here per tag merged into a scene. The number in brackets after a name is that tag's or scene's Stash id.
 ```
 
 If you tick the setting and that line never appears, check in this order: you are looking at the browser's console rather than the Stash log; the console's level filter is not hiding **Info** messages (Chrome collapses them under "Verbose"/"Info" in the level dropdown); and the browser is not still running an older copy of the plugin's JavaScript (reload plugins in Stash, then hard-refresh with Ctrl+Shift+R).

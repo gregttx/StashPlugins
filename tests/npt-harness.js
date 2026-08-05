@@ -196,6 +196,9 @@ function dialog(body, prefix) {
     lines: nodes.filter((n) => hasClass(n, p + '-line')).map((n) => n.textContent),
     progress: (nodes.filter((n) => hasClass(n, p + '-progress'))[0] || {}).textContent || '',
     note: (nodes.filter((n) => hasClass(n, p + '-note'))[0] || {}).textContent || '',
+    // The standing explanation of the log's own notation - what the id in brackets
+    // is - as opposed to `note`, which carries whatever this run had to warn about.
+    legend: (nodes.filter((n) => hasClass(n, p + '-legend'))[0] || {}).textContent || '',
     button(label) {
       return buttons.filter((b) => b.textContent === label)[0] || null;
     },

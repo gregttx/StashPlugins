@@ -109,6 +109,10 @@ Promise.resolve()
     h.check('Proceed and Cancel are the review buttons',
       d().visible('Proceed') && d().visible('Cancel') && !d().visible('Stop') && !d().visible('Close'));
     h.check('Proceed is enabled once a plan exists', d().button('Proceed').disabled === false);
+    // Every name in those lines carries a bracketed id, and the closing recap puts
+    // one beside a count. The head is where that notation gets explained.
+    h.check('the head explains the ids in the log',
+      d().legend.indexOf('Stash id') !== -1 && d().legend.indexOf('x250') !== -1, d().legend);
     h.check('the review lists what it would write, tag by tag',
       d().lines.some((l) => l.indexOf('Performer "Ann" (1) - Scene "S102" (102) - 1 tag(s): "Blonde" (10)') !== -1),
       d().lines.join(' | '));

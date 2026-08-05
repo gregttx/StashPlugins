@@ -689,7 +689,7 @@
   function batchFailed(batch, run, verb, e) {
     var ids = batchIds(batch);
     run.log('ERROR', batch.type.plural + ' - ' + verb + ' ' + batch.type.bulk + ' failed for ' +
-      ids.length + ' entities (' + ids.slice(0, 5).join(', ') +
+      ids.length + ' entities (ids ' + ids.slice(0, 5).join(', ') +
       (ids.length > 5 ? ', ...' : '') + '): ' + e.message);
     run.errors++;
   }
@@ -765,6 +765,7 @@
     '.npt-title{font-size:1.1rem;font-weight:600;}' +
     '.npt-warn{color:#ffb648;margin-top:.35rem;}' +
     '.npt-note{color:#a7b6c2;margin-top:.35rem;}' +
+    '.npt-legend{color:#7d8f9c;margin-top:.35rem;font-size:.8rem;}' +
     '.npt-progress{padding:.5rem 1rem;border-bottom:1px solid #394b59;color:#a7b6c2;' +
     'white-space:pre-wrap;}' +
     '.npt-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;font-size:.8rem;' +
@@ -923,6 +924,13 @@
     head.appendChild(el('div', 'npt-warn',
       'Back up your database before proceeding. Undo only reverses what this dialog wrote, ' +
       'only while it stays open, and cannot account for changes made elsewhere in the meantime.'));
+    // Every name in this log carries a number in brackets and it is always a Stash
+    // id, never a count - the counts in the log are written as `x250` or spelled out.
+    // Nothing else in the dialog says so, and an id read as "250 of these" is the
+    // kind of misreading that gets a Prune approved for the wrong reason.
+    head.appendChild(el('div', 'npt-legend',
+      'Reading the log: the number in brackets after a name is that entity\'s or tag\'s Stash id - ' +
+      'Scene "My Scene" (123) is the scene with id 123. Counts are written as x250, never in brackets.'));
     this.noteEl = el('div', 'npt-note', '');
     head.appendChild(this.noteEl);
     this.modal.appendChild(head);
@@ -1453,6 +1461,12 @@
     head.appendChild(el('div', 'npt-note',
       'Read-only. Nothing here writes anything. Badges reflect the exclusion filters ' +
       'currently set in the plugin settings.'));
+    // Rows read "Hair Colour (45)" and badges read "2 child(ren)", so a number in
+    // brackets here is an id and a number outside them is a count. The inspector's
+    // list headings follow the same rule - they say "Parents: 3", not "Parents (3)".
+    head.appendChild(el('div', 'npt-legend',
+      'Each row reads Tag name (id): the number in brackets is the tag\'s Stash id, not a count. ' +
+      'Counts sit outside the brackets, in the badges to the right.'));
     this.modal.appendChild(head);
 
     this.progressEl = el('div', 'npt-progress', 'Loading tags...');
@@ -1793,7 +1807,11 @@
       });
     }
     row.appendChild(twisty);
-    row.appendChild(el('span', 'npt-tag-name', (t.name || 'unknown') + ' (' + id + ')'));
+    // The tooltip says what the head legend says, at the one place a user hovers to
+    // ask: brackets are the tag's Stash id, the same id the run logs it under.
+    var nameEl = el('span', 'npt-tag-name', (t.name || 'unknown') + ' (' + id + ')');
+    nameEl.title = 'Stash tag id ' + id;
+    row.appendChild(nameEl);
 
     var badges = [];
     if (g.cyclic[id]) badges.push({ cls: 'npt-b-cycle', text: '⚠ cycle' });
@@ -1890,7 +1908,9 @@
     // this picks one out of a list that also names them.
     function list(label, ids) {
       if (!ids.length) return;
-      line('npt-i-label', label + ' (' + ids.length + ')');
+      // "Parents: 3", not "Parents (3)". Every other bracketed number in this dialog
+      // is a Stash id, and a heading that broke the rule read as the tag with id 3.
+      line('npt-i-label', label + ': ' + ids.length);
       var body = el('div', 'npt-i-body');
       var capped = ids.slice(0, 24);
       capped.forEach(function (tid, i) {
@@ -2235,6 +2255,18 @@
     });
   }
 
+  // Auto mode's console lines carry the same "Name" (id) shape as the dialog's, and
+  // out here there is no head to put the legend in - so it is said once, before the
+  // first line the user ever sees, rather than on every line or not at all. The flag
+  // is module-scoped because autoSink() returns a fresh object per reaction.
+  var _autoLegendShown = false;
+  function autoLegend() {
+    if (_autoLegendShown) return;
+    _autoLegendShown = true;
+    console.info('[' + PLUGIN_ID + '] auto mode is writing. In the lines below, the number in ' +
+      'brackets after a name is that entity\'s or tag\'s Stash id.');
+  }
+
   // Enough of a Run for applyBatch to write into. The dialog's version renders to
   // the DOM and feeds Undo; this one only has a console, which is the whole
   // difference between the two modes and the reason the setting descriptions warn
@@ -2244,6 +2276,7 @@
     return {
       undoable: [], appliedTags: {}, applied: 0, failed: 0, errors: 0,
       log: function (kind, message) {
+        autoLegend();
         var line = '[' + PLUGIN_ID + '] ' + message;
         if (kind === 'ERROR') console.error(line);
         else console.info(line);

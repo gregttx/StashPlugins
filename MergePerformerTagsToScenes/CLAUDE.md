@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.7.5.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.7.6.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -383,7 +383,16 @@ Two different prefixes, deliberately: user-facing merge lines use the full `[Mer
 (via `logInfo`), diagnostics use the short `[cpt2s]`. A merge line reads
 `Tag "Blonde" (12) saved to Scene "My Scene" (345)` — the id sits **outside** the quotes on both,
 which is what `NormalizeParentTags` does too, so a name containing brackets cannot be read as an
-id. `sceneLogLabel` returns the quotes as part of the label; callers must not add their own. Merge lines are `info` level, one per tag per
+id. `sceneLogLabel` returns the quotes as part of the label; callers must not add their own.
+
+**Say that the number is an id, wherever a user meets one** (1.7.6). The convention is only obvious
+to whoever wrote it: a bracketed number reads just as easily as a count, and `"Blonde" (12) x250`
+has one of each on the same line. So the task dialog carries a `cpt2s-legend` line under its warning,
+and the "logging enabled" banner names it for the console path — the two places a log line is first
+seen. The rule it states is what the code must keep true: **brackets are ids, counts are `x250`**.
+Anything new that puts a count in brackets breaks the legend rather than merely reading oddly.
+`NormalizeParentTags` says the same thing in the same two shapes; keep the wordings recognisable
+against each other. Merge lines are `info` level, one per tag per
 scene, and only for tags that actually changed something — a skipped scene, an already-present tag
 and a failed update all produce nothing, which is why the one-time "logging enabled" banner exists
 at all. `announceLogging` re-arms when the setting is switched off and on.
@@ -411,6 +420,10 @@ failed scene isolated and not logged as merged, **Stop**, **Rescan**, and the cl
 both phases (including its Stash-order sorting and a failed scene dropping out of the applied
 count). The Stop case presses the button from inside the responder on
 the fifth write, so the moment it lands does not depend on how many ticks a flush happens to take.
+
+It also covers the id legend from §8, in both of the places a log line is first met: the task
+dialog's head, and — in `logging.test.js` — the "logging enabled" banner that stands in for a head
+on the console path.
 
 It also covers §7c: a registered sibling reported rather than warned about, an unregistered one
 warning in the dialog head with the effect named per direction, both of its modes on producing

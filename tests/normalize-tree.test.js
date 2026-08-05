@@ -192,6 +192,26 @@ Promise.resolve()
       inspector(env));
   })
 
+  // Rows carry an id in brackets and badges carry counts outside them, on the same
+  // line. Which is which has to be said, and no count may be written in brackets or
+  // the head is describing a notation the rows do not follow.
+  .then(() => open()).then(({ env, d }) => {
+    h.check('the head says the bracketed number is a tag id',
+      d().legend.indexOf('Stash id') !== -1 && d().legend.indexOf('not a count') !== -1,
+      d().legend);
+    const name = (rowFor(env, 'Root') || { descendants: () => [] }).descendants()
+      .filter((n) => h.hasClass(n, 'npt-tag-name'))[0] || {};
+    h.check('and the tag name repeats it as a tooltip',
+      name.title === 'Stash tag id 1', name.title);
+
+    rowFor(env, 'Root').click();
+    const i = inspector(env);
+    h.check('the inspector counts its lists outside brackets',
+      i.indexOf('All descendants: 4') !== -1, i);
+    h.check('and never in them, where a number means a tag id',
+      i.indexOf('All descendants (4)') === -1, i);
+  })
+
   // Search is how a four-level namespace scheme stays usable at a few thousand tags.
   .then(() => open()).then(({ env, d }) => {
     const input = env.body.descendants().filter((n) => h.hasClass(n, 'npt-search-input'))[0];

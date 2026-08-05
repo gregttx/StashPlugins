@@ -70,6 +70,15 @@ and a log of every change it *would* make:
 [INFO]   2 tag(s) to remove: "Blonde" (46) x1, "Hair Colour" (45) x250
 ```
 
+**The number in brackets after a name is that entity's or tag's Stash id** — `Scene "My Scene"
+(123)` is the scene with id 123, and `Tag "Hair Colour" (45)` the tag with id 45. It is never a
+count, and it is never part of the name: the id deliberately sits *outside* the quotes, so a scene
+actually called `My Scene (2)` cannot be misread. The id is what you put after `/scenes/` or
+`/tags/` in the address bar to open the thing the line is about, and it is what tells two tags with
+the same name apart. Counts in the log are written differently — `x250` after a tag in the summary
+line, `2 child(ren)` in the hierarchy viewer — so a bracketed number always means the same thing.
+The dialog says this in a line under its warning, so you do not have to remember it.
+
 The last line of each phase lists **every distinct tag the run touches**, with the number of
 entities each one lands on. It is the quickest way to see whether a run is about to do what you
 expect: the per-entity lines say what happens to one gallery, this says which tags are in play
@@ -145,6 +154,12 @@ other two tasks would do before running either.
       Ash (48)               ⛔ never removed: name filter   leaf
   ▸ Rare (6)                 ↩ shown under "Body" (4)
 ```
+
+Each row reads **tag name followed by its Stash id in brackets** — `Hair Colour (45)` is the tag
+with id 45, the same id the review log names it by and the one in `/tags/45`. Hovering the name
+says so. The numbers that *are* counts sit outside the brackets, in the badges on the right
+(`2 child(ren)`, `◆ 2 parents`), and the inspector's headings spell them out the same way —
+`Parents: 3`, never `Parents (3)`.
 
 - **◆ n parents** — the tag hangs off more than one parent. These are worth knowing about: Prune
   treats *every* ancestor on *every* branch as implied. **Click the badge to go and see the next
@@ -239,6 +254,9 @@ Things worth knowing:
 - **All the exclusion filters below still apply**, entity-level and tag-level alike.
 - **Bulk edits count.** Editing 500 scenes from Stash's bulk edit dialog normalizes all 500. This
   is usually what you want and it is also the largest thing this mode does without asking.
+- **The console lines read like the dialog's**, `[NormalizeParentTags] Scene "My Scene" (123) -
+  Tag "Hair Colour" (45) - due to "Platinum" (47)`, so the bracketed numbers are Stash ids there
+  too. The plugin says so once, before the first line it writes.
 - **It only reacts in the tab it is running in**, like anything else that lives in the browser. A
   change made by the server, by a scan, or in another browser is picked up the next time that
   entity is saved in *this* tab — or by running the task.

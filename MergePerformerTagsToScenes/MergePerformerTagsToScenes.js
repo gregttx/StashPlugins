@@ -258,7 +258,8 @@
     if (!settings.logMergesToConsole) { _loggingAnnounced = false; return; }
     if (_loggingAnnounced) return;
     _loggingAnnounced = true;
-    logInfo('merge logging enabled — one line will appear here per tag merged into a scene');
+    logInfo('merge logging enabled — one line will appear here per tag merged into a scene. ' +
+      'The number in brackets after a name is that tag\'s or scene\'s Stash id.');
   }
 
   // One line per tag, at info level. Callers log only once the change is real: after
@@ -712,6 +713,7 @@
     '.cpt2s-title{font-size:1.1rem;font-weight:600;}' +
     '.cpt2s-warn{color:#ffb648;margin-top:.35rem;}' +
     '.cpt2s-note{color:#a7b6c2;margin-top:.35rem;}' +
+    '.cpt2s-legend{color:#7d8f9c;margin-top:.35rem;font-size:.8rem;}' +
     '.cpt2s-progress{padding:.5rem 1rem;border-bottom:1px solid #394b59;color:#a7b6c2;' +
     'white-space:pre-wrap;}' +
     '.cpt2s-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;' +
@@ -884,6 +886,13 @@
       'The merge only ever adds tags. Back up your database before the first run: Undo reverses ' +
       'what this dialog added, only while it stays open, and cannot account for changes made ' +
       'elsewhere in the meantime.'));
+    // Same legend as NormalizeParentTags', because the log lines are the same shape:
+    // the id sits outside the quotes, and the only other numbers here are counts
+    // written as x250. Saying which is which is cheaper than a misread scene id.
+    head.appendChild(taskEl('div', 'cpt2s-legend',
+      'Reading the log: the number in brackets after a name is that scene\'s, performer\'s or ' +
+      'tag\'s Stash id - Scene "My Scene" (345) is the scene with id 345. Counts are written ' +
+      'as x250, never in brackets.'));
     this.noteEl = taskEl('div', 'cpt2s-note', '');
     head.appendChild(this.noteEl);
     this.modal.appendChild(head);

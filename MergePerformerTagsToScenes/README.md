@@ -18,6 +18,10 @@
 > this plugin out.
 
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (the custom-field exclusion filter) and UI plugin component patching (staging tags in the scene edit form) both depend on it.
+>
+> **This plugin has not had a long life in other people's libraries.** It has automated tests
+> behind it, but that is not the same thing — which is another reason to take the backup above
+> and to read the review log before pressing Proceed.
 
 > **Upgrading to 1.1.1 from an earlier version resets the plugin's settings.** The settings were
 > renamed internally so that the settings page lists them in a sensible order instead of

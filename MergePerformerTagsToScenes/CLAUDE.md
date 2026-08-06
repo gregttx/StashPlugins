@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.9.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.9.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -513,6 +513,15 @@ no amount of refreshing helps and only the version line tells you so.
 
 **What it cannot catch:** an edit with no version bump. Both numbers stay equal and the check is
 blind, which is the practical argument for bumping the patch digit on every change.
+
+**The description is a link plus the text, in three files.** It leads with a README permalink
+pinned to a **commit SHA**, not `main`, so a user reading it in Stash gets the documentation for
+roughly the code they have rather than whatever `main` says today. A commit cannot contain its own
+hash, so the SHA is the revision where the README last changed — update it whenever the README does,
+not on every version bump. The same string lives in ``MergePerformerTagsToScenes.yml`` and in `manifest`'s
+`metadata.description`; they must match, and both must stay **double-quoted**, because the text
+contains `": "` and a plain YAML scalar cannot hold that (MergePerformerTagsToScenes's manifest was unparseable YAML
+until 2026-08-06 for exactly this reason).
 
 **Three places, not two, since 1.8.3.** `PLUGIN_VERSION` at the top of the script is the third,
 and it is the only one that says anything about the code actually running: the yml and the manifest

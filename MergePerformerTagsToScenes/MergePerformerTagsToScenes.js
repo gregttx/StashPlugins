@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.10.5';
+  var PLUGIN_VERSION      = '1.11.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -758,7 +758,41 @@
     // is this margin instead: roughly a third of a line, not a whole one.
     '.cpt2s-own-group .sub-heading{white-space:pre-wrap;}' +
     '.cpt2s-own-group .sub-heading .cpt2s-p{margin:0 0 .35em;}' +
-    '.cpt2s-own-group .sub-heading .cpt2s-p:last-child{margin-bottom:0;}';
+    '.cpt2s-own-group .sub-heading .cpt2s-p:last-child{margin-bottom:0;}' +
+    // A per-setting description shows its first paragraph and hides the rest in a
+    // tooltip. The mark is the only thing saying there is one - a hover that opens
+    // with no invitation is a hover nobody makes.
+    //
+    // Built rather than borrowed: a native `title` is the browser's, and its font
+    // size, its position and its delay cannot be reached from CSS. It opens
+    // *below-right* of the pointer, which is exactly where the arrow sits, so the
+    // first line arrives half covered. This one opens above the row in a readable
+    // size, and - the part `title` could never do - on keyboard focus as well.
+    //
+    // These rules are shared with NormalizeParentTags and `tests/style.test.js`
+    // compares them with the prefix stripped: keep them byte-identical to that
+    // plugin's, or change both together.
+    '.cpt2s-tipped{position:relative;}' +
+    '.cpt2s-tip{margin-left:.35rem;cursor:pointer;opacity:.65;font-style:normal;' +
+    'font-size:1.05em;}' +
+    '.cpt2s-tip:hover,.cpt2s-tip:focus{opacity:1;outline:none;}' +
+    // pointer-events:none is load-bearing, not tidiness. Opened from the setting's
+    // name the box lands over the h3, so a box that took the pointer would fire
+    // mouseleave on the name, close, hand the pointer back to the name, and reopen -
+    // a flicker loop for as long as it is hovered.
+    '.cpt2s-tipbox{display:none;position:absolute;left:0;bottom:calc(100% + .35rem);' +
+    'z-index:1500;width:max-content;max-width:100%;padding:.5rem .65rem;' +
+    'background:#202b33;color:#d6dee4;border:1px solid #425a6b;border-radius:3px;' +
+    'font-size:.92rem;line-height:1.45;white-space:pre-wrap;pointer-events:none;' +
+    'box-shadow:0 2px 10px rgba(0,0,0,.55);}' +
+    '.cpt2s-tipped.cpt2s-tip-open .cpt2s-tipbox{display:block;}' +
+    // The group description sits in the group header, outside the <Collapse>, so it
+    // is on screen at whatever size whether the group is expanded or not. Hiding all
+    // but the first paragraph is the only thing that shortens it.
+    '.cpt2s-desc-collapsed .cpt2s-p:not(:first-child){display:none;}' +
+    '.cpt2s-desc-toggle{display:block;margin-top:.25rem;padding:0;border:0;' +
+    'background:none;color:#7cc4ff;font-size:.8rem;cursor:pointer;' +
+    'text-decoration:underline;}';
 
   function taskInjectStyle() {
     if (document.getElementById(TASK_STYLE_ID)) return;
@@ -2360,6 +2394,161 @@
     });
   }
 
+  // ── Settings verbosity: a summary on the page, the rest on hover ──────────
+  //
+  // A description written as "summary\n\ndetail" shows only its first paragraph,
+  // with the rest moved into a tooltip. The sibling plugin's CLAUDE.md §6 carries
+  // the full reasoning; the parts that matter here:
+  //
+  // Stash's own Setting renders `<h3 title={tooltip}>` (Inputs.tsx), but
+  // SettingsPluginsPanel never passes a tooltip for a plugin setting, and
+  // `PluginSetting` has no field to declare one - name, display_name, description,
+  // type is the whole type. So the slot exists, is always empty for us, and the
+  // tooltip is built here instead.
+  //
+  // The split rides on the blank line the description format already supports rather
+  // than a delimiter of our own. If this script never runs - a stale browser cache,
+  // a .js that was never copied into the plugin folder - Stash renders the whole
+  // description exactly as before, instead of showing a raw marker.
+  //
+  // **What goes in which half is a judgement, made per setting.** The box opens on
+  // focus as well as hover, so it is better reachable than a `title` was, but it
+  // still does not exist on a touch device.
+  var TIP_MARK = 'ⓘ';                       // circled Latin small letter i
+  var SETTING_KEYS = [
+    'a1ShowManualMergeButtons', 'a2SaveTagsImmediately', 'a3AutoMergeOnSceneUpdate',
+    'a4AutoMergeOnPerformerUpdate', 'b1ExcludeSceneWithTagName', 'b2ExcludeSceneOrganized',
+    'c1ExcludeTagWithIgnoreAutoTag', 'c2ExcludeTagWithCustomFieldName', 'd1LogMergesToConsole',
+  ];
+
+  function settingElement(key) {
+    return document.getElementById('plugin-' + PLUGIN_ID + '-' + key);
+  }
+
+  // The `.setting` row a given setting lives in. `settingElement` returns the input
+  // itself - Stash puts the id on the Form.Switch, not on the row - so this walks up
+  // to the row. ' setting ' is matched with its spaces so that "setting-group" is not
+  // mistaken for it.
+  function settingRow(key) {
+    var node = settingElement(key);
+    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (settingsHasClass(node, 'setting')) return node;
+    }
+    return null;
+  }
+
+  function setTipOpen(sub, on) {
+    var cls = String(sub.className || '').replace(/\s*cpt2s-tip-open\b/, '');
+    sub.className = (on ? cls + ' cpt2s-tip-open' : cls).replace(/^\s+/, '');
+  }
+
+  // A class toggled from JS rather than a `:hover ~` selector, because the triggers
+  // do not sit in one predictable place: the mark and the summary are inside the
+  // .sub-heading and the name is an <h3> somewhere above it, and a sibling
+  // combinator would depend on exactly how Stash nests them.
+  //
+  // The row is passed rather than the .sub-heading, and the current one looked up
+  // per event: an <h3> is Stash's element and survives the re-renders that replace
+  // everything we put in the row, so a captured reference would go stale. The flag
+  // is what stops a second pair of listeners landing on it each time we rebuild.
+  function tipTrigger(node, row) {
+    if (!node || node._cpt2sTipWired) return;
+    node._cpt2sTipWired = true;
+    var toggle = function (on) {
+      var sub = findByClass(row, 'sub-heading', 0);
+      if (sub) setTipOpen(sub, on);
+    };
+    node.addEventListener('mouseenter', function () { toggle(true); });
+    node.addEventListener('mouseleave', function () { toggle(false); });
+    node.addEventListener('focus', function () { toggle(true); });
+    node.addEventListener('blur', function () { toggle(false); });
+  }
+
+  function tipSetting(key) {
+    var row = settingRow(key);
+    if (!row) return;
+    var sub = findByClass(row, 'sub-heading', 0);
+    if (!sub) return;
+    var kids = sub.childNodes || [];
+    if (kids.length && settingsHasClass(kids[0], 'cpt2s-sum')) return;   // already ours
+    var text = sub.textContent || '';
+    var cut = text.indexOf('\n\n');
+    if (cut === -1) return;                                              // nothing to hide
+    var summary = taskOneLine(text.slice(0, cut));
+    // Kept as paragraphs: white-space:pre-wrap on the box honours them, and three
+    // paragraphs run together read worse than the wall this is replacing.
+    var detail = text.slice(cut + 2).split(/\n{2,}/).map(taskOneLine)
+      .filter(function (p) { return !!p; }).join('\n\n');
+    if (!summary || !detail) return;
+    sub.textContent = '';
+    if (!settingsHasClass(sub, 'cpt2s-tipped')) {
+      sub.className = ((sub.className || '') + ' cpt2s-tipped').replace(/^\s+/, '');
+    }
+    var sum = taskEl('span', 'cpt2s-sum', summary);
+    sub.appendChild(sum);
+    // tabIndex, so the box can be reached and read without a mouse. The box is a
+    // sibling of the mark rather than a child: as a child it would sit inside an
+    // inline span and inherit its clipping and stacking.
+    var mark = taskEl('span', 'cpt2s-tip', TIP_MARK);
+    mark.tabIndex = 0;
+    sub.appendChild(mark);
+    sub.appendChild(taskEl('span', 'cpt2s-tipbox', detail));
+    tipTrigger(mark, row);
+    // The visible summary opens it too - the mark is a small target - and so does
+    // the setting's name. Stash's own `<h3 title>` slot is left empty: a `title`
+    // there would put the same words in the small browser tooltip this replaces.
+    tipTrigger(sum, row);
+    var h3 = row.querySelector ? row.querySelector('h3') : null;
+    if (h3) tipTrigger(h3, row);
+  }
+
+  function tipSettings() {
+    for (var i = 0; i < SETTING_KEYS.length; i++) tipSetting(SETTING_KEYS[i]);
+  }
+
+  // The group description is in the group *header*, which is outside the <Collapse>
+  // - so it stays on screen at full height whether the group is expanded or not, and
+  // per-plugin collapse does not shorten it. Hiding all but the first paragraph is
+  // the only thing that does.
+  //
+  // A <button>, never a <span>: SettingGroup's onDivClick walks up from the event
+  // target and returns early for `a` and `button`, so anything else folds the whole
+  // group on click. A button is also the keyboard-reachable choice, which matters
+  // more here than for the tooltips - this is the half of the description that has
+  // nowhere else to be read.
+  var DESC_TOGGLE_ID = 'cpt2s-desc-toggle';
+
+  function descCollapsed(sub) { return settingsHasClass(sub, 'cpt2s-desc-collapsed'); }
+
+  function setDescCollapsed(sub, on) {
+    var cls = String(sub.className || '').replace(/\s*cpt2s-desc-collapsed\b/, '');
+    sub.className = (on ? cls + ' cpt2s-desc-collapsed' : cls).replace(/^\s+/, '');
+  }
+
+  function collapseDescription(group) {
+    var sub = findByClass(group, 'sub-heading', 0);
+    if (!sub) return;
+    var kids = sub.childNodes || [];
+    var paras = 0;
+    for (var i = 0; i < kids.length; i++) if (settingsHasClass(kids[i], 'cpt2s-p')) paras++;
+    if (paras < 2) return;                        // one paragraph hides nothing
+    if (document.getElementById(DESC_TOGGLE_ID)) return;
+    // A re-render drops the button and the class together, so the description
+    // returns to collapsed rather than to a half-state with no way out of it.
+    setDescCollapsed(sub, true);
+    var btn = taskEl('button', 'cpt2s-desc-toggle', 'Show more');
+    btn.id = DESC_TOGGLE_ID;
+    btn.type = 'button';
+    btn.addEventListener('click', function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+      var open = descCollapsed(sub);
+      setDescCollapsed(sub, !open);
+      btn.textContent = open ? 'Show less' : 'Show more';
+    });
+    sub.appendChild(btn);
+  }
+
   // Re-added rather than tracked: React re-renders this panel whenever a setting
   // changes and drops anything we put in it, so the tick puts it back. Keyed on the
   // id, so a re-render that kept it does not produce a second one.
@@ -2374,6 +2563,8 @@
       group.className = ((group.className || '') + ' cpt2s-own-group').replace(/^\s+/, '');
     }
     splitDescription(group);
+    collapseDescription(group);   // after the split: it counts the .cpt2s-p divs
+    tipSettings();
     if (document.getElementById(README_LINK_ID)) return;
     var link = taskEl('a', 'cpt2s-readme', 'MergePerformerTagsToScenes/README.md');
     link.id = README_LINK_ID;

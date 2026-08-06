@@ -742,8 +742,18 @@ Promise.resolve()
     group.appendChild(header);
     const collapsed = h.makeElement('div');
     collapsed.className = 'collapse';
+    // A row the way Inputs.tsx builds one: an <h3> for the name and a .sub-heading
+    // for the description, with the id on the input rather than the row.
     const row = h.makeElement('div');
     row.className = 'setting';
+    const rowH = h.makeElement('h3');
+    rowH.textContent = 'Show Manual Merge Buttons';
+    row.appendChild(rowH);
+    const rowSub = h.makeElement('div');
+    rowSub.className = 'sub-heading';
+    rowSub.textContent = 'Show the two merge buttons.\n\nThey only appear when there is ' +
+      'related content to merge from.';
+    row.appendChild(rowSub);
     const input = h.makeElement('input');
     input.id = 'plugin-MergePerformerTagsToScenes-a1ShowManualMergeButtons';
     row.appendChild(input);
@@ -768,8 +778,53 @@ Promise.resolve()
 
       // Elements, because a blank line under pre-wrap is always a whole line-height.
       h.check('the description is rebuilt as paragraph elements',
-        sub.childNodes.length === 2 && sub.childNodes.every((n) => h.hasClass(n, 'cpt2s-p')),
+        sub.childNodes.filter((n) => h.hasClass(n, 'cpt2s-p')).length === 2,
         String(sub.childNodes.length) + ' children');
+      // ── 1.11.0: the description collapses, the settings hover ────────────
+      //
+      // Same feature as NormalizeParentTags 1.7.5, and `style.test.js` compares the
+      // CSS of the two with the prefix stripped, so the rules cannot drift.
+      const toggle = env.ctx.document.getElementById('cpt2s-desc-toggle');
+      h.check('a multi-paragraph description gets a Show more toggle', !!toggle);
+      h.check('and starts collapsed', h.hasClass(sub, 'cpt2s-desc-collapsed'), sub.className);
+      // A <span> here would fold the whole group on click: SettingGroup's onDivClick
+      // returns early only for `a` and `button`.
+      h.check('the toggle is a button, so clicking it cannot fold the group',
+        !!toggle && String(toggle.tagName).toLowerCase() === 'button', toggle && toggle.tagName);
+      if (toggle) toggle.click();
+      h.check('clicking it expands the description', !h.hasClass(sub, 'cpt2s-desc-collapsed'));
+      h.check('and the caption flips',
+        !!toggle && toggle.textContent === 'Show less', toggle && toggle.textContent);
+
+      const kids = rowSub.childNodes;
+      const summary = kids.filter((n) => h.hasClass(n, 'cpt2s-sum'))[0];
+      const mark = kids.filter((n) => h.hasClass(n, 'cpt2s-tip'))[0];
+      const box = kids.filter((n) => h.hasClass(n, 'cpt2s-tipbox'))[0];
+      h.check('a two-paragraph setting description keeps only its first paragraph',
+        !!summary && summary.textContent === 'Show the two merge buttons.',
+        summary && summary.textContent);
+      // Built, not borrowed: a native `title` opens below-right of the pointer, in a
+      // size CSS cannot reach, under the arrow that summoned it.
+      h.check('the detail is an element, so it can be positioned and sized',
+        !!box && box.textContent ===
+          'They only appear when there is related content to merge from.',
+        box && box.textContent);
+      h.check('the mark carries no native title that would double up with it',
+        !!mark && !mark.title, mark && mark.title);
+      h.check('and is focusable, so the box is reachable without a mouse',
+        !!mark && mark.tabIndex === 0, mark && String(mark.tabIndex));
+      // One row, one tooltip: all three triggers open the same box.
+      [['the mark', mark], ['the summary', summary], ['the name', rowH]].forEach(([what, node]) => {
+        h.fire(node, 'mouseenter');
+        h.check('hovering ' + what + ' opens the box',
+          h.hasClass(rowSub, 'cpt2s-tip-open'), rowSub.className);
+        h.fire(node, 'mouseleave');
+        h.check('and leaving ' + what + ' closes it', !h.hasClass(rowSub, 'cpt2s-tip-open'));
+      });
+      h.check('the setting name has no native title of its own', !rowH.title, rowH.title);
+      h.check('and the box never takes the pointer, so it cannot flicker',
+        /\.cpt2s-tipbox\{[^}]*pointer-events:none/.test(css));
+
       h.check('with the file name as its text',
         !!link && link.textContent === 'MergePerformerTagsToScenes/README.md',
         link && link.textContent);

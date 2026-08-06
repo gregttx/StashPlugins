@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.10.5.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.11.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -191,6 +191,33 @@ the storage key, so the 1.1.1 rename reset everyone's settings once; there is no
 shim, and doing it again needs a better reason than tidiness. (`NormalizeParentTags` does read the
 *sibling's* wire names to detect auto-merge, and does accept both spellings — losing that warning
 silently is the dangerous direction.)
+
+### Descriptions: a summary on the page, the rest on hover (1.11.0)
+
+The same feature as `NormalizeParentTags` 1.7.5, ported here so the two settings pages read alike.
+A description written as `summary\n\ndetail` shows only its first paragraph; the rest opens in a
+tooltip, and the group description keeps its first paragraph behind a **Show more** toggle. Five of
+the nine settings have a detail half; the visible text drops from 1334 characters to 691.
+
+The full reasoning is in §6 of that plugin's CLAUDE.md and is not repeated. What matters on this
+side:
+
+- **The CSS is shared.** `.tipped`, `.tip`, `.tipbox`, `.tipped.tip-open .tipbox`,
+  `.desc-collapsed`, `.desc-toggle` are now defined by both plugins, so `tests/style.test.js`
+  compares them with the prefix stripped and fails on any difference. Change both together or
+  neither — this is the same rule that already governs the dialog chrome.
+- **The tooltip is a built element, not a native `title`.** A `title`'s font size, position and
+  delay all belong to the browser, and it opens below-right of the pointer, under the arrow that
+  summoned it. Stash's own `<h3 title>` slot is left empty on purpose: a `title` there would put
+  the same words in the small tooltip the box exists to replace.
+- **Three triggers, one box** — the mark, the visible summary and the setting's name — wired by a
+  JS-toggled class rather than a `:hover ~` selector, because the three do not sit in one
+  predictable place and this repo has shipped broken twice on a guess about that markup.
+  `pointer-events:none` on the box is load-bearing: opened from the name it lands over the `<h3>`,
+  and a box that took the pointer would flicker.
+- **`SETTING_KEYS` is new and has to be kept in step with the manifest.** Unlike the sibling, this
+  plugin had no table of its manifest keys — `loadSettings` reads its nine `ps.*` by hand (§6). A
+  key missing from that array is simply never given a tooltip, silently.
 
 **`a2SaveTagsImmediately` is inverted on purpose.** Stash has no default value for a plugin setting
 and renders an unset `BOOLEAN` as unchecked, so the behaviour we want by default (staging) has to
@@ -463,8 +490,16 @@ cases start the task through `openAfterSettings`, which lets the bootstrap setti
 `checkSibling` reads what that stored, so a helper that races it would test nothing. All four
 behaviours were confirmed against deliberately broken copies before being trusted.
 
+`merge-task.test.js` also covers the 1.11.0 settings-page split: the group description collapsing
+behind a `<button>` toggle that expands and flips its caption, a two-paragraph setting keeping only
+its first paragraph, the detail being an *element* rather than a native `title` (with no `title`
+left on the mark or the name to double up with it), a focusable mark, all three triggers opening
+and closing the same box, and `pointer-events:none` pinned by name. Twelve of them fail against
+1.10.5.
+
 `style.test.js` needs no harness at all: it reads both plugins' CSS strings as text and fails on any
-rule the two dialogs define differently. The shared-chrome rule it enforces is in the repo-root
+rule the two dialogs define differently. Since 1.11.0 that includes the settings-page tooltip
+rules, which are the same in both plugins by design. The shared-chrome rule it enforces is in the repo-root
 CLAUDE.md.
 
 `staging.test.js` is the most exposed, because it *models* `useTagsEdit` rather than calling it.

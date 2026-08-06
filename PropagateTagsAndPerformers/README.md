@@ -1,11 +1,11 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.2.0 reviews but cannot yet apply
+> ## 🚧 Under construction — 0.3.0 works, for eleven of the thirteen paths
 >
-> The task now walks your library and lists **every change it would make**, for eleven of the
-> thirteen paths. Nothing is written: pressing Proceed does nothing yet, and the two paths out of a
-> gallery's images are not planned at all. Treat it as a way to see what the plugin *would* do to
-> your library before it can do it.
+> The library-wide task is complete: it reviews, applies and undoes. **Back up your database before
+> running it** — see below. What is still missing is the two paths out of a gallery's images, the
+> automatic modes, and the manual buttons. Everything that does exist writes only after you press
+> Proceed.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -18,7 +18,7 @@
 > | Settings, path table, stylesheet | **done** (0.0.1) |
 > | Task entry point, review dialog, settings page | **done** (0.1.0) |
 > | The library scan, for the eleven paths reached by traversal | **done** (0.2.0) |
-> | Applying the plan, and Undo | not started |
+> | Applying the plan, and Undo | **done** (0.3.0) |
 > | The two paths out of a gallery's images | not started |
 > | Automatic modes, with the per-entity cooldown | not started |
 > | Manual buttons and staging | not started |
@@ -32,7 +32,7 @@
 > hand. Stop Stash, copy `stash-go.sqlite` (next to your `config.yml`) somewhere safe, start Stash
 > again — then run the task. Read the review log properly the first time; that is what it is for.
 >
-> The dialog will have an **Undo** button, but it only reaches its own writes and only while it
+> The dialog has an **Undo** button, but it only reaches its own writes and only while it
 > stays open. It is a way out of a run you regret in the moment, not a safety net — the backup is
 > the safety net.
 >
@@ -146,7 +146,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.2.0 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.3.0 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

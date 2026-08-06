@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.2.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.3.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -14,7 +14,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | 1 | Scaffold: manifest, settings, `TARGETS`/`PATHS`, CSS | 0.0.1 |
 | 2 | Shared base: cooperation, GraphQL, task interception, dialog, settings page | 0.1.0 |
 | 3 | The planner — all eleven walk-based paths | **0.2.0** |
-| 4 | Phase 2 apply, and Undo | — |
+| 4 | Phase 2 apply, and Undo | **0.3.0** |
 | 5 | The two reverse-query paths (a gallery's images) | — |
 | 6 | Auto mode **and** the per-entity cooldown, together | — |
 | 7 | The `declares` registry | — |
@@ -216,6 +216,72 @@ review, and a plan that is honest about being partial beats one that is quietly 
 *tag* query is different and stops the run: it answers the filters and names everything, so there is
 no run without it.
 
+## 4b. Applying, and Undo (0.3.0)
+
+**Every write is an ADD delta, never a rewritten list.** Two reasons, and the second is the one that
+matters: a delta is applied by the server against the entity as it is *now*, so a tag someone added
+from another tab between the scan and the apply is not silently reverted — which a full list built
+from phase-1 data would do. It also lets entities sharing an addition be written together, which is
+what turns tens of thousands of mutations into a few hundred.
+
+`buildBatches` groups by `target | kind | sorted ids` and chunks at `CHUNK_SIZE`. Grouping is per
+target *and* per kind because each pair has its own mutation and its own `BulkUpdateIds` field.
+
+**Recorded on success only.** A batch enters `undoable` after the server has accepted it, so Undo
+can never try to reverse a write that never landed, and a failed batch is neither logged as written
+nor counted in the applied recap. That recap is accumulated from the writes rather than from the
+plan — the two differing is meaningful, not a fault.
+
+**Phase 2 reads nothing.** It applies the plan the user approved and nothing else. Re-reading the
+library here would mean writing something that was never reviewed, and it is precisely what Rescan
+does instead — deliberately and on request.
+
+**`guarded()` around the whole apply, not per batch.** Every batch is a `bulk*Update`, which is
+exactly what this plugin's own auto mode will watch for at step 6, so without it a run with an auto
+mode enabled would re-plan each batch it had just written. Per batch would re-open interception
+between them. The lease cannot do this job: it is advisory, and we honour our own leases no more
+than anyone else's.
+
+**The lease is renewed per batch and released in every outcome** — success, failure, Stop — so a
+reactive plugin is never left standing down. The expiry is the backstop for the one outcome neither
+can catch: the tab going away mid-run.
+
+### Undo
+
+**The only code in this plugin that removes anything.** §1's "copy, never move" is written around
+this exception rather than despite it.
+
+- **A delta, not a restore.** It replays each accepted batch with `REMOVE` in place of `ADD`, taking
+  back precisely what this run added and touching nothing else. Storing each entity's pre-run list
+  and writing it back would be simpler and wrong: it would revert every unrelated edit made in
+  between, which is the one thing an undo must not do.
+- **Newest batch first.** A rescan-and-apply cycle can write to one entity twice, and taking the
+  second write back before the first is the only order that lands where the run started.
+- **It arms and asks**, with the count in the caption. One click here starts a library-wide write in
+  the state where the user is most likely to be clicking around — Copy log, Rescan and Close are its
+  neighbours. The count is what makes the prompt worth reading: it states the scope rather than
+  asking a generic "are you sure".
+- **Offered in `ready` as well as `done`**, because a rescan leaves the dialog holding a fresh plan
+  over a library an earlier pass already changed — exactly when the user is choosing between
+  applying more and taking back what is there. It always finishes in `done`: a plan reviewed against
+  the library as it was no longer describes it.
+- **Session-scoped.** `rescan()` carries `undoable` across the reset, like `lines`. Converging on an
+  empty plan is the normal way to finish a run, and losing the ability to undo at that moment would
+  be the worst possible time for it.
+- **Guarded, and leased as `<task> (undo)`.** More sharply than the apply: an undo writes the
+  inverse delta, so an auto mode reacting to it would put back exactly what the user just asked to
+  have taken away.
+- **Never gated on the version check.** It reverses writes this dialog already made, and stranding
+  the user with changes they cannot take back is worse than the mismatch being guarded against.
+
+### The log's two halves read alike
+
+Phase 1 and phase 2 emit the same `[TAG]` / `[PERF]` lines — they describe the same changes, once as
+a plan and once as a fact — and the `Applying N entity change(s) - <timestamp>` header is what
+separates them. This is the siblings' convention and it caught out the first version of
+`propagate-apply.test.js`, which read the whole log and thought it had seen a write. Any check about
+what was *written* has to read below that header.
+
 ## 5. The dialog (0.1.0)
 
 Ported from both siblings and deliberately identical to them: same head with a backup warning and an
@@ -277,10 +343,14 @@ of it apply unchanged:
 - **`propagate-plan.test.js`** — the walk over the library: the gather, the diff, both aggregation
   modes and their edges, the cascade, every exclusion filter, pass ordering, naming, the recap, and
   that a review issues no mutation at all.
+- **`propagate-apply.test.js`** — phase 2 and Undo: delta writes, batching, failed batches isolated,
+  Stop, Rescan, the leases, the arm/confirm latch, and that phase 2 reads nothing. It takes about
+  nine seconds, four of which are spent waiting out `UNDO_ARM_MS` to prove an expired arm does not
+  write. That wait is the check; do not shorten it by reaching into the constant.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
-**Every check here was confirmed against a deliberately broken copy before being trusted.** Twenty-
-nine mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
+**Every check here was confirmed against a deliberately broken copy before being trusted.**
+Forty-three mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
 reason is worse than no suite. Use `SRC=/path/to/mutant.js node tests/propagate-base.test.js`.
 
 What they cannot cover: Stash's own behaviour. The suites reproduce its markup and its schema from

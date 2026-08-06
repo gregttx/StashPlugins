@@ -29,7 +29,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.2.0';
+  var PLUGIN_VERSION = '0.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -872,6 +872,63 @@
     return out;
   }
 
+  // ── Applying ──────────────────────────────────────────────────────────────
+  //
+  // Entities needing the same addition are written together: the same studio tag
+  // turns up on thousands of scenes, so grouping by delta turns tens of thousands of
+  // mutations into a few hundred. Grouping is per target and per kind, since each
+  // pair has its own mutation and its own BulkUpdateIds field anyway.
+  //
+  // Every write is an **ADD delta**, never a rewritten list. Two reasons, and the
+  // second is the one that matters: a delta is what the server applies against the
+  // entity as it is *now*, so a tag someone added from another tab between the scan
+  // and the apply is not silently reverted - which a full list built from phase-1
+  // data would do.
+  function buildBatches(plan) {
+    var groups = {}, order = [];
+    plan.forEach(function (entry) {
+      if (!entry.add.length) return;
+      var ids = entry.add.slice().sort();
+      var key = entry.target + '|' + entry.kind + '|' + ids.join(',');
+      if (!hasOwn(groups, key)) {
+        groups[key] = { target: entry.target, kind: entry.kind, ids: ids, entries: [] };
+        order.push(key);
+      }
+      groups[key].entries.push(entry);
+    });
+
+    var batches = [];
+    order.forEach(function (key) {
+      var g = groups[key];
+      for (var i = 0; i < g.entries.length; i += CHUNK_SIZE) {
+        batches.push({
+          target: g.target, kind: g.kind, ids: g.ids,
+          entries: g.entries.slice(i, i + CHUNK_SIZE),
+        });
+      }
+    });
+    return batches;
+  }
+
+  function bulkMutation(target) {
+    var t = TARGETS[target];
+    return 'mutation PTP_' + t.bulk + '($input: ' + t.bulkInput + '!) {' +
+      ' ' + t.bulk + '(input: $input) { id } }';
+  }
+
+  function batchInput(batch, mode) {
+    var input = { ids: batch.entries.map(function (e) { return e.id; }) };
+    input[batch.kind === 'performers' ? 'performer_ids' : 'tag_ids'] =
+      { ids: batch.ids, mode: mode };
+    return input;
+  }
+
+  function batchCount(batches) {
+    var n = 0;
+    batches.forEach(function (b) { n += b.entries.length; });
+    return n;
+  }
+
   var _active = null;
 
   function startRun(taskName) {
@@ -906,6 +963,10 @@
     this.errors = 0;
     this.applied = 0;
     this.failed = 0;
+    // Accumulated from the writes the server accepted, never from the plan, so the
+    // closing recap cannot summarise a failed batch or a Stop as though it landed.
+    this.appliedCounts = emptyCounts();
+    this.undoneCounts = emptyCounts();
     // What this dialog has written and can still take back: the batches the server
     // accepted, newest last. Session-scoped like `lines` rather than pass-scoped -
     // rescan() saves it across this call - because a rescan is how a run converges,
@@ -1366,6 +1427,18 @@
     });
   };
 
+  function emptyCounts() { return { tags: {}, performers: {} }; }
+
+  function countsFromPlan(plan) {
+    var out = emptyCounts();
+    plan.forEach(function (entry) {
+      entry.add.forEach(function (id) {
+        out[entry.kind][id] = (hasOwn(out[entry.kind], id) ? out[entry.kind][id] : 0) + 1;
+      });
+    });
+    return out;
+  }
+
   // Every distinct tag and performer the run moves, and how many entities each lands
   // on. The per-entity lines answer "what happens to this scene"; this answers "which
   // tags does this run touch, and how widely" - which is the question actually asked
@@ -1374,17 +1447,16 @@
   //
   // Counted per **entity**, not per path: a scene is written once whichever of its
   // paths asked for the tag.
-  Run.prototype.recap = function (verb) {
+  //
+  // Phase 2 passes counts accumulated from the **writes the server accepted**, not
+  // from the plan, so a failed batch or a Stop is never summarised as though it had
+  // landed. The two lines differing is meaningful rather than a fault.
+  Run.prototype.recap = function (source, verb) {
     var self = this;
     ['tags', 'performers'].forEach(function (kind) {
-      var counts = {}, ids = [];
-      self.plan.forEach(function (entry) {
-        if (entry.kind !== kind) return;
-        entry.add.forEach(function (id) {
-          if (!hasOwn(counts, id)) { counts[id] = 0; ids.push(id); }
-          counts[id]++;
-        });
-      });
+      var counts = source[kind] || {};
+      var ids = [];
+      for (var id in counts) if (hasOwn(counts, id)) ids.push(id);
       if (!ids.length) return;
       if (kind === 'tags') {
         ids.sort(function (a, b) {
@@ -1417,8 +1489,9 @@
       var adds = 0;
       this.plan.forEach(function (e) { adds += e.add.length; });
       this.log('INFO', 'Review complete: ' + adds + ' addition(s) across ' + this.plan.length +
-        ' entity change(s). Nothing has been written. Press Proceed to apply.');
-      this.recap('to add');
+        ' entity change(s) in ' + buildBatches(this.plan).length + ' request(s). Nothing has been ' +
+        'written. Press Proceed to apply.');
+      this.recap(countsFromPlan(this.plan), 'to add');
     }
     this.setState('ready');
     this.flush();
@@ -1426,18 +1499,225 @@
 
   // ── Phase 2: apply ────────────────────────────────────────────────────────
 
-  // Implemented at step 4. The guard is not a placeholder: `setState` already
-  // disables Proceed on an empty plan, and this is the second half of that - a
-  // keyboard activation or a stale reference must not reach a write.
+  // The name each line reports. Batches group entities by an identical addition, but
+  // each entity carries its own attribution - the same tag is rarely wanted for the
+  // same reason twice - so the line is built per entry, not per batch.
+  Run.prototype.changeLine = function (batch, entry, id, prefix) {
+    return (prefix || '') + entry.label + ' - ' +
+      (batch.kind === 'performers'
+        ? performerLabel(this.performerNames, id)
+        : tagLabel(this.tagMap, id)) +
+      (entry.from[id] ? ' - from ' + entry.from[id] : '');
+  };
+
+  Run.prototype.batchFailed = function (batch, verb, e) {
+    var ids = batch.entries.map(function (x) { return x.id; });
+    // Sampled rather than listed: a failed chunk of a hundred should not put a
+    // hundred ids on one log line.
+    this.log('ERROR', TARGETS[batch.target].plural + ' - ' + verb + ' ' +
+      TARGETS[batch.target].bulk + ' failed for ' + ids.length + ' entities (ids ' +
+      ids.slice(0, 5).join(', ') + (ids.length > 5 ? ', ...' : '') + '): ' +
+      (e && e.message ? e.message : String(e)));
+    this.errors++;
+  };
+
+  Run.prototype.applyBatch = function (batch) {
+    var self = this;
+    return gqlRequest(bulkMutation(batch.target), { input: batchInput(batch, 'ADD') })
+      .then(function () {
+        // Recorded only once the server has taken it, so Undo can never try to
+        // reverse a write that never landed.
+        self.undoable.push(batch);
+        batch.entries.forEach(function (entry) {
+          batch.ids.forEach(function (id) {
+            self.log(batch.kind === 'performers' ? 'PERF' : 'TAG',
+              self.changeLine(batch, entry, id));
+            var c = self.appliedCounts[batch.kind];
+            c[id] = (hasOwn(c, id) ? c[id] : 0) + 1;
+          });
+          self.applied++;
+        });
+      }, function (e) {
+        // The whole batch failed, so none of its entities changed and none of them
+        // are logged as changed.
+        self.batchFailed(batch, 'apply', e);
+        self.failed += batch.entries.length;
+      });
+  };
+
   Run.prototype.proceed = function () {
-    if (this.state !== 'ready' || !this.plan.length) return;
+    // `setState` already disables Proceed on an empty plan and on a stale script;
+    // this is the second half of that, because a keyboard activation or a stale
+    // reference must not reach a write.
+    if (this.state !== 'ready' || !this.plan.length || this.stale) return;
+    var self = this;
+    this.setState('applying');
+    this.applied = 0;
+    this.failed = 0;
+    this.appliedCounts = emptyCounts();
+    this.stopped = false;
+    this.log('INFO', 'Applying ' + this.plan.length + ' entity change(s) - ' +
+      new Date().toISOString());
+
+    var batches = buildBatches(this.plan);
+    var lease = acquireLease(this.taskName);
+    var i = 0;
+
+    function nextBatch() {
+      if (self.stopped || i >= batches.length) return Promise.resolve();
+      lease.renew();
+      return self.applyBatch(batches[i++]).then(function () {
+        self.renderProgress();
+        return nextBatch();
+      });
+    }
+
+    // The lease is released in every outcome - success, failure, or Stop - so a
+    // reactive plugin is never left standing down. It is renewed per batch rather
+    // than taken once for the whole run, because a library-wide pass can outlast any
+    // sane fixed expiry.
+    //
+    // guarded() is the other half of that, pointed inwards: every batch here is a
+    // bulk*Update, which is exactly what this plugin's own auto mode will watch for,
+    // so without it a run with an auto mode enabled would re-plan each batch it had
+    // just written. The lease cannot do that job - it is advisory, and we honour our
+    // own leases no more than anyone else's.
+    guarded(nextBatch).then(function () {
+      lease.release();
+      self.finishApply();
+    }, function (e) {
+      lease.release();
+      self.log('ERROR', 'Apply aborted: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      self.finishApply();
+    });
+  };
+
+  Run.prototype.finishApply = function () {
+    this.log('INFO', 'Finished. ' + this.applied + ' entity change(s) applied' +
+      (this.failed ? ', ' + this.failed + ' failed' : '') +
+      (this.stopped ? ' (stopped early; changes already applied stay applied)' : '') +
+      // A finished run is not the same thing as a settled library: the plan was
+      // computed before the first write, so anything that changed during phase 2 -
+      // another tab, a scan, a sibling plugin - is invisible to it. Rescanning until
+      // the plan comes back empty is how a run converges.
+      '. Press Rescan to review what is left.');
+    this.recap(this.appliedCounts, 'added');
+    this.setState('done');
+    this.flush();
   };
 
   // ── Undo ──────────────────────────────────────────────────────────────────
+  //
+  // Reverses what this dialog has written, newest batch first, by replaying each
+  // accepted mutation with REMOVE in place of ADD. What it is *not* is a restore: it
+  // reaches this dialog's own writes and nothing else, it cannot see a change made in
+  // between, and it dies with the tab. The head of the dialog says so and the backup
+  // instruction stays exactly where it is.
+  //
+  // A delta rather than a rewritten list, for the same reason the apply is one: it
+  // takes back precisely the assignments this run added and touches nothing else,
+  // which is what lets it run over a library that has moved on - and equally what
+  // stops it being a substitute for a backup.
+  //
+  // **This is the only code in the plugin that removes anything.** §1's "copy, never
+  // move" is written around this exception rather than despite it.
+  Run.prototype.undoBatch = function (batch) {
+    var self = this;
+    return gqlRequest(bulkMutation(batch.target), { input: batchInput(batch, 'REMOVE') })
+      .then(function () {
+        // Dropped from the record as it is reversed, so a Stop halfway leaves behind
+        // exactly the batches that are still applied.
+        var at = self.undoable.indexOf(batch);
+        if (at !== -1) self.undoable.splice(at, 1);
+        batch.entries.forEach(function (entry) {
+          batch.ids.forEach(function (id) {
+            self.log(batch.kind === 'performers' ? 'PERF' : 'TAG',
+              self.changeLine(batch, entry, id, 'Undo - '));
+            var c = self.undoneCounts[batch.kind];
+            c[id] = (hasOwn(c, id) ? c[id] : 0) + 1;
+          });
+          self.undone++;
+        });
+      }, function (e) {
+        self.batchFailed(batch, 'undo', e);
+        self.undoFailed += batch.entries.length;
+      });
+  };
 
-  // Implemented at step 4, alongside the apply it reverses.
   Run.prototype.undo = function () {
-    if (!this.undoable.length) return;
+    // Offered in `ready` as well as `done`, because a rescan leaves the dialog
+    // holding a fresh plan over a library an earlier pass already changed - which is
+    // exactly when the user is choosing between applying more and taking back what is
+    // there. Never while the dialog is itself mid-write.
+    if ((this.state !== 'ready' && this.state !== 'done') || !this.undoable.length) return;
+    var self = this;
+
+    // One click here starts a library-wide write, in the state where the user is most
+    // likely to be clicking around - Copy log, Rescan and Close are its neighbours -
+    // so it arms and asks. The count is what makes the prompt worth reading: it
+    // states the scope rather than asking a generic "are you sure".
+    if (!this.undoArmed) {
+      this.undoArmed = true;
+      this.undoBtn.textContent = 'Undo ' + batchCount(this.undoable) + ' change(s)?';
+      this.undoTimer = setTimeout(function () { self.disarmUndo(); }, UNDO_ARM_MS);
+      return;
+    }
+    this.disarmUndo();
+
+    this.setState('undoing');
+    this.stopped = false;
+    this.undone = 0;
+    this.undoFailed = 0;
+    this.undoneCounts = emptyCounts();
+    this.undoTotal = batchCount(this.undoable);
+    this.log('INFO', 'Undoing ' + this.undoTotal + ' entity change(s) - ' +
+      new Date().toISOString());
+
+    // Newest first, because that is the order that composes: a rescan-and-apply cycle
+    // can write to one entity twice, and taking the second write back before the
+    // first is the only sequence that lands where the run started.
+    var batches = this.undoable.slice().reverse();
+    // An undo is a bulk write like any other, so it announces itself the same way.
+    var lease = acquireLease(this.taskName + ' (undo)');
+    var i = 0;
+
+    function nextBatch() {
+      if (self.stopped || i >= batches.length) return Promise.resolve();
+      lease.renew();
+      return self.undoBatch(batches[i++]).then(function () {
+        self.renderProgress();
+        return nextBatch();
+      });
+    }
+
+    // Guarded for the same reason the apply is, and more sharply: an undo writes the
+    // inverse delta, so an auto mode reacting to it would put back exactly what the
+    // user just asked to have taken away.
+    guarded(nextBatch).then(function () {
+      lease.release();
+      self.finishUndo();
+    }, function (e) {
+      lease.release();
+      self.log('ERROR', 'Undo aborted: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      self.finishUndo();
+    });
+  };
+
+  Run.prototype.finishUndo = function () {
+    this.log('INFO', 'Undo finished. ' + this.undone + ' entity change(s) reversed' +
+      (this.undoFailed ? ', ' + this.undoFailed + ' could not be' : '') +
+      (this.stopped ? ' (stopped early; what was reversed stays reversed)' : '') +
+      (this.undoable.length
+        ? '. ' + batchCount(this.undoable) + ' change(s) are still applied.'
+        : '. Everything this dialog wrote has been taken back.'));
+    this.recap(this.undoneCounts, 'removed again');
+    // Always finishes in `done`, even when it started from `ready`: a plan reviewed
+    // against the library as it was no longer describes it, so Rescan is the honest
+    // next step rather than a Proceed left armed over ground that has moved.
+    this.setState('done');
+    this.flush();
   };
 
   Run.prototype.disarmUndo = function () {
@@ -1930,6 +2210,8 @@
     describeFilters: describeFilters,
     pairedBoth: pairedBoth,
     buildPasses: buildPasses,
+    buildBatches: buildBatches,
+    bulkMutation: bulkMutation,
     passQuery: passQuery,
     walkSources: walkSources,
     payloadOf: payloadOf,

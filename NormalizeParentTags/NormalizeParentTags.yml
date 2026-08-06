@@ -1,6 +1,7 @@
 name: Normalize Parent Tags
 description: "README: https://github.com/gregttx/StashPlugins/blob/d6442c70d43b2181b39592f4c183eb7f74b020e3/NormalizeParentTags/README.md - Two library-wide tasks that normalize tag hierarchies on your entities: Prune removes every tag already implied by a descendant tag on the same entity, and Roll Up adds every ancestor of every tag on the entity. Both run from Settings - Tasks - Plugin Tasks and open a dialog that lists every change first; nothing is written until you press Proceed, and an Undo button reverses the run while the dialog stays open. Either direction can also be applied automatically to each entity as Stash saves it - see the two Auto settings, which write silently, with no dialog and no undo. A third, read-only task browses the tag hierarchy itself, marking multi-parent tags, protected tags and cycles, and exports it as a Graphviz or Mermaid diagram. Entity types are opt-in and are all off until enabled below. BACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. Requires Stash 0.31.0 or newer."
-version: 1.5.3
+url: "https://github.com/gregttx/StashPlugins/blob/d6442c70d43b2181b39592f4c183eb7f74b020e3/NormalizeParentTags/README.md"
+version: 1.5.4
 ui:
   javascript:
     - NormalizeParentTags.js

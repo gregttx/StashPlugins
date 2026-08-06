@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.5.3.** This file is both the design and the map of the code — the
+**Status: implemented at 1.5.4.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1120,6 +1120,18 @@ not on every version bump. The same string lives in ``NormalizeParentTags.yml`` 
 `metadata.description`; they must match, and both must stay **double-quoted**, because the text
 contains `": "` and a plain YAML scalar cannot hold that (NormalizeParentTags's manifest was unparseable YAML
 until 2026-08-06 for exactly this reason).
+
+**`url:` is the only clickable link Stash offers here** (1.5.4 / 1.9.3). Read from Stash's own
+source rather than guessed: `SettingsPluginsPanel.tsx` passes `subHeading: plugin.description` into
+`Inputs.tsx`, which renders `<div className="sub-heading">{subHeading}</div>` — a React child, so
+markup in a description is escaped and shows as literal `<a href=…>` text. There is no markdown
+either. The manifest's `url` (`URL *string \`yaml:"url"\`` in `pkg/plugin/config.go`) is rendered
+by `renderLink` as an `ExternalLink` button — a chain icon in the plugin's header row, beside
+Enable/Disable. Icon only: it takes no anchor text, so the link cannot be labelled.
+
+Both fields therefore carry the README permalink, deliberately: `url` for the click, and the URL at
+the head of `description` for everywhere the icon is not — the package index that an install-by-URL
+shows, and any copy-paste. Keep both on the same SHA.
 
 **Three places, not two, since 1.4.4.** `PLUGIN_VERSION` at the top of the script is the third,
 and it is the only one that says anything about the code actually running: the yml and the manifest

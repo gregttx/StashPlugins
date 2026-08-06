@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.9.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.9.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -522,6 +522,18 @@ not on every version bump. The same string lives in ``MergePerformerTagsToScenes
 `metadata.description`; they must match, and both must stay **double-quoted**, because the text
 contains `": "` and a plain YAML scalar cannot hold that (MergePerformerTagsToScenes's manifest was unparseable YAML
 until 2026-08-06 for exactly this reason).
+
+**`url:` is the only clickable link Stash offers here** (1.5.4 / 1.9.3). Read from Stash's own
+source rather than guessed: `SettingsPluginsPanel.tsx` passes `subHeading: plugin.description` into
+`Inputs.tsx`, which renders `<div className="sub-heading">{subHeading}</div>` — a React child, so
+markup in a description is escaped and shows as literal `<a href=…>` text. There is no markdown
+either. The manifest's `url` (`URL *string \`yaml:"url"\`` in `pkg/plugin/config.go`) is rendered
+by `renderLink` as an `ExternalLink` button — a chain icon in the plugin's header row, beside
+Enable/Disable. Icon only: it takes no anchor text, so the link cannot be labelled.
+
+Both fields therefore carry the README permalink, deliberately: `url` for the click, and the URL at
+the head of `description` for everywhere the icon is not — the package index that an install-by-URL
+shows, and any copy-paste. Keep both on the same SHA.
 
 **Three places, not two, since 1.8.3.** `PLUGIN_VERSION` at the top of the script is the third,
 and it is the only one that says anything about the code actually running: the yml and the manifest

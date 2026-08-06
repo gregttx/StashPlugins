@@ -24,7 +24,7 @@ function declared(text) {
 }
 
 const yaml_url = (text) => (/^url:\s*"([^"]+)"\s*$/m.exec(text) || [])[1] || null;
-const declaredDescription = (text) => (/^description:\s*"(.*)"\s*$/m.exec(text) || [])[1] || null;
+const declaredDescription = (text) => (/^\s*description:\s*"(.*)"\s*$/m.exec(text) || [])[1] || null;
 
 // Loads the plugin into a fresh context whose console records everything, and
 // returns the lines it printed before anything else happened.
@@ -62,6 +62,14 @@ PLUGINS.forEach((name) => {
   h.check(name + ' writes its description in paragraphs',
     (declaredDescription(read(name, name + '.yml')) || '').indexOf('\\n\\n') !== -1,
     'no blank line in the description');
+  // Every description lives twice - the plugin yml Stash reads, and the package
+  // manifest an install-by-URL reads - and a hand edit to one has already left the
+  // other behind.
+  h.check(name + ' has the same description in its yml and its manifest',
+    declaredDescription(read(name, name + '.yml')) ===
+      declaredDescription(read(name, 'manifest')),
+    'yml: ' + String(declaredDescription(read(name, name + '.yml'))).slice(0, 60) +
+    ' / manifest: ' + String(declaredDescription(read(name, 'manifest'))).slice(0, 60));
   h.check(name + ' keeps the raw URL out of its description',
     !/https?:\/\//.test(declaredDescription(read(name, name + '.yml')) || ''),
     (declaredDescription(read(name, name + '.yml')) || '').slice(0, 120));

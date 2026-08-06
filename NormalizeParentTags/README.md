@@ -239,7 +239,7 @@ in per type is deliberate.
 | --- | --- |
 | **Include Performers** | Performers |
 | **Include Studios** | Studios |
-| **Include Groups** | Groups — called Movies before Stash 0.28 |
+| **Include Groups** | Groups |
 | **Include Galleries** | Galleries |
 | **Include Scenes** | Scenes |
 | **Include Images** | Images — usually the biggest type, and the slowest to scan |

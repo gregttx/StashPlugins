@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.6.5.** This file is both the design and the map of the code — the
+**Status: implemented at 1.7.5.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -44,7 +44,9 @@ the backup unnecessary: it reaches its own writes, and only while the dialog is 
 **Auto mode can destroy one without any click at all**, which is why §5b is written the way it is:
 it has no dialog, no review, no tag summary and no Undo, and a console line is the only record it
 leaves. It is off by default, gated behind the same all-off entity toggles, and its two setting
-descriptions carry the warning in place of the dialog that is not there.
+descriptions carry the warning in place of the dialog that is not there — **in their tooltip half
+since 1.7.5**, at the user's explicit request, so the warning is now one hover away rather than on
+the page. The wording itself is not to be trimmed.
 
 The two are inverses in the useful sense: Roll Up then Prune returns the original antichain
 (minus whatever the exclusion filters protected).
@@ -602,6 +604,11 @@ a `[REMOVE]` line in the browser console is the entire record. Auto Prune in par
 assignments one save at a time, silently. The two setting descriptions say so in those words; they
 are the only warning the user gets, so do not trim them for length.
 
+**Since 1.7.5 that warning sits in the tooltip half of each description, not the visible half.** It
+was moved there deliberately (§6) and the wording survived intact; what changed is that reading it
+now costs a hover, and a touch device has no way to reach it at all. If either description is ever
+rewritten, the warning goes with it — moving it is not licence to shorten it.
+
 **Which types are covered is `a1`–`a7`**, the same toggles that scope the tasks. One list rather than
 a second set of seven, so the settings page cannot describe two different libraries — and the
 all-off default carries over, which means a fresh install reacts to nothing until the user has said
@@ -848,6 +855,95 @@ declares, so a setting present in the manifest and missing from `DEFAULTS` reads
 configurable in the UI and inert in the run. `c4TagNameSeparator` shipped that way for one test run;
 the suite caught it because the separator case was written to fail without the feature.
 
+### Descriptions: a summary on the page, the rest on hover (1.7.0)
+
+Seventeen settings averaging 220 characters — four of them over 340 — is a wall of prose that has
+to be read past to reach the next checkbox. Since 1.7.0 a description written as
+`summary\n\ndetail` shows **only its first paragraph**, with the rest moved into a tooltip, and the
+group description shows its first paragraph behind a **Show more** toggle.
+
+Measured over the whole settings block, the visible text drops from 3705 characters to 1110.
+
+**The slot already exists and Stash never fills it.** `Inputs.tsx` renders `<h3 title={tooltip}>`,
+but `SettingsPluginsPanel.tsx` builds only `{ heading, id, subHeading }` for a plugin setting, and
+`PluginSetting` in `plugin.graphql` is `name / display_name / description / type` — there is no
+field to declare a tooltip in the yml. So the slot is filled from the DOM, in the same tick that
+injects the README link.
+
+**The box is built, not borrowed** (1.7.1). 1.7.0 put the detail in a native `title` on the mark,
+which was the wrong instinct: a native tooltip's font size, position and delay all belong to the
+browser and **none of them can be reached from CSS**. It opens below-right of the pointer — exactly
+where the arrow and the `cursor:help` question mark sit — so the first line arrives half covered.
+`.npt-tipbox` is an element instead: readable size, opening *above* the row, clear of the pointer.
+It also opens on **keyboard focus** (`.npt-tip` carries `tabIndex`), which a `title` never could.
+
+**One row, one tooltip** (1.7.3). Every hover target on the row — the mark, the setting's *name*,
+and the visible summary itself (1.7.4) — opens the same box. 1.7.1 left a plain `title` on the
+`<h3>`, so a row had two tooltips showing the same words in two different presentations, one of them
+the small browser tooltip the box was built to replace. Stash's `<h3 title>` slot is now left empty.
+
+Hovering the summary is safe *because* the box opens above the `.sub-heading`: it covers the name,
+never the sentence being read. A box that opened downward could not have taken the summary as a
+trigger without getting in its own way.
+
+Three details that are not arbitrary:
+
+- **Anchored on the `.sub-heading`, not on the mark.** The mark sits at the end of the summary, so
+  on a long summary it can be most of the way across the panel; a box anchored to it would open off
+  the right edge. `.npt-tipped` makes the row the positioning context and the box opens at `left:0`
+  with `max-width:100%`, so it cannot overflow whatever the summary does.
+- **Opened by a JS-toggled class, not a `:hover ~` selector.** The two triggers are not in one
+  predictable place — the mark is inside the `.sub-heading`, the name is an `<h3>` somewhere above
+  it — so a sibling combinator would depend on exactly how Stash nests the pair. §5b is the record
+  of what guessing at that markup costs; it is not worth guessing again for a hover. `tipTrigger`
+  takes the *row* and looks the `.sub-heading` up per event, because an `<h3>` is Stash's element
+  and outlives the re-renders that replace everything we inject, so a captured reference goes
+  stale — and a `_nptTipWired` flag stops a fresh pair of listeners landing on it every rebuild.
+- **`pointer-events:none` on the box is load-bearing.** Opened from the name, the box lands over the
+  `<h3>`. A box that took the pointer would fire `mouseleave` on the name, close, hand the pointer
+  back, and reopen — a flicker loop for as long as it was hovered. The cost is that the text cannot
+  be selected, which is the normal trade for a tooltip.
+
+If the injected stylesheet never lands, `display:none` never applies and the detail simply renders
+inline after the mark — which is the pre-1.7.0 look, and the right way for this to fail.
+
+Four rules hold it together:
+
+- **The split rides on the blank line**, not on a delimiter of our own. A `||` marker would be
+  visible as raw punctuation on the settings page any time this script does not run — a stale
+  browser cache, or a `.js` never copied into the plugin folder, both of which have happened here.
+  On `\n\n` the failure mode is Stash rendering the description exactly as it did before.
+- **What goes in which half is a judgement, made per setting.** This is why the 17 splits are
+  authored by hand rather than cut at the first sentence. The box opens on focus as well as hover,
+  so it is better reachable than the `title` was — but it still does not exist on a touch device,
+  and a screen reader has to reach a trigger to meet it.
+
+  `a8`/`a9` are the live case. Their WARNING sentence was pinned to the *visible* half through
+  1.7.4, on the §1/§5b reasoning that those two descriptions are the only warning auto mode gets.
+  **At 1.7.5 the user asked for it in the tooltip** and it moved. The concern was put once and not
+  repeated; what the test pins now is that the warning is intact and leads the tooltip, rather than
+  that it is on the page. Mitigating it: since 1.7.4 the box opens from the whole description, not
+  just the mark, so it is a large target rather than a small one.
+- **A single-paragraph description is left alone.** Six of the seventeen have nothing worth hiding,
+  and a mark that opens on hover to repeat the line under it is worse than no mark. Same rule as the
+  tag recap's tooltips in §5.
+- **The toggle is a `<button>`.** `SettingGroup`'s `onDivClick` walks up from the event target and
+  returns early only for `a` and `button`, so a `<span>` would fold the whole group on click; the
+  handler also calls `stopPropagation` in case that early return ever changes. A button is the
+  keyboard-reachable choice too, which matters more here than for the tooltips — this is the half of
+  the description with nowhere else to be read.
+
+**Why the group description needs a toggle rather than a tooltip.** It is in the group *header*,
+which is outside the `<Collapse>` — the same fact `readmeLinkSlot` relies on, and the reason the
+conflict notice sits where it does. So it is on screen at full height whether the group is expanded
+or not, and **per-plugin collapse does not shorten it**; hiding paragraphs is the only thing that
+does. Five paragraphs in a native `title` would also render badly and OS-dependently.
+
+Both are re-applied on every tick and are idempotent, like everything else injected into this panel:
+React drops them on re-render, and `tipSetting` returns early once the first child is `.npt-sum`,
+`collapseDescription` once `#npt-desc-toggle` exists. A re-render therefore returns the description
+to *collapsed* rather than to a half-state with no way out.
+
 Stash has no default value for a plugin setting: an unset `BOOLEAN` reads as unchecked. Every
 `enable*` type toggle is therefore **off on a fresh install**, and a run with none enabled must
 say so in the dialog rather than silently doing nothing. That default is the right one here —
@@ -1029,6 +1125,19 @@ cover:
   boundary), a tag with neither field saying nothing about them, and — in `normalize-plan` — a run
   *not* asking for either field. Auto mode's console legend is checked for being printed once,
   ahead of the first line it explains, and not repeated on the next reaction.
+- **The settings-page description split** (`normalize-auto`) — the group description collapsing to
+  one paragraph behind a toggle that is a `<button>`, expanding and collapsing with the caption
+  following, the CSS actually hiding the rest, and no second toggle after a re-tick. Per setting:
+  a two-paragraph description keeping only its first; the detail being an *element* rather than a
+  native `title` (which cannot be positioned or sized), with no `title` left on the mark to double
+  up with it, a focusable mark, and the row as the positioning context; hover *and* focus opening
+  the box and closing it again; **the name and the summary opening the very same box** rather than a
+  native title of its own, and the name not being wired a second time by a re-render;
+  `pointer-events:none` pinned by name,
+  since without it opening from the name flickers; further paragraphs staying paragraphs inside the
+  box; a one-paragraph description left untouched, its name opening nothing; and — the check that
+  matters — **the auto-mode WARNING intact and leading the tooltip, absent from the summary**. All
+  twenty-five fail against 1.6.5.
 - **The dialog chrome** (`style`, repo-level) — every CSS rule this dialog shares with the
   sibling's is compared against it and has to match. See the repo-root CLAUDE.md; this is the check
   that would have caught the modal being `#202b33` here and `#30404d` there.

@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.6.5';
+  var PLUGIN_VERSION = '1.7.5';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -969,7 +969,42 @@
     // is this margin instead: roughly a third of a line, not a whole one.
     '.npt-own-group .sub-heading{white-space:pre-wrap;}' +
     '.npt-own-group .sub-heading .npt-p{margin:0 0 .35em;}' +
-    '.npt-own-group .sub-heading .npt-p:last-child{margin-bottom:0;}';
+    '.npt-own-group .sub-heading .npt-p:last-child{margin-bottom:0;}' +
+    // A per-setting description shows its first paragraph and hides the rest in a
+    // tooltip. The mark is the only thing saying there is one - a hover that opens
+    // with no invitation is a hover nobody makes.
+    //
+    // Built rather than borrowed: a native `title` is the browser's, and its font
+    // size, its position and its delay cannot be reached from CSS. It opens
+    // *below-right* of the pointer, which is exactly where the arrow and the
+    // `cursor:help` question mark sit, so the first line arrives half covered. This
+    // one opens above the row in a readable size, and - the part `title` could never
+    // do - on keyboard focus as well as hover.
+    //
+    // Anchored on the .sub-heading rather than on the mark, so a mark that has been
+    // pushed to the right by a long summary still opens a box that starts at the
+    // left of the row and cannot overflow the panel.
+    '.npt-tipped{position:relative;}' +
+    '.npt-tip{margin-left:.35rem;cursor:pointer;opacity:.65;font-style:normal;' +
+    'font-size:1.05em;}' +
+    '.npt-tip:hover,.npt-tip:focus{opacity:1;outline:none;}' +
+    // pointer-events:none is load-bearing, not tidiness. Opened from the setting's
+    // name the box lands over the h3, so a box that took the pointer would fire
+    // mouseleave on the name, close, hand the pointer back to the name, and reopen -
+    // a flicker loop for as long as it is hovered.
+    '.npt-tipbox{display:none;position:absolute;left:0;bottom:calc(100% + .35rem);' +
+    'z-index:1500;width:max-content;max-width:100%;padding:.5rem .65rem;' +
+    'background:#202b33;color:#d6dee4;border:1px solid #425a6b;border-radius:3px;' +
+    'font-size:.92rem;line-height:1.45;white-space:pre-wrap;pointer-events:none;' +
+    'box-shadow:0 2px 10px rgba(0,0,0,.55);}' +
+    '.npt-tipped.npt-tip-open .npt-tipbox{display:block;}' +
+    // The group description sits in the group header, outside the <Collapse>, so it
+    // is on screen at whatever size whether the group is expanded or not. Hiding all
+    // but the first paragraph is the only thing that shortens it.
+    '.npt-desc-collapsed .npt-p:not(:first-child){display:none;}' +
+    '.npt-desc-toggle{display:block;margin-top:.25rem;padding:0;border:0;' +
+    'background:none;color:#7cc4ff;font-size:.8rem;cursor:pointer;' +
+    'text-decoration:underline;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -2923,6 +2958,154 @@
     });
   }
 
+  // ── Settings verbosity: a summary on the page, the rest on hover ──────────
+  //
+  // Seventeen settings averaging 220 characters is a wall. A description written as
+  // "summary\n\ndetail" now shows only its first paragraph, with the rest moved into
+  // a tooltip.
+  //
+  // Stash's own Setting renders `<h3 title={tooltip}>` (Inputs.tsx), but
+  // SettingsPluginsPanel never passes a tooltip for a plugin setting, and
+  // `PluginSetting` has no field to declare one - name, display_name, description,
+  // type is the whole type. So the slot exists, is always empty for us, and is
+  // filled from here.
+  //
+  // The split rides on the blank line the description format already supports rather
+  // than a delimiter of our own. If this script never runs - a stale browser cache,
+  // a .js that was never copied into the plugin folder - Stash renders the whole
+  // description exactly as it did before, instead of showing a raw marker.
+  //
+  // **What goes in which half is a judgement, made per setting**, which is why the
+  // 17 splits are authored by hand rather than cut at the first sentence. The box
+  // opens on focus as well as hover, so it is better reachable than a `title` was,
+  // but it still does not exist on a touch device. The auto-mode warnings in a8/a9
+  // were held in the visible half until 1.7.5 for that reason, and moved into the
+  // tooltip at the user's request; see §6.
+  var TIP_MARK = 'ⓘ';                       // circled Latin small letter i
+
+  function setTipOpen(sub, on) {
+    var cls = String(sub.className || '').replace(/\s*npt-tip-open\b/, '');
+    sub.className = (on ? cls + ' npt-tip-open' : cls).replace(/^\s+/, '');
+  }
+
+  // A class toggled from JS rather than a `:hover ~` selector, because the two
+  // triggers do not sit in one predictable place: the mark is inside the
+  // .sub-heading and the name is an <h3> somewhere above it, and a sibling
+  // combinator would depend on exactly how Stash nests the pair. This plugin has
+  // shipped broken twice on a guess about that markup (§5b), and the guess is not
+  // worth making again for a hover.
+  //
+  // The row is passed rather than the .sub-heading, and the current one looked up
+  // per event: an <h3> is Stash's element and survives the re-renders that replace
+  // everything we put in the row, so a captured reference would go stale. The flag
+  // is what stops a second pair of listeners landing on it each time we rebuild.
+  function tipTrigger(node, row) {
+    if (!node || node._nptTipWired) return;
+    node._nptTipWired = true;
+    var toggle = function (on) {
+      var sub = findByClass(row, 'sub-heading', 0);
+      if (sub) setTipOpen(sub, on);
+    };
+    node.addEventListener('mouseenter', function () { toggle(true); });
+    node.addEventListener('mouseleave', function () { toggle(false); });
+    node.addEventListener('focus', function () { toggle(true); });
+    node.addEventListener('blur', function () { toggle(false); });
+  }
+
+  function tipSetting(key) {
+    var row = settingRow(key);
+    if (!row) return;
+    var sub = findByClass(row, 'sub-heading', 0);
+    if (!sub) return;
+    var kids = sub.childNodes || [];
+    if (kids.length && hasClass(kids[0], 'npt-sum')) return;    // already ours
+    var text = sub.textContent || '';
+    var cut = text.indexOf('\n\n');
+    if (cut === -1) return;                                     // nothing to hide
+    var summary = oneLine(text.slice(0, cut));
+    // Kept as paragraphs: a native tooltip honours newlines, and a description with
+    // three paragraphs run together reads worse than the wall this is replacing.
+    var detail = text.slice(cut + 2).split(/\n{2,}/).map(oneLine)
+      .filter(function (p) { return !!p; }).join('\n\n');
+    if (!summary || !detail) return;
+    sub.textContent = '';
+    if (!hasClass(sub, 'npt-tipped')) {
+      sub.className = ((sub.className || '') + ' npt-tipped').replace(/^\s+/, '');
+    }
+    var sum = el('span', 'npt-sum', summary);
+    sub.appendChild(sum);
+    // tabIndex, so the box can be reached and read without a mouse. The box is a
+    // sibling of the mark rather than a child: as a child it would sit inside an
+    // inline span and inherit its clipping and stacking.
+    var mark = el('span', 'npt-tip', TIP_MARK);
+    mark.tabIndex = 0;
+    sub.appendChild(mark);
+    sub.appendChild(el('span', 'npt-tipbox', detail));
+    tipTrigger(mark, row);
+    // The visible summary opens it too. The mark is a small target for something
+    // every row now hides half its text behind, and the box opens *above* the
+    // .sub-heading, so it covers the name rather than the sentence being read - the
+    // one place a hover-to-open box would have been in its own way.
+    tipTrigger(sum, row);
+    // The setting's *name* opens the same box. It used to carry a plain `title`
+    // instead, so one row had two hover targets showing the same text in two
+    // different tooltips - and the browser's was exactly what the box exists to
+    // replace. Stash's own `<h3 title>` slot is left empty.
+    // querySelector by tag name is all the fake DOM implements, and all this needs.
+    var h3 = row.querySelector ? row.querySelector('h3') : null;
+    if (h3) tipTrigger(h3, row);
+  }
+
+  function tipSettings() {
+    for (var k in DEFAULTS) {
+      if (hasOwn(DEFAULTS, k)) tipSetting(k);
+    }
+  }
+
+  // The group description is in the group *header*, which is outside the <Collapse>
+  // - so it stays on screen at full height whether the group is expanded or not, and
+  // per-plugin collapse does not shorten it. Hiding all but the first paragraph is
+  // the only thing that does.
+  //
+  // A <button>, never a <span>: SettingGroup's onDivClick walks up from the event
+  // target and returns early for `a` and `button`, so anything else folds the whole
+  // group on click. A button is also the keyboard-reachable choice, which matters
+  // more here than for the tooltips - this is the half of the description that has
+  // nowhere else to be read. stopPropagation is belt and braces for a Stash that
+  // changes that early return.
+  var DESC_TOGGLE_ID = 'npt-desc-toggle';
+
+  function descCollapsed(sub) { return hasClass(sub, 'npt-desc-collapsed'); }
+
+  function setDescCollapsed(sub, on) {
+    var cls = String(sub.className || '').replace(/\s*npt-desc-collapsed\b/, '');
+    sub.className = (on ? cls + ' npt-desc-collapsed' : cls).replace(/^\s+/, '');
+  }
+
+  function collapseDescription(group) {
+    var sub = findByClass(group, 'sub-heading', 0);
+    if (!sub) return;
+    var kids = sub.childNodes || [];
+    var paras = 0;
+    for (var i = 0; i < kids.length; i++) if (hasClass(kids[i], 'npt-p')) paras++;
+    if (paras < 2) return;                        // one paragraph hides nothing
+    if (document.getElementById(DESC_TOGGLE_ID)) return;
+    // A re-render drops the button and the class together, so the description
+    // returns to collapsed rather than to a half-state with no way out of it.
+    setDescCollapsed(sub, true);
+    var btn = el('button', 'npt-desc-toggle', 'Show more');
+    btn.id = DESC_TOGGLE_ID;
+    btn.type = 'button';
+    btn.addEventListener('click', function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+      var open = descCollapsed(sub);
+      setDescCollapsed(sub, !open);
+      btn.textContent = open ? 'Show less' : 'Show more';
+    });
+    sub.appendChild(btn);
+  }
+
   // Re-added rather than tracked: React re-renders this panel whenever a setting
   // changes and drops anything we put in it, so the tick puts it back. Keyed on the
   // id, so a re-render that kept it does not produce a second one.
@@ -2937,6 +3120,8 @@
       group.className = ((group.className || '') + ' npt-own-group').replace(/^\s+/, '');
     }
     splitDescription(group);
+    collapseDescription(group);   // after the split: it counts the .npt-p divs
+    tipSettings();
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'npt-readme', 'NormalizeParentTags/README.md');
     link.id = README_LINK_ID;

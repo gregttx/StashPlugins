@@ -319,9 +319,18 @@ function entityUpdate(ctx, field, input) {
   });
 }
 
+// Fire any listener the plugin registered. `click()` is a special case of this and
+// stays, because it is what most of the suites reach for; this covers the rest -
+// mouseenter/mouseleave/focus/blur - without a real event system.
+function fire(node, type, ev) {
+  ((node && node.handlers && node.handlers[type]) || []).forEach((fn) => {
+    fn(Object.assign({ preventDefault() {}, stopPropagation() {} }, ev || {}));
+  });
+}
+
 module.exports = {
   SRC, PLUGIN_ID, TASK_PRUNE, TASK_ROLLUP, TAGS,
-  makeEnv, run, startTask, flush, dialog, hasClass, makeElement,
+  makeEnv, run, startTask, flush, dialog, hasClass, makeElement, fire,
   check, finish, makeResponder, bulkCalls, entityUpdate,
   results: () => failures,
 };

@@ -1,7 +1,7 @@
 name: Normalize Parent Tags
 description: "Makes tag hierarchies explicit on your entities, in either direction.\n\nPrune removes any tag that another tag on the same entity already implies. Roll Up adds every ancestor, recursively, of the tags already there. A third task browses the hierarchy read-only and exports it as a Graphviz or Mermaid diagram.\n\nAll three run from Settings - Tasks - Plugin Tasks. The two that write list every change first: nothing lands until you press Proceed, and Undo reverses the run while the dialog stays open.\n\nEither direction can also run automatically as Stash saves each entity. Those two settings write silently - no dialog, no review, no undo.\n\nEntity types are opt-in and all off until you enable them below.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. \n\nRequires Stash 0.31.0 or newer."
 url: "https://github.com/gregttx/StashPlugins/blob/main/NormalizeParentTags/README.md"
-version: 1.6.5
+version: 1.7.5
 ui:
   javascript:
     - NormalizeParentTags.js
@@ -23,7 +23,7 @@ settings:
     type: BOOLEAN
   a3EnableGroups:
     displayName: Include Groups
-    description: Process the tags of groups when a Normalize Parent Tags task is run. Groups were called Movies before Stash 0.28.
+    description: Process the tags of groups when a Normalize Parent Tags task is run.
     type: BOOLEAN
   a4EnableGalleries:
     displayName: Include Galleries
@@ -35,49 +35,49 @@ settings:
     type: BOOLEAN
   a6EnableImages:
     displayName: Include Images
-    description: Process the tags of images when a Normalize Parent Tags task is run. Usually largest and slowest to scan.
+    description: "Process the tags of images when a Normalize Parent Tags task is run.\n\nUsually the largest type and the slowest to scan."
     type: BOOLEAN
   a7EnableMarkers:
     displayName: Include Scene Markers
-    description: Process the tags of scene markers when a Normalize Parent Tags task is run. A marker's primary tag is always kept and is never added or removed, but it does count as present, so parents it implies can be pruned from the marker's other tags, or rolled up onto them.
+    description: "Process the tags of scene markers when a Normalize Parent Tags task is run.\n\nA marker's primary tag is always kept and is never added or removed, but it does count as present, so parents it implies can be pruned from the marker's other tags, or rolled up onto them."
     type: BOOLEAN
   a8AutoPruneOnUpdate:
     displayName: Auto Prune on Entity Updates
-    description: "Whenever Stash saves an entity of an enabled type above, immediately remove any tag on it that another tag on the same entity already implies. WARNING - this writes as soon as you press Save, with no dialog, no review and no undo, and it deletes tag assignments. The exclusion filters below still apply. Has no effect if Auto Roll Up is also enabled."
+    description: "Whenever Stash saves an entity of an enabled type above, immediately remove any tag on it that another tag on the same entity already implies.\n\nWARNING: Updates immediately, with no dialog, no review and no undo, and it deletes tag assignments.\n\nThe exclusion filters below still apply. Has no effect if Auto Roll Up is also enabled."
     type: BOOLEAN
   a9AutoRollUpOnUpdate:
     displayName: Auto Roll Up on Entity Updates
-    description: "Whenever Stash saves an entity of an enabled type above, immediately add every ancestor, recursively, of the tags on it. Writes as soon as you press Save, with no dialog and no undo, but only ever adds tags. The exclusion filters below still apply. Has no effect if Auto Prune is also enabled."
+    description: "Whenever Stash saves an entity of an enabled type above, immediately add every ancestor, recursively, of the tags on it.\n\nUpdates immediately, with no dialog and no undo, but only ever adds tags.\n\nThe exclusion filters below still apply. Has no effect if Auto Prune is also enabled."
     type: BOOLEAN
   b1ExcludeEntityWithTagName:
     displayName: Exclude entities carrying this tag
-    description: Enter one tag name. Any entity carrying that tag is left untouched by both tasks. Matched by exact name, case-sensitive. The tag must be carried directly - a parent of it does not count. For markers, carrying it as the primary tag also excludes the marker.
+    description: "Enter one tag name. Any entity carrying that tag is left untouched by both tasks.\n\nMatched by exact name, case-sensitive. The tag must be carried directly - a parent of it does not count. For markers, carrying it as the primary tag also excludes the marker."
     type: STRING
   b2ExcludeOrganized:
     displayName: Exclude entities marked as Organized
-    description: Skip any entity whose Organized flag is set. In Stash 0.31 only scenes, images, galleries and studios have that flag; performers, groups and markers have none, so this setting cannot skip them. If a later Stash adds the flag to more types, they are covered without a plugin update.
+    description: "Skip any entity whose Organized flag is set.\n\nIn Stash 0.31 only scenes, images, galleries and studios have that flag; performers, groups and markers have none, so this setting cannot skip them. If a later Stash adds the flag to more types, they are covered without a plugin update."
     type: BOOLEAN
   c1ExcludeTagWithIgnoreAutoTag:
     displayName: Never add or remove tags set to Ignore auto tag
-    description: Tags with "Ignore auto tag" enabled are neither added by Roll Up nor removed by Prune. They still count as present, so they can still imply the removal of their own parents.
+    description: "Tags with \"Ignore auto tag\" enabled are neither added by Roll Up nor removed by Prune.\n\nThey still count as present, so they can still imply the removal of their own parents."
     type: BOOLEAN
   c2ExcludeAddTagNameContains:
     displayName: Never add tags whose name contains (space separated substring)
-    description: Enter one or more substrings separated by spaces. Roll Up will not add a tag whose name contains any of them. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space unless you set a separator below. Skipping a tag does not stop its own parents from being added.
+    description: "Enter one or more substrings separated by spaces. Roll Up will not add a tag whose name contains any of them.\n\nMatched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space unless you set a separator below. Skipping a tag does not stop its own parents from being added."
     type: STRING
   c3ExcludeRemoveTagNameContains:
     displayName: Never remove tags whose name contains (space separated substring)
-    description: Enter one or more substrings separated by spaces. Prune will not remove a tag whose name contains any of them, even when a descendant tag makes it redundant. Matched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space unless you set a separator below.
+    description: "Enter one or more substrings separated by spaces. Prune will not remove a tag whose name contains any of them, even when a descendant tag makes it redundant.\n\nMatched anywhere in the name, case-sensitive, and any Unicode character can be used - handy for namespace markers. A substring cannot itself contain a space unless you set a separator below."
     type: STRING
   c4TagNameSeparator:
     displayName: Separator for the two "name contains" settings
-    description: Leave this empty to separate those substrings on spaces. Enter any character - a comma, a pipe, or any Unicode character you do not use in tag names - to separate on that instead, which is how a substring can then contain a space. It is matched literally, so punctuation needs no escaping, and surrounding whitespace is trimmed from each substring.
+    description: "Leave this empty to separate those substrings on spaces.\n\nEnter any character - a comma, a pipe, or any Unicode character you do not use in tag names - to separate on that instead, which is how a substring can then contain a space. It is matched literally, so punctuation needs no escaping, and surrounding whitespace is trimmed from each substring."
     type: STRING
   c5ExcludeAddTagWithCustomFieldName:
     displayName: Never add tags marked via a Custom Field
-    description: Enter a custom field name. Roll Up will not add a tag that has this custom field. Only the presence of the field matters - its value is ignored, so any value at all excludes the tag. Remove the field from a tag to have it added again. Skipping a tag does not stop its own parents from being added.
+    description: "Enter a custom field name. Roll Up will not add a tag that has this custom field.\n\nOnly the presence of the field matters - its value is ignored, so any value at all excludes the tag. Remove the field from a tag to have it added again. Skipping a tag does not stop its own parents from being added."
     type: STRING
   c6ExcludeRemoveTagWithCustomFieldName:
     displayName: Never remove tags marked via a Custom Field
-    description: Enter a custom field name. Prune will not remove a tag that has this custom field, even when a descendant tag makes it redundant. Only the presence of the field matters - its value is ignored, so any value at all protects the tag.
+    description: "Enter a custom field name. Prune will not remove a tag that has this custom field, even when a descendant tag makes it redundant.\n\nOnly the presence of the field matters - its value is ignored, so any value at all protects the tag."
     type: STRING

@@ -69,15 +69,36 @@ const tagQueries = (calls) => calls.filter((c) => /NPTTags/.test(c.query || ''))
     const collapsed = h.makeElement('div');
     collapsed.className = 'collapse';
     const rows = {};
+    // Each row the way Inputs.tsx builds one: an <h3> for the name and a
+    // .sub-heading for the description, with the id on the input rather than the row
+    // (Stash puts it on the Form.Switch). a8 carries the real warning text, because
+    // keeping that in the *visible* half is the point of the split.
+    const descs = {
+      a8AutoPruneOnUpdate:
+        'Whenever Stash saves an entity of an enabled type above, immediately remove ' +
+        'any tag on it that another tag on the same entity already implies.' +
+        '\n\nWARNING: Updates immediately, with no dialog, no review and no undo, ' +
+        'and it deletes tag assignments.' +
+        '\n\nThe exclusion filters below still apply. ' +
+        'Has no effect if Auto Roll Up is also enabled.',
+      a9AutoRollUpOnUpdate: 'Adds every ancestor as Stash saves.',   // one paragraph
+    };
     [['a8AutoPruneOnUpdate', 0], ['a9AutoRollUpOnUpdate', 1]].forEach(([k, i]) => {
       const row = h.makeElement('div');
       row.className = 'setting';
+      const rowH = h.makeElement('h3');
+      rowH.textContent = k;
+      row.appendChild(rowH);
+      const rowSub = h.makeElement('div');
+      rowSub.className = 'sub-heading';
+      rowSub.textContent = descs[k];
+      row.appendChild(rowSub);
       const input = h.makeElement('input');
       input.id = 'plugin-NormalizeParentTags-' + k;
       if (checks) input.checked = checks[i];
       row.appendChild(input);
       collapsed.appendChild(row);
-      rows[k] = { row, input };
+      rows[k] = { row, input, h3: rowH, sub: rowSub };
     });
     group.appendChild(collapsed);
 
@@ -661,10 +682,10 @@ Promise.resolve()
 
       // Elements, because a blank line under pre-wrap is always a whole line-height
       // and nothing can target it. The blank lines go; the margin is the gap.
-      const paras = p.sub.childNodes;
+      const paras = p.sub.childNodes.filter((n) => h.hasClass(n, 'npt-p'));
       h.check('the description is rebuilt as paragraph elements',
         paras.length === 2 && paras.every((n) => h.hasClass(n, 'npt-p')),
-        String(paras.length) + ' children');
+        String(paras.length) + ' paragraphs');
       h.check('and no blank line survives the split',
         paras.every((n) => n.textContent.trim() && n.textContent.indexOf('\n') === -1),
         paras.map((n) => JSON.stringify(n.textContent.slice(0, 20))).join(' | '));
@@ -695,9 +716,156 @@ Promise.resolve()
           h.check('and a re-render that drops it gets it back',
             !!p.env.ctx.document.getElementById('npt-readme-link'));
           h.check('and the description is re-split too',
-            p.sub.childNodes.length === 2 &&
-            p.sub.childNodes.every((n) => h.hasClass(n, 'npt-p')),
+            p.sub.childNodes.filter((n) => h.hasClass(n, 'npt-p')).length === 2,
             String(p.sub.childNodes.length));
+        });
+      });
+    });
+  })
+
+  // ── 1.7.0: the description collapses, the settings hover ──────────────────
+  //
+  // The group description lives in the group header, outside the <Collapse>, so
+  // per-plugin collapse never shortens it. Only hiding paragraphs does.
+  .then(() => {
+    const p = page([false, false]);
+    p.env.tick();
+    return h.flush().then(() => {
+      const doc = p.env.ctx.document;
+      const toggle = doc.getElementById('npt-desc-toggle');
+      h.check('a multi-paragraph description gets a Show more toggle', !!toggle);
+      h.check('and starts collapsed', h.hasClass(p.sub, 'npt-desc-collapsed'), p.sub.className);
+      // A <span> here would fold the whole group on click: SettingGroup's onDivClick
+      // walks up from the event target and returns early only for `a` and `button`.
+      h.check('the toggle is a button, so clicking it cannot fold the group',
+        !!toggle && String(toggle.tagName).toLowerCase() === 'button', toggle && toggle.tagName);
+      h.check('and it is inside the description, after the paragraphs',
+        !!toggle && toggle.parentNode === p.sub &&
+        p.sub.childNodes.indexOf(toggle) === p.sub.childNodes.length - 1);
+
+      if (toggle) toggle.click();
+      h.check('clicking it expands the description',
+        !h.hasClass(p.sub, 'npt-desc-collapsed'), p.sub.className);
+      h.check('and the caption flips',
+        !!toggle && toggle.textContent === 'Show less', toggle && toggle.textContent);
+      if (toggle) toggle.click();
+      h.check('clicking again collapses it', h.hasClass(p.sub, 'npt-desc-collapsed'));
+      h.check('and the caption flips back',
+        !!toggle && toggle.textContent === 'Show more', toggle && toggle.textContent);
+
+      // The CSS has to actually hide them, or the toggle is decoration.
+      const css = (doc.getElementById('npt-style') || {}).textContent || '';
+      h.check('and the stylesheet hides every paragraph but the first',
+        css.indexOf('.npt-desc-collapsed .npt-p:not(:first-child){display:none;}') !== -1);
+
+      p.env.tick();
+      p.env.tick();
+      return h.flush().then(() => {
+        const toggles = doc.body.descendants().filter((n) => n.id === 'npt-desc-toggle');
+        h.check('ticking again does not add a second toggle',
+          toggles.length === 1, String(toggles.length));
+      });
+    });
+  })
+
+  // Per-setting: first paragraph on the page, the rest on hover.
+  .then(() => {
+    const p = page([false, false]);
+    p.env.tick();
+    return h.flush().then(() => {
+      const a8 = p.rows.a8AutoPruneOnUpdate;
+      const kids = a8.sub.childNodes;
+      const summary = kids.filter((n) => h.hasClass(n, 'npt-sum'))[0];
+      const mark = kids.filter((n) => h.hasClass(n, 'npt-tip'))[0];
+      const box = kids.filter((n) => h.hasClass(n, 'npt-tipbox'))[0];
+      h.check('a two-paragraph setting description keeps only its first paragraph', !!summary);
+      h.check('and grows a hover mark for the rest', !!mark, a8.sub.textContent);
+      // Built, not borrowed: a native `title` opens below-right of the pointer, in a
+      // size CSS cannot reach, under the arrow that summoned it.
+      h.check('the detail is an element, so it can be positioned and sized', !!box);
+      h.check('the mark carries no native title that would double up with it',
+        !!mark && !mark.title, mark && mark.title);
+      h.check('and the mark is focusable, so the box is reachable without a mouse',
+        !!mark && mark.tabIndex === 0, mark && String(mark.tabIndex));
+      // Hover and keyboard focus both open it, on the mark and on the name alike.
+      h.fire(mark, 'mouseenter');
+      h.check('hovering the mark opens the box',
+        h.hasClass(a8.sub, 'npt-tip-open'), a8.sub.className);
+      h.fire(mark, 'mouseleave');
+      h.check('and leaving closes it', !h.hasClass(a8.sub, 'npt-tip-open'));
+      h.fire(mark, 'focus');
+      h.check('focusing it opens the box too', h.hasClass(a8.sub, 'npt-tip-open'));
+      h.fire(mark, 'blur');
+      // The mark is a small target for something every row now hides half its text
+      // behind, so the visible summary opens it as well.
+      h.fire(summary, 'mouseenter');
+      h.check('hovering the summary text opens it too',
+        h.hasClass(a8.sub, 'npt-tip-open'), a8.sub.className);
+      h.fire(summary, 'mouseleave');
+      h.check('and that closes on the way out too', !h.hasClass(a8.sub, 'npt-tip-open'));
+      h.check('the row is the positioning context, so a long summary cannot push the box off the panel',
+        h.hasClass(a8.sub, 'npt-tipped'), a8.sub.className);
+
+      // The auto-mode warning lives in the tooltip by explicit request (1.7.5); it
+      // used to be pinned to the visible half. What still has to hold is that the
+      // summary is only the mechanical description and the warning is intact
+      // somewhere - a split that dropped it would pass a laxer check.
+      h.check('the summary is the plain description, without the warning',
+        !!summary && summary.textContent.indexOf('WARNING') === -1 &&
+        /implies\.$/.test(summary.textContent), summary && summary.textContent);
+      h.check('and the warning is intact in the tooltip, ahead of the filter note',
+        !!box && box.textContent.indexOf(
+          'WARNING: Updates immediately, with no dialog, no review and no undo, ' +
+          'and it deletes tag assignments.') === 0 &&
+        box.textContent.indexOf('The exclusion filters below still apply') !== -1,
+        box && box.textContent);
+      // Stash's own slot for this, left empty for plugin settings by
+      // SettingsPluginsPanel - there is no tooltip field on PluginSetting to declare.
+      // One row, one tooltip. The name used to carry a plain `title`, so hovering it
+      // showed the same words in the small browser tooltip the box exists to replace.
+      h.check('the setting name has no native title of its own', !a8.h3.title, a8.h3.title);
+      h.fire(a8.h3, 'mouseenter');
+      h.check('and hovering it opens the very same box',
+        h.hasClass(a8.sub, 'npt-tip-open'), a8.sub.className);
+      h.fire(a8.h3, 'mouseleave');
+      h.check('which closes again on the way out', !h.hasClass(a8.sub, 'npt-tip-open'));
+      // Opened from the name the box lands over the h3, so a box that took the
+      // pointer would close, hand it back, and reopen for as long as it was hovered.
+      const css2 = (p.env.ctx.document.getElementById('npt-style') || {}).textContent || '';
+      h.check('and the box never takes the pointer, so it cannot flicker',
+        /\.npt-tipbox\{[^}]*pointer-events:none/.test(css2));
+
+      // One paragraph has nothing to hide, so it must not sprout a mark that opens
+      // on a hover to say what is already on the line.
+      const a9 = p.rows.a9AutoRollUpOnUpdate;
+      h.check('a one-paragraph description is left alone',
+        a9.sub.childNodes.filter((n) => h.hasClass(n, 'npt-tip')).length === 0 &&
+        a9.sub.textContent === 'Adds every ancestor as Stash saves.', a9.sub.textContent);
+      h.check('and its name opens nothing', !a9.h3.title &&
+        (h.fire(a9.h3, 'mouseenter'), !h.hasClass(a9.sub, 'npt-tip-open')), a9.sub.className);
+
+      p.env.tick();
+      p.env.tick();
+      return h.flush().then(() => {
+        h.check('ticking again does not add a second mark',
+          a8.sub.childNodes.filter((n) => h.hasClass(n, 'npt-tip')).length === 1,
+          String(a8.sub.childNodes.length));
+        // What a React re-render leaves behind: the original text node, again.
+        a8.sub.textContent = 'Head.\n\nTail one.\n\nTail two.';
+        p.env.tick();
+        return h.flush().then(() => {
+          const b = a8.sub.childNodes.filter((n) => h.hasClass(n, 'npt-tipbox'))[0];
+          h.check('a re-render that drops it gets it back', !!b);
+          // The <h3> is Stash's element and survives the re-renders that replace
+          // everything we put in the row, so re-wiring it every rebuild would stack
+          // a fresh pair of listeners on it each time.
+          h.check('and the name is not wired a second time',
+            (a8.h3.handlers.mouseenter || []).length === 1,
+            String((a8.h3.handlers.mouseenter || []).length));
+          // white-space:pre-wrap on the box honours them, and three paragraphs run
+          // together read worse than the wall this replaces.
+          h.check('and further paragraphs stay paragraphs in the tooltip',
+            !!b && b.textContent === 'Tail one.\n\nTail two.', b && JSON.stringify(b.textContent));
         });
       });
     });

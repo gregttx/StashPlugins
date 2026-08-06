@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.5.0.** This file is both the design and the map of the code — the
+**Status: implemented at 1.5.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -505,6 +505,16 @@ duplicates. Three rules hold it together:
   detail)`. A description is free text and can run to paragraphs; asking for one per tag on every
   prune of a library with thousands of them buys a payload no code path reads. Same rule as
   `custom_fields` being conditional, and as counts being opt-in below.
+
+**It says when it is stale, and gates nothing** (1.5.1). The run dialog's version check disables
+Proceed; here there is nothing to disable, since the viewer writes nothing. What it has instead is a
+different failure: every badge and every inspector verdict answers *what would Prune do with this
+tag* out of the filter rules in this script, so a tab left open from before an update explains the
+old behaviour with complete confidence — and a viewer is exactly the kind of thing left open in a
+background tab. So `TreeView.checkVersion` puts a warning above the read-only line and leaves every
+control working: blocking the one tool that helps while the install is sorted out would be a poor
+trade. Both dialogs go through `checkInstalledVersion`, which settles unknown-and-matching on the
+console; they differ only in what they do about a mismatch.
 
 **A row is `Name (id)`, a badge is a count** (1.2.7). This dialog is the one place where the two
 kinds of number sit side by side on the same row — `Hair Colour (45)   2 child(ren)` — so it says so
@@ -1085,7 +1095,8 @@ page is reloaded. Four things make that safe rather than obstructive:
 - **It is the only warning here that blocks**, and the reason is worth keeping straight: every
   other one — the lease, the sibling's auto modes — is about the library or another plugin, where
   the user knows more than the dialog does. This one is about the dialog itself running code the
-  user has already replaced, which is the one thing they cannot see.
+  user has already replaced, which is the one thing they cannot see. The hierarchy viewer runs the same
+  check and *only* warns, because it writes nothing — see §5a.
 
 It is not fired ahead of the scan but alongside it: one small query against a pass that reads the
 whole library, landing long before Proceed is reachable, with `setState` re-applied when it does.

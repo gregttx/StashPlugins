@@ -373,7 +373,7 @@ The plugin therefore says which script is running, in your browser's console (**
 every page load:
 
 ```
-[npt] NormalizeParentTags.js 1.5.0 loaded. This is the running script own version - the settings
+[npt] NormalizeParentTags.js 1.5.1 loaded. This is the running script own version - the settings
 page reads the manifest instead, which can be newer than the script your browser has cached.
 ```
 
@@ -389,6 +389,11 @@ Stash, a failed request); only a definite mismatch holds a run back.
 
 It cannot catch an edit made without changing the version — both numbers stay equal and there is
 nothing to compare.
+
+**Show Tag Hierarchy** runs the same check but only says so — it writes nothing, so nothing is
+blocked. The warning is worth reading anyway: the badges and the "what the tasks would do" answers
+come from the rules in the script that is running, so a tab left open from before an update
+describes the old ones.
 
 
 ## How it works

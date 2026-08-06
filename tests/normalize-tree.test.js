@@ -42,6 +42,13 @@ function open(opts) {
       if (q.indexOf('configuration') !== -1) {
         return { data: { configuration: { plugins: { NormalizeParentTags: opts.settings || {} } } } };
       }
+      // What Stash says is installed, for the viewer's own version check. Absent
+      // unless a case asks for it, so every other case exercises the unknown path.
+      if (/NPTPluginVersion/.test(q)) {
+        if (opts.failVersion) return { errors: [{ message: 'no such field' }] };
+        return { data: { plugins: opts.installed
+          ? [{ id: opts.installed.id, version: opts.installed.version }] : [] } };
+      }
       if (/NPTTagCounts/.test(q)) {
         if (opts.failCounts) return { errors: [{ message: 'too expensive' }] };
         return { data: { findTags: { tags: [
@@ -93,8 +100,11 @@ const branchOf = (env, row) => {
 Promise.resolve()
 
   .then(() => open()).then(({ env, d }) => {
-    h.check('the viewer never queries anything but settings and tags',
-      env.calls.every((c) => /configuration|NPTTags/.test(c.query || '')),
+    // Settings, the hierarchy, and the version check that tells a stale tab it is
+    // one. Nothing per-tag, nothing per-entity: the point is that opening the viewer
+    // costs a bounded, small number of queries however big the library is.
+    h.check('the viewer never queries anything but settings, tags and its own version',
+      env.calls.every((c) => /configuration|NPTTags|NPTPluginVersion/.test(c.query || '')),
       env.calls.map((c) => (c.query || '').slice(0, 30)).join(' | '));
     h.check('and issues no mutation at all',
       !env.calls.some((c) => /mutation/.test(c.query || '')));
@@ -263,6 +273,45 @@ Promise.resolve()
     const q = env.calls.filter((c) => /NPTTags/.test(c.query || ''))[0].query;
     h.check('the viewer asks for aliases and description',
       q.indexOf('aliases') !== -1 && q.indexOf('description') !== -1, q);
+  })
+
+  // ── A stale tab explaining the old rules ─────────────────────────────────
+  //
+  // The viewer writes nothing, so there is nothing to gate - but every badge and
+  // every inspector verdict answers "what would Prune do with this tag" out of the
+  // filter rules in this script. A tab left open from before an update answers with
+  // the old ones, confidently.
+  .then(() => open({ installed: { id: 'NormalizeParentTags', version: '9.9.9' } }))
+    .then(({ env, d }) => {
+      const warn = env.body.descendants()
+        .filter((n) => h.hasClass(n, 'npt-warn')).map((n) => n.textContent).join(' ');
+      h.check('a stale viewer says which script it is running',
+        warn.indexOf('9.9.9 is installed') !== -1 && warn.indexOf('Ctrl+Shift+R') !== -1, warn);
+      h.check('and that what it shows describes the older rules',
+        warn.indexOf('may not be what the tasks would do now') !== -1, warn);
+      // Read-only: warning is the whole of it. Blocking the one tool that helps while
+      // the install is sorted out would be a poor trade.
+      h.check('but nothing is disabled', btn(env, 'Expand all').disabled !== true &&
+        btn(env, 'Load counts').disabled !== true && btn(env, 'Close').disabled !== true);
+      btn(env, 'Expand all').click();
+      h.check('and the tree still works', rows(env).length > 4, String(rows(env).length));
+      h.check('the read-only line is still there, under the warning',
+        d().note.indexOf('Read-only') === 0, d().note);
+    })
+
+  .then(() => {
+    const version = /var PLUGIN_VERSION\s*=\s*'([^']+)'/
+      .exec(require('fs').readFileSync(h.SRC, 'utf8'))[1];
+    return open({ installed: { id: 'NormalizeParentTags', version } }).then(({ env }) => {
+      h.check('a matching version warns about nothing',
+        env.body.descendants().filter((n) => h.hasClass(n, 'npt-warn')).length === 0);
+    });
+  })
+
+  // Unknown is not a mismatch, here as in the run dialog.
+  .then(() => open({ failVersion: true })).then(({ env }) => {
+    h.check('a failed version query warns about nothing',
+      env.body.descendants().filter((n) => h.hasClass(n, 'npt-warn')).length === 0);
   })
 
   // Search is how a four-level namespace scheme stays usable at a few thousand tags.

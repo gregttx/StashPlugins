@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.5.0';
+  var PLUGIN_VERSION = '1.5.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1009,6 +1009,25 @@
       }, function () { return null; });
   }
 
+  // Both dialogs ask the same question and disagree only about the answer: the run
+  // dialog holds Proceed back, the viewer says so and carries on. The two quiet
+  // outcomes are settled here, on the console next to the load banner - a matching
+  // version is the boring case, and neither dialog should spend a line on it.
+  function checkInstalledVersion(onMismatch) {
+    return installedVersion().then(function (installed) {
+      if (!installed) {
+        npt('[npt] version check: Stash reported no installed version; running ' +
+          PLUGIN_VERSION + '.');
+        return;
+      }
+      if (installed === PLUGIN_VERSION) {
+        npt('[npt] version check: running ' + PLUGIN_VERSION + ', which is what is installed.');
+        return;
+      }
+      onMismatch(installed);
+    });
+  }
+
   // ── A run ─────────────────────────────────────────────────────────────────
 
   // An input with the × that empties it, in a wrapper the icon positions against.
@@ -1416,25 +1435,12 @@
   // this dialog is open - which is exactly what they do after noticing the warning.
   Run.prototype.checkVersion = function () {
     var self = this;
-    return installedVersion().then(function (installed) {
-      // The two quiet outcomes go to the console, next to the load banner, rather
-      // than into the log: this dialog's log is about the library, a matching version
-      // is the boring case, and a line that arrives whenever one small query happens
-      // to resolve would land in a different place in the log every run.
-      if (!installed) {
-        npt('[npt] version check: Stash reported no installed version; running ' +
-          PLUGIN_VERSION + '.');
-        return;
-      }
-      if (installed === PLUGIN_VERSION) {
-        npt('[npt] version check: running ' + PLUGIN_VERSION + ', which is what is installed.');
-        return;
-      }
-      // The plan below is being computed by code that is not what is installed, so
-      // Proceed is held back until the page is reloaded. This is the one warning in
-      // this dialog that blocks, and the reason is that every other warning is about
-      // the library or another plugin, where the user knows more than the dialog
-      // does - here the dialog knows something the user cannot see.
+    // The plan below would be computed by code that is not what is installed, so
+    // Proceed is held back until the page is reloaded. This is the one warning in
+    // this dialog that blocks, and the reason is that every other warning is about
+    // the library or another plugin, where the user knows more than the dialog does -
+    // here the dialog knows something the user cannot see.
+    return checkInstalledVersion(function (installed) {
       self.stale = true;
       self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but ' +
         installed + ' is installed. Reload the page (Ctrl+Shift+R) and run the task again; ' +
@@ -1703,10 +1709,12 @@
     this.backdrop.appendChild(this.modal);
 
     var head = el('div', 'npt-head');
+    this.headEl = head;
     head.appendChild(el('div', 'npt-title', PLUGIN_NAME + ' - ' + this.taskName));
-    head.appendChild(el('div', 'npt-note',
+    this.noteEl = el('div', 'npt-note',
       'Read-only. Nothing here writes anything. Badges reflect the exclusion filters ' +
-      'currently set in the plugin settings.'));
+      'currently set in the plugin settings.');
+    head.appendChild(this.noteEl);
     // Rows read "Hair Colour (45)" and badges read "2 child(ren)", so a number in
     // brackets here is an id and a number outside them is a count. The inspector's
     // list headings follow the same rule - they say "Parents: 3", not "Parents (3)".
@@ -1791,7 +1799,27 @@
     this.modal.appendChild(foot);
 
     document.body.appendChild(this.backdrop);
+    this.checkVersion();
     this.load();
+  };
+
+  // Warns and gates nothing. Nothing here writes, so there is nothing to hold back -
+  // but the badges and the inspector answer "what would Prune do with this tag" out
+  // of the filter rules in *this* script, so a stale tab explains the old behaviour
+  // with complete confidence. That is the confusion worth heading off, and it is
+  // likeliest in a tab left open from before the update rather than the one the user
+  // just reloaded.
+  TreeView.prototype.checkVersion = function () {
+    var self = this;
+    return checkInstalledVersion(function (installed) {
+      var warn = el('div', 'npt-warn',
+        'This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but ' + installed +
+        ' is installed. Reload the page (Ctrl+Shift+R): everything below describes the rules ' +
+        'in this older script, which may not be what the tasks would do now.');
+      // Above the read-only line rather than after it: it qualifies everything that
+      // line introduces.
+      self.headEl.insertBefore(warn, self.noteEl);
+    });
   };
 
   // Every control in this dialog is live from the moment it is built, but the graph

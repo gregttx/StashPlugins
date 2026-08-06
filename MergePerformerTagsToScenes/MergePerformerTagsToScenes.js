@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.10.2';
+  var PLUGIN_VERSION      = '1.10.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -748,7 +748,12 @@
     '.cpt2s-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
     'flex-wrap:wrap;align-items:center;}' +
     '.cpt2s-foot button{margin-right:.5rem;}' +
-    '.cpt2s-hidden{display:none;}';
+    '.cpt2s-hidden{display:none;}' +
+    // Stash's own .sub-heading is white-space: normal, so the newlines in this
+    // plugin's description would collapse into one paragraph. Scoped to the group we
+    // marked, never to .sub-heading at large: another plugin's description is not
+    // ours to reflow, and it may well have been written for the collapse.
+    '.cpt2s-own-group .sub-heading{white-space:pre-wrap;}';
 
   function taskInjectStyle() {
     if (document.getElementById(TASK_STYLE_ID)) return;
@@ -2332,6 +2337,13 @@
   function ensureReadmeLink() {
     var group = ownSettingGroup();
     if (!group) return;
+    // Both of these run on every tick, not just when the link is missing: React
+    // re-renders this panel on any settings change, and the class is the only thing
+    // making the description's paragraph breaks visible.
+    taskInjectStyle();
+    if (!settingsHasClass(group, 'cpt2s-own-group')) {
+      group.className = ((group.className || '') + ' cpt2s-own-group').replace(/^\s+/, '');
+    }
     if (document.getElementById(README_LINK_ID)) return;
     var link = taskEl('a', 'cpt2s-readme', 'MergePerformerTagsToScenes/README.md');
     link.id = README_LINK_ID;

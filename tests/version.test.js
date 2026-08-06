@@ -57,6 +57,11 @@ PLUGINS.forEach((name) => {
   // Deliberately *not* in the description: Stash renders that as plain text, so a
   // URL there is unclickable noise in front of every word that matters. The chain
   // icon from `url:` and the injected labelled link are the two ways in.
+  // Written as paragraphs, which only render because of the scoped pre-wrap rule
+  // above - a description flattened back to one line loses nothing but says less.
+  h.check(name + ' writes its description in paragraphs',
+    (declaredDescription(read(name, name + '.yml')) || '').indexOf('\\n\\n') !== -1,
+    'no blank line in the description');
   h.check(name + ' keeps the raw URL out of its description',
     !/https?:\/\//.test(declaredDescription(read(name, name + '.yml')) || ''),
     (declaredDescription(read(name, name + '.yml')) || '').slice(0, 120));

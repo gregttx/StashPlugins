@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.6.2';
+  var PLUGIN_VERSION = '1.6.3';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -959,7 +959,12 @@
     '.npt-i-body{color:#d6dee4;white-space:pre-wrap;word-break:break-word;}' +
     '.npt-i-hint{color:#7d8f9c;}' +
     '.npt-conflict{margin:.5rem 0;padding:.5rem .75rem;border-left:3px solid #ffb648;' +
-    'background:rgba(255,182,72,.12);color:#ffb648;font-size:.9rem;line-height:1.4;}';
+    'background:rgba(255,182,72,.12);color:#ffb648;font-size:.9rem;line-height:1.4;}' +
+    // Stash's own .sub-heading is white-space: normal, so the newlines in this
+    // plugin's description would collapse into one paragraph. Scoped to the group we
+    // marked, never to .sub-heading at large: another plugin's description is not
+    // ours to reflow, and it may well have been written for the collapse.
+    '.npt-own-group .sub-heading{white-space:pre-wrap;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -2895,6 +2900,13 @@
   function ensureReadmeLink() {
     var group = ownSettingGroup();
     if (!group) return;
+    // Both of these run on every tick, not just when the link is missing: React
+    // re-renders this panel on any settings change, and the class is the only thing
+    // making the description's paragraph breaks visible.
+    injectStyle();
+    if (!hasClass(group, 'npt-own-group')) {
+      group.className = ((group.className || '') + ' npt-own-group').replace(/^\s+/, '');
+    }
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'npt-readme', 'NormalizeParentTags/README.md');
     link.id = README_LINK_ID;

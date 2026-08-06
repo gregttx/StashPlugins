@@ -754,6 +754,12 @@ Promise.resolve()
     return h.flush(20).then(() => {
       const link = env.ctx.document.getElementById('cpt2s-readme-link');
       h.check('a labelled README link is injected', !!link);
+      h.check('the group is marked so the description can keep its line breaks',
+        h.hasClass(group, 'cpt2s-own-group'), group.className);
+      const css = (env.ctx.document.getElementById('cpt2s-task-style') || {}).textContent || '';
+      h.check('and the stylesheet says how, scoped to that class',
+        css.indexOf('.cpt2s-own-group .sub-heading{white-space:pre-wrap;}') !== -1,
+        'no scoped pre-wrap rule');
       h.check('with the file name as its text',
         !!link && link.textContent === 'MergePerformerTagsToScenes/README.md',
         link && link.textContent);

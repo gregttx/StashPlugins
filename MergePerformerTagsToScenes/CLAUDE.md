@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.10.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.10.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -535,6 +535,21 @@ The description does **not** carry the URL. It did until 1.6.0/1.10.0, on the th
 reached places the icon does not; in practice Stash renders it as plain text, so it was an
 unclickable 90-character prefix in front of every word that mattered. The two links are `url:` and
 the injected one, and they must stay identical — the `version` suite fails if they drift.
+
+**The description is paragraphs, and they only render because of one CSS rule.** Stash's
+`.sub-heading` is `white-space: normal`, so newlines in a description collapse into a single block
+of prose — and a description cannot carry markup, since Stash passes it to React as a child. The
+plugin therefore marks its own settings group with ``.cpt2s-own-group`` (in the same tick that injects the README
+link, and on **every** tick, since React drops it on re-render) and its stylesheet carries
+``.cpt2s-own-group` .sub-heading{white-space:pre-wrap;}`. Scoped to that class, never to `.sub-heading` at
+large: another plugin's description is not ours to reflow, and may well have been written for the
+collapse. The suites assert both halves, including that the rule is the only one touching
+`sub-heading`.
+
+The text itself is written so it still reads if the rule ever stops applying — every line break
+falls at the end of a sentence, so a collapse costs structure and nothing else. It is stored as a
+double-quoted one-liner with `\n` escapes rather than a YAML block scalar, so the file stays
+greppable line by line and `version.test.js` can keep reading it with a regex.
 
 **Both point at `/blob/main/`, not a SHA** (1.6.2 / 1.10.2). A pinned revision was the first
 instinct and it was tried: it means the link shows the documentation for roughly the code the user

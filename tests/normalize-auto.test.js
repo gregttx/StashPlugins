@@ -643,6 +643,17 @@ Promise.resolve()
     return h.flush().then(() => {
       const link = p.env.ctx.document.getElementById('npt-readme-link');
       h.check('a labelled README link is injected', !!link);
+      // Stash's .sub-heading collapses newlines, so the description's paragraphs are
+      // only visible if our own group carries the class the injected CSS scopes to.
+      h.check('the group is marked so the description can keep its line breaks',
+        h.hasClass(p.group, 'npt-own-group'), p.group.className);
+      const css = (p.env.ctx.document.getElementById('npt-style') || {}).textContent || '';
+      // Present, and scoped: reflowing every plugin's description would be reaching
+      // into panels that are not ours and may have been written for the collapse.
+      const subRules = css.split('}').filter((r) => r.indexOf('sub-heading') !== -1);
+      h.check('and the stylesheet says how, scoped to that class',
+        subRules.length === 1 && subRules[0].indexOf('.npt-own-group ') === 0 &&
+        subRules[0].indexOf('white-space:pre-wrap') !== -1, subRules.join(' | '));
       h.check('with the file name as its text',
         !!link && link.textContent === 'NormalizeParentTags/README.md', link && link.textContent);
       h.check('and a pinned https URL, opened in a new tab',

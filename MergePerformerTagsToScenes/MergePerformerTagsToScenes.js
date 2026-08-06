@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.10.0';
+  var PLUGIN_VERSION      = '1.10.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2280,7 +2280,7 @@
   //
   // The sibling has the same feature, anchored the same way, for the same reason
   // there are two of everything here: the plugins share no module.
-  var README_URL = 'https://github.com/gregttx/StashPlugins/blob/d6442c70d43b2181b39592f4c183eb7f74b020e3/MergePerformerTagsToScenes/README.md';
+  var README_URL = 'https://github.com/gregttx/StashPlugins/blob/e81c38047df984ab2774c57fd725975a55043072/MergePerformerTagsToScenes/README.md';
   var README_LINK_ID = 'cpt2s-readme-link';
 
   function settingsHasClass(node, name) {

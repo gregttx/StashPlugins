@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.6.0';
+  var PLUGIN_VERSION = '1.6.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2859,7 +2859,7 @@
   //
   // Clicking it does not fold the group: SettingGroup's onDivClick walks up from the
   // event target and returns early for `a` and `button`.
-  var README_URL = 'https://github.com/gregttx/StashPlugins/blob/d6442c70d43b2181b39592f4c183eb7f74b020e3/NormalizeParentTags/README.md';
+  var README_URL = 'https://github.com/gregttx/StashPlugins/blob/e81c38047df984ab2774c57fd725975a55043072/NormalizeParentTags/README.md';
   var README_LINK_ID = 'npt-readme-link';
 
   // Only the shape of the DOM API that the fake DOM in the tests also implements -

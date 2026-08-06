@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.6.0.** This file is both the design and the map of the code — the
+**Status: implemented at 1.6.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1129,9 +1129,11 @@ either. The manifest's `url` (`URL *string \`yaml:"url"\`` in `pkg/plugin/config
 by `renderLink` as an `ExternalLink` button — a chain icon in the plugin's header row, beside
 Enable/Disable. Icon only: it takes no anchor text, so the link cannot be labelled.
 
-Both fields therefore carry the README permalink, deliberately: `url` for the click, and the URL at
-the head of `description` for everywhere the icon is not — the package index that an install-by-URL
-shows, and any copy-paste. Keep both on the same SHA.
+The description does **not** carry the URL. It did until 1.6.0/1.10.0, on the theory that the text
+reached places the icon does not; in practice Stash renders it as plain text, so it was an
+unclickable 90-character prefix in front of every word that mattered. The two links are `url:` and
+the injected one, and both are pinned to the same SHA — which must be a **pushed** commit, or GitHub
+answers 404 for a ref it has never seen. That is how the first attempt shipped broken.
 
 **And a labelled link of our own** (1.6.0). The chain icon is easy to miss, so the plugin injects
 `<a>NormalizeParentTags/README.md</a>` into its own settings group, under the description. The

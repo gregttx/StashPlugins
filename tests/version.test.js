@@ -54,8 +54,11 @@ PLUGINS.forEach((name) => {
   h.check(name + ' links its README from the manifest url field', !!yml_url, String(yml_url));
   h.check(name + ' injects the same URL from the script', js_url === yml_url,
     'script ' + js_url + ' / yml ' + yml_url);
-  h.check(name + ' leads its description with that URL too',
-    (declaredDescription(read(name, name + '.yml')) || '').indexOf(yml_url) !== -1,
+  // Deliberately *not* in the description: Stash renders that as plain text, so a
+  // URL there is unclickable noise in front of every word that matters. The chain
+  // icon from `url:` and the injected labelled link are the two ways in.
+  h.check(name + ' keeps the raw URL out of its description',
+    !/https?:\/\//.test(declaredDescription(read(name, name + '.yml')) || ''),
     (declaredDescription(read(name, name + '.yml')) || '').slice(0, 120));
 
   const banner = load(name).filter((l) => l.indexOf(name + '.js') !== -1);

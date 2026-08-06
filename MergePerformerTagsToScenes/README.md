@@ -196,6 +196,10 @@ The two buttons appear in different places, because each one sits where the cont
 
 **Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it has at least one performer, an **"Add Perf Tags"** button appears next to the Save/Delete buttons of the edit form. Click it to add all tags from all performers in that scene into the scene's tag list.
 
+### The README link in settings
+
+**Settings → Plugins → Merge Performer Tags To Scenes** carries a link to this file, pinned to the revision it was published at, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
+
 ### Checking which version is actually running
 
 **Reload plugins cannot replace the script your browser is already running.** It re-reads the plugin folder on the server; the JavaScript in your open page was fetched and executed when the page loaded, and stays until the page reloads. An update always needs a page reload — but a plain **F5** is normally enough, since Stash serves plugin scripts so that a normal reload picks up a changed file. Keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for the case where it does not.

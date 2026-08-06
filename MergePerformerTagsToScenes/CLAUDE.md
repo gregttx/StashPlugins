@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.9.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.10.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -534,6 +534,26 @@ Enable/Disable. Icon only: it takes no anchor text, so the link cannot be labell
 Both fields therefore carry the README permalink, deliberately: `url` for the click, and the URL at
 the head of `description` for everywhere the icon is not — the package index that an install-by-URL
 shows, and any copy-paste. Keep both on the same SHA.
+
+**And a labelled link of our own** (1.10.0). The chain icon is easy to miss, so the plugin injects
+`<a>MergePerformerTagsToScenes/README.md</a>` into its own settings group, under the description. The
+constraints that led here are worth keeping, because they close off the cheaper-looking routes:
+Stash renders the description as a React child, so markup in it is escaped; CSS `content` cannot
+carry an `href` and is not even copyable in Chrome; and there is no markdown anywhere in that panel.
+JS is the only way to get link text.
+
+Three details it depends on:
+
+- **The group is found by the `plugin-<id>-<setting>` element ids**, never by heading text — the
+  rule §2 of `NormalizeParentTags`' CLAUDE.md exists for, having shipped broken twice on headings.
+- **It is re-added, not tracked.** React re-renders the panel on every settings change and drops
+  anything injected into it, so the tick puts it back; the id keeps that from producing a second
+  one.
+- **Clicking it does not fold the group**, because `SettingGroup`'s `onDivClick` walks up from the
+  event target and returns early for `a` and `button`. Read that before moving the link anywhere.
+
+`README_URL` in the script, `url:` in the yml and the URL at the head of the description are the
+same pinned revision, and the `version` suite fails if they drift apart.
 
 **Three places, not two, since 1.8.3.** `PLUGIN_VERSION` at the top of the script is the third,
 and it is the only one that says anything about the code actually running: the yml and the manifest

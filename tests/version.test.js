@@ -23,6 +23,9 @@ function declared(text) {
   return m ? m[1] : null;
 }
 
+const yaml_url = (text) => (/^url:\s*"([^"]+)"\s*$/m.exec(text) || [])[1] || null;
+const declaredDescription = (text) => (/^description:\s*"(.*)"\s*$/m.exec(text) || [])[1] || null;
+
 // Loads the plugin into a fresh context whose console records everything, and
 // returns the lines it printed before anything else happened.
 function load(name) {
@@ -42,6 +45,18 @@ PLUGINS.forEach((name) => {
     yml + ' / ' + manifest);
   h.check(name + ' has the same version in both', yml === manifest,
     'yml ' + yml + ' / manifest ' + manifest);
+
+  // The README link is in three places too: `url:` for the chain icon Stash renders,
+  // the head of the description, and README_URL in the script that injects the
+  // labelled link. All three must be the same pinned revision.
+  const yml_url = yaml_url(read(name, name + '.yml'));
+  const js_url = (/var README_URL = '([^']+)'/.exec(read(name, name + '.js')) || [])[1];
+  h.check(name + ' links its README from the manifest url field', !!yml_url, String(yml_url));
+  h.check(name + ' injects the same URL from the script', js_url === yml_url,
+    'script ' + js_url + ' / yml ' + yml_url);
+  h.check(name + ' leads its description with that URL too',
+    (declaredDescription(read(name, name + '.yml')) || '').indexOf(yml_url) !== -1,
+    (declaredDescription(read(name, name + '.yml')) || '').slice(0, 120));
 
   const banner = load(name).filter((l) => l.indexOf(name + '.js') !== -1);
   h.check(name + ' announces itself at load', banner.length === 1, banner.join(' | '));

@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.5.4';
+  var PLUGIN_VERSION = '1.6.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2847,7 +2847,70 @@
   // Settings are only read while our own group is actually on the page, so a tab
   // parked anywhere else in Stash costs two getElementById calls a second and no
   // queries.
+  // ── The README link on the settings page ──────────────────────────────────
+  //
+  // Stash does render a link for `url:` in the manifest, but as an unlabelled chain
+  // icon in the group header, which is easy to miss entirely. This is the same URL
+  // with the file name on it, directly under the description where the eye already
+  // is. A description cannot carry it: Stash passes that string to React as a child
+  // (`subHeading` in Inputs.tsx), so any <a> in it is escaped and shown as text, and
+  // CSS cannot help either - generated content has no href and, in Chrome, is not
+  // even copyable.
+  //
+  // Clicking it does not fold the group: SettingGroup's onDivClick walks up from the
+  // event target and returns early for `a` and `button`.
+  var README_URL = 'https://github.com/gregttx/StashPlugins/blob/d6442c70d43b2181b39592f4c183eb7f74b020e3/NormalizeParentTags/README.md';
+  var README_LINK_ID = 'npt-readme-link';
+
+  // Only the shape of the DOM API that the fake DOM in the tests also implements -
+  // no querySelector by class, no getElementsByClassName - so the suites drive the
+  // same code path a browser does.
+  function findByClass(root, name, depth) {
+    if (!root || depth > 6) return null;
+    var kids = root.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (hasClass(kids[i], name)) return kids[i];
+      var found = findByClass(kids[i], name, (depth || 0) + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // Under the description, which is inside the group header and therefore outside
+  // the <Collapse> - so it shows whether or not the group is expanded. The fallbacks
+  // are for a Stash that renders no sub-heading (an empty description) or no header
+  // row at all.
+  function readmeLinkSlot(group) {
+    var sub = findByClass(group, 'sub-heading', 0);
+    if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub.nextSibling };
+    var header = findByClass(group, 'setting', 0);
+    var box = header && header.childNodes && header.childNodes[0];
+    if (box) return { parent: box, before: null };
+    return { parent: group, before: null };
+  }
+
+  // Re-added rather than tracked: React re-renders this panel whenever a setting
+  // changes and drops anything we put in it, so the tick puts it back. Keyed on the
+  // id, so a re-render that kept it does not produce a second one.
+  function ensureReadmeLink() {
+    var group = ownSettingGroup();
+    if (!group) return;
+    if (document.getElementById(README_LINK_ID)) return;
+    var link = el('a', 'npt-readme', 'NormalizeParentTags/README.md');
+    link.id = README_LINK_ID;
+    link.href = README_URL;
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    link.title = 'Open this plugin\'s documentation for the version it was published at';
+    link.style = 'display:inline-block;margin-top:.35rem;font-size:.8rem;';
+    var slot = readmeLinkSlot(group);
+    slot.parent.insertBefore(link, slot.before);
+  }
+
   function settingsTick() {
+    // Ahead of the conflict logic and outside its early return: the link belongs on
+    // the settings page whatever the two Auto settings happen to be.
+    ensureReadmeLink();
     if (!conflictNoticeSlot()) {
       removeConflictNotice();
       return;

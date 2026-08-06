@@ -37,6 +37,55 @@ function boot(settings, opts) {
 
 const tagQueries = (calls) => calls.filter((c) => /NPTTags/.test(c.query || ''));
 
+  // `checks` sets the two checkboxes; pass null for a Stash whose settings inputs
+  // cannot be read, which is the only case that falls back to querying the server.
+  function page(checks, opts) {
+    opts = opts || {};
+    const env = boot(opts.settings);
+    const other = h.makeElement('div');
+    other.className = 'setting-group';
+    const otherH = h.makeElement('h3');
+    otherH.textContent = 'Some Other Plugin (2.0.0)';
+    other.appendChild(otherH);
+
+    const group = h.makeElement('div');
+    group.className = 'setting-group collapsible';
+    const header = h.makeElement('div');
+    header.className = 'setting';
+    const headBox = h.makeElement('div');
+    const heading = h.makeElement('h3');
+    heading.textContent = 'Normalize Parent Tags (1.2.5)';
+    headBox.appendChild(heading);
+    // Stash renders the description here, as a sibling of the h3 - Inputs.tsx
+    // wraps both in one div inside the .setting row.
+    const sub = h.makeElement('div');
+    sub.className = 'sub-heading';
+    sub.textContent = 'README: https://example/README.md - Two library-wide tasks...';
+    headBox.appendChild(sub);
+    header.appendChild(headBox);
+    group.appendChild(header);
+
+    const collapsed = h.makeElement('div');
+    collapsed.className = 'collapse';
+    const rows = {};
+    [['a8AutoPruneOnUpdate', 0], ['a9AutoRollUpOnUpdate', 1]].forEach(([k, i]) => {
+      const row = h.makeElement('div');
+      row.className = 'setting';
+      const input = h.makeElement('input');
+      input.id = 'plugin-NormalizeParentTags-' + k;
+      if (checks) input.checked = checks[i];
+      row.appendChild(input);
+      collapsed.appendChild(row);
+      rows[k] = { row, input };
+    });
+    group.appendChild(collapsed);
+
+    env.ctx.document.body.appendChild(other);
+    env.ctx.document.body.appendChild(group);
+    return { env, group, other, collapsed, rows, headBox, sub };
+  }
+
+
 Promise.resolve()
 
   // ── The basic reaction, both directions ───────────────────────────────────
@@ -440,47 +489,6 @@ Promise.resolve()
   //   </div>
 
   .then(() => {
-    // `checks` sets the two checkboxes; pass null for a Stash whose settings inputs
-    // cannot be read, which is the only case that falls back to querying the server.
-    function page(checks, opts) {
-      opts = opts || {};
-      const env = boot(opts.settings);
-      const other = h.makeElement('div');
-      other.className = 'setting-group';
-      const otherH = h.makeElement('h3');
-      otherH.textContent = 'Some Other Plugin (2.0.0)';
-      other.appendChild(otherH);
-
-      const group = h.makeElement('div');
-      group.className = 'setting-group collapsible';
-      const header = h.makeElement('div');
-      header.className = 'setting';
-      const headBox = h.makeElement('div');
-      const heading = h.makeElement('h3');
-      heading.textContent = 'Normalize Parent Tags (1.2.5)';
-      headBox.appendChild(heading);
-      header.appendChild(headBox);
-      group.appendChild(header);
-
-      const collapsed = h.makeElement('div');
-      collapsed.className = 'collapse';
-      const rows = {};
-      [['a8AutoPruneOnUpdate', 0], ['a9AutoRollUpOnUpdate', 1]].forEach(([k, i]) => {
-        const row = h.makeElement('div');
-        row.className = 'setting';
-        const input = h.makeElement('input');
-        input.id = 'plugin-NormalizeParentTags-' + k;
-        if (checks) input.checked = checks[i];
-        row.appendChild(input);
-        collapsed.appendChild(row);
-        rows[k] = { row, input };
-      });
-      group.appendChild(collapsed);
-
-      env.ctx.document.body.appendChild(other);
-      env.ctx.document.body.appendChild(group);
-      return { env, group, other, collapsed, rows };
-    }
     const notice = (env) => env.ctx.document.getElementById('npt-conflict-notice');
 
     const a = page([true, true]);
@@ -621,6 +629,69 @@ Promise.resolve()
       h.check('heading fallback: and the "undefined" Stash renders with no version', noVersion);
       h.check('heading fallback: a near-namesake plugin is not', !namesake);
       h.check('heading fallback: nor an unrelated one', !other);
+    });
+  })
+
+  // ── The README link ──────────────────────────────────────────────────────
+  //
+  // Stash's own link for `url:` is an unlabelled chain icon in the header and is
+  // easy to miss; the description cannot carry an <a> because Stash passes it to
+  // React as a child. So the plugin puts a labelled one in its own group.
+  .then(() => {
+    const p = page([false, false]);
+    p.env.tick();
+    return h.flush().then(() => {
+      const link = p.env.ctx.document.getElementById('npt-readme-link');
+      h.check('a labelled README link is injected', !!link);
+      h.check('with the file name as its text',
+        !!link && link.textContent === 'NormalizeParentTags/README.md', link && link.textContent);
+      h.check('and a pinned https URL, opened in a new tab',
+        !!link && /^https:\/\/github\.com\/.*\/NormalizeParentTags\/README\.md$/.test(link.href) &&
+        link.target === '_blank', link && link.href);
+      // Under the description, inside the header - so outside the Collapse, and
+      // therefore visible whether or not the group is expanded.
+      h.check('it sits directly under the description',
+        !!link && link.parentNode === p.headBox &&
+        p.headBox.childNodes.indexOf(link) === p.headBox.childNodes.indexOf(p.sub) + 1,
+        link && String(p.headBox.childNodes.indexOf(link)));
+
+      // React drops anything we add whenever it re-renders the panel, so the tick
+      // re-adds it - and must not end up with two.
+      p.env.tick();
+      p.env.tick();
+      return h.flush().then(() => {
+        const links = p.env.ctx.document.body.descendants()
+          .filter((n) => n.id === 'npt-readme-link');
+        h.check('ticking again does not add a second one', links.length === 1, String(links.length));
+        links[0].parentNode.removeChild(links[0]);
+        p.env.tick();
+        return h.flush().then(() => {
+          h.check('and a re-render that drops it gets it back',
+            !!p.env.ctx.document.getElementById('npt-readme-link'));
+        });
+      });
+    });
+  })
+
+  // Another plugin's group is not ours to write into, and off the settings page
+  // there is nothing to find at all.
+  .then(() => {
+    const env = boot();
+    const stranger = h.makeElement('div');
+    stranger.className = 'setting-group';
+    const row = h.makeElement('div');
+    row.className = 'setting';
+    const input = h.makeElement('input');
+    input.id = 'plugin-SomeOtherPlugin-a1Whatever';
+    row.appendChild(input);
+    stranger.appendChild(row);
+    env.ctx.document.body.appendChild(stranger);
+    env.tick();
+    return h.flush().then(() => {
+      h.check('no link in another plugin group',
+        !env.ctx.document.getElementById('npt-readme-link'));
+      h.check('and none anywhere off the settings page',
+        env.ctx.document.body.descendants().every((n) => n.tagName !== 'A'));
     });
   })
 

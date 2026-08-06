@@ -714,4 +714,84 @@ Promise.resolve()
       d().note);
   })
 
+  // ── The README link on the settings page ─────────────────────────────────
+  //
+  // Same feature as the sibling's, anchored the same way: Stash's own link for
+  // `url:` is an unlabelled chain icon that is easy to miss, and a description
+  // cannot carry an <a> because Stash passes it to React as a child. The DOM here
+  // mirrors what SettingsPluginsPanel/Inputs.tsx build - group box, header row, the
+  // heading and description in one div, settings inside a Collapse.
+  .then(() => {
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });
+    h.run(env.ctx, SRC);
+
+    const group = h.makeElement('div');
+    group.className = 'setting-group collapsible';
+    const header = h.makeElement('div');
+    header.className = 'setting';
+    const headBox = h.makeElement('div');
+    const heading = h.makeElement('h3');
+    heading.textContent = 'Merge Performer Tags To Scenes (1.9.3)';
+    const sub = h.makeElement('div');
+    sub.className = 'sub-heading';
+    sub.textContent = 'README: https://example/README.md - Merges performer tags...';
+    headBox.appendChild(heading);
+    headBox.appendChild(sub);
+    header.appendChild(headBox);
+    group.appendChild(header);
+    const collapsed = h.makeElement('div');
+    collapsed.className = 'collapse';
+    const row = h.makeElement('div');
+    row.className = 'setting';
+    const input = h.makeElement('input');
+    input.id = 'plugin-MergePerformerTagsToScenes-a1ShowManualMergeButtons';
+    row.appendChild(input);
+    collapsed.appendChild(row);
+    group.appendChild(collapsed);
+    env.ctx.document.body.appendChild(group);
+
+    env.tick();
+    return h.flush(20).then(() => {
+      const link = env.ctx.document.getElementById('cpt2s-readme-link');
+      h.check('a labelled README link is injected', !!link);
+      h.check('with the file name as its text',
+        !!link && link.textContent === 'MergePerformerTagsToScenes/README.md',
+        link && link.textContent);
+      h.check('and a pinned https URL, opened in a new tab',
+        !!link && /^https:\/\/github\.com\/.*\/MergePerformerTagsToScenes\/README\.md$/.test(link.href) &&
+        link.target === '_blank', link && link.href);
+      h.check('it sits directly under the description',
+        !!link && link.parentNode === headBox &&
+        headBox.childNodes.indexOf(link) === headBox.childNodes.indexOf(sub) + 1);
+
+      env.tick();
+      env.tick();
+      return h.flush(20).then(() => {
+        const links = env.ctx.document.body.descendants()
+          .filter((n) => n.id === 'cpt2s-readme-link');
+        h.check('ticking again does not add a second one', links.length === 1, String(links.length));
+      });
+    });
+  })
+
+  // Not ours to write into, and not a settings page at all.
+  .then(() => {
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });
+    h.run(env.ctx, SRC);
+    const stranger = h.makeElement('div');
+    stranger.className = 'setting-group';
+    const row = h.makeElement('div');
+    row.className = 'setting';
+    const input = h.makeElement('input');
+    input.id = 'plugin-NormalizeParentTags-a8AutoPruneOnUpdate';
+    row.appendChild(input);
+    stranger.appendChild(row);
+    env.ctx.document.body.appendChild(stranger);
+    env.tick();
+    return h.flush(20).then(() => {
+      h.check('no link in the sibling group',
+        !env.ctx.document.getElementById('cpt2s-readme-link'));
+    });
+  })
+
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

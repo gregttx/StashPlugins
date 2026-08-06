@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.9.3';
+  var PLUGIN_VERSION      = '1.10.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2266,10 +2266,91 @@
     if (Date.now() > _gotoEditDeadline) clearGotoEdit();
   }
 
+  // ── The README link on the settings page ──────────────────────────────────
+  //
+  // Stash does render a link for `url:` in the manifest, but as an unlabelled chain
+  // icon in the group header, which is easy to miss. This is the same URL with the
+  // file name on it, directly under the description. The description itself cannot
+  // carry it: Stash passes that string to React as a child (`subHeading` in
+  // Inputs.tsx), so an <a> in it is escaped and shown as text, and CSS cannot help -
+  // generated content has no href.
+  //
+  // Clicking it does not fold the group: SettingGroup's onDivClick walks up from the
+  // event target and returns early for `a` and `button`.
+  //
+  // The sibling has the same feature, anchored the same way, for the same reason
+  // there are two of everything here: the plugins share no module.
+  var README_URL = 'https://github.com/gregttx/StashPlugins/blob/d6442c70d43b2181b39592f4c183eb7f74b020e3/MergePerformerTagsToScenes/README.md';
+  var README_LINK_ID = 'cpt2s-readme-link';
+
+  function settingsHasClass(node, name) {
+    return (' ' + String((node && node.className) || '') + ' ').indexOf(' ' + name + ' ') !== -1;
+  }
+
+  // Only the DOM API the fake DOM in the tests also implements, so the suites drive
+  // the same code path a browser does.
+  function findByClass(root, name, depth) {
+    if (!root || depth > 6) return null;
+    var kids = root.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (settingsHasClass(kids[i], name)) return kids[i];
+      var found = findByClass(kids[i], name, (depth || 0) + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // Stash gives every plugin setting an element id built from the plugin id and the
+  // setting key - `plugin-MergePerformerTagsToScenes-a1ShowManualMergeButtons` - so
+  // it is ours by construction, with no heading text to match and nothing formatted
+  // for display. Finding one is also what says the plugins settings page is showing.
+  // See §2 of NormalizeParentTags' CLAUDE.md: matching the heading instead shipped
+  // broken twice over there.
+  function ownSettingGroup() {
+    var node = document.getElementById('plugin-' + PLUGIN_ID + '-a1ShowManualMergeButtons') ||
+      document.getElementById('plugin-' + PLUGIN_ID + '-d1LogMergesToConsole');
+    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (settingsHasClass(node, 'setting-group')) return node;
+    }
+    return null;
+  }
+
+  // Under the description, which is in the group header and therefore outside the
+  // <Collapse> - so it shows whether or not the group is expanded.
+  function readmeLinkSlot(group) {
+    var sub = findByClass(group, 'sub-heading', 0);
+    if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub.nextSibling };
+    var header = findByClass(group, 'setting', 0);
+    var box = header && header.childNodes && header.childNodes[0];
+    if (box) return { parent: box, before: null };
+    return { parent: group, before: null };
+  }
+
+  // Re-added rather than tracked: React re-renders this panel whenever a setting
+  // changes and drops anything we put in it, so the tick puts it back. Keyed on the
+  // id, so a re-render that kept it does not produce a second one.
+  function ensureReadmeLink() {
+    var group = ownSettingGroup();
+    if (!group) return;
+    if (document.getElementById(README_LINK_ID)) return;
+    var link = taskEl('a', 'cpt2s-readme', 'MergePerformerTagsToScenes/README.md');
+    link.id = README_LINK_ID;
+    link.href = README_URL;
+    link.target = '_blank';
+    link.rel = 'noreferrer';
+    link.title = 'Open this plugin\'s documentation for the version it was published at';
+    link.style = 'display:inline-block;margin-top:.35rem;font-size:.8rem;';
+    var slot = readmeLinkSlot(group);
+    slot.parent.insertBefore(link, slot.before);
+  }
+
   function tick() {
     maybeGoToEdit();
     addPerformerButton();
     addSceneButton();
+    // Costs two getElementById calls off the settings page, which is where this tab
+    // spends none of its time; no query, no observer of its own.
+    ensureReadmeLink();
   }
 
   // The MutationObserver watches the whole SPA subtree, which churns constantly

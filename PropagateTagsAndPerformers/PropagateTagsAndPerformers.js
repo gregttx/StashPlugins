@@ -29,7 +29,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.1.0';
+  var PLUGIN_VERSION = '0.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -164,6 +164,9 @@
   //   setting   its manifest key; the setting is the single source of truth for the
   //             task, the auto modes and whether the button appears
   //   target    a TARGETS key - the entity written to
+  //   sourceType  what the walk lands on. Where it is itself a TARGETS key, an
+  //             earlier stage may have *planned* additions to it that this stage
+  //             must see - see `plannedFor` and the cascade note in CLAUDE.md.
   //   walk      field names from the target down to whatever carries the payload.
   //             Steps may be objects or arrays (`studio` is one, `performers` is
   //             many) and the walk handles both rather than annotating which.
@@ -177,32 +180,32 @@
   var PATHS = [
     // Stage 1 - performer assignments, before anything reads performers.
     { id: 'performers:image>gallery', kind: 'performers', stage: 1, hops: 1,
-      setting: 'c2PerformersImagesToGalleries', target: 'gallery',
+      setting: 'c2PerformersImagesToGalleries', target: 'gallery', sourceType: 'image',
       source: 'Images', button: 'Add Image Perfs',
       reverse: { find: 'findImages', node: 'images', filterArg: 'image_filter',
                  filterField: 'galleries' } },
     { id: 'performers:gallery>scene', kind: 'performers', stage: 1, hops: 1,
-      setting: 'b5PerformersGalleriesToScenes', target: 'scene',
+      setting: 'b5PerformersGalleriesToScenes', target: 'scene', sourceType: 'gallery',
       source: 'Galleries', button: 'Add Gallery Perfs',
       walk: ['galleries'] },
 
     // Stage 2 - tags onto scenes.
     { id: 'tags:marker>scene', kind: 'tags', stage: 2, hops: 1,
-      setting: 'b3TagsMarkersToScenes', target: 'scene',
+      setting: 'b3TagsMarkersToScenes', target: 'scene', sourceType: 'marker',
       source: 'Markers', button: 'Add Marker Tags',
       walk: ['scene_markers'], markerTags: true },
     { id: 'tags:performer>scene', kind: 'tags', stage: 2, hops: 1,
-      setting: 'b1TagsPerformersToScenes', target: 'scene',
+      setting: 'b1TagsPerformersToScenes', target: 'scene', sourceType: 'performer',
       source: 'Performers', button: 'Add Perf Tags',
       walk: ['performers'] },
     { id: 'tags:studio>scene', kind: 'tags', stage: 2, hops: 1,
-      setting: 'b2TagsStudioToScenes', target: 'scene',
+      setting: 'b2TagsStudioToScenes', target: 'scene', sourceType: 'studio',
       source: 'Studio', button: 'Add Studio Tags',
       walk: ['studio'] },
 
     // Stage 3 - tags onto galleries.
     { id: 'tags:image>gallery', kind: 'tags', stage: 3, hops: 1,
-      setting: 'c1TagsImagesToGalleries', target: 'gallery',
+      setting: 'c1TagsImagesToGalleries', target: 'gallery', sourceType: 'image',
       source: 'Images', button: 'Add Image Tags',
       pair: 'tags:gallery>image',
       reverse: { find: 'findImages', node: 'images', filterArg: 'image_filter',
@@ -211,27 +214,27 @@
     // Stage 4 - tags onto groups. A Group has no performers and no markers of its
     // own, so those two are two-hop traversals through its scenes.
     { id: 'tags:scene>group', kind: 'tags', stage: 4, hops: 1,
-      setting: 'e1TagsScenesToGroups', target: 'group',
+      setting: 'e1TagsScenesToGroups', target: 'group', sourceType: 'scene',
       source: 'Scenes', button: 'Add Scene Tags',
       mode: 'e2TagsScenesToGroupsCommonOnly', pair: 'tags:group>scene',
       walk: ['scenes'] },
     { id: 'tags:studio>group', kind: 'tags', stage: 4, hops: 1,
-      setting: 'e3TagsStudioToGroups', target: 'group',
+      setting: 'e3TagsStudioToGroups', target: 'group', sourceType: 'studio',
       source: 'Studio', button: 'Add Studio Tags',
       walk: ['studio'] },
     { id: 'tags:performer>group', kind: 'tags', stage: 4, hops: 2,
-      setting: 'e4TagsPerformersToGroups', target: 'group',
+      setting: 'e4TagsPerformersToGroups', target: 'group', sourceType: 'performer',
       source: 'Performers', button: 'Add Perf Tags',
       walk: ['scenes', 'performers'] },
     { id: 'tags:marker>group', kind: 'tags', stage: 4, hops: 2,
-      setting: 'e5TagsMarkersToGroups', target: 'group',
+      setting: 'e5TagsMarkersToGroups', target: 'group', sourceType: 'marker',
       source: 'Markers', button: 'Add Marker Tags',
       walk: ['scenes', 'scene_markers'], markerTags: true },
 
     // Stage 5 - sub-groups roll up into their containing group. Group.sub_groups is
     // a list of GroupDescription, not of Group, hence the `group` step.
     { id: 'tags:subgroup>group', kind: 'tags', stage: 5, hops: 1,
-      setting: 'e6TagsSubGroupsToGroups', target: 'group',
+      setting: 'e6TagsSubGroupsToGroups', target: 'group', sourceType: 'group',
       source: 'Sub-groups', button: 'Add Sub-group Tags',
       mode: 'e7TagsSubGroupsToGroupsCommonOnly',
       walk: ['sub_groups', 'group'] },
@@ -240,31 +243,42 @@
     // close a cycle with a path already in the table, which is why the per-entity
     // cooldown above exists; see CLAUDE.md.
     { id: 'tags:group>scene', kind: 'tags', stage: 6, hops: 1,
-      setting: 'b4TagsGroupsToScenes', target: 'scene',
+      setting: 'b4TagsGroupsToScenes', target: 'scene', sourceType: 'group',
       source: 'Groups', button: 'Add Group Tags',
       pair: 'tags:scene>group',
       walk: ['groups', 'group'] },
     { id: 'tags:gallery>image', kind: 'tags', stage: 6, hops: 1,
-      setting: 'd1TagsGalleriesToImages', target: 'image',
+      setting: 'd1TagsGalleriesToImages', target: 'image', sourceType: 'gallery',
       source: 'Galleries', button: 'Add Gallery Tags',
       pair: 'tags:image>gallery',
       walk: ['galleries'] },
   ];
 
-  // What a path reads off whatever its walk lands on. A marker keeps its primary tag
-  // in a required field of its own rather than in `tags`, and it counts - a marker
-  // whose primary tag is "Blonde" carries that tag as much as one that lists it.
+  // What a path reads off whatever its walk lands on.
+  //
+  // A marker keeps its primary tag in a required field of its own rather than in
+  // `tags`, and it counts - a marker whose primary tag is "Blonde" carries that tag
+  // as much as one that lists it.
+  //
+  // Performers carry `name` because nothing else in the run knows it: tags are named
+  // from the hierarchy query every run makes anyway, and fetching every performer in
+  // the library to name the handful a plan mentions would be a query for a log line.
   function leafSelection(path) {
-    if (path.kind === 'performers') return 'performers { id }';
+    if (path.kind === 'performers') return 'performers { id name }';
     return path.markerTags ? 'primary_tag { id } tags { id }' : 'tags { id }';
   }
 
   // The GraphQL selection that gathers a path's sources, built from `walk` rather
   // than stored beside it: two fields describing one traversal are two fields that
   // can disagree. Empty for a reverse path, which is a query of its own.
+  //
+  // The source entity's own `id` comes back with the payload, and it is not
+  // decoration: where the source is itself one of our targets, an earlier stage may
+  // have *planned* additions to it that this stage has to see, and the id is how
+  // those are looked up. See the cascade note on `plannedFor`.
   function pathSelection(path) {
     if (!path.walk) return '';
-    var sel = leafSelection(path);
+    var sel = 'id ' + leafSelection(path);
     for (var i = path.walk.length - 1; i >= 0; i--) sel = path.walk[i] + ' { ' + sel + ' }';
     return sel;
   }
@@ -648,7 +662,215 @@
     return out;
   }
 
-  // ── A run ─────────────────────────────────────────────────────────────────
+  // ── Tags: the one query every run makes ───────────────────────────────────
+  //
+  // Tags are named from here rather than from the entity queries: a run's log names
+  // tens of tags out of a walk that reads tens of thousands of entities, and
+  // carrying `name` on every tag of every source would be a payload nothing reads.
+  // The same query answers the two tag-level filters.
+  //
+  // `custom_fields` is requested only when that filter is configured - it is a free
+  // JSON map per tag and dead weight otherwise.
+  function tagQuery(s) {
+    var fields = 'id name sort_name ignore_auto_tag';
+    if ((s.f4ExcludeTagWithCustomFieldName || '').trim()) fields += ' custom_fields';
+    return 'query PTPTags { findTags(filter: { per_page: -1 }) { tags { ' + fields + ' } } }';
+  }
+
+  function buildTagMap(tags) {
+    var byId = {};
+    tags.forEach(function (t) { byId[String(t.id)] = t; });
+    return byId;
+  }
+
+  // ── Naming things in the log ──────────────────────────────────────────────
+
+  function firstBasename(files) {
+    for (var i = 0; files && i < files.length; i++) {
+      if (files[i] && files[i].basename) return files[i].basename;
+    }
+    return null;
+  }
+
+  // `title` is optional on scenes, galleries and images, so each falls back to
+  // whichever of the file fields its query asked for. Read off what is present
+  // rather than switched on the target type: a per-type branch here is what let
+  // galleries and images log as "untitled" in the sibling for three releases, the
+  // fallback having been written for scenes and never extended.
+  function entityLabel(target, ent) {
+    var t = TARGETS[target];
+    var name = ent.title || ent.name ||
+      firstBasename(ent.files) || firstBasename(ent.visual_files) ||
+      (ent.folder && ent.folder.basename) || 'untitled';
+    return t.label + ' "' + name + '" (' + ent.id + ')';
+  }
+
+  function tagLabel(tagMap, id) {
+    var t = tagMap[String(id)];
+    return 'Tag "' + (t ? t.name : 'unknown') + '" (' + id + ')';
+  }
+
+  function performerLabel(names, id) {
+    return 'Performer "' + (names[String(id)] || 'unknown') + '" (' + id + ')';
+  }
+
+  // Stash orders tags by COALESCE(sort_name, name) under NATURAL_CI, so the recap
+  // reads straight against the tag list in the UI: sort_name wins where it is set
+  // (it is nullable and exists only to override the name for sorting, so a blank one
+  // is no override), compared case-insensitively with numeric runs as numbers -
+  // hence "Volume 2" before "Volume 10". The id is the final tie-break, because two
+  // tags in different parts of the hierarchy may share a name.
+  var _collator = null;
+  function collator() {
+    if (_collator) return _collator;
+    try {
+      _collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'accent' });
+    } catch (e) {
+      // Without Intl this degrades to a case-insensitive compare rather than
+      // throwing: a recap in the wrong order beats no recap.
+      _collator = { compare: function (a, b) {
+        var x = String(a).toLowerCase(), y = String(b).toLowerCase();
+        return x < y ? -1 : (x > y ? 1 : 0);
+      } };
+    }
+    return _collator;
+  }
+
+  function sortKey(tagMap, id) {
+    var t = tagMap[String(id)];
+    if (!t) return String(id);
+    return (t.sort_name && String(t.sort_name).trim()) || t.name || String(id);
+  }
+
+  function numericId(a, b) {
+    var x = parseInt(a, 10), y = parseInt(b, 10);
+    if (!isNaN(x) && !isNaN(y) && x !== y) return x - y;
+    return String(a) < String(b) ? -1 : (String(a) > String(b) ? 1 : 0);
+  }
+
+  // ── The exclusion filters ─────────────────────────────────────────────────
+  //
+  // Two levels, and they answer different questions. Entity-level skips a whole
+  // target; tag-level refuses one tag wherever it would land.
+  //
+  // Note what tag-level filters cannot do: a *performer* has no "ignore auto tag"
+  // and no custom fields on the relationship, so the two performer paths are
+  // governed by the entity-level filters alone. The settings say "tags" for that
+  // reason.
+  function makeFilters(s, tagMap, excludeTagId) {
+    var wantCustom = (s.f4ExcludeTagWithCustomFieldName || '').trim();
+    var ignoreAuto = !!s.f3ExcludeTagWithIgnoreAutoTag;
+    return {
+      excludeTagId: excludeTagId,
+      // Why a tag was refused, or null. A reason rather than a boolean so the log
+      // can say which filter did it - and so nothing has to re-implement the rules
+      // to explain them.
+      tagBlocked: function (id) {
+        if (excludeTagId && String(id) === String(excludeTagId)) {
+          // Copying the "skip this entity" tag onto things would permanently exclude
+          // whatever received it, and nothing here ever removes a tag.
+          return 'it is the exclusion tag';
+        }
+        var t = tagMap[String(id)];
+        if (!t) return null;
+        if (ignoreAuto && t.ignore_auto_tag) return 'Ignore auto tag is set';
+        if (wantCustom && t.custom_fields && hasOwn(t.custom_fields, wantCustom)) {
+          return 'it carries the custom field "' + wantCustom + '"';
+        }
+        return null;
+      },
+      // Whole target skipped, or null.
+      entityBlocked: function (target, ent) {
+        if (s.f2ExcludeTargetOrganized && TARGETS[target].organized && ent.organized) {
+          return 'it is marked Organized';
+        }
+        if (excludeTagId) {
+          var tags = ent.tags || [];
+          for (var i = 0; i < tags.length; i++) {
+            if (String(tags[i].id) === String(excludeTagId)) return 'it carries the exclusion tag';
+          }
+        }
+        return null;
+      },
+    };
+  }
+
+  // ── Planning ──────────────────────────────────────────────────────────────
+  //
+  // Passes, in pipeline order: paths are grouped by stage and then by target, so
+  // every path writing onto scenes in stage 2 is planned from **one** query rather
+  // than three. Grouping across stages would be cheaper still and is wrong - the
+  // stage boundary is what makes the cascade work.
+  function buildPasses(paths) {
+    var out = [], index = {};
+    paths.forEach(function (p) {
+      var key = p.stage + ':' + p.target;
+      if (!index[key]) {
+        index[key] = { key: key, stage: p.stage, target: p.target, paths: [],
+                       scanned: 0, total: 0, started: false };
+        out.push(index[key]);
+      }
+      index[key].paths.push(p);
+    });
+    return out;
+  }
+
+  // One query per page of targets, carrying the target's own state and every
+  // enabled path's traversal at once. Repeating a field is legal GraphQL and the
+  // server merges the selections, so two paths sharing a walk prefix cost nothing.
+  function passQuery(pass) {
+    var t = TARGETS[pass.target];
+    var parts = [t.fields];
+    // Always requested, not only when the exclusion-tag filter is on: it is also
+    // what a tag copy is diffed against, and the branch that omitted it would have
+    // to be right about both uses.
+    parts.push('tags { id }');
+    if (t.organized) parts.push('organized');
+    if (pass.paths.some(function (p) { return p.kind === 'performers'; })) {
+      parts.push('performers { id }');
+    }
+    pass.paths.forEach(function (p) { parts.push(pathSelection(p)); });
+    return 'query PTP_' + t.find + '($page: Int!, $per_page: Int!) {' +
+      ' ' + t.find + '(filter: { page: $page, per_page: $per_page, sort: "id", direction: ASC }) {' +
+      ' count ' + t.node + ' { ' + parts.join(' ') + ' } } }';
+  }
+
+  // Follows a path's walk from one target, returning the source entities it lands
+  // on. A step may be a single object (`studio`) or a list (`performers`); handling
+  // both here is why the table does not have to annotate which is which.
+  function walkSources(entity, path) {
+    var nodes = [entity];
+    for (var i = 0; i < path.walk.length; i++) {
+      var next = [];
+      for (var j = 0; j < nodes.length; j++) {
+        var v = nodes[j] ? nodes[j][path.walk[i]] : null;
+        if (v == null) continue;
+        if (Array.isArray(v)) {
+          for (var k = 0; k < v.length; k++) if (v[k] != null) next.push(v[k]);
+        } else {
+          next.push(v);
+        }
+      }
+      nodes = next;
+    }
+    return nodes;
+  }
+
+  // What one source entity contributes. Ids as strings throughout: Stash's ids are
+  // `ID!`, which serialises as a string, but a hand-built fixture or a future schema
+  // change could hand back a number, and a Set keyed on both would hold duplicates.
+  function payloadOf(src, path) {
+    var out = [];
+    if (path.kind === 'performers') {
+      (src.performers || []).forEach(function (p) { if (p && p.id != null) out.push(String(p.id)); });
+      return out;
+    }
+    if (path.markerTags && src.primary_tag && src.primary_tag.id != null) {
+      out.push(String(src.primary_tag.id));
+    }
+    (src.tags || []).forEach(function (t) { if (t && t.id != null) out.push(String(t.id)); });
+    return out;
+  }
 
   var _active = null;
 
@@ -666,6 +888,13 @@
 
   Run.prototype.reset = function () {
     this.plan = [];
+    // The same entries, keyed by target/kind/id. Two views of one list: `plan` is
+    // the order things were found in and what the apply walks, `planIndex` is how a
+    // later stage asks what an earlier one already decided.
+    this.planIndex = {};
+    this.passes = [];
+    this.tagMap = {};
+    this.performerNames = {};
     // Set by checkVersion when the running script is not the installed one. Per
     // pass, because a rescan re-checks - the user may have reloaded plugins since.
     this.stale = false;
@@ -838,15 +1067,14 @@
   };
 
   Run.prototype.renderProgress = function () {
-    var parts = [];
-    // Keyed by target rather than by path: several paths write onto a scene, and a
-    // progress line counting the same scenes once per path would read as a library
-    // several times its real size.
-    for (var k in TARGETS) {
-      if (!hasOwn(TARGETS, k)) continue;
-      if (!hasOwn(this.scanned, k) && !hasOwn(this.total, k)) continue;
-      parts.push(TARGETS[k].plural + ' ' + (this.scanned[k] || 0) + ' / ' + (this.total[k] || 0));
-    }
+    // One figure per *pass*, not per target: several stages can walk scenes, and
+    // adding those together would report a library several times its real size.
+    // Only passes that have started are shown, so the line grows as the run does
+    // rather than opening with a wall of zeroes.
+    var parts = (this.passes || []).filter(function (p) { return p.started; })
+      .map(function (p) {
+        return TARGETS[p.target].plural + ' ' + p.stage + ': ' + p.scanned + ' / ' + p.total;
+      });
 
     var summary;
     if (this.state === 'scanning') {
@@ -938,14 +1166,187 @@
     });
   };
 
-  // Phase 1's walk over the library, filling `this.plan`. Implemented at step 3;
-  // until then the dialog reviews the *configuration* - which paths run, in what
-  // order, under which filters, against which sibling plugins - and finds nothing to
-  // do, so Proceed stays disabled and nothing can be written by accident.
-  Run.prototype.scan = function () {
-    this.log('WARN', 'The library scan is not implemented in ' + PLUGIN_VERSION + '. ' +
-      'Everything above describes what a run would do; nothing has been read or written.');
-    return Promise.resolve();
+  // ── Phase 1: the walk over the library ────────────────────────────────────
+
+  // The plan is keyed by **the entity being written, and what is being written to
+  // it** - never by the path that asked. A scene wanting tags from its performers,
+  // its studio and its markers is one entry carrying the union, because the write is
+  // one delta on one entity. Several entries for one entity is the shape that
+  // silently loses data, and it is the one thing here that must not be rearranged.
+  function planKey(target, kind, id) { return target + ':' + kind + ':' + id; }
+
+  Run.prototype.planEntry = function (target, kind, ent) {
+    var key = planKey(target, kind, ent.id);
+    var entry = this.planIndex[key];
+    if (!entry) {
+      entry = this.planIndex[key] = {
+        target: target, kind: kind, id: String(ent.id),
+        label: entityLabel(target, ent), add: [], has: {}, from: {},
+      };
+      this.plan.push(entry);
+    }
+    return entry;
+  };
+
+  // What an earlier stage has already decided to put on this entity. This is what
+  // makes the cascade work inside one run: stage 2 plans marker tags onto a scene,
+  // stage 4 copies that scene's tags onto its group, and without this the group would
+  // gain them only on the *next* run - silently, since nothing errors.
+  //
+  // It reads the plan rather than a second structure, so there is one answer to "what
+  // will this entity end up with" and no way for the two to disagree.
+  Run.prototype.plannedFor = function (target, kind, id) {
+    var entry = this.planIndex[planKey(target, kind, id)];
+    return entry ? entry.add : null;
+  };
+
+  Run.prototype.scan = function (paths) {
+    var self = this;
+    this.passes = buildPasses(paths);
+    return gqlRequest(tagQuery(this.settings), null).then(function (data) {
+      self.tagMap = buildTagMap(((data.findTags || {}).tags) || []);
+
+      var wanted = (self.settings.f1ExcludeTargetWithTagName || '').trim();
+      var excludeTagId = null;
+      if (wanted) {
+        for (var id in self.tagMap) {
+          // Resolved against the tag list already in hand: exact and
+          // case-sensitive, with none of the SQL LIKE wildcard trouble a name query
+          // brings (Stash compiles EQUALS to LIKE, where _ and % are wildcards).
+          if (hasOwn(self.tagMap, id) && self.tagMap[id].name === wanted) { excludeTagId = id; break; }
+        }
+        if (!excludeTagId) {
+          // Running unfiltered would copy onto the very entities the user asked to
+          // protect, and nothing here ever removes anything. Stopping is the safe
+          // direction; the sibling does the same.
+          throw new Error('The exclusion tag "' + wanted + '" does not exist. Nothing was ' +
+            'planned: running without it would write to the entities it is there to protect. ' +
+            'Create the tag, or clear that setting.');
+        }
+        self.log('INFO', 'Exclusion tag resolved: ' + tagLabel(self.tagMap, excludeTagId) + '.');
+      }
+      self.filters = makeFilters(self.settings, self.tagMap, excludeTagId);
+
+      // Passes run one after another rather than in parallel, because a later stage
+      // reads what an earlier one planned.
+      var chain = Promise.resolve();
+      self.passes.forEach(function (pass) {
+        chain = chain.then(function () {
+          if (self.cancelled) return null;
+          return self.scanPass(pass);
+        });
+      });
+      return chain;
+    });
+  };
+
+  Run.prototype.scanPass = function (pass) {
+    var self = this;
+    var t = TARGETS[pass.target];
+    var query = passQuery(pass);
+    pass.started = true;
+    this.log('INFO', 'Stage ' + pass.stage + ': ' + t.plural + ' ← ' +
+      pass.paths.map(function (p) { return p.source; }).join(', ') + '.');
+
+    function page(n) {
+      if (self.cancelled) return Promise.resolve();
+      return gqlRequest(query, { page: n, per_page: t.pageSize || PAGE_SIZE })
+        .then(function (data) {
+          var res = data[t.find] || {};
+          var list = res[t.node] || [];
+          pass.total = res.count || pass.total;
+          pass.scanned += list.length;
+          list.forEach(function (ent) { self.planTarget(pass, ent); });
+          self.flush();
+          // A page shorter than asked for is the last one. Trusting `count` alone
+          // would loop forever against a server that reports it differently.
+          if (!list.length || pass.scanned >= pass.total) return null;
+          return page(n + 1);
+        }, function (e) {
+          // A failed page is logged and the pass moves on: one bad page must not
+          // cancel a library-wide review, and the plan is honest about being partial.
+          self.log('ERROR', t.plural + ' page ' + n + ' failed: ' +
+            (e && e.message ? e.message : String(e)));
+          self.errors++;
+          return null;
+        });
+    }
+    return page(1);
+  };
+
+  Run.prototype.planTarget = function (pass, ent) {
+    var self = this;
+    var blocked = this.filters.entityBlocked(pass.target, ent);
+    if (blocked) return;
+
+    pass.paths.forEach(function (path) {
+      var sources = walkSources(ent, path);
+      // Nothing to aggregate. Under either mode this is "add nothing" - the
+      // intersection of no sets is not everything here, it is emptiness, because a
+      // group with no scenes has no scenes agreeing on anything.
+      if (!sources.length) return;
+
+      var counts = {}, order = [];
+      sources.forEach(function (src) {
+        // Performer names ride along with the traversal, so the log can name one
+        // without a query of its own. Recorded from every source seen, not only from
+        // the ones that end up in the plan: the cost is a string per performer and
+        // the alternative is a name missing from exactly the line that needed it.
+        if (path.kind === 'performers') {
+          (src.performers || []).forEach(function (p) {
+            if (p && p.id != null && p.name) self.performerNames[String(p.id)] = p.name;
+          });
+        }
+        var ids = payloadOf(src, path);
+        // The cascade: where the source is one of our own targets, whatever an
+        // earlier stage planned for it counts as already there.
+        if (hasOwn(TARGETS, path.sourceType) && src.id != null) {
+          var planned = self.plannedFor(path.sourceType, path.kind, String(src.id));
+          if (planned) ids = ids.concat(planned);
+        }
+        var seen = {};
+        ids.forEach(function (id) {
+          if (seen[id]) return;         // one source counts once, however it lists it
+          seen[id] = true;
+          if (!hasOwn(counts, id)) { counts[id] = 0; order.push(id); }
+          counts[id]++;
+        });
+      });
+
+      // Union, or only what every source carries. One source makes the two the same
+      // answer, which is the behaviour the setting's description promises.
+      var common = path.mode && self.settings[path.mode];
+      var wanted = order.filter(function (id) {
+        return common ? counts[id] === sources.length : true;
+      });
+      if (!wanted.length) return;
+
+      var existing = {};
+      (path.kind === 'performers' ? (ent.performers || []) : (ent.tags || []))
+        .forEach(function (x) { if (x && x.id != null) existing[String(x.id)] = true; });
+
+      var entry = null;
+      wanted.forEach(function (id) {
+        if (existing[id]) return;
+        if (path.kind === 'tags') {
+          var why = self.filters.tagBlocked(id);
+          if (why) return;
+        }
+        // The entry is created lazily, so a target with nothing to add never enters
+        // the plan and never appears in the count Proceed is enabled on.
+        if (!entry) entry = self.planEntry(pass.target, path.kind, ent);
+        if (entry.has[id]) return;      // another path already asked for it
+        entry.has[id] = true;
+        entry.add.push(id);
+        entry.from[id] = path.source;
+        self.log(path.kind === 'performers' ? 'PERF' : 'TAG',
+          entry.label + ' - ' +
+          (path.kind === 'performers'
+            ? performerLabel(self.performerNames, id)
+            : tagLabel(self.tagMap, id)) +
+          ' - from ' + path.source);
+      });
+    });
   };
 
   Run.prototype.checkVersion = function () {
@@ -965,14 +1366,59 @@
     });
   };
 
+  // Every distinct tag and performer the run moves, and how many entities each lands
+  // on. The per-entity lines answer "what happens to this scene"; this answers "which
+  // tags does this run touch, and how widely" - which is the question actually asked
+  // before trusting a library-wide write, and the one a six-figure log cannot be read
+  // for.
+  //
+  // Counted per **entity**, not per path: a scene is written once whichever of its
+  // paths asked for the tag.
+  Run.prototype.recap = function (verb) {
+    var self = this;
+    ['tags', 'performers'].forEach(function (kind) {
+      var counts = {}, ids = [];
+      self.plan.forEach(function (entry) {
+        if (entry.kind !== kind) return;
+        entry.add.forEach(function (id) {
+          if (!hasOwn(counts, id)) { counts[id] = 0; ids.push(id); }
+          counts[id]++;
+        });
+      });
+      if (!ids.length) return;
+      if (kind === 'tags') {
+        ids.sort(function (a, b) {
+          var c = collator().compare(sortKey(self.tagMap, a), sortKey(self.tagMap, b));
+          return c !== 0 ? c : numericId(a, b);
+        });
+      } else {
+        ids.sort(function (a, b) {
+          var c = collator().compare(self.performerNames[a] || a, self.performerNames[b] || b);
+          return c !== 0 ? c : numericId(a, b);
+        });
+      }
+      var label = kind === 'tags' ? 'tag' : 'performer';
+      self.log('INFO', ids.length + ' ' + label + '(s) ' + verb + ': ' +
+        ids.map(function (id) {
+          var name = kind === 'tags' ? tagLabel(self.tagMap, id) : performerLabel(self.performerNames, id);
+          // The count is written x250 and never in brackets - the head legend says
+          // so, and a count in brackets on this line would make it false.
+          return name.replace(/^(Tag|Performer) /, '') + ' x' + counts[id];
+        }).join(', '));
+    });
+  };
+
   Run.prototype.finishScan = function () {
     this.flush();
     if (this.cancelled) return;
     if (!this.plan.length) {
       this.log('INFO', 'Nothing to change.');
     } else {
-      this.log('INFO', 'Review complete: ' + this.plan.length + ' entity change(s) planned. ' +
-        'Nothing has been written. Press Proceed to apply.');
+      var adds = 0;
+      this.plan.forEach(function (e) { adds += e.add.length; });
+      this.log('INFO', 'Review complete: ' + adds + ' addition(s) across ' + this.plan.length +
+        ' entity change(s). Nothing has been written. Press Proceed to apply.');
+      this.recap('to add');
     }
     this.setState('ready');
     this.flush();
@@ -1483,6 +1929,11 @@
     enabledPaths: enabledPaths,
     describeFilters: describeFilters,
     pairedBoth: pairedBoth,
+    buildPasses: buildPasses,
+    passQuery: passQuery,
+    walkSources: walkSources,
+    payloadOf: payloadOf,
+    entityLabel: entityLabel,
     injectStyle: injectStyle,
   };
 }());

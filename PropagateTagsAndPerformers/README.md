@@ -1,11 +1,11 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.1.0 does not write anything yet
+> ## 🚧 Under construction — 0.2.0 reviews but cannot yet apply
 >
-> The task now opens and reviews your **configuration** — which paths are enabled and in what order
-> they would run, which exclusion filters are in force, whether another plugin is writing, and
-> whether your browser is running the script you have installed. It does not yet read the library,
-> so it plans nothing and **Proceed stays disabled**.
+> The task now walks your library and lists **every change it would make**, for eleven of the
+> thirteen paths. Nothing is written: pressing Proceed does nothing yet, and the two paths out of a
+> gallery's images are not planned at all. Treat it as a way to see what the plugin *would* do to
+> your library before it can do it.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -17,11 +17,10 @@
 > | --- | --- |
 > | Settings, path table, stylesheet | **done** (0.0.1) |
 > | Task entry point, review dialog, settings page | **done** (0.1.0) |
-> | The library scan — planning what would change | not started |
+> | The library scan, for the eleven paths reached by traversal | **done** (0.2.0) |
 > | Applying the plan, and Undo | not started |
-> | Two-hop paths and the "common tags only" modes | not started |
-> | The two reverse paths and the per-entity cooldown | not started |
-> | Automatic modes | not started |
+> | The two paths out of a gallery's images | not started |
+> | Automatic modes, with the per-entity cooldown | not started |
 > | Manual buttons and staging | not started |
 
 > ## ⚠ Back up your database before the first library-wide run
@@ -71,7 +70,7 @@ Each one is a separate setting, and every one of them is **off** on a fresh inst
 | Scenes | their **studio** | |
 | Scenes | their **markers** | a marker's primary tag counts as one of its tags |
 | Scenes | their **groups** | reverse of *Groups ← Scenes* — see the warning below |
-| Galleries | their **images** | the slowest path; six-figure image counts are normal |
+| Galleries | their **images** | the slowest path; six-figure image counts are normal. Not yet implemented |
 | Images | their **galleries** | reverse of *Galleries ← Images* — see the warning below |
 | Groups | their **scenes** | union, or **only the tags every scene shares** |
 | Groups | their **studio** | |
@@ -81,10 +80,10 @@ Each one is a separate setting, and every one of them is **off** on a fresh inst
 
 ### Performers
 
-| Onto | From |
-| --- | --- |
-| Scenes | their **galleries** |
-| Galleries | their **images** |
+| Onto | From | Notes |
+| --- | --- | --- |
+| Scenes | their **galleries** | |
+| Galleries | their **images** | *(not yet implemented)* |
 
 There is deliberately **no performer path onto a Group**, in any direction: `Group` has no
 `performers` field in Stash's schema at all. Groups are tag-only. That is why *Groups ← performers*
@@ -147,7 +146,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.1.0 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.2.0 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

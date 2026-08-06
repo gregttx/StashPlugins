@@ -293,7 +293,10 @@ Promise.resolve()
       h.check('and holds Proceed back', d.button('Proceed').disabled === true);
     })
 
-  .then(() => open({ installed: '0.1.0', settings: { b1TagsPerformersToScenes: true } }))
+  // Read off the script rather than written down, so a version bump does not turn
+  // this into a failing check that has to be edited before anyone looks at it.
+  .then(() => open({ installed: boot().ctx.__ptp2re.PLUGIN_VERSION,
+    settings: { b1TagsPerformersToScenes: true } }))
     .then(({ d }) => {
       h.check('a matching version says nothing in the dialog', d.note === '', d.note);
     })
@@ -354,13 +357,14 @@ Promise.resolve()
   })).then(({ env, d }) => {
     h.check('a review issues no mutation at all', mutations(env.calls).length === 0,
       mutations(env.calls).map((c) => c.query).join(' | '));
-    // The scan is not implemented at 0.1.0 and the dialog says so rather than
-    // reporting an empty library. A plan that is empty because nothing was read must
-    // not read like a plan that is empty because there is nothing to do.
-    h.check('and says the library scan is not implemented yet',
-      d.lines.some((l) => /library scan is not implemented/.test(l)), d.lines.join('\n'));
     h.check('and Proceed stays disabled on an empty plan',
       d.button('Proceed').disabled === true);
+    // An empty library still costs the tag query and one page per pass, so a review
+    // that read nothing at all would mean the scan never ran. The planner's own
+    // behaviour is covered in propagate-plan.
+    h.check('but it does read the library',
+      env.calls.some((c) => /PTPTags/.test(c.query || '')),
+      env.calls.map((c) => (c.query || '').slice(0, 40)).join(' | '));
   })
 
   // ── The footer ────────────────────────────────────────────────────────────

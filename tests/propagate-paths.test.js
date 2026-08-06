@@ -97,6 +97,39 @@ h.check('every path names its source and its button',
   PATHS.every((p) => !!p.source && !!p.button),
   PATHS.filter((p) => !p.source || !p.button).map((p) => p.id).join(' ') || 'all named');
 
+// `sourceType` is what the walk lands on, and it decides one thing: whether an
+// earlier stage's *planned* additions to that entity count as already there. Getting
+// it wrong is silent - the cascade simply does not happen, and the tags arrive on the
+// next run instead.
+h.check('every path names what its walk lands on',
+  PATHS.every((p) => !!p.sourceType),
+  PATHS.filter((p) => !p.sourceType).map((p) => p.id).join(' ') || 'all named');
+
+// The id's own source segment says the same thing, with one deliberate exception: a
+// sub-group *is* a Group, so the path is named for the relationship while the type is
+// named for the schema.
+h.check('the source type agrees with the path id',
+  PATHS.every((p) => {
+    const named = /^[a-z]+:([a-z_]+)>/.exec(p.id)[1];
+    return named === p.sourceType || (named === 'subgroup' && p.sourceType === 'group');
+  }),
+  PATHS.filter((p) => {
+    const named = /^[a-z]+:([a-z_]+)>/.exec(p.id)[1];
+    return named !== p.sourceType && !(named === 'subgroup' && p.sourceType === 'group');
+  }).map((p) => p.id + ' from ' + p.sourceType).join(', ') || 'all agree');
+
+// The paths whose source is itself something we write to - the only ones where the
+// cascade can apply at all. Performers, studios and markers are never targets, so a
+// plan can never have anything pending for them.
+h.check('the cascade applies to exactly the paths whose source is a target',
+  PATHS.filter((p) => Object.prototype.hasOwnProperty.call(TARGETS, p.sourceType))
+    .map((p) => p.id).sort().join(' ') ===
+    ['performers:gallery>scene', 'performers:image>gallery', 'tags:gallery>image',
+      'tags:group>scene', 'tags:image>gallery', 'tags:scene>group',
+      'tags:subgroup>group'].sort().join(' '),
+  PATHS.filter((p) => Object.prototype.hasOwnProperty.call(TARGETS, p.sourceType))
+    .map((p) => p.id).join(' '));
+
 h.check('every path names a setting that exists',
   PATHS.every((p) => Object.prototype.hasOwnProperty.call(DEFAULTS, p.setting)),
   PATHS.filter((p) => !Object.prototype.hasOwnProperty.call(DEFAULTS, p.setting))
@@ -212,36 +245,52 @@ h.check('a two-hop path walks two steps',
 // These four cover every shape the builder has to produce.
 
 h.check('a one-hop tag path selects its source tags',
-  api.pathSelection(api.pathById('tags:performer>scene')) === 'performers { tags { id } }',
+  api.pathSelection(api.pathById('tags:performer>scene')) === 'performers { id tags { id } }',
   api.pathSelection(api.pathById('tags:performer>scene')));
 
 h.check('a two-hop tag path nests both steps',
   api.pathSelection(api.pathById('tags:performer>group')) ===
-    'scenes { performers { tags { id } } }',
+    'scenes { performers { id tags { id } } }',
   api.pathSelection(api.pathById('tags:performer>group')));
+
+// The source entity's own id, at the innermost level of every walk. It is what the
+// cascade is looked up by: where the source is itself one of our targets, an earlier
+// stage's *planned* additions to it have to count as already there, and without the
+// id there is nothing to key that on.
+h.check('every walk asks for the source entity own id',
+  PATHS.filter((p) => p.walk).every((p) => {
+    const sel = api.pathSelection(p);
+    const inner = sel.slice(sel.lastIndexOf(p.walk[p.walk.length - 1] + ' {'));
+    return /\{ id /.test(inner);
+  }),
+  PATHS.filter((p) => p.walk && !/\{ id /.test(api.pathSelection(p))).map((p) => p.id).join(' '));
 
 // A marker keeps its primary tag in a required field of its own rather than in
 // `tags`, and it counts: a marker whose primary tag is "Blonde" carries that tag as
 // much as one that lists it. Asking only for `tags` would silently drop it.
 h.check('a marker path asks for the primary tag as well',
   api.pathSelection(api.pathById('tags:marker>scene')) ===
-    'scene_markers { primary_tag { id } tags { id } }',
+    'scene_markers { id primary_tag { id } tags { id } }',
   api.pathSelection(api.pathById('tags:marker>scene')));
 
 // Scene.groups is [SceneGroup!] and Group.sub_groups is [GroupDescription!], neither
 // of which is a Group - both wrap one in a `group` field. Walking straight to `tags`
 // would ask for a field the type does not have.
 h.check('an edge through a group description unwraps it',
-  api.pathSelection(api.pathById('tags:group>scene')) === 'groups { group { tags { id } } }',
+  api.pathSelection(api.pathById('tags:group>scene')) === 'groups { group { id tags { id } } }',
   api.pathSelection(api.pathById('tags:group>scene')));
 
 h.check('a sub-group edge unwraps it too',
   api.pathSelection(api.pathById('tags:subgroup>group')) ===
-    'sub_groups { group { tags { id } } }',
+    'sub_groups { group { id tags { id } } }',
   api.pathSelection(api.pathById('tags:subgroup>group')));
 
-h.check('a performer path selects performer ids',
-  api.pathSelection(api.pathById('performers:gallery>scene')) === 'galleries { performers { id } }',
+// Performers carry `name` because nothing else in a run knows it: tags are named
+// from the hierarchy query every run makes anyway, and fetching every performer in
+// the library to name the handful a plan mentions would be a query for a log line.
+h.check('a performer path selects performer ids and names',
+  api.pathSelection(api.pathById('performers:gallery>scene')) ===
+    'galleries { id performers { id name } }',
   api.pathSelection(api.pathById('performers:gallery>scene')));
 
 h.check('a reverse path has no selection to splice into the target query',

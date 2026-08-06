@@ -5,21 +5,30 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.1.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.2.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
 | Step | | Version |
 | --- | --- | --- |
 | 1 | Scaffold: manifest, settings, `TARGETS`/`PATHS`, CSS | 0.0.1 |
-| 2 | Shared base: cooperation, GraphQL, task interception, dialog, settings page | **0.1.0** |
-| 3 | The planner — target-centric gather, tags, single hop | — |
+| 2 | Shared base: cooperation, GraphQL, task interception, dialog, settings page | 0.1.0 |
+| 3 | The planner — all eleven walk-based paths | **0.2.0** |
 | 4 | Phase 2 apply, and Undo | — |
-| 5 | Two-hop paths and the "common tags only" modes | — |
-| 6 | The two reverses **and** the per-entity cooldown, together | — |
-| 7 | Auto mode, respecter registration, the `declares` registry | — |
+| 5 | The two reverse-query paths (a gallery's images) | — |
+| 6 | Auto mode **and** the per-entity cooldown, together | — |
+| 7 | The `declares` registry | — |
 | 8 | Manual buttons and staging | — |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
+
+**Steps 3 and 5 were re-cut during step 3.** The plan had two hops and the "common tags only" modes
+as a step of their own, on the assumption that reaching a group's performers through its scenes
+needed a query per group. It does not: GraphQL nests, so `Group.scenes { performers { tags } }` is
+one query and a two-hop path is only a longer `walk`. The modes are a fold over the sources, equally
+cheap. Splitting them out would have shipped a path whose "common tags only" setting was visible in
+the UI and silently ignored, which is worse than either half. What genuinely differs is the two
+paths out of a *gallery's images*, which have no field to walk and need a reverse query — so that is
+step 5 now.
 
 The full design, including the decisions that were taken and the paths that were rejected, is in
 `.plans/migrate-tags-and-performers.md` (git-ignored).
@@ -106,10 +115,12 @@ nothing to push back down.
 `guarded()`/`_writeDepth` does **not** cover this — it suppresses our own writes inside one
 reaction, not the second reaction that the first one's mutation triggers. `NormalizeParentTags`'
 per-entity cooldown is the defence and `MergePerformerTagsToScenes` has no equivalent, so it cannot
-be copied from the nearer sibling. **Ship the reverses and the cooldown in the same step, never one
-without the other.**
+be copied from the nearer sibling. **Auto mode and the cooldown ship in the same step, never one
+without the other** — that is step 6, and it is the whole reason those two are one step.
 
-Under the task neither is a hazard: one run applies each direction once, in a fixed order.
+The *paths* need no such coupling and shipped with the rest at 0.2.0. Under the task neither
+consequence is a hazard: one run applies each direction once, in a fixed order, and the plan-aware
+gather means the second direction reads what the first one decided rather than racing it.
 
 ## 4. Settings
 
@@ -138,6 +149,73 @@ loudly if a path names a key the manifest does not declare — the setting simpl
 forever, and the path is configurable in the UI and inert in the run. `tests/propagate-paths.test.js`
 is the only thing holding the two halves together; keep it that way.
 
+## 4a. The planner (0.2.0)
+
+**Target-centric, and grouped into passes by stage and then by target.** Three paths writing tags
+onto scenes in stage 2 are one query per page, not three — repeating a field is legal GraphQL and
+the server merges the selections, so two paths sharing a walk prefix cost nothing. Grouping across
+*stages* would be cheaper still and is wrong: the stage boundary is what makes the cascade work.
+
+**The plan is keyed by the entity being written and what is being written to it** — `target:kind:id`
+— never by the path that asked. A scene wanting tags from its performers, its studio and its markers
+is one entry carrying the union, because the write is one delta on one entity. This is the sibling's
+§7a rule and it is the one thing here that would silently lose data if rearranged.
+
+**The cascade is the part that is easy to miss.** Paths cascade, but the review happens before any
+write, so "read the sources fresh at each stage" cannot mean re-reading the server — nothing has
+been written yet. It means reading the *plan*: when stage 4 copies a scene's tags onto its group, it
+counts whatever stage 2 already planned for that scene as though it were there. `plannedFor()` does
+this by looking the entry up in `planIndex`, so there is one answer to "what will this entity end up
+with" and no second structure to disagree with the plan.
+
+Three consequences:
+
+- Every walk asks for the **source entity's own id**, because that is what the lookup is keyed on.
+  It is not decoration, and `propagate-paths` pins it.
+- `sourceType` on each path says what the walk lands on. The cascade applies only where that is
+  itself one of our targets — seven of the thirteen paths. Performers, studios and markers are never
+  targets, so nothing can ever be pending for them.
+- Without it, the cascade still *happens*, just one run later, and nothing errors. That is why the
+  test for it is paired with a negative: the same library with only the group path enabled must gain
+  nothing, or the check would pass on the group path merely working.
+
+**Deep group nesting is one level per run.** Stage 5 rolls sub-groups into their containing group,
+but a sub-group that itself gained tags in stage 5 is not re-read within that stage. Rescan is the
+answer, as it is for everything else the plan cannot see.
+
+**Union versus common-tags-only** is a count against the number of sources. Two edges to keep true:
+one source makes the two modes the same answer, and zero sources adds nothing under *either* — the
+intersection of no sets is emptiness here, not everything, because a group with no scenes has no
+scenes agreeing on anything. A source listing the same tag twice counts once, or it would look like
+two sources agreeing.
+
+**The exclusion filters, and what they cannot do.** Entity-level (`f1`, `f2`) skips a whole target;
+tag-level (`f3`, `f4`) refuses one tag wherever it would land. A **performer** has no "ignore auto
+tag" and no custom fields, so the two performer paths are governed by the entity-level filters
+alone — the settings say "tags" for that reason. Two rules carried from the sibling: the exclusion
+tag is resolved against the tag list already in hand (exact, case-sensitive — Stash compiles
+`EQUALS` to SQL `LIKE`, where `_` and `%` are wildcards), and **failing to resolve it stops the
+run** rather than planning unfiltered, because running without it would write to the very entities
+it is there to protect and nothing here removes anything afterwards. The exclusion tag is also never
+copied onto anything, or whatever received it would be permanently excluded.
+
+**Naming.** Tags are named from the one `findTags` query every run makes anyway; `custom_fields` is
+requested only when that filter is set. Performers carry `name` on the traversal instead, because
+fetching every performer in the library to name the handful a plan mentions would be a query for a
+log line. `entityLabel` reads whichever of `files` / `visual_files` / `folder` is present rather
+than switching on the target type — a per-type branch there is what let galleries and images log as
+"untitled" in the sibling for three releases.
+
+**Attribution is per path, not per source entity.** A line reads `- from Performers`, not
+`- from Performer "Jane" (7)`. Naming the individual source would mean a name field for scenes,
+galleries, groups, studios and markers on every traversal, for a clause the path already answers.
+Worth revisiting only if someone asks for it.
+
+**A failed page is logged and the pass carries on.** One bad page must not cancel a library-wide
+review, and a plan that is honest about being partial beats one that is quietly short. A failed
+*tag* query is different and stops the run: it answers the filters and names everything, so there is
+no run without it.
+
 ## 5. The dialog (0.1.0)
 
 Ported from both siblings and deliberately identical to them: same head with a backup warning and an
@@ -145,19 +223,15 @@ id legend, same monospace log with a rendered tail, same footer, same `scanning|
 undoing|done` state machine. The overlapping CSS is byte-identical across all three and
 `tests/style.test.js` fails on any drift — see the repo-root CLAUDE.md.
 
-**At 0.1.0 it reviews the configuration, not the library.** There is no planner yet, so `scan()`
-logs one WARN saying so and finds nothing. What it *does* do is real and worth keeping separate
-from the planner:
+**Before the planner runs it reviews the configuration.** Worth keeping separate from §4a, because
+it is what tells the user whether the plan they are about to read was computed from the settings
+they meant:
 
 - names the enabled paths **in pipeline order**, because that order decides what one run reaches
 - warns when both halves of a reversible pair are on
 - names every exclusion filter in force, and says so explicitly when none is
 - warns about another plugin's lease, without standing down
 - compares the running script against the installed manifest
-
-**"Nothing to do" and "nothing was read" must not look the same.** An empty plan because the library
-is settled and an empty plan because the scan is not implemented are different facts, and the second
-one says so in its own line. When step 3 lands, that line goes.
 
 **The version gate is the only warning here that blocks.** Every other one — the lease, the pair, a
 sibling's auto mode — is about the library or another plugin, where the user knows more than the
@@ -200,10 +274,13 @@ of it apply unchanged:
 - **`propagate-base.test.js`** — both layers of task interception, the dialog head, the
   configuration review, the version gate, the lease warning, the footer, and the settings-page
   injection.
+- **`propagate-plan.test.js`** — the walk over the library: the gather, the diff, both aggregation
+  modes and their edges, the cascade, every exclusion filter, pass ordering, naming, the recap, and
+  that a review issues no mutation at all.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
-**Every check here was confirmed against a deliberately broken copy before being trusted.** Sixteen
-mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
+**Every check here was confirmed against a deliberately broken copy before being trusted.** Twenty-
+nine mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
 reason is worse than no suite. Use `SRC=/path/to/mutant.js node tests/propagate-base.test.js`.
 
 What they cannot cover: Stash's own behaviour. The suites reproduce its markup and its schema from

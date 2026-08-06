@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.6.3.** This file is both the design and the map of the code — the
+**Status: implemented at 1.6.4.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1134,20 +1134,26 @@ reached places the icon does not; in practice Stash renders it as plain text, so
 unclickable 90-character prefix in front of every word that mattered. The two links are `url:` and
 the injected one, and they must stay identical — the `version` suite fails if they drift.
 
-**The description is paragraphs, and they only render because of one CSS rule.** Stash's
-`.sub-heading` is `white-space: normal`, so newlines in a description collapse into a single block
-of prose — and a description cannot carry markup, since Stash passes it to React as a child. The
-plugin therefore marks its own settings group with ``.npt-own-group`` (in the same tick that injects the README
-link, and on **every** tick, since React drops it on re-render) and its stylesheet carries
-``.npt-own-group` .sub-heading{white-space:pre-wrap;}`. Scoped to that class, never to `.sub-heading` at
-large: another plugin's description is not ours to reflow, and may well have been written for the
-collapse. The suites assert both halves, including that the rule is the only one touching
-`sub-heading`.
+**The description is paragraphs, and it takes two tricks to show them.** Stash renders it as one
+text node inside a `.sub-heading` that is `white-space: normal`, and a description cannot carry
+markup, since Stash passes it to React as a child. So the plugin marks its own settings group with
+`.npt-own-group` — in the tick that injects the README link, and on **every** tick, because React drops
+anything we add whenever it re-renders the panel.
 
-The text itself is written so it still reads if the rule ever stops applying — every line break
-falls at the end of a sentence, so a collapse costs structure and nothing else. It is stored as a
-double-quoted one-liner with `\n` escapes rather than a YAML block scalar, so the file stays
-greppable line by line and `version.test.js` can keep reading it with a regex.
+- **`white-space: pre-wrap`, scoped to that class**, makes the newlines visible at all. Scoped, never
+  applied to `.sub-heading` at large: another plugin's description is not ours to reflow, and may
+  well have been written for the collapse.
+- **The paragraphs are then rebuilt as `.npt-p` divs**, because a blank line under `pre-wrap` is always
+  one whole line-height and nothing in CSS can target it. Splitting on blank lines drops them and
+  the gap becomes `margin: 0 0 .35em` — about a third of a line. `splitDescription` is idempotent
+  (once the children are ours there is no text node left to split) and re-runs after a re-render
+  puts the text node back.
+
+The two together mean the text degrades sensibly: if only the CSS applies, the paragraphs show with
+full blank lines between them; if neither does, it collapses into prose that still reads, because
+every line break falls at the end of a sentence. It is stored as a double-quoted one-liner with
+`\n` escapes rather than a YAML block scalar, so the file stays greppable line by line and
+`version.test.js` can keep reading it with a regex.
 
 **Both point at `/blob/main/`, not a SHA** (1.6.2 / 1.10.2). A pinned revision was the first
 instinct and it was tried: it means the link shows the documentation for roughly the code the user

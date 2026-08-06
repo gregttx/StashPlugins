@@ -60,7 +60,8 @@ const tagQueries = (calls) => calls.filter((c) => /NPTTags/.test(c.query || ''))
     // wraps both in one div inside the .setting row.
     const sub = h.makeElement('div');
     sub.className = 'sub-heading';
-    sub.textContent = 'README: https://example/README.md - Two library-wide tasks...';
+    sub.textContent = 'Two library-wide tasks that normalize tag hierarchies.\n\n' +
+      'BACK UP YOUR DATABASE BEFORE THE FIRST RUN - Stash has no undo.';
     headBox.appendChild(sub);
     header.appendChild(headBox);
     group.appendChild(header);
@@ -651,9 +652,22 @@ Promise.resolve()
       // Present, and scoped: reflowing every plugin's description would be reaching
       // into panels that are not ours and may have been written for the collapse.
       const subRules = css.split('}').filter((r) => r.indexOf('sub-heading') !== -1);
-      h.check('and the stylesheet says how, scoped to that class',
-        subRules.length === 1 && subRules[0].indexOf('.npt-own-group ') === 0 &&
-        subRules[0].indexOf('white-space:pre-wrap') !== -1, subRules.join(' | '));
+      h.check('and the stylesheet says how, every rule scoped to that class',
+        subRules.length > 0 && subRules.every((r) => r.indexOf('.npt-own-group ') === 0),
+        subRules.join(' | '));
+      h.check('with pre-wrap for an unsplit description and a margin for a split one',
+        subRules.some((r) => r.indexOf('white-space:pre-wrap') !== -1) &&
+        subRules.some((r) => /\.npt-p\{margin:0 0 \.35em;/.test(r)), subRules.join(' | '));
+
+      // Elements, because a blank line under pre-wrap is always a whole line-height
+      // and nothing can target it. The blank lines go; the margin is the gap.
+      const paras = p.sub.childNodes;
+      h.check('the description is rebuilt as paragraph elements',
+        paras.length === 2 && paras.every((n) => h.hasClass(n, 'npt-p')),
+        String(paras.length) + ' children');
+      h.check('and no blank line survives the split',
+        paras.every((n) => n.textContent.trim() && n.textContent.indexOf('\n') === -1),
+        paras.map((n) => JSON.stringify(n.textContent.slice(0, 20))).join(' | '));
       h.check('with the file name as its text',
         !!link && link.textContent === 'NormalizeParentTags/README.md', link && link.textContent);
       h.check('and a pinned https URL, opened in a new tab',
@@ -675,10 +689,15 @@ Promise.resolve()
           .filter((n) => n.id === 'npt-readme-link');
         h.check('ticking again does not add a second one', links.length === 1, String(links.length));
         links[0].parentNode.removeChild(links[0]);
+        p.sub.textContent = 'One.\n\nTwo.';        // what a React re-render leaves
         p.env.tick();
         return h.flush().then(() => {
           h.check('and a re-render that drops it gets it back',
             !!p.env.ctx.document.getElementById('npt-readme-link'));
+          h.check('and the description is re-split too',
+            p.sub.childNodes.length === 2 &&
+            p.sub.childNodes.every((n) => h.hasClass(n, 'npt-p')),
+            String(p.sub.childNodes.length));
         });
       });
     });

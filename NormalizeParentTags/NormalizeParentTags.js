@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.6.3';
+  var PLUGIN_VERSION = '1.6.4';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -964,7 +964,12 @@
     // plugin's description would collapse into one paragraph. Scoped to the group we
     // marked, never to .sub-heading at large: another plugin's description is not
     // ours to reflow, and it may well have been written for the collapse.
-    '.npt-own-group .sub-heading{white-space:pre-wrap;}';
+    // pre-wrap is the fallback for a description we have not split yet - a blank
+    // line renders as a blank line. Once split, the paragraphs are divs and the gap
+    // is this margin instead: roughly a third of a line, not a whole one.
+    '.npt-own-group .sub-heading{white-space:pre-wrap;}' +
+    '.npt-own-group .sub-heading .npt-p{margin:0 0 .35em;}' +
+    '.npt-own-group .sub-heading .npt-p:last-child{margin-bottom:0;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -2894,6 +2899,30 @@
     return { parent: group, before: null };
   }
 
+  // Paragraph spacing needs elements. Under `white-space: pre-wrap` a blank line is
+  // always one whole line-height and nothing can target it, so the description's
+  // paragraphs are rebuilt as divs and the gap becomes a margin - about a third of a
+  // line, rather than a whole empty one.
+  //
+  // Stash renders the description as a single text node; React puts that text node
+  // back on every re-render of this panel, so this runs on every tick and re-splits
+  // when it has to. `splitParagraphs` is idempotent: once the children are ours,
+  // there is no text node left to split.
+  function splitDescription(group) {
+    var sub = findByClass(group, 'sub-heading', 0);
+    if (!sub) return;
+    var kids = sub.childNodes || [];
+    if (kids.length && hasClass(kids[0], 'npt-p')) return;   // already ours
+    var text = sub.textContent || '';
+    if (text.indexOf('\n') === -1) return;                   // nothing to split
+    var paras = text.split(/\n{2,}/);
+    sub.textContent = '';
+    paras.forEach(function (para) {
+      var t = para.replace(/\s+/g, ' ').replace(/^ | $/g, '');
+      if (t) sub.appendChild(el('div', 'npt-p', t));
+    });
+  }
+
   // Re-added rather than tracked: React re-renders this panel whenever a setting
   // changes and drops anything we put in it, so the tick puts it back. Keyed on the
   // id, so a re-render that kept it does not produce a second one.
@@ -2907,6 +2936,7 @@
     if (!hasClass(group, 'npt-own-group')) {
       group.className = ((group.className || '') + ' npt-own-group').replace(/^\s+/, '');
     }
+    splitDescription(group);
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'npt-readme', 'NormalizeParentTags/README.md');
     link.id = README_LINK_ID;

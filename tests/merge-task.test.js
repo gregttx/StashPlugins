@@ -734,7 +734,8 @@ Promise.resolve()
     heading.textContent = 'Merge Performer Tags To Scenes (1.9.3)';
     const sub = h.makeElement('div');
     sub.className = 'sub-heading';
-    sub.textContent = 'README: https://example/README.md - Merges performer tags...';
+    sub.textContent = 'Copies each performer tags onto their scenes.\n\n' +
+      'BACK UP YOUR DATABASE BEFORE THE FIRST RUN - Stash has no undo.';
     headBox.appendChild(heading);
     headBox.appendChild(sub);
     header.appendChild(headBox);
@@ -757,9 +758,18 @@ Promise.resolve()
       h.check('the group is marked so the description can keep its line breaks',
         h.hasClass(group, 'cpt2s-own-group'), group.className);
       const css = (env.ctx.document.getElementById('cpt2s-task-style') || {}).textContent || '';
-      h.check('and the stylesheet says how, scoped to that class',
-        css.indexOf('.cpt2s-own-group .sub-heading{white-space:pre-wrap;}') !== -1,
-        'no scoped pre-wrap rule');
+      const subRules = css.split('}').filter((r) => r.indexOf('sub-heading') !== -1);
+      h.check('and the stylesheet says how, every rule scoped to that class',
+        subRules.length > 0 && subRules.every((r) => r.indexOf('.cpt2s-own-group ') === 0),
+        subRules.join(' | '));
+      h.check('with pre-wrap for an unsplit description and a margin for a split one',
+        subRules.some((r) => r.indexOf('white-space:pre-wrap') !== -1) &&
+        subRules.some((r) => /\.cpt2s-p\{margin:0 0 \.35em;/.test(r)), subRules.join(' | '));
+
+      // Elements, because a blank line under pre-wrap is always a whole line-height.
+      h.check('the description is rebuilt as paragraph elements',
+        sub.childNodes.length === 2 && sub.childNodes.every((n) => h.hasClass(n, 'cpt2s-p')),
+        String(sub.childNodes.length) + ' children');
       h.check('with the file name as its text',
         !!link && link.textContent === 'MergePerformerTagsToScenes/README.md',
         link && link.textContent);

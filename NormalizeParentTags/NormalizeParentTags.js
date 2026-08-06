@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.5.1';
+  var PLUGIN_VERSION = '1.5.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1443,9 +1443,9 @@
     return checkInstalledVersion(function (installed) {
       self.stale = true;
       self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but ' +
-        installed + ' is installed. Reload the page (Ctrl+Shift+R) and run the task again; ' +
-        'Proceed stays disabled until the script matches, since the plan would be computed ' +
-        'by the older code.');
+        installed + ' is installed. Reload the page (F5) and run the task again; if this ' +
+        'warning comes back, hard-refresh with Ctrl+Shift+R. Proceed stays disabled until the ' +
+        'script matches, since the plan would be computed by the older code.');
       self.setState(self.state);
     });
   };
@@ -1814,8 +1814,9 @@
     return checkInstalledVersion(function (installed) {
       var warn = el('div', 'npt-warn',
         'This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but ' + installed +
-        ' is installed. Reload the page (Ctrl+Shift+R): everything below describes the rules ' +
-        'in this older script, which may not be what the tasks would do now.');
+        ' is installed. Reload the page (F5); if this warning comes back, hard-refresh with ' +
+        'Ctrl+Shift+R. Everything below describes the rules in this older script, which may ' +
+        'not be what the tasks would do now.');
       // Above the read-only line rather than after it: it qualifies everything that
       // line introduces.
       self.headEl.insertBefore(warn, self.noteEl);

@@ -161,7 +161,7 @@ As soon as the plugin picks the setting up it says so once, so you can tell it i
 [MergePerformerTagsToScenes] merge logging enabled — one line will appear here per tag merged into a scene. The number in brackets after a name is that tag's or scene's Stash id.
 ```
 
-If you tick the setting and that line never appears, check in this order: you are looking at the browser's console rather than the Stash log; the console's level filter is not hiding **Info** messages (Chrome collapses them under "Verbose"/"Info" in the level dropdown); and the browser is not still running an older copy of the plugin's JavaScript (reload plugins in Stash, then hard-refresh with Ctrl+Shift+R).
+If you tick the setting and that line never appears, check in this order: you are looking at the browser's console rather than the Stash log; the console's level filter is not hiding **Info** messages (Chrome collapses them under "Verbose"/"Info" in the level dropdown); and the browser is not still running an older copy of the plugin's JavaScript — the version line the plugin logs at load says which one it is, and reloading the page (F5) picks up a newly copied file.
 
 The action tells you where the tag went:
 
@@ -198,17 +198,17 @@ The two buttons appear in different places, because each one sits where the cont
 
 ### Checking which version is actually running
 
-**Reload plugins cannot replace the script your browser is already running.** It re-reads the plugin folder on the server; the JavaScript in your open page was fetched and executed when the page loaded, and stays until the page reloads. An update always needs at least an F5, and sometimes a hard refresh (**Ctrl+Shift+R**, or **Cmd+Shift+R**) if the browser served the file from cache.
+**Reload plugins cannot replace the script your browser is already running.** It re-reads the plugin folder on the server; the JavaScript in your open page was fetched and executed when the page loaded, and stays until the page reloads. An update always needs a page reload — but a plain **F5** is normally enough, since Stash serves plugin scripts so that a normal reload picks up a changed file. Keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for the case where it does not.
 
 The version beside the plugin's name in **Settings → Plugins** does not settle it — that comes from the manifest, which is current the instant you reload plugins even when the running script is older. New version in the heading with old behaviour on screen is exactly what a cached script looks like.
 
 So the plugin says which script is running, in the browser console (**F12** → Console) on every page load, whether or not merge logging is enabled:
 
 ```
-[cpt2s] MergePerformerTagsToScenes.js 1.9.0 loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
+[cpt2s] MergePerformerTagsToScenes.js 1.9.1 loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
 ```
 
-If that is not the version you just installed, hard-refresh; if it still is not, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
+If that is not the version you just installed, the page is running an old copy. In order: reload (F5); check the new `.js` really is in `<stash-config-dir>/plugins/`, since a file that was never copied cannot be refreshed into existence; then hard-refresh; then, if it still will not budge, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
 
 **The task checks this for you.** Opening the library-wide task asks Stash which version is installed and compares it with the running script. If they differ the dialog says so at the top and **Proceed stays disabled** until you reload the page. An unknown answer — an older Stash, a failed request — blocks nothing; only a definite mismatch does. It cannot catch an edit made without changing the version, since both numbers stay equal.
 

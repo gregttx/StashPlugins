@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.9.0';
+  var PLUGIN_VERSION      = '1.9.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1442,9 +1442,9 @@
       // something the user cannot see.
       self.stale = true;
       self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but ' +
-        installed + ' is installed. Reload the page (Ctrl+Shift+R) and run the task again; ' +
-        'Proceed stays disabled until the script matches, since the plan would be computed ' +
-        'by the older code.');
+        installed + ' is installed. Reload the page (F5) and run the task again; if this ' +
+        'warning comes back, hard-refresh with Ctrl+Shift+R. Proceed stays disabled until the ' +
+        'script matches, since the plan would be computed by the older code.');
       self.setState(self.state);
     });
   };

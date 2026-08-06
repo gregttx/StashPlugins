@@ -360,9 +360,9 @@ Two things worth knowing about the tag-level filters:
 
 **Reload plugins cannot replace the script your browser is already running.** It re-reads the
 plugin folder on the server; the JavaScript in your open page was fetched and executed when the
-page loaded, and it stays until the page reloads. So an update always needs at least an F5, and
-sometimes a hard refresh (**Ctrl+Shift+R**, or **Cmd+Shift+R**) if your browser served the file
-from cache.
+page loaded, and it stays until the page reloads. So an update always needs a page reload — but a
+plain **F5** is normally enough: Stash serves plugin scripts so that a normal reload picks up a
+changed file. Keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for the case where it does not.
 
 The version beside the plugin's name in **Settings → Plugins** does not settle this: it is read
 from the manifest, which is current the instant you reload plugins, even when the script running in
@@ -373,13 +373,14 @@ The plugin therefore says which script is running, in your browser's console (**
 every page load:
 
 ```
-[npt] NormalizeParentTags.js 1.5.1 loaded. This is the running script own version - the settings
+[npt] NormalizeParentTags.js 1.5.2 loaded. This is the running script own version - the settings
 page reads the manifest instead, which can be newer than the script your browser has cached.
 ```
 
-If that number is not the one you just installed, the page is running an old copy: hard-refresh,
-and if that still does not do it, open DevTools → **Network**, tick **Disable cache**, and reload
-with DevTools open.
+If that number is not the one you just installed, the page is running an old copy. In order:
+reload (F5); check that the new `.js` really is in `<stash-config-dir>/plugins/` — a file that was
+never copied cannot be refreshed into existence; then hard-refresh; then, if it still will not
+budge, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
 
 **The tasks check this for you.** Opening Prune or Roll Up asks Stash which version of the plugin
 is installed and compares it with the script that is running. If they differ, the dialog says so at

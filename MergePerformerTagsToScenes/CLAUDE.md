@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.9.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.9.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -504,6 +504,12 @@ It is not fired ahead of the scan but alongside it: one small query against a pa
 whole library, landing long before Proceed is reachable, with `setState` re-applied when it does.
 `begin()` calls it, so a rescan re-checks — the script cannot change without a page reload, but the
 installed version can, and reloading plugins is exactly what the user does after seeing the warning.
+
+**A plain F5 is normally enough** (measured 2026-08-06 against Stash 0.31.x): the browser
+revalidates the plugin script on a normal reload, so the warning leads with F5 and keeps
+Ctrl+Shift+R as the fallback. Do not talk the user straight into a hard refresh — the failure that
+actually cost a session here was a `.js` that had never been copied into the plugin folder, where
+no amount of refreshing helps and only the version line tells you so.
 
 **What it cannot catch:** an edit with no version bump. Both numbers stay equal and the check is
 blind, which is the practical argument for bumping the patch digit on every change.

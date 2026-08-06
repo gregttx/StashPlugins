@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.5.1.** This file is both the design and the map of the code — the
+**Status: implemented at 1.5.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1102,6 +1102,12 @@ It is not fired ahead of the scan but alongside it: one small query against a pa
 whole library, landing long before Proceed is reachable, with `setState` re-applied when it does.
 `begin()` calls it, so a rescan re-checks — the script cannot change without a page reload, but the
 installed version can, and reloading plugins is exactly what the user does after seeing the warning.
+
+**A plain F5 is normally enough** (measured 2026-08-06 against Stash 0.31.x): the browser
+revalidates the plugin script on a normal reload, so the warning leads with F5 and keeps
+Ctrl+Shift+R as the fallback. Do not talk the user straight into a hard refresh — the failure that
+actually cost a session here was a `.js` that had never been copied into the plugin folder, where
+no amount of refreshing helps and only the version line tells you so.
 
 **What it cannot catch:** an edit with no version bump. Both numbers stay equal and the check is
 blind, which is the practical argument for bumping the patch digit on every change.

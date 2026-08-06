@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.10.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.10.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -534,8 +534,16 @@ Enable/Disable. Icon only: it takes no anchor text, so the link cannot be labell
 The description does **not** carry the URL. It did until 1.6.0/1.10.0, on the theory that the text
 reached places the icon does not; in practice Stash renders it as plain text, so it was an
 unclickable 90-character prefix in front of every word that mattered. The two links are `url:` and
-the injected one, and both are pinned to the same SHA — which must be a **pushed** commit, or GitHub
-answers 404 for a ref it has never seen. That is how the first attempt shipped broken.
+the injected one, and they must stay identical — the `version` suite fails if they drift.
+
+**Both point at `/blob/main/`, not a SHA** (1.6.2 / 1.10.2). A pinned revision was the first
+instinct and it was tried: it means the link shows the documentation for roughly the code the user
+has, rather than whatever `main` says today. Two things killed it. A SHA has to be **pushed** before
+GitHub can resolve it, and pinning to a commit that was still sitting on a local branch shipped a
+404 twice. And it has to be re-pinned every time a README changes, which is a step nothing enforces
+and everything forgets — a link that silently rots into old documentation is worse than one that
+tracks the branch. `main` is always current and always resolves; the cost is that a user on an old
+version reads the newest docs, which the version line in the console at least lets them notice.
 
 **And a labelled link of our own** (1.10.0). The chain icon is easy to miss, so the plugin injects
 `<a>MergePerformerTagsToScenes/README.md</a>` into its own settings group, under the description. The

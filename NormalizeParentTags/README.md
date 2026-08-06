@@ -358,8 +358,7 @@ Two things worth knowing about the tag-level filters:
 
 ### The README link in settings
 
-**Settings → Plugins → Normalize Parent Tags** carries a link to this file, pinned to the revision
-it was published at, in two forms: the chain icon Stash puts in the header row, and a labelled
+**Settings → Plugins → Normalize Parent Tags** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled
 `NormalizeParentTags/README.md` link the plugin adds underneath the description — the icon alone is
 easy to miss. Both open the same page.
 

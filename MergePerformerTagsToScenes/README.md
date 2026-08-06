@@ -198,7 +198,7 @@ The two buttons appear in different places, because each one sits where the cont
 
 ### The README link in settings
 
-**Settings → Plugins → Merge Performer Tags To Scenes** carries a link to this file, pinned to the revision it was published at, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
+**Settings → Plugins → Merge Performer Tags To Scenes** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
 
 ### Checking which version is actually running
 

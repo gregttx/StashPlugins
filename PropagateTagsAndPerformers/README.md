@@ -1,10 +1,11 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.0.1 is a scaffold, not a working plugin
+> ## 🚧 Under construction — 0.1.0 does not write anything yet
 >
-> This folder currently contains the manifest, the settings, the path table and the stylesheet.
-> **Nothing is implemented yet**: there is no task, no dialog, no automatic mode and no button.
-> Installing it will show the settings on the plugins page and do nothing else.
+> The task now opens and reviews your **configuration** — which paths are enabled and in what order
+> they would run, which exclusion filters are in force, whether another plugin is writing, and
+> whether your browser is running the script you have installed. It does not yet read the library,
+> so it plans nothing and **Proceed stays disabled**.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -15,9 +16,9 @@
 > | | Status |
 > | --- | --- |
 > | Settings, path table, stylesheet | **done** (0.0.1) |
-> | Shared base: cooperation, GraphQL, task interception, review dialog | not started |
-> | The library-wide task, review and apply | not started |
-> | Undo | not started |
+> | Task entry point, review dialog, settings page | **done** (0.1.0) |
+> | The library scan — planning what would change | not started |
+> | Applying the plan, and Undo | not started |
 > | Two-hop paths and the "common tags only" modes | not started |
 > | The two reverse paths and the per-entity cooldown | not started |
 > | Automatic modes | not started |
@@ -146,7 +147,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.0.1 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.1.0 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

@@ -13,7 +13,8 @@ const fs = require('fs');
 const path = require('path');
 const h = require('./npt-harness');
 
-const PLUGINS = ['NormalizeParentTags', 'MergePerformerTagsToScenes'];
+const PLUGINS = ['NormalizeParentTags', 'MergePerformerTagsToScenes',
+  'PropagateTagsAndPerformers'];
 
 const read = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8');
 

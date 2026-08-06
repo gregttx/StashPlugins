@@ -105,21 +105,26 @@ Rules that make this safe:
 
 ## Cross-plugin cooperation: the shared dialog chrome
 
-Both plugins put up a full-screen review dialog, and they are one design: same head with a warning
-and a legend, same monospace log with a rendered tail, same footer of Proceed / Stop / Copy log /
-Rescan / Undo / Close, same `btn btn-secondary btn-sm` buttons borrowed from Stash. A plugin folder
-is copied as-is, with no build step and no shared module, so neither can import the other's
-stylesheet: each carries its own CSS string, `CSS` in `NormalizeParentTags` and `TASK_CSS` in
-`MergePerformerTagsToScenes`.
+Every plugin here puts up a full-screen review dialog, and they are one design: same head with a
+warning and a legend, same monospace log with a rendered tail, same footer of Proceed / Stop /
+Copy log / Rescan / Undo / Close, same `btn btn-secondary btn-sm` buttons borrowed from Stash. The
+same goes for the settings page since `NormalizeParentTags` 1.7.5 — the description split into a
+visible summary and a hover box, and the group description behind a **Show more** toggle. A plugin
+folder is copied as-is, with no build step and no shared module, so none can import another's
+stylesheet: each carries its own CSS string, `CSS` in `NormalizeParentTags`, `TASK_CSS` in
+`MergePerformerTagsToScenes`, `CSS` in `PropagateTagsAndPerformers`.
 
 **Keep the overlapping rules byte-identical.** They drifted once — the modal was `#202b33` in one
 and `#30404d` in the other, with a `font-size` and a `z-index` to match — because the second dialog
-was written a day after the first and nobody compared them. `tests/style.test.js` now parses both
-strings, strips the `npt-` / `cpt2s-` prefixes and fails on any selector the two define differently.
+was written a day after the first and nobody compared them. `tests/style.test.js` parses all three
+strings, strips the `npt-` / `cpt2s-` / `ptp2re-` prefixes, and fails on any selector two or more of
+them define differently.
 
-Only the overlap is pinned. Rules the other dialog has no use for — the hierarchy viewer's tree and
-inspector, each plugin's own log-line kinds (`REMOVE`/`ADD` against `MERGE`) — are free to differ,
-and the suite ignores selectors it finds on one side only.
+Only the overlap is pinned. Rules the others have no use for — the hierarchy viewer's tree and
+inspector, each plugin's own log-line kinds (`REMOVE`/`ADD` against `MERGE` against `TAG`/`PERF`) —
+are free to differ, and the suite ignores selectors it finds on one side only. The chrome and the
+tooltip rules are additionally pinned **by name**, per plugin, so a plugin that quietly stopped
+defining one of them fails rather than passing by having nothing left to disagree about.
 
 **`#202b33` is the modal background** — Blueprint's `dark-gray2`, the step Stash's own page uses.
 The alternative the two drifted between, `#30404d` (`dark-gray4`), is what Stash puts on raised

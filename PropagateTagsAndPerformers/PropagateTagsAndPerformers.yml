@@ -1,0 +1,107 @@
+name: Propagate Tags and Performers to Related Entities
+description: "Copies tags and performers from related entities onto the entity that links them.\n\nThirteen paths, each off until you enable it. Tags onto Scenes from their performers, studio, markers or groups; onto Galleries from their images; onto Images from their galleries; onto Groups from their scenes, studio, sub-groups, and from those scenes' performers and markers. Performers onto Scenes from their galleries, and onto Galleries from their images.\n\nCopy, never move - nothing is ever removed from the source.\n\nThree ways to run it: buttons on the target's Edit tab, automatically whenever Stash saves an entity, or as one library-wide task in Settings - Tasks - Plugin Tasks. The buttons and the automatic modes are off until you enable them below.\n\nThe task lists every change before writing any of them - nothing lands until you press Proceed, and Undo takes the run back while the dialog stays open.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - it rewrites tag and performer assignments across the whole library and Stash has no undo.\n\nRequires Stash 0.31.0 or newer."
+url: "https://github.com/gregttx/StashPlugins/blob/main/PropagateTagsAndPerformers/README.md"
+version: 0.0.1
+ui:
+  javascript:
+    - PropagateTagsAndPerformers.js
+tasks:
+  - name: Propagate Tags and Performers to All Related Entities
+    description: Run every path enabled below across the whole library, in a fixed order. Opens a dialog that lists every change first; nothing is written until you press Proceed. It only ever adds tags and performers, and an Undo button takes back what it added - but only while the dialog stays open, so back up your database before the first run. The exclusion filters below all apply.
+settings:
+  a1ShowManualButtons:
+    displayName: Show Manual Buttons
+    description: "Show a button on the Edit tab of scenes, galleries, images and groups for each enabled path into that entity.\n\nOne button per path, so enabling two of the five scene paths shows two buttons rather than five. Buttons only appear when the related content actually exists."
+    type: BOOLEAN
+  a2SaveImmediately:
+    displayName: Save Immediately
+    description: "Make the manual buttons copy and save in one step.\n\nLeave this off to stage the tags or performers in the edit form for review instead, so you can check them and press Save yourself. Only affects the buttons; the automatic modes always save."
+    type: BOOLEAN
+  a3AutoOnTargetUpdate:
+    displayName: Auto Propagate when the Target is Saved
+    description: "Whenever Stash saves a scene, gallery, image or group, immediately run every enabled path that copies into it.\n\nUpdates immediately, with no dialog and no undo, but only ever adds. Reads one entity per save, so it is the cheaper of the two automatic modes. The exclusion filters below still apply."
+    type: BOOLEAN
+  a4AutoOnSourceUpdate:
+    displayName: Auto Propagate when the Source is Saved
+    description: "Whenever Stash saves an entity, immediately push its tags or performers into every entity an enabled path copies them to.\n\nUpdates immediately, with no dialog and no undo, but only ever adds. This one fans out - saving a performer can rewrite every scene they appear in - so it is far more expensive than the mode above. The exclusion filters below still apply."
+    type: BOOLEAN
+  b1TagsPerformersToScenes:
+    displayName: Tags - Performers to their Scenes
+    description: Copy each performer's tags onto every scene they appear in.
+    type: BOOLEAN
+  b2TagsStudioToScenes:
+    displayName: Tags - Studio to its Scenes
+    description: Copy a studio's tags onto every scene it produced.
+    type: BOOLEAN
+  b3TagsMarkersToScenes:
+    displayName: Tags - Markers to their Scene
+    description: "Copy the tags of a scene's markers onto the scene itself.\n\nA marker's primary tag counts as one of its tags and is copied too."
+    type: BOOLEAN
+  b4TagsGroupsToScenes:
+    displayName: Tags - Groups to their Scenes
+    description: "Copy a group's tags onto every scene in it.\n\nThis is the reverse of \"Tags - Scenes to their Group\" below. Enabling both makes every scene in a group and the group itself converge on the same tags, which is what running both directions means - see the README before enabling the pair."
+    type: BOOLEAN
+  b5PerformersGalleriesToScenes:
+    displayName: Performers - Galleries to their Scenes
+    description: Copy the performers of a gallery onto every scene the gallery is attached to.
+    type: BOOLEAN
+  c1TagsImagesToGalleries:
+    displayName: Tags - Images to their Galleries
+    description: "Copy the tags of a gallery's images onto the gallery.\n\nThe slowest path in the plugin: six-figure image counts are normal, and a gallery's images have to be fetched by filter because Stash has no field for them."
+    type: BOOLEAN
+  c2PerformersImagesToGalleries:
+    displayName: Performers - Images to their Galleries
+    description: Copy the performers of a gallery's images onto the gallery.
+    type: BOOLEAN
+  d1TagsGalleriesToImages:
+    displayName: Tags - Galleries to their Images
+    description: "Copy a gallery's tags onto every image in it.\n\nThis is the reverse of \"Tags - Images to their Galleries\" above. Enabling both makes every image in a gallery and the gallery itself converge on the same tags - see the README before enabling the pair."
+    type: BOOLEAN
+  e1TagsScenesToGroups:
+    displayName: Tags - Scenes to their Group
+    description: "Copy the tags of a group's scenes onto the group.\n\nBy default the group gains every tag any of its scenes carries. Use the setting below to gain only the tags they all share."
+    type: BOOLEAN
+  e2TagsScenesToGroupsCommonOnly:
+    displayName: Tags - Scenes to their Group - common tags only
+    description: "Only copy a tag onto the group when every one of its scenes carries it.\n\nOff means every tag any scene carries. A group with one scene gains that scene's tags either way, and a group with no scenes gains nothing either way. This is also the gentler half of a pair: with it on, enabling \"Tags - Groups to their Scenes\" pushes back almost nothing."
+    type: BOOLEAN
+  e3TagsStudioToGroups:
+    displayName: Tags - Studio to its Groups
+    description: Copy a studio's tags onto every group it produced.
+    type: BOOLEAN
+  e4TagsPerformersToGroups:
+    displayName: Tags - Performers to their Groups
+    description: "Copy the tags of the performers in a group's scenes onto the group.\n\nTwo hops - a group has no performers of its own, so this reaches them through its scenes, and costs a query per group on top of the scene query."
+    type: BOOLEAN
+  e5TagsMarkersToGroups:
+    displayName: Tags - Markers to their Groups
+    description: "Copy the tags of the markers in a group's scenes onto the group.\n\nTwo hops, like the setting above: a group has no markers of its own, so this reaches them through its scenes."
+    type: BOOLEAN
+  e6TagsSubGroupsToGroups:
+    displayName: Tags - Sub-groups to their Containing Group
+    description: "Copy the tags of a group's sub-groups onto the containing group.\n\nBy default the group gains every tag any sub-group carries. Use the setting below to gain only the tags they all share."
+    type: BOOLEAN
+  e7TagsSubGroupsToGroupsCommonOnly:
+    displayName: Tags - Sub-groups to their Containing Group - common tags only
+    description: "Only copy a tag onto the containing group when every one of its sub-groups carries it.\n\nOff means every tag any sub-group carries. A group with one sub-group gains that sub-group's tags either way, and a group with none gains nothing either way."
+    type: BOOLEAN
+  f1ExcludeTargetWithTagName:
+    displayName: Exclude entities carrying this tag
+    description: "Enter one tag name. Nothing is ever copied onto an entity carrying that tag.\n\nMatched by exact name, case-sensitive. The tag must be carried directly - a parent of it does not count. It is also never copied onto anything itself, since that would permanently exclude whatever received it."
+    type: STRING
+  f2ExcludeTargetOrganized:
+    displayName: Exclude entities marked as Organized
+    description: "Skip any entity whose Organized flag is set.\n\nIn Stash 0.31 only scenes, images and galleries have that flag among this plugin's targets; groups have none, so this setting cannot skip them."
+    type: BOOLEAN
+  f3ExcludeTagWithIgnoreAutoTag:
+    displayName: Never copy tags set to Ignore auto tag
+    description: Tags with "Ignore auto tag" enabled are never copied onto anything.
+    type: BOOLEAN
+  f4ExcludeTagWithCustomFieldName:
+    displayName: Never copy tags marked via a Custom Field
+    description: "Enter a custom field name. A tag carrying this custom field is never copied onto anything.\n\nOnly the presence of the field matters - its value is ignored, so any value at all excludes the tag. Remove the field from a tag to have it copied again."
+    type: STRING
+  g1LogToConsole:
+    displayName: Log every copy to the Browser Console (Info level)
+    description: "Logs each tag and performer copied to the browser's JavaScript console.\n\nThat is F12 - Console, not the Stash server log or the Logs page."
+    type: BOOLEAN

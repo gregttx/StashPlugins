@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.3.1.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.4.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -16,7 +16,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | 3 | The planner — all eleven walk-based paths | **0.2.0** |
 | 4 | Phase 2 apply, and Undo | **0.3.0** |
 | | — the log names the source entity, not the path | **0.3.1** |
-| 5 | The two reverse-query paths (a gallery's images) | — |
+| 5 | The two reverse-query paths (a gallery's images) | **0.4.0** |
 | 6 | Auto mode **and** the per-entity cooldown, together | — |
 | 7 | The `declares` registry | — |
 | 8 | Manual buttons and staging | — |
@@ -308,6 +308,48 @@ separates them. This is the siblings' convention and it caught out the first ver
 `propagate-apply.test.js`, which read the whole log and thought it had seen a write. Any check about
 what was *written* has to read below that header.
 
+## 4c. The sweep: a gallery's images (0.4.0)
+
+Eleven paths walk down fields of the target. The last two cannot: **`Gallery` has no `images`
+field** — only `image_count` and `image(index)` — so the sources of `tags:image>gallery` and
+`performers:image>gallery` have to be found from the other end. `reverse: { backRef: 'galleries' }`
+names the field on the *source* that points at the target, and everything else about the query
+comes from the source's own `TARGETS` entry, so there is no second copy of `findImages` to fall out
+of step. A reverse path's `sourceType` must therefore be a target type; `propagate-paths` pins it.
+
+**One sweep over every image, not one query per gallery.** The design sketched
+`findImages(image_filter: { galleries: { value: [id], modifier: INCLUDES_ALL } }, per_page: -1)`
+per gallery, by analogy with the sibling's per-performer scene query. That is worse in the two ways
+that matter here: it costs a request per gallery, and `per_page: -1` against a gallery holding
+twenty thousand images returns twenty thousand images in one response — the six-figure hazard the
+design flagged, reintroduced by the query meant to avoid it. Sweeping pages uniformly, never builds
+an unbounded response, and costs requests in proportion to the library rather than to the number of
+galleries.
+
+**The sweep runs at the start of its own pass, and both reverse paths sweep separately.** They sit
+in different stages — performers in 1, tags in 3, because the tag paths read performers — so a
+shared sweep would have to be taken once and reused across a stage boundary. It would halve the
+requests in the one configuration where both are enabled, and it would move the correctness
+argument into a comment: reuse is safe only while nothing between the two stages plans onto images,
+which is true today and is not a property the path table promises. Sweeping per pass reads the plan
+exactly where a walk would, so the cascade means the same thing whichever way the sources arrived.
+Two passes over every image is the price, and both setting descriptions say so.
+
+**One aggregation, two ways in.** `addSource`/`aggregate` hold what a set of sources contributes to
+one target — `n`, `counts`, `order`, `first` — and a walk and a sweep both go through it. The two
+were briefly separate and that is exactly the shape that drifts: the cascade, the count "common tags
+only" divides by, and which source gets named would each have had two implementations.
+
+**An image in two galleries counts for both.** It is added once per target it names, not once, or
+the second gallery would silently lose it.
+
+**A failed sweep page is logged and the pass carries on**, like a failed target page. Short rather
+than wrong: every gallery it does reach is planned from every image it did read.
+
+**The sweep gets its own progress segment**, and the pass counts as started only when it reaches its
+targets — otherwise a target count of `0 / 0` sits beside a sweep that will run for a minute, which
+reads as a stalled pass.
+
 ## 5. The dialog (0.1.0)
 
 Ported from both siblings and deliberately identical to them: same head with a backup warning and an
@@ -359,7 +401,7 @@ of it apply unchanged:
 
 ## 7. Testing
 
-`node tests/run.js`. Three suites touch this plugin so far:
+`node tests/run.js`. Five suites touch this plugin so far:
 
 - **`propagate-paths.test.js`** — the tables, and the invariants the order carries. See
   `tests/README.md`.
@@ -369,6 +411,10 @@ of it apply unchanged:
 - **`propagate-plan.test.js`** — the walk over the library: the gather, the diff, both aggregation
   modes and their edges, the cascade, every exclusion filter, pass ordering, naming, the recap, and
   that a review issues no mutation at all.
+- **`propagate-sweep.test.js`** — the two reverse paths and the sweep that gathers them: what it
+  costs, that an image in two galleries reaches both, that it pages and accumulates, that every
+  source is gathered before any target is read, a partial sweep after a failed page, and the
+  progress line read *during* the sweep rather than after it.
 - **`propagate-apply.test.js`** — phase 2 and Undo: delta writes, batching, failed batches isolated,
   Stop, Rescan, the leases, the arm/confirm latch, and that phase 2 reads nothing. It takes about
   nine seconds, four of which are spent waiting out `UNDO_ARM_MS` to prove an expired arm does not
@@ -376,7 +422,7 @@ of it apply unchanged:
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.**
-Fifty-two mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
+Sixty-four mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
 reason is worse than no suite. Use `SRC=/path/to/mutant.js node tests/propagate-base.test.js`.
 
 What they cannot cover: Stash's own behaviour. The suites reproduce its markup and its schema from

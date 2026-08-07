@@ -174,11 +174,62 @@ h.check('every path is reached by a walk or by a reverse query, never both',
   PATHS.filter((p) => !!p.walk === !!p.reverse).map((p) => p.id).join(' ') || 'all singly reached');
 
 // Gallery has no `images` field - only image_count and image(index) - so both paths
-// out of a gallery's images go through findImages with a gallery filter.
+// out of a gallery's images are gathered by sweeping images instead.
 h.check('the two reverse queries are exactly the paths out of a gallery images',
   PATHS.filter((p) => p.reverse).map((p) => p.id).sort().join(' ') ===
     'performers:image>gallery tags:image>gallery',
   PATHS.filter((p) => p.reverse).map((p) => p.id).join(' '));
+
+// The sweep is a paged query over the source entity, so a reverse path's sourceType
+// has to be a target type - that is where its find, node and page size come from. A
+// reverse path from something else would have nothing to page.
+h.check('a reverse path sweeps an entity the plugin can page',
+  PATHS.filter((p) => p.reverse)
+    .every((p) => Object.prototype.hasOwnProperty.call(TARGETS, p.sourceType)),
+  PATHS.filter((p) => p.reverse && !Object.prototype.hasOwnProperty.call(TARGETS, p.sourceType))
+    .map((p) => p.id).join(' '));
+
+// `backRef` is the field on the *source* naming its targets - Image.galleries. It is
+// the whole descriptor: everything else about the sweep comes from the source's own
+// TARGETS entry, so there is no second copy of `findImages` to fall out of step.
+h.check('and names the field that points back at the target',
+  PATHS.filter((p) => p.reverse).every((p) => p.reverse.backRef === 'galleries'),
+  PATHS.filter((p) => p.reverse).map((p) => p.id + '=' + JSON.stringify(p.reverse)).join(' '));
+
+h.check('a reverse pass sweeps its sources before reading a target',
+  (() => {
+    const pass = api.buildPasses([api.pathById('tags:image>gallery')])[0];
+    return !!pass.sweep && pass.sweep.type === 'image';
+  })(),
+  JSON.stringify(api.buildPasses([api.pathById('tags:image>gallery')])[0].sweep));
+
+h.check('and a pass of walks needs no sweep at all',
+  api.buildPasses([api.pathById('tags:performer>scene')])[0].sweep === null);
+
+// The sweep reads the source's own fields (its name for the log), what it contributes,
+// and the back-reference. Anything missing here is a source that cannot be attributed
+// or a target that cannot be found.
+h.check('the sweep query carries the payload and the back-reference',
+  (() => {
+    const q = api.sweepQuery(api.buildPasses([api.pathById('tags:image>gallery')])[0]);
+    return /query PTP_sweep_findImages\(/.test(q) && /tags \{ id \}/.test(q) &&
+      /galleries \{ id \}/.test(q) && /visual_files/.test(q);
+  })(),
+  api.sweepQuery(api.buildPasses([api.pathById('tags:image>gallery')])[0]));
+
+// `findImages` is both the sweep of stage 3 and the target query of stage 6. Naming
+// them alike would make a log, a network tab and a test unable to tell which ran.
+h.check('and is named apart from the target query over the same entity',
+  api.sweepQuery(api.buildPasses([api.pathById('tags:image>gallery')])[0])
+    .indexOf('query PTP_sweep_') === 0 &&
+  api.passQuery(api.buildPasses([api.pathById('tags:gallery>image')])[0])
+    .indexOf('query PTP_findImages') === 0);
+
+// A reverse path contributes no selection to the target query - its sources come from
+// the sweep - so it must not splice an empty string into it either.
+h.check('a reverse path leaves no gap in the target query',
+  !/\s{2,}/.test(api.passQuery(api.buildPasses([api.pathById('tags:image>gallery')])[0])),
+  api.passQuery(api.buildPasses([api.pathById('tags:image>gallery')])[0]));
 
 // ── Pairs ─────────────────────────────────────────────────────────────────
 //

@@ -1,11 +1,11 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.3.1 works, for eleven of the thirteen paths
+> ## 🚧 Under construction — 0.4.0 works, for all thirteen paths
 >
-> The library-wide task is complete: it reviews, applies and undoes. **Back up your database before
-> running it** — see below. What is still missing is the two paths out of a gallery's images, the
-> automatic modes, and the manual buttons. Everything that does exist writes only after you press
-> Proceed.
+> The library-wide task is complete and now covers every path: it reviews, applies and undoes. **Back
+> up your database before running it** — see below. What is still missing is the automatic modes and
+> the manual buttons, so the task is the only way to run it. Everything that does exist writes only
+> after you press Proceed.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -19,7 +19,7 @@
 > | Task entry point, review dialog, settings page | **done** (0.1.0) |
 > | The library scan, for the eleven paths reached by traversal | **done** (0.2.0) |
 > | Applying the plan, and Undo | **done** (0.3.0) |
-> | The two paths out of a gallery's images | not started |
+> | The two paths out of a gallery's images | **done** (0.4.0) |
 > | Automatic modes, with the per-entity cooldown | not started |
 > | Manual buttons and staging | not started |
 
@@ -82,7 +82,7 @@ Each one is a separate setting, and every one of them is **off** on a fresh inst
 | Scenes | their **studio** | |
 | Scenes | their **markers** | a marker's primary tag counts as one of its tags |
 | Scenes | their **groups** | reverse of *Groups ← Scenes* — see the warning below |
-| Galleries | their **images** | the slowest path; six-figure image counts are normal. Not yet implemented |
+| Galleries | their **images** | the slowest path — a run reads every image in the library once, because Stash has no field from a gallery to its images |
 | Images | their **galleries** | reverse of *Galleries ← Images* — see the warning below |
 | Groups | their **scenes** | union, or **only the tags every scene shares** |
 | Groups | their **studio** | |
@@ -95,7 +95,7 @@ Each one is a separate setting, and every one of them is **off** on a fresh inst
 | Onto | From | Notes |
 | --- | --- | --- |
 | Scenes | their **galleries** | |
-| Galleries | their **images** | *(not yet implemented)* |
+| Galleries | their **images** | same sweep over every image as the tag path above |
 
 There is deliberately **no performer path onto a Group**, in any direction: `Group` has no
 `performers` field in Stash's schema at all. Groups are tag-only. That is why *Groups ← performers*
@@ -158,7 +158,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.3.1 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.4.0 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

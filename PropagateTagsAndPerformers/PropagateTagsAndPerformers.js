@@ -29,7 +29,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.3.1';
+  var PLUGIN_VERSION = '0.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -172,8 +172,11 @@
   //             many) and the walk handles both rather than annotating which.
   //   markerTags  the leaf is a SceneMarker, whose primary_tag counts as one of its
   //             tags and lives in its own required field
-  //   reverse   set instead of `walk` where Stash has no field for the traversal:
-  //             Gallery has no `images`, so its images are fetched by filter
+  //   reverse   set instead of `walk` where Stash has no field for the traversal.
+  //             `backRef` is the field on the *source* that names the target -
+  //             `Image.galleries`, since `Gallery.images` does not exist. Such a
+  //             path's `sourceType` must be a target type, because the sweep that
+  //             gathers it is a paged query over that entity; see `sweepPass`.
   //   mode      manifest key of the "common tags only" toggle, where the path has one
   //   pair      the id of the path that reverses this one, where one exists
   //   hops      1, or 2 where the payload is reached through an intermediate entity
@@ -182,8 +185,7 @@
     { id: 'performers:image>gallery', kind: 'performers', stage: 1, hops: 1,
       setting: 'c2PerformersImagesToGalleries', target: 'gallery', sourceType: 'image',
       source: 'Images', button: 'Add Image Perfs',
-      reverse: { find: 'findImages', node: 'images', filterArg: 'image_filter',
-                 filterField: 'galleries' } },
+      reverse: { backRef: 'galleries' } },
     { id: 'performers:gallery>scene', kind: 'performers', stage: 1, hops: 1,
       setting: 'b5PerformersGalleriesToScenes', target: 'scene', sourceType: 'gallery',
       source: 'Galleries', button: 'Add Gallery Perfs',
@@ -208,8 +210,7 @@
       setting: 'c1TagsImagesToGalleries', target: 'gallery', sourceType: 'image',
       source: 'Images', button: 'Add Image Tags',
       pair: 'tags:gallery>image',
-      reverse: { find: 'findImages', node: 'images', filterArg: 'image_filter',
-                 filterField: 'galleries' } },
+      reverse: { backRef: 'galleries' } },
 
     // Stage 4 - tags onto groups. A Group has no performers and no markers of its
     // own, so those two are two-hop traversals through its scenes.
@@ -861,12 +862,49 @@
       var key = p.stage + ':' + p.target;
       if (!index[key]) {
         index[key] = { key: key, stage: p.stage, target: p.target, paths: [],
-                       scanned: 0, total: 0, started: false };
+                       scanned: 0, total: 0, started: false, sweep: null, gathered: null };
         out.push(index[key]);
       }
       index[key].paths.push(p);
+      // A pass containing a reverse path has to gather that path's sources before it
+      // can read a single target, so the sweep is recorded on the pass rather than
+      // discovered halfway through it. Every reverse path in one pass sweeps the same
+      // entity type - they are one query, not one each.
+      if (p.reverse && !index[key].sweep) {
+        index[key].sweep = { type: p.sourceType, scanned: 0, total: 0, started: false };
+      }
     });
     return out;
+  }
+
+  function reversePaths(pass) {
+    return pass.paths.filter(function (p) { return p.reverse; });
+  }
+
+  // The sweep query: one page of *sources*, carrying what each contributes and the
+  // back-reference that says which targets it belongs to.
+  //
+  // This exists because `Gallery` has no `images` field. The obvious alternative -
+  // `findImages` filtered to one gallery, per gallery - is the shape the design
+  // sketched, and it is worse in the two ways that matter here: it costs a request per
+  // gallery, and `per_page: -1` on a gallery holding twenty thousand images returns
+  // twenty thousand images in one response. Sweeping every image once pages uniformly,
+  // never builds an unbounded response, and costs requests in proportion to the
+  // library rather than to the number of galleries.
+  function sweepQuery(pass) {
+    var paths = reversePaths(pass);
+    var t = TARGETS[paths[0].sourceType];
+    var parts = [SOURCES[paths[0].sourceType].fields];
+    paths.forEach(function (p) { parts.push(leafSelection(p)); });
+    // How a source names its targets. The same field for every reverse path in a
+    // pass, since they all sweep one entity type into one target type.
+    parts.push(paths[0].reverse.backRef + ' { id }');
+    // Named apart from the target query over the same entity - `findImages` is both
+    // the sweep here and the target pass of stage 6 - so a log, a network tab or a
+    // test can tell which of the two is running.
+    return 'query PTP_sweep_' + t.find + '($page: Int!, $per_page: Int!) {' +
+      ' ' + t.find + '(filter: { page: $page, per_page: $per_page, sort: "id", direction: ASC }) {' +
+      ' count ' + t.node + ' { ' + parts.join(' ') + ' } } }';
   }
 
   // One query per page of targets, carrying the target's own state and every
@@ -883,7 +921,12 @@
     if (pass.paths.some(function (p) { return p.kind === 'performers'; })) {
       parts.push('performers { id }');
     }
-    pass.paths.forEach(function (p) { parts.push(pathSelection(p)); });
+    // A reverse path contributes nothing here - its sources are gathered by the sweep
+    // - so it drops out rather than splicing an empty string into the selection.
+    pass.paths.forEach(function (p) {
+      var sel = pathSelection(p);
+      if (sel) parts.push(sel);
+    });
     return 'query PTP_' + t.find + '($page: Int!, $per_page: Int!) {' +
       ' ' + t.find + '(filter: { page: $page, per_page: $per_page, sort: "id", direction: ASC }) {' +
       ' count ' + t.node + ' { ' + parts.join(' ') + ' } } }';
@@ -1186,10 +1229,19 @@
     // adding those together would report a library several times its real size.
     // Only passes that have started are shown, so the line grows as the run does
     // rather than opening with a wall of zeroes.
-    var parts = (this.passes || []).filter(function (p) { return p.started; })
-      .map(function (p) {
-        return TARGETS[p.target].plural + ' ' + p.stage + ': ' + p.scanned + ' / ' + p.total;
-      });
+    // A pass with a sweep reports it as a segment of its own, because it is the part
+    // that takes the time: reading every image in the library to find each gallery's
+    // is otherwise a silent minute before the target count starts moving at all.
+    var parts = [];
+    (this.passes || []).forEach(function (p) {
+      if (p.sweep && p.sweep.started) {
+        parts.push(TARGETS[p.sweep.type].plural + ' ' + p.stage + ': ' +
+          p.sweep.scanned + ' / ' + p.sweep.total);
+      }
+      if (p.started) {
+        parts.push(TARGETS[p.target].plural + ' ' + p.stage + ': ' + p.scanned + ' / ' + p.total);
+      }
+    });
 
     var summary;
     if (this.state === 'scanning') {
@@ -1355,15 +1407,84 @@
     });
   };
 
+  // Gathers a reverse path's sources for the whole library before a single target is
+  // read, keyed by the targets each source names.
+  //
+  // It runs at the start of its own pass, not once for the run, and that is the point:
+  // it reads the plan exactly where a walk would, so the cascade means the same thing
+  // both ways. Sweeping once and sharing it between the two reverse paths would halve
+  // the requests and put the correctness argument in a comment - it would hold only
+  // while nothing between the two stages plans onto images, which is true today and is
+  // not a property the table promises.
+  Run.prototype.sweepPass = function (pass) {
+    var self = this;
+    var paths = reversePaths(pass);
+    var t = TARGETS[pass.sweep.type];
+    var query = sweepQuery(pass);
+    var backRef = paths[0].reverse.backRef;
+
+    pass.gathered = {};
+    paths.forEach(function (p) { pass.gathered[p.id] = {}; });
+    pass.sweep.started = true;
+    this.log('INFO', 'Stage ' + pass.stage + ': no field leads from a ' +
+      TARGETS[pass.target].label + ' to its ' + t.plural + ', so every ' +
+      t.label.toLowerCase() + ' in the library is read once to gather them. On a large ' +
+      'library this is the slowest part of the run.');
+
+    function page(n) {
+      if (self.cancelled) return Promise.resolve();
+      return gqlRequest(query, { page: n, per_page: t.pageSize || PAGE_SIZE })
+        .then(function (data) {
+          var res = data[t.find] || {};
+          var list = res[t.node] || [];
+          pass.sweep.total = res.count || pass.sweep.total;
+          pass.sweep.scanned += list.length;
+          list.forEach(function (src) {
+            // One source can name several targets - an image in two galleries counts
+            // for both - so it is added once per target rather than once.
+            (src[backRef] || []).forEach(function (ref) {
+              if (!ref || ref.id == null) return;
+              var key = String(ref.id);
+              paths.forEach(function (p) {
+                var index = pass.gathered[p.id];
+                if (!hasOwn(index, key)) index[key] = emptyAggregate();
+                self.addSource(index[key], src, p);
+              });
+            });
+          });
+          self.flush();
+          if (!list.length || pass.sweep.scanned >= pass.sweep.total) return null;
+          return page(n + 1);
+        }, function (e) {
+          // Same rule as a target page: logged, and the pass carries on with what it
+          // has. The plan is then short rather than wrong - every target it does reach
+          // is planned from every source that was read.
+          self.log('ERROR', t.plural + ' sweep page ' + n + ' failed: ' +
+            (e && e.message ? e.message : String(e)));
+          self.errors++;
+          return null;
+        });
+    }
+    return page(1).then(function () {
+      var gathered = 0, index = pass.gathered[paths[0].id];
+      for (var k in index) if (hasOwn(index, k)) gathered++;
+      self.log('INFO', 'Stage ' + pass.stage + ': read ' + pass.sweep.scanned + ' ' +
+        t.plural.toLowerCase() + ', covering ' + gathered + ' ' +
+        TARGETS[pass.target].plural.toLowerCase() + '.');
+    });
+  };
+
   Run.prototype.scanPass = function (pass) {
     var self = this;
     var t = TARGETS[pass.target];
     var query = passQuery(pass);
-    pass.started = true;
     this.log('INFO', 'Stage ' + pass.stage + ': ' + t.plural + ' ← ' +
       pass.paths.map(function (p) { return p.source; }).join(', ') + '.');
 
     function page(n) {
+      // Marked started here rather than at the top of the pass, so a sweep does not
+      // sit next to a target count of 0 / 0 for as long as it runs.
+      pass.started = true;
       if (self.cancelled) return Promise.resolve();
       return gqlRequest(query, { page: n, per_page: t.pageSize || PAGE_SIZE })
         .then(function (data) {
@@ -1386,7 +1507,63 @@
           return null;
         });
     }
-    return page(1);
+    // The sweep first, and the targets only once it has finished: a target read before
+    // its sources were gathered would be planned from an empty set and never revisited.
+    if (!pass.sweep) return page(1);
+    return this.sweepPass(pass).then(function () {
+      if (self.cancelled) return null;
+      return page(1);
+    });
+  };
+
+  // What a set of sources contributes to one target, along one path. Held apart from
+  // where the sources came from, because they arrive two ways: a walk lands on them
+  // one target at a time, and a sweep accumulates them across a whole library scan.
+  // One aggregation for both, or the two would be free to disagree about the cascade,
+  // about counting and about which source gets named.
+  //
+  //   n       how many sources were seen, which "common tags only" counts against
+  //   counts  how many of them carry each id
+  //   order   the ids, in the order they were first seen
+  //   first   the label of the earliest source carrying each id
+  function emptyAggregate() { return { n: 0, counts: {}, order: [], first: {} }; }
+
+  Run.prototype.addSource = function (agg, src, path) {
+    var self = this;
+    agg.n++;
+    // Performer names ride along with the traversal, so the log can name one without a
+    // query of its own. Recorded from every source seen, not only from the ones that
+    // end up in the plan: the cost is a string per performer and the alternative is a
+    // name missing from exactly the line that needed it.
+    if (path.kind === 'performers') {
+      (src.performers || []).forEach(function (p) {
+        if (p && p.id != null && p.name) self.performerNames[String(p.id)] = p.name;
+      });
+    }
+    var ids = payloadOf(src, path);
+    // The cascade: where the source is one of our own targets, whatever an earlier
+    // stage planned for it counts as already there.
+    if (hasOwn(TARGETS, path.sourceType) && src.id != null) {
+      var planned = this.plannedFor(path.sourceType, path.kind, String(src.id));
+      if (planned) ids = ids.concat(planned);
+    }
+    var seen = {};
+    ids.forEach(function (id) {
+      if (seen[id]) return;             // one source counts once, however it lists it
+      seen[id] = true;
+      if (!hasOwn(agg.counts, id)) {
+        agg.counts[id] = 0;
+        agg.order.push(id);
+        agg.first[id] = sourceLabel(self.tagMap, src, path);
+      }
+      agg.counts[id]++;
+    });
+  };
+
+  Run.prototype.aggregate = function (sources, path) {
+    var agg = emptyAggregate(), self = this;
+    sources.forEach(function (src) { self.addSource(agg, src, path); });
+    return agg;
   };
 
   Run.prototype.planTarget = function (pass, ent) {
@@ -1395,51 +1572,22 @@
     if (blocked) return;
 
     pass.paths.forEach(function (path) {
-      var sources = walkSources(ent, path);
+      // A reverse path's sources were gathered by the sweep, keyed by target; a walk
+      // finds them from the target in hand.
+      var agg = path.reverse
+        ? (pass.gathered && pass.gathered[path.id] || {})[String(ent.id)]
+        : self.aggregate(walkSources(ent, path), path);
       // Nothing to aggregate. Under either mode this is "add nothing" - the
       // intersection of no sets is not everything here, it is emptiness, because a
       // group with no scenes has no scenes agreeing on anything.
-      if (!sources.length) return;
-
-      // `first` is the label of the earliest source carrying each id, in walk order;
-      // `counts` is how many sources carry it. Together they are what the log line
-      // names - one entity by name, and how many others agreed with it.
-      var counts = {}, order = [], first = {};
-      sources.forEach(function (src) {
-        // Performer names ride along with the traversal, so the log can name one
-        // without a query of its own. Recorded from every source seen, not only from
-        // the ones that end up in the plan: the cost is a string per performer and
-        // the alternative is a name missing from exactly the line that needed it.
-        if (path.kind === 'performers') {
-          (src.performers || []).forEach(function (p) {
-            if (p && p.id != null && p.name) self.performerNames[String(p.id)] = p.name;
-          });
-        }
-        var ids = payloadOf(src, path);
-        // The cascade: where the source is one of our own targets, whatever an
-        // earlier stage planned for it counts as already there.
-        if (hasOwn(TARGETS, path.sourceType) && src.id != null) {
-          var planned = self.plannedFor(path.sourceType, path.kind, String(src.id));
-          if (planned) ids = ids.concat(planned);
-        }
-        var seen = {};
-        ids.forEach(function (id) {
-          if (seen[id]) return;         // one source counts once, however it lists it
-          seen[id] = true;
-          if (!hasOwn(counts, id)) {
-            counts[id] = 0;
-            order.push(id);
-            first[id] = sourceLabel(self.tagMap, src, path);
-          }
-          counts[id]++;
-        });
-      });
+      if (!agg || !agg.n) return;
+      var counts = agg.counts, first = agg.first;
 
       // Union, or only what every source carries. One source makes the two the same
       // answer, which is the behaviour the setting's description promises.
       var common = path.mode && self.settings[path.mode];
-      var wanted = order.filter(function (id) {
-        return common ? counts[id] === sources.length : true;
+      var wanted = agg.order.filter(function (id) {
+        return common ? counts[id] === agg.n : true;
       });
       if (!wanted.length) return;
 
@@ -2277,6 +2425,7 @@
     buildBatches: buildBatches,
     bulkMutation: bulkMutation,
     passQuery: passQuery,
+    sweepQuery: sweepQuery,
     walkSources: walkSources,
     payloadOf: payloadOf,
     entityLabel: entityLabel,

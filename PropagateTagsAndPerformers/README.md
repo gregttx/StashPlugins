@@ -1,11 +1,11 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.4.0 works, for all thirteen paths
+> ## 🚧 Under construction — 0.5.0, all thirteen paths plus the first automatic mode
 >
-> The library-wide task is complete and now covers every path: it reviews, applies and undoes. **Back
-> up your database before running it** — see below. What is still missing is the automatic modes and
-> the manual buttons, so the task is the only way to run it. Everything that does exist writes only
-> after you press Proceed.
+> The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
+> up your database before running it** — see below. One of the two automatic modes now works too —
+> the one that reacts when the *target* is saved — and it is the first thing here that writes
+> **without** a Proceed button. The source-side mode and the manual buttons are still missing.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -20,7 +20,8 @@
 > | The library scan, for the eleven paths reached by traversal | **done** (0.2.0) |
 > | Applying the plan, and Undo | **done** (0.3.0) |
 > | The two paths out of a gallery's images | **done** (0.4.0) |
-> | Automatic modes, with the per-entity cooldown | not started |
+> | Automatic mode when the **target** is saved, with the per-entity cooldown | **done** (0.5.0) |
+> | Automatic mode when the **source** is saved | not started — the setting exists and does nothing |
 > | Manual buttons and staging | not started |
 
 > ## ⚠ Back up your database before the first library-wide run
@@ -143,6 +144,34 @@ the order is fixed, and the dialog states it:
 6. **The two reverses** — groups back onto scenes, galleries back onto images — last, so they
    distribute what stages 1–5 gathered rather than a stale set.
 
+## The automatic mode (0.5.0)
+
+**Auto Propagate when the Target is Saved** reacts to Stash's own saves. Save a scene and every
+enabled path that copies *into* scenes runs on that one scene, immediately. No dialog, no review,
+no undo — so treat it as the sharp end of this plugin, and try the task first.
+
+It is deliberately narrow:
+
+- It only reacts to the four entities anything is written to — **scenes, galleries, images and
+  groups**. Saving a performer or a studio does nothing; that is the source-side mode, which is not
+  built yet.
+- It reads only the entity that was saved, not the library. A save costs one small query plus the
+  tag list, and a write only if something is actually missing.
+- **It ignores an entity it has just written to**, for 8 seconds. This is what stops the two
+  reversible pairs above from bouncing: our write to a group is itself a group save, which would
+  propagate straight back down to its scenes, whose writes are scene saves, and so on. It settles
+  either way — but only after a burst of writes across the whole group, and every one of them is
+  real.
+- **It stands down while another plugin is writing in bulk**, and holds its own short lease while
+  it writes, so a sibling's reactive mode stands down for it.
+- A save Stash *rejected* is not reacted to. A response coming back is not the same as an edit
+  being accepted, and copying tags onto an entity because of an edit that never happened would be
+  the worst kind of surprise.
+
+**Auto Propagate when the Source is Saved** is declared in the settings but **does nothing yet**.
+Enabling it prints a warning to the browser console saying so. It is the next thing to be built,
+and it is the expensive one — saving one performer can rewrite every scene they appear in.
+
 ## Installing
 
 Copy the `PropagateTagsAndPerformers` folder into your Stash plugins directory (next to your
@@ -158,7 +187,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.4.0 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.5.0 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

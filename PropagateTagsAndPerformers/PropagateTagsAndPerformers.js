@@ -29,7 +29,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.4.0';
+  var PLUGIN_VERSION = '0.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -100,7 +100,7 @@
   var TARGETS = {
     scene: {
       key: 'scene', label: 'Scene', plural: 'Scenes',
-      find: 'findScenes', node: 'scenes', filterArg: 'scene_filter',
+      find: 'findScenes', one: 'findScene', node: 'scenes', filterArg: 'scene_filter',
       bulk: 'bulkSceneUpdate', bulkInput: 'BulkSceneUpdateInput', single: 'sceneUpdate',
       organized: true, pageSize: 500,
       route: /^\/scenes\/(\d+)(?:\/|$)/,
@@ -108,7 +108,7 @@
     },
     gallery: {
       key: 'gallery', label: 'Gallery', plural: 'Galleries',
-      find: 'findGalleries', node: 'galleries', filterArg: 'gallery_filter',
+      find: 'findGalleries', one: 'findGallery', node: 'galleries', filterArg: 'gallery_filter',
       bulk: 'bulkGalleryUpdate', bulkInput: 'BulkGalleryUpdateInput', single: 'galleryUpdate',
       organized: true, pageSize: 500,
       route: /^\/galleries\/(\d+)(?:\/|$)/,
@@ -116,7 +116,7 @@
     },
     image: {
       key: 'image', label: 'Image', plural: 'Images',
-      find: 'findImages', node: 'images', filterArg: 'image_filter',
+      find: 'findImages', one: 'findImage', node: 'images', filterArg: 'image_filter',
       bulk: 'bulkImageUpdate', bulkInput: 'BulkImageUpdateInput', single: 'imageUpdate',
       organized: true, pageSize: 500,
       route: /^\/images\/(\d+)(?:\/|$)/,
@@ -124,7 +124,7 @@
     },
     group: {
       key: 'group', label: 'Group', plural: 'Groups',
-      find: 'findGroups', node: 'groups', filterArg: 'group_filter',
+      find: 'findGroups', one: 'findGroup', node: 'groups', filterArg: 'group_filter',
       bulk: 'bulkGroupUpdate', bulkInput: 'BulkGroupUpdateInput', single: 'groupUpdate',
       organized: false, pageSize: 1000,
       route: /^\/groups\/(\d+)(?:\/|$)/,
@@ -850,6 +850,26 @@
     };
   }
 
+  // The id of the "skip entities carrying this" tag, or null when none is configured.
+  //
+  // Throws when the name is set and no such tag exists, and both callers - the task's
+  // scan and an auto-mode reaction - let it stop them. Running unfiltered would copy
+  // onto the very entities the user asked to protect, and nothing here ever removes
+  // anything, so refusing is the safe direction. The sibling does the same.
+  function resolveExclusionTagId(settings, tagMap) {
+    var wanted = (settings.f1ExcludeTargetWithTagName || '').trim();
+    if (!wanted) return null;
+    for (var id in tagMap) {
+      // Resolved against the tag list already in hand: exact and case-sensitive, with
+      // none of the SQL LIKE wildcard trouble a name query brings (Stash compiles
+      // EQUALS to LIKE, where _ and % are wildcards).
+      if (hasOwn(tagMap, id) && tagMap[id].name === wanted) return id;
+    }
+    throw new Error('The exclusion tag "' + wanted + '" does not exist. Nothing was ' +
+      'planned: running without it would write to the entities it is there to protect. ' +
+      'Create the tag, or clear that setting.');
+  }
+
   // ── Planning ──────────────────────────────────────────────────────────────
   //
   // Passes, in pipeline order: paths are grouped by stage and then by target, so
@@ -910,7 +930,11 @@
   // One query per page of targets, carrying the target's own state and every
   // enabled path's traversal at once. Repeating a field is legal GraphQL and the
   // server merges the selections, so two paths sharing a walk prefix cost nothing.
-  function passQuery(pass) {
+  // What a pass reads off one target, independent of how the targets were found.
+  // Extracted so the library walk and auto mode's single-entity fetch cannot come to
+  // disagree about it: a field missing from one of two copies is a path that silently
+  // plans nothing, and the diff it feeds is what decides "already has this".
+  function targetParts(pass) {
     var t = TARGETS[pass.target];
     var parts = [t.fields];
     // Always requested, not only when the exclusion-tag filter is on: it is also
@@ -921,15 +945,55 @@
     if (pass.paths.some(function (p) { return p.kind === 'performers'; })) {
       parts.push('performers { id }');
     }
-    // A reverse path contributes nothing here - its sources are gathered by the sweep
+    // A reverse path contributes nothing here - its sources are gathered separately
     // - so it drops out rather than splicing an empty string into the selection.
     pass.paths.forEach(function (p) {
       var sel = pathSelection(p);
       if (sel) parts.push(sel);
     });
+    return parts;
+  }
+
+  function passQuery(pass) {
+    var t = TARGETS[pass.target];
+    var parts = targetParts(pass);
     return 'query PTP_' + t.find + '($page: Int!, $per_page: Int!) {' +
       ' ' + t.find + '(filter: { page: $page, per_page: $per_page, sort: "id", direction: ASC }) {' +
       ' count ' + t.node + ' { ' + parts.join(' ') + ' } } }';
+  }
+
+  // One named target, for auto mode. The task walks the library and never needs this;
+  // a reaction knows exactly which entity was saved and must not page past everything
+  // else to reach it.
+  function oneQuery(pass) {
+    var t = TARGETS[pass.target];
+    return 'query PTP_one_' + t.one + '($id: ID!) {' +
+      ' ' + t.one + '(id: $id) { ' + targetParts(pass).join(' ') + ' } }';
+  }
+
+  // A reverse path's sources for **one** target, filtered server-side.
+  //
+  // This is the per-target query step 5 rejected for the task, and it is right here for
+  // the opposite reason. There it meant a request per gallery across the whole library,
+  // to gather what one sweep gathers in one pass. Here there is exactly one gallery -
+  // the one that was just saved - and sweeping every image in the library to find its
+  // images would be absurd. The hazard step 5 actually named was the *unbounded
+  // response* of `per_page: -1`, and this pages like everything else, so it is not
+  // reintroduced.
+  //
+  // `reverse.backRef` names the field on the source that points at the target
+  // (`Image.galleries`), and Stash's filter for the same relation carries the same
+  // name, so one entry in the table serves both. That is a convenience of Stash's
+  // naming, not a rule it promises - a relation whose filter is named differently
+  // would need its own field here.
+  function reverseQuery(path) {
+    var t = TARGETS[path.sourceType];
+    return 'query PTP_rev_' + t.find + '($id: ID!, $page: Int!, $per_page: Int!) {' +
+      ' ' + t.find + '(' + t.filterArg + ': { ' + path.reverse.backRef +
+      ': { value: [$id], modifier: INCLUDES } },' +
+      ' filter: { page: $page, per_page: $per_page, sort: "id", direction: ASC }) {' +
+      ' count ' + t.node + ' { ' + SOURCES[path.sourceType].fields + ' ' +
+      leafSelection(path) + ' } } }';
   }
 
   // Follows a path's walk from one target, returning the source entities it lands
@@ -1373,23 +1437,8 @@
     return gqlRequest(tagQuery(this.settings), null).then(function (data) {
       self.tagMap = buildTagMap(((data.findTags || {}).tags) || []);
 
-      var wanted = (self.settings.f1ExcludeTargetWithTagName || '').trim();
-      var excludeTagId = null;
-      if (wanted) {
-        for (var id in self.tagMap) {
-          // Resolved against the tag list already in hand: exact and
-          // case-sensitive, with none of the SQL LIKE wildcard trouble a name query
-          // brings (Stash compiles EQUALS to LIKE, where _ and % are wildcards).
-          if (hasOwn(self.tagMap, id) && self.tagMap[id].name === wanted) { excludeTagId = id; break; }
-        }
-        if (!excludeTagId) {
-          // Running unfiltered would copy onto the very entities the user asked to
-          // protect, and nothing here ever removes anything. Stopping is the safe
-          // direction; the sibling does the same.
-          throw new Error('The exclusion tag "' + wanted + '" does not exist. Nothing was ' +
-            'planned: running without it would write to the entities it is there to protect. ' +
-            'Create the tag, or clear that setting.');
-        }
+      var excludeTagId = resolveExclusionTagId(self.settings, self.tagMap);
+      if (excludeTagId) {
         self.log('INFO', 'Exclusion tag resolved: ' + tagLabel(self.tagMap, excludeTagId) + '.');
       }
       self.filters = makeFilters(self.settings, self.tagMap, excludeTagId);
@@ -2012,6 +2061,319 @@
 
   // ── The settings page ─────────────────────────────────────────────────────
 
+  // ── Auto mode ─────────────────────────────────────────────────────────────
+  //
+  // A reaction to a save Stash made, with no dialog and no undo. It shares the task's
+  // planner rather than carrying a second one - see `AutoRun` below - so what a
+  // reaction decides to add is by construction what the task would have decided.
+  //
+  // Three things separate it from the task, and each has a reason:
+  //
+  //   * it is scoped to the entities that were saved, so it fetches them by id rather
+  //     than paging the library;
+  //   * it holds a lease measured in seconds rather than minutes, because that is how
+  //     long one reaction lasts and a crashed tab must not stand a sibling down for
+  //     five minutes over one scene save;
+  //   * it refuses to touch an entity it has itself written to in the last
+  //     AUTO_COOLDOWN_MS - the cooldown, below.
+
+  // Settings, cached. Every mutation Stash makes reaches the fetch wrapper, and
+  // `configuration { plugins }` cannot be scoped to one plugin, so reading them per
+  // mutation would put a full settings query behind every save in the UI.
+  var _autoSettings = null, _autoSettingsAt = 0, _autoSettingsWait = null;
+
+  function autoSettings() {
+    var now = Date.now();
+    if (_autoSettings && now - _autoSettingsAt < AUTO_SETTINGS_TTL_MS) {
+      return Promise.resolve(_autoSettings);
+    }
+    // One in-flight load is shared: a bulk edit of forty scenes arrives as one
+    // mutation, but two saves in quick succession must not become two settings loads.
+    if (_autoSettingsWait) return _autoSettingsWait;
+    _autoSettingsWait = loadSettings().then(function (r) {
+      _autoSettings = r.settings;
+      _autoSettingsAt = Date.now();
+      _autoSettingsWait = null;
+      announceSourceModePending(_autoSettings);
+      return _autoSettings;
+    }, function (e) {
+      _autoSettingsWait = null;
+      throw e;
+    });
+    return _autoSettingsWait;
+  }
+
+  // Our own settings being saved invalidates the cache rather than waiting out the
+  // TTL, so switching a mode off takes effect on the next save and not ten seconds
+  // later.
+  function invalidateAutoSettings() { _autoSettings = null; _autoSettingsAt = 0; _sourceModeAnnounced = false; }
+
+  // The source-side mode is declared in the manifest but not yet built (0.5.0 ships
+  // the target side of step 6). A setting that is visible and silently does nothing is
+  // worse than one that is absent - the user has no way to tell it apart from a mode
+  // that is running and finding nothing to do - so it says so, once, where a plugin
+  // that cannot write to the Stash log can say anything at all.
+  var _sourceModeAnnounced = false;
+  function announceSourceModePending(s) {
+    if (!s.a4AutoOnSourceUpdate || _sourceModeAnnounced) return;
+    _sourceModeAnnounced = true;
+    console.warn('[' + PLUGIN_NAME + '] "Auto Propagate when the Source is Saved" is enabled ' +
+      'but is not implemented yet in ' + PLUGIN_VERSION + ' - it does nothing. The target-side ' +
+      'mode above it works. See the README.');
+  }
+
+  // ── The per-entity cooldown ───────────────────────────────────────────────
+  //
+  // `guarded()` suppresses our own writes *within* one reaction. This suppresses the
+  // reaction *after* that one: two of the thirteen paths are exact reverses of another
+  // (scenes ⇄ their group, images ⇄ their gallery), so with both halves of a pair on,
+  // a write to a group is a group save, which propagates back to every scene in it,
+  // which are scene saves. Union reaches a fixed point, so it terminates - but not
+  // before a burst of writes across a whole group, and every one of them is a real
+  // mutation against the user's library.
+  //
+  // Keyed per entity rather than globally, because the answer to "have I just written
+  // this?" is per entity: a save of scene 7 must not be ignored because scene 9 was
+  // written a second ago.
+  var _written = {}, _writtenCount = 0;
+
+  function coolKey(target, id) { return target + ':' + id; }
+
+  function markWritten(target, id) {
+    if (!hasOwn(_written, coolKey(target, id))) _writtenCount++;
+    _written[coolKey(target, id)] = Date.now();
+    // Swept on insert rather than on a timer: a tab left open on a large library must
+    // not accumulate an entry per entity written, and a timer would keep the tab awake
+    // to tidy a map nobody is reading.
+    if (_writtenCount > AUTO_COOLDOWN_MAX) sweepWritten();
+  }
+
+  function sweepWritten() {
+    var now = Date.now(), kept = {}, n = 0;
+    for (var k in _written) {
+      if (hasOwn(_written, k) && now - _written[k] < AUTO_COOLDOWN_MS) { kept[k] = _written[k]; n++; }
+    }
+    _written = kept;
+    _writtenCount = n;
+  }
+
+  function cooledDown(target, id) {
+    var at = _written[coolKey(target, id)];
+    return at != null && Date.now() - at < AUTO_COOLDOWN_MS;
+  }
+
+  // ── Did the save actually land? ───────────────────────────────────────────
+  //
+  // `fetch` resolves for an HTTP 500 and for a GraphQL error returned with HTTP 200,
+  // so "the request came back" is not "the edit was saved". Reacting to a save Stash
+  // rejected would copy tags onto an entity on the strength of an edit that never
+  // happened.
+  //
+  // The clone is safe because this handler is attached before Apollo's, so the body is
+  // still unread; a clone that fails falls back to assuming success rather than
+  // dropping the reaction.
+  function mutationSucceeded(p) {
+    return p.then(function (resp) {
+      if (!resp || typeof resp.clone !== 'function') return true;
+      if (resp.ok === false) return false;
+      var copy;
+      try { copy = resp.clone(); } catch (e) { return true; }
+      return copy.json().then(function (j) { return !(j && j.errors && j.errors.length); },
+                              function () { return true; });
+    }, function () { return false; });
+  }
+
+  // ── The headless run ──────────────────────────────────────────────────────
+  //
+  // Everything that decides *what* to add is `Run`'s, borrowed rather than copied: the
+  // walk, the aggregation, the union/intersection fold, the filters, the attribution,
+  // the cascade through `plannedFor`. A second planner is the thing this must not
+  // become - it would be free to drift from the one the review dialog shows, and the
+  // user's only evidence about auto mode is that the task agrees with it.
+  //
+  // What differs is the driver: no dialog, no Proceed, entities named rather than
+  // paged, and the log going to the console.
+  function AutoRun(settings, tagMap, filters) {
+    this.settings = settings;
+    this.tagMap = tagMap;
+    this.filters = filters;
+    this.performerNames = {};
+    this.plan = [];
+    this.planIndex = {};
+    this.cancelled = false;
+    this.written = 0;
+  }
+
+  ['planEntry', 'plannedFor', 'addSource', 'aggregate', 'planTarget'].forEach(function (m) {
+    AutoRun.prototype[m] = Run.prototype[m];
+  });
+
+  AutoRun.prototype.log = function (kind, message) {
+    if (kind === 'INFO') return;             // the dialog's progress narration; no dialog here
+    if (this.settings.g1LogToConsole) console.info('[' + PLUGIN_NAME + '] ' + message);
+  };
+
+  // Gathers a reverse path's sources for one target. Paged, like every other query in
+  // the plugin - a gallery holding twenty thousand images is exactly the case
+  // `per_page: -1` would break on.
+  AutoRun.prototype.reverseSources = function (path, id) {
+    var self = this, out = [], t = TARGETS[path.sourceType];
+    function page(n) {
+      return gqlRequest(reverseQuery(path), { id: String(id), page: n, per_page: t.pageSize })
+        .then(function (data) {
+          var res = data[t.find] || {};
+          var list = res[t.node] || [];
+          out = out.concat(list);
+          if (list.length && out.length < (res.count || 0)) return page(n + 1);
+          return out;
+        });
+    }
+    return page(1);
+  };
+
+  // Plans a fixed set of targets, one pass at a time. Passes run in order for the same
+  // reason the task's do: a later stage reads what an earlier one planned.
+  AutoRun.prototype.planEntities = function (target, paths, ids) {
+    var self = this;
+    var passes = buildPasses(paths);
+    var chain = Promise.resolve();
+    passes.forEach(function (pass) {
+      chain = chain.then(function () { return self.planPass(pass, ids); });
+    });
+    return chain;
+  };
+
+  AutoRun.prototype.planPass = function (pass, ids) {
+    var self = this;
+    var t = TARGETS[pass.target];
+    var revs = reversePaths(pass);
+    var chain = Promise.resolve();
+    ids.forEach(function (id) {
+      chain = chain.then(function () {
+        return gqlRequest(oneQuery(pass), { id: String(id) }).then(function (data) {
+          var ent = data[t.one];
+          if (!ent) return null;             // deleted between the save and the reaction
+          if (!revs.length) { self.planTarget(pass, ent); return null; }
+          // A reverse path's sources have to be in hand before the target is planned,
+          // and they are per target here rather than per library, so they are gathered
+          // into the same `gathered` shape `planTarget` reads from the sweep.
+          pass.gathered = {};
+          var sub = Promise.resolve();
+          revs.forEach(function (p) {
+            sub = sub.then(function () {
+              return self.reverseSources(p, ent.id).then(function (sources) {
+                var agg = self.aggregate(sources, p);
+                pass.gathered[p.id] = {};
+                pass.gathered[p.id][String(ent.id)] = agg;
+              });
+            });
+          });
+          return sub.then(function () { self.planTarget(pass, ent); });
+        });
+      });
+    });
+    return chain;
+  };
+
+  // Writes the plan. One lease for the whole reaction, renewed per batch, released
+  // whatever happens - an error here must not latch a sibling into standing down.
+  AutoRun.prototype.apply = function (label) {
+    var self = this;
+    var batches = buildBatches(this.plan);
+    if (!batches.length) return Promise.resolve(0);
+    var lease = acquireLease(label, AUTO_LEASE_TTL_MS);
+    var chain = Promise.resolve();
+    batches.forEach(function (batch) {
+      chain = chain.then(function () {
+        lease.renew();
+        return gqlRequest(bulkMutation(batch.target), { input: batchInput(batch, 'ADD') })
+          .then(function () {
+            batch.entries.forEach(function (entry) {
+              // Marked only once the server has taken it: an entity we failed to write
+              // has not been written, and must not be shielded from the next save.
+              markWritten(batch.target, entry.id);
+              self.written++;
+              batch.ids.forEach(function (id) {
+                self.log(batch.kind === 'performers' ? 'PERF' : 'TAG',
+                  entry.label + ' - ' +
+                  (batch.kind === 'performers'
+                    ? performerLabel(self.performerNames, id)
+                    : tagLabel(self.tagMap, id)) +
+                  ' - from ' + (entry.from[id] || 'a related entity'));
+              });
+            });
+          }, function (e) {
+            // One failed batch does not cancel the rest, and says so where the user
+            // will look: there is no dialog to carry an [ERROR] line.
+            console.error('[ptp2re] auto mode: a batch of ' + batch.entries.length +
+              ' ' + batch.target + '(s) failed:', e);
+          });
+      });
+    });
+    return chain.then(function () {
+      lease.release();
+      return self.written;
+    }, function (e) {
+      lease.release();
+      throw e;
+    });
+  };
+
+  // The tag hierarchy and the filters, per reaction. Not cached with the settings: the
+  // exclusion tag can be created or renamed at any time, and a stale answer here would
+  // either write to protected entities or refuse to write at all.
+  function autoContext(settings) {
+    return gqlRequest(tagQuery(settings), null).then(function (data) {
+      var tagMap = buildTagMap(((data.findTags || {}).tags) || []);
+      return { tagMap: tagMap, filters: makeFilters(settings, tagMap, resolveExclusionTagId(settings, tagMap)) };
+    });
+  }
+
+  // A save of one or more entities of one type: copy into them whatever the enabled
+  // paths say belongs there.
+  function reactToTargets(target, ids) {
+    return autoSettings().then(function (s) {
+      if (!s.a3AutoOnTargetUpdate) return 0;
+      var paths = enabledPaths(s).filter(function (p) { return p.target === target; });
+      if (!paths.length) return 0;
+      var fresh = ids.map(String).filter(function (id) { return !cooledDown(target, id); });
+      if (!fresh.length) return 0;
+      // `guarded()` around the whole reaction, reads included. Its job is the write:
+      // a `bulkSceneUpdate` of ours is exactly what the branch below watches for, so
+      // without it every reaction would react to itself. The cooldown would stop the
+      // recursion at one round, but it is the backstop for the *next* save, not the
+      // guard for this one - relying on it would make every reaction cost a second
+      // pointless pass.
+      return guarded(function () {
+        return autoContext(s).then(function (ctx) {
+          var run = new AutoRun(s, ctx.tagMap, ctx.filters);
+          return run.planEntities(target, paths, fresh).then(function () {
+            return run.apply('auto: into ' + TARGETS[target].plural.toLowerCase());
+          });
+        });
+      });
+    }).catch(function (e) {
+      // Never rethrown into Stash's own fetch chain: the user's save succeeded, and a
+      // failed reaction to it must not look like a failed save.
+      console.error('[ptp2re] auto mode (' + target + '):', e);
+      return 0;
+    });
+  }
+
+  // Which target a mutation names, and the ids it names. Single and bulk are separate
+  // regexes on purpose: /\bsceneUpdate\b/ does not match `bulkSceneUpdate` - the
+  // capital S breaks the word boundary - and the two read their ids from different
+  // places.
+  function targetOfMutation(q) {
+    for (var k in TARGETS) {
+      if (!hasOwn(TARGETS, k)) continue;
+      var t = TARGETS[k];
+      if (new RegExp('\\b' + t.single + '\\b').test(q)) return { target: k, bulk: false };
+      if (new RegExp('\\b' + t.bulk + '\\b').test(q)) return { target: k, bulk: true };
+    }
+    return null;
+  }
+
   function hasClass(node, name) {
     return (' ' + String((node && node.className) || '') + ' ').indexOf(' ' + name + ' ') !== -1;
   }
@@ -2390,10 +2752,25 @@
       var v = req.variables || {};
 
       // Our own settings being saved. The settings page saves each plugin in its own
-      // mutation, so this is scoped to our plugin_id; auto mode caches settings and
-      // will need the invalidation this hook is here for.
+      // mutation, so this is scoped to our plugin_id.
       if (/\bconfigurePlugin\b/.test(q) && v.plugin_id === PLUGIN_ID) {
+        invalidateAutoSettings();
         settingsTick();
+      }
+
+      // A save of one of our four target types. The suppression check sits after the
+      // match rather than before it, so the one-time "standing down" line is only
+      // emitted for a mutation that would actually have been reacted to.
+      var hit = targetOfMutation(q);
+      if (hit && !autoSuppressed()) {
+        var ids = hit.bulk
+          ? (v.input && v.input.ids) || []
+          : (v.input && v.input.id != null ? [v.input.id] : []);
+        if (ids.length) {
+          mutationSucceeded(p).then(function (ok) {
+            if (ok) reactToTargets(hit.target, ids);
+          });
+        }
       }
     } catch (e) {
       // Not JSON, or no variables - nothing to match on.
@@ -2432,5 +2809,11 @@
     sourceLabel: sourceLabel,
     fromLabel: fromLabel,
     injectStyle: injectStyle,
+    oneQuery: oneQuery,
+    reverseQuery: reverseQuery,
+    targetParts: targetParts,
+    resolveExclusionTagId: resolveExclusionTagId,
+    targetOfMutation: targetOfMutation,
+    AUTO_COOLDOWN_MS: AUTO_COOLDOWN_MS,
   };
 }());

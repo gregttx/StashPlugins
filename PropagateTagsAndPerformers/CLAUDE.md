@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.4.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.5.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -17,7 +17,8 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | 4 | Phase 2 apply, and Undo | **0.3.0** |
 | | — the log names the source entity, not the path | **0.3.1** |
 | 5 | The two reverse-query paths (a gallery's images) | **0.4.0** |
-| 6 | Auto mode **and** the per-entity cooldown, together | — |
+| 6 | Auto mode, target side, **and** the per-entity cooldown | **0.5.0** |
+| | — auto mode, source side (the fan-out) | — |
 | 7 | The `declares` registry | — |
 | 8 | Manual buttons and staging | — |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
@@ -349,6 +350,77 @@ than wrong: every gallery it does reach is planned from every image it did read.
 **The sweep gets its own progress segment**, and the pass counts as started only when it reaches its
 targets — otherwise a target count of `0 / 0` sits beside a sweep that will run for a minute, which
 reads as a stalled pass.
+
+## 4d. Auto mode, target side (0.5.0)
+
+The first thing here that writes without a Proceed button. Half of step 6: it reacts when one of the
+four **targets** is saved. The source side — a save of a performer, a studio, a marker fanning out
+to everything that reads it — is not built, and its setting warns once to the console rather than
+sitting there looking like a mode that runs and finds nothing.
+
+**`AutoRun` borrows `Run`'s planner rather than owning one.** `planEntry`, `plannedFor`,
+`addSource`, `aggregate` and `planTarget` are assigned onto its prototype from `Run`'s. This is the
+single most important thing in the section: a second planner would be free to drift from the one the
+review dialog shows, and the *only* evidence a user has about what auto mode does is that the task
+agrees with it. What differs is the driver — entities named rather than paged, no dialog, the log
+going to the console.
+
+The same argument produced two extractions:
+
+- **`targetParts(pass)`**, shared by `passQuery` (the library walk) and `oneQuery` (auto mode's
+  fetch of one entity). A field present in one copy and missing from the other is a path that
+  silently plans nothing, and the same selection is what the "already has this" diff reads.
+- **`resolveExclusionTagId(settings, tagMap)`**, shared by the scan and a reaction. Both let it
+  throw: running unfiltered would copy onto the entities the filter exists to protect.
+
+**`guarded()` wraps the whole reaction, and it is not decoration.** `bulkSceneUpdate` is precisely
+what the branch that starts a reaction watches for, so without it every reaction would react to
+itself. The cooldown would stop the recursion after one round — which is exactly why it must not be
+the thing relied on: the round still costs a full pointless pass. The test asserts one
+single-entity fetch per save, and a mutant that drops the guard fails it.
+
+**The cooldown is for the *next* save, not this one.** `markWritten` / `cooledDown`, keyed
+`target:id`, 8 s. It exists for the two reversible pairs: our write to a group is a group save,
+which would propagate back to every scene in it, whose writes are scene saves. Union reaches a fixed
+point so it terminates, but not before a burst of real writes. Three details:
+
+- **Keyed per entity, never globally.** A save of scene 7 must not be ignored because scene 9 was
+  written a second ago.
+- **Marked only on success.** An entity we failed to write has not been written, and shielding it
+  would silently skip the retry.
+- **Swept on insert, above `AUTO_COOLDOWN_MAX`.** A timer would keep the tab awake to tidy a map
+  nobody is reading.
+
+**`mutationSucceeded` clones the response**, exactly as the sibling's does and for the same reason:
+`fetch` resolves for an HTTP 500 and for a GraphQL error returned with HTTP 200. Our handler is
+attached before Apollo's, so the body is unread and the clone is safe; a clone that fails assumes
+success rather than dropping the reaction. Reacting to a save Stash rejected would copy tags on the
+strength of an edit that never happened.
+
+**The reverse paths use the per-target filtered query step 5 rejected** — `findImages` filtered to
+one gallery — and that is not a reversal. What step 5 rejected was *a request per gallery across the
+whole library*, to gather what one sweep gathers in one pass, and the hazard it actually named was
+the unbounded response of `per_page: -1`. Here there is exactly one gallery, the one just saved, and
+sweeping every image in the library to find its images would be absurd. `reverseQuery` pages like
+everything else, so nothing is reintroduced. `reverse.backRef` doubles as the filter field name
+(`Image.galleries` / `image_filter: { galleries: … }`); that is a convenience of Stash's naming and
+not a rule it promises.
+
+**Settings are cached with a TTL, and invalidated by our own `configurePlugin`.** Every mutation in
+the UI reaches the fetch wrapper, and `configuration { plugins }` cannot be scoped to one plugin, so
+reading them per mutation would put a full settings query behind every save. One in-flight load is
+shared, so two quick saves are one load.
+
+**`autoSuppressed()` is called after the mutation matches, not before**, so the one-time "standing
+down" console line is only emitted for a save that would actually have been reacted to. Same shape
+as the sibling's.
+
+**`targetOfMutation` needs both regexes.** `/\bsceneUpdate\b/` does not match `bulkSceneUpdate` —
+the capital S breaks the word boundary — and the two read their ids from different places
+(`input.id` against `input.ids`).
+
+**A reaction's failure is never rethrown into Stash's fetch chain.** The user's save succeeded; a
+failed reaction to it must not look like a failed save.
 
 ## 5. The dialog (0.1.0)
 

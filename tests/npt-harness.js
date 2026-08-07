@@ -121,7 +121,7 @@ function makeEnv(opts) {
   ctx.globalThis = ctx;
   ctx.navigator = opts.clipboard ? { clipboard: opts.clipboard } : {};
   ctx.window.navigator = ctx.navigator;
-  ctx.location = { pathname: '/settings?tab=tasks' };
+  ctx.location = { pathname: opts.pathname || '/settings?tab=tasks' };
   ctx.window.location = ctx.location;
   ctx.window.addEventListener = () => {};
 
@@ -133,10 +133,22 @@ function makeEnv(opts) {
     createElement: (tag) => makeElement(tag),
     getElementById: (id) => head.descendants().concat(body.descendants())
       .filter((n) => n.id === id)[0] || null,
-    querySelector: () => null,
-    // Tag-name selectors only, which is all the plugin asks document for.
-    querySelectorAll: (sel) => body.descendants()
-      .filter((n) => n.tagName === String(sel).toUpperCase()),
+    // A leading '.' is a class selector, matched the way `hasClass` does everywhere
+    // else in these suites; anything else is a tag name. That is the whole of what
+    // the three plugins ever ask `document` for.
+    querySelector: (sel) => {
+      const s = String(sel);
+      const hits = s.charAt(0) === '.'
+        ? body.descendants().filter((n) => hasClass(n, s.slice(1)))
+        : body.descendants().filter((n) => n.tagName === s.toUpperCase());
+      return hits[0] || null;
+    },
+    querySelectorAll: (sel) => {
+      const s = String(sel);
+      return s.charAt(0) === '.'
+        ? body.descendants().filter((n) => hasClass(n, s.slice(1)))
+        : body.descendants().filter((n) => n.tagName === s.toUpperCase());
+    },
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
     handlers: {},
     execCommand: () => (opts.execCommand !== false),

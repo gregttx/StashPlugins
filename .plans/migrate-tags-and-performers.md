@@ -2,24 +2,25 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — steps 1-7 done, the plugin is at 0.7.0** (last checked 2026-08-07).
+**Status: BUILDING — steps 1-8 done, the plugin is at 0.8.0** (last checked 2026-08-07).
 All eight decisions are settled (§4) and every open question is closed (§6). The library-wide task
-is complete for **all thirteen paths**, both automatic modes work, and this plugin now cooperates
-with both siblings: an N-way `declares` registry catches the same-path overlap with
-`MergePerformerTagsToScenes`, and a ported `checkHierarchySibling` warns about `NormalizeParentTags`'
-Prune/Roll Up colliding with an addition, the way `MergePerformerTagsToScenes`' own dialog already
-did. Remaining: manual buttons + staging, and the repo `CLAUDE.md` section. See §8.
+is complete for **all thirteen paths**, both automatic modes work, this plugin cooperates with both
+siblings (§7), and manual buttons with staging now sit on all four target pages (§8) — **built
+best-effort, without a live Stash to check the DOM against**, per the user's explicit go-ahead;
+`.edit-buttons` is confirmed only on the scene page. Remaining: the repo `CLAUDE.md` TODO/IDEAS
+section, and a real run against a running Stash to settle everything this snapshot could only guess
+at. See §8.
 
 Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.7.0, in all three places |
-| `PropagateTagsAndPerformers.js` | ~3,125 lines |
+| Version | 0.8.0, in all three places |
+| `PropagateTagsAndPerformers.js` | ~3,400 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) |
-| Test suites | 7 of the plugin's own, 20 in the repo, all passing |
-| Checks in the seven | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28 = **324** |
-| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 (spot-checked) = **79+** |
+| Test suites | 8 of the plugin's own, 21 in the repo, all passing |
+| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 27 = **351** |
+| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 2 (spot-checked) = **81+** |
 | Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.12.0, `NormalizeParentTags` 1.7.5 → 1.7.6 |
 | Landed on `main` | through 0.6.0 (`fa58bf2`); 0.7.0 is uncommitted |
 
@@ -752,9 +753,27 @@ step 9 plus a run against a real Stash, not step 9 alone.
    `propagate-base.test.js`, both confirmed against a pre-step copy — the sibling's suite crashes
    outright on the missing registry rather than merely failing, the cleanest proof available that a
    check exercises real code.
-8. Manual buttons + staging across the four target pages (D8). **Blocked on a live Stash** — the
+8. ~~Manual buttons + staging across the four target pages (D8). **Blocked on a live Stash** — the
    placement work cannot be done from here, only guessed at, and MPTTS needed `insertBeforeDelete`
-   plus a two-container filter for the scene page alone.
+   plus a two-container filter for the scene page alone.~~ **DONE, 0.8.0 — best-effort, unblocked by
+   an explicit choice rather than by the block actually lifting.** Offered the choice between waiting
+   for a live instance and building on the one placement this repo has confirmed (`.edit-buttons`,
+   proven by `MergePerformerTagsToScenes`' own scene button), the user chose to proceed and verify
+   later — the same risk tier step 5's reverse-query guess accepted before 0.4.0 landed.
+
+   No second planner: a click reuses `AutoRun` exactly as the target-side auto reaction does,
+   `planEntities(target, paths, [id])` against one named id rather than a page. What is new is only
+   where the result goes — `run.apply()` unchanged for "save immediately", or the plan pushed into a
+   captured `TagSelect`/`PerformerSelect` for staging, diffed against the form the way
+   `MergePerformerTagsToScenes`' own capture already does, generalised from one component and one
+   scene id to two components keyed by route. Names for staged items ride along free: `run.tagMap`
+   and `run.performerNames`, both already built for planning, so staging costs no query of its own.
+
+   D8's own caveat about placement stands exactly as written - gallery, image and group pages reuse
+   `.edit-buttons` unverified. `tests/propagate-buttons.test.js`, 27 checks, 2 spot-checked mutants;
+   one of them found a genuinely dead branch (an entity-id staleness check duplicated across two
+   removal paths, only one of which was ever reachable) and it was simplified out rather than kept
+   for symmetry.
 9. Append §7 to the repo `CLAUDE.md`.
 
 Then **1.0.0**, which is step 9 *plus* a real run against a real instance — not step 9 alone.

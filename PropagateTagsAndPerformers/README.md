@@ -1,12 +1,12 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.6.0, all thirteen paths plus both automatic modes
+> ## 🚧 Under construction — 0.8.0, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
-> up your database before running it** — see below. Both automatic modes now work — react when the
-> *target* is saved, or when a *source* is saved and fan out to everything that reads it — and they
-> are the first things here that write **without** a Proceed button. The manual buttons are still
-> missing.
+> up your database before running it** — see below. Both automatic modes work, both cooperate with
+> the two sibling plugins, and manual buttons with staging are now on the four edit pages —
+> **but their placement has not been checked against a running Stash beyond the scene page**, see
+> the warning further down.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -23,7 +23,8 @@
 > | The two paths out of a gallery's images | **done** (0.4.0) |
 > | Automatic mode when the **target** is saved, with the per-entity cooldown | **done** (0.5.0) |
 > | Automatic mode when the **source** is saved, fanning out to its targets | **done** (0.6.0) |
-> | Manual buttons and staging | not started |
+> | Cooperating with `MergePerformerTagsToScenes` and `NormalizeParentTags` | **done** (0.7.0) |
+> | Manual buttons and staging | **done, placement unverified** (0.8.0) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -44,6 +45,15 @@
 
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (the custom-field exclusion filter) and UI
 > plugin component patching (staging into an edit form) both depend on it.
+
+> ## ⚠ Manual button placement is unverified beyond the scene page
+>
+> The buttons look for a `.edit-buttons` container on each of the four edit tabs. That container is
+> confirmed to exist on the **scene** page — `MergePerformerTagsToScenes`' own button already uses
+> it — but the gallery, image and group pages reuse the same selector on the working assumption that
+> Stash builds every entity's edit panel the same way, not on anything checked against a running
+> instance. If a button never appears on one of those three pages, that assumption is the first
+> thing to check; the task and both automatic modes are unaffected either way.
 
 ## What it does
 
@@ -184,6 +194,28 @@ Both automatic modes share the rest of their behaviour:
   being accepted, and copying tags onto an entity because of an edit that never happened would be
   the worst kind of surprise.
 
+## Manual buttons and staging (0.8.0)
+
+With **Show Manual Buttons** on, each enabled path adds a small button to the Edit tab of its
+target — a scene with the performer-tags and studio-tags paths both enabled shows two buttons, not
+one that tries to name both, and a path with no button setting simply has no button.
+
+Clicking one does one of two things, depending on **Save Immediately**:
+
+- **Off (the default) — stages.** The tags or performers it would add are pushed straight into the
+  open edit form's own tag or performer box, exactly as if you had picked them from the dropdown
+  yourself. Nothing is saved until you press Stash's own **Save** button, so you can review or
+  remove any of them first. Clicking the same button again only adds what is still missing — tags
+  you have since removed by hand are not put back, and a click that finds nothing reports "No
+  changes" instead of restaging the same tags.
+- **On — saves immediately.** The button copies and saves in one step, the same write the automatic
+  modes and the library-wide task make. There is no staging, no review and no per-click undo — the
+  library-wide task's Undo only ever reaches what that task's own dialog wrote.
+
+A button that cannot find the tag or performer box — the Edit tab was never opened, or Stash's
+markup does not match what this plugin expects on that page (see the warning near the top of this
+README) — reports the problem in an alert rather than silently doing nothing.
+
 ## Installing
 
 Copy the `PropagateTagsAndPerformers` folder into your Stash plugins directory (next to your
@@ -199,7 +231,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.6.0 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.8.0 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.7.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.8.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -20,8 +20,14 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | 6 | Auto mode, target side, **and** the per-entity cooldown | **0.5.0** |
 | | — auto mode, source side (the fan-out) | **0.6.0** |
 | 7 | The `declares` registry, **and** NormalizeParentTags awareness | **0.7.0** |
-| 8 | Manual buttons and staging | — |
+| 8 | Manual buttons and staging | **0.8.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
+
+**Step 8 placement is unverified against a live Stash beyond one page.** `.edit-buttons` is
+confirmed to exist on the scene page (`MergePerformerTagsToScenes`' own scene button already uses
+it); this plugin reuses it unverified for the gallery, image and group pages, on the working
+assumption that Stash builds every entity's edit panel from the same button-row component. §5b says
+what to check first if a button never appears somewhere.
 
 **Steps 3 and 5 were re-cut during step 3.** The plan had two hops and the "common tags only" modes
 as a step of their own, on the assumption that reaching a group's performers through its scenes
@@ -553,6 +559,74 @@ about one specific *kind* of plugin NPT is the only example of here, and forcing
 vocabulary would need a second, richer vocabulary (categories, not paths, plus a collision matrix)
 that nothing here needs yet.
 
+## 5b. Manual buttons and staging (0.8.0, best-effort)
+
+D8 of the design plan, built without a running Stash to check the DOM against — the plan's own
+caveat, carried forward rather than resolved. One button per enabled path whose target is the page
+being viewed: `path.button` is already the label (set at 0.0.1), so nothing here invents a second
+copy of the thirteen strings.
+
+**No second planner.** `AutoRun` already plans a *named* set of ids without paging the library —
+exactly what one entity is — so a click reuses it verbatim: `autoSettings()` for the cached
+settings, `autoContext(s)` for the tag hierarchy and filters, `new AutoRun(s, ...)`,
+`run.planEntities(target, paths, [id])`. The only new code is where the result goes.
+
+**Two destinations, one `s.a2SaveImmediately` switch away from each other.**
+"Save immediately" calls `run.apply(label)` unchanged — the exact function auto mode's target-side
+reaction calls. Staging (the default) reads `run.plan` instead and pushes each entry's `add` ids
+into a captured form control. Names for staged items come free: `run.tagMap` (built for the
+exclusion filters anyway) for tags, `run.performerNames` (built by `AutoRun`'s own `addSource` while
+walking any performers-kind path) for performers. Staging costs no query beyond what planning
+already made.
+
+**Capturing the form controls generalises MergePerformerTagsToScenes' one `TagSelect` capture to
+two components, keyed by route instead of by scene id.** `installSelectPatches()` patches both
+`TagSelect` and `PerformerSelect` through `PluginApi.patch.before`, and `captureSelect` records
+`(target, id)` from `currentRouteTarget()` — the same `TARGETS[key].route` regex every other part of
+this plugin already uses, so there is no second copy of the four route patterns. `findControl`
+carries over the sibling's exact reasoning: newest capture first, preferring one whose `values`
+match what this plugin last staged, because matching the *server's* tags would keep re-selecting
+the pre-staging capture and report the same count on every click.
+
+**The diff is against the form, not the server**, for the same reason as the sibling: a tag the
+user added or removed by hand survives, and a second click without saving reports "No changes"
+rather than restaging what is already there. `stageEntry` is the one function both kinds
+(`_tagCaptures`/`_stagedTags` and `_perfCaptures`/`_stagedPerfs`) go through, parameterised by which
+pair to read and write — two captures and two "expected" trackers because a scene page can stage
+tags *and* performers in the same click, and they are different controls.
+
+**A button that finds no control throws, which surfaces as an alert naming "open the Edit tab
+first."** This is deliberately not swallowed into "No changes" - the two are different facts (the
+run added nothing, versus the run could not tell what was already there) and conflating them would
+hide a genuine placement failure behind the same caption a normal no-op shows.
+
+**Reconciliation, not tracking.** `manualButtonsTick()` rebuilds its opinion of which buttons should
+exist from `enabledPaths(s)` and the route on every tick, the same philosophy as `ensureReadmeLink`
+and `settingsTick` elsewhere in this file: React can tear down and rebuild `.edit-buttons` on a
+re-render, so there is nothing durable to track. A button is kept when both its path is still
+enabled and its `_ptp2reEntityId` matches the current route; anything else is removed. **Only one of
+the two removal paths does the entity-id check** — a button for a path that is still enabled but the
+wrong entity is caught by the *per-path* loop (`existing._ptp2reEntityId === rt.id` failing before a
+replacement is appended), so the reconciliation loop above it only has to ask "is this path still
+wanted at all." A mutation test confirmed the second check in that loop was dead: removing it changed
+nothing, because the per-path loop already covers the case.
+
+**A `MutationObserver`, unlike the settings page's tick.** `ensureReadmeLink`'s comment explaining
+why it has none does not apply here: a button has to land before the user can click it, and Stash's
+edit forms re-render on every keystroke, so polling alone would leave it flickering. `startEntityObserver`
+is `MergePerformerTagsToScenes`' own `startObserver`, ported rather than shared — the two plugins
+carry no module between them — watching `#root` (falling back to `document.body`) and coalescing a
+burst of mutations into one tick via a 100ms `setTimeout`, exactly like the sibling's.
+
+**What is genuinely unverified**, beyond `.edit-buttons` itself (§5's own caveat): the shape of a
+`PerformerSelect` item — only `id` is used to build the diff-against-form `have` map, but `onSelect`
+is handed `{ id, name }` for a staged item, and whether Stash's control needs more than that to
+render a chip has never been checked against a running instance. The equivalent question for
+`TagSelect` items (`aliases`, `image_path`) is answered by the sibling's own working code, which
+this plugin's staged item deliberately mirrors (`{ id, name, aliases: [], image_path: null }`) —
+empty rather than omitted, on the chance the control's renderer expects the keys to exist even
+when there is nothing in them.
+
 ## 6. Anchoring in Stash's markup
 
 Every foothold here is a guess until it runs against a real Stash, and a test written from the same
@@ -606,6 +680,14 @@ of it apply unchanged:
   same restraint suite as the target side, reused rather than re-derived because `runAutoTargets` is
   the same code; a bulk save deduplicating across sources; and that a save which is both a target and
   a source runs both reactions.
+- **`propagate-buttons.test.js`** — manual buttons and staging (§5b): a button per enabled path
+  labelled from `path.button`; restraint (the master toggle off, no path enabled, a path into
+  another target, off any of the four pages, no `.edit-buttons` found); multiple enabled paths
+  producing multiple buttons; staging pushing into a captured `TagSelect`, diffed against the form
+  so a second click reports no changes; save-immediately issuing a bulk `ADD` delta instead; a
+  missing captured control surfacing as an alert rather than a silent no-op; reconciliation not
+  duplicating a button on an idle tick and replacing a stale one after navigating to a different
+  entity; and the route matcher against all four page shapes plus an unrelated route.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.**

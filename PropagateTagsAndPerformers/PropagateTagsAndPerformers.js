@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.7.0';
+  var PLUGIN_VERSION = '0.8.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2957,6 +2957,277 @@
   setInterval(settingsTick, 1000);
   settingsTick();
 
+  // ── Manual buttons: one per enabled path, on the target's edit page ────────
+  //
+  // D8 of the design plan. One button per enabled path whose target is the page
+  // being viewed - `Tags: Performers → Scenes` shows "Add Perf Tags" on a scene's
+  // Edit tab, and a scene with five enabled paths shows five small buttons rather
+  // than one that tries to name all of them. `path.button` is already the label;
+  // nothing here invents a second copy of it.
+  //
+  // Placement could not be settled from notes alone (see D8's own caveat) and needs
+  // exercising in a real Stash: `.edit-buttons` is the one container name this repo
+  // has actually confirmed, on the scene page (MergePerformerTagsToScenes' own
+  // "Add Perf Tags" button uses it), and this reuses it unverified for the other
+  // three pages, on the working assumption that Stash builds every entity's edit
+  // panel from the same button-row component. If a page does not in fact have one,
+  // this plugin's buttons simply do not appear there - the same failure mode as a
+  // missing route.
+  //
+  // Reuses the auto mode machinery wholesale rather than a third planner: `AutoRun`
+  // already plans a *named* set of ids without paging the library, which is exactly
+  // what one entity is. The only thing a click adds is where the result goes -
+  // `run.apply()` unchanged for "save immediately", or pushed into a captured form
+  // control for staging.
+
+  // Which of the four target pages is showing, from the route alone - reusing each
+  // TARGETS entry's own `route` regex rather than a second copy of the four patterns.
+  function currentRouteTarget() {
+    for (var key in TARGETS) {
+      if (!hasOwn(TARGETS, key)) continue;
+      var m = TARGETS[key].route.exec(location.pathname);
+      if (m) return { target: key, id: m[1] };
+    }
+    return null;
+  }
+
+  // ── Staging: capturing TagSelect and PerformerSelect ────────────────────────
+  //
+  // Same trick as MergePerformerTagsToScenes' own TagSelect capture, generalised to
+  // a second component and keyed by the route's (target, id) rather than a scene id,
+  // since this plugin's targets are four pages, not one.
+  var _tagCaptures = [], _perfCaptures = [];
+  var SELECT_CAPTURE_LIMIT = 10;
+
+  function captureSelect(list, props) {
+    if (!props || !props.isMulti || typeof props.onSelect !== 'function') return;
+    var rt = currentRouteTarget();
+    list.push({ props: props, target: rt && rt.target, id: rt && rt.id, values: props.values || [] });
+    if (list.length > SELECT_CAPTURE_LIMIT) list.shift();
+  }
+
+  // Patches have to be registered before the components they target first render,
+  // so this runs at script load; the load-event retry only covers Stash setting
+  // window.PluginApi later than usual.
+  function installSelectPatches() {
+    var api = window.PluginApi;
+    if (!api || !api.patch || typeof api.patch.before !== 'function') return false;
+    try {
+      api.patch.before('TagSelect', function (props) { captureSelect(_tagCaptures, props); return [props]; });
+      api.patch.before('PerformerSelect', function (props) { captureSelect(_perfCaptures, props); return [props]; });
+      return true;
+    } catch (e) {
+      console.warn('[ptp2re] could not patch TagSelect/PerformerSelect:', e);
+      return false;
+    }
+  }
+
+  function idsOf(items) {
+    return (items || []).map(function (t) { return String(t.id); }).sort().join(',');
+  }
+
+  // TagSelect and PerformerSelect are used all over Stash, so pick the capture
+  // belonging to this page: newest first, preferring one whose contents match what
+  // the control is expected to hold. Matching on expectedIds rather than the
+  // server's values is what makes a second click see the already-staged list; the
+  // server's tags would keep re-selecting the stale pre-staging capture and report
+  // the same count every time. If nothing matches (hand-edited box) the newest
+  // capture is the right answer anyway.
+  function findControl(list, target, id, expectedIds) {
+    var wanted = expectedIds ? expectedIds.slice().sort().join(',') : null;
+    var newest = null;
+    for (var i = list.length - 1; i >= 0; i--) {
+      var c = list[i];
+      if (c.target !== target || c.id !== id) continue;
+      if (!newest) newest = c;
+      if (wanted !== null && idsOf(c.values) === wanted) return c;
+    }
+    return newest;
+  }
+
+  // What each control is expected to be holding, one per kind since a page can
+  // stage tags and performers in the same click (a scene has both).
+  var _stagedTags = { target: null, id: null, ids: null };
+  var _stagedPerfs = { target: null, id: null, ids: null };
+
+  // Pushes one plan entry's additions into its control, diffed against the form
+  // rather than the server so a hand-added or hand-removed item survives and a
+  // second click without saving reports nothing added. Throws if the control was
+  // never captured, which reads to the user as "open the Edit tab first".
+  function stageEntry(list, staged, setStaged, target, id, addIds, makeItem) {
+    var expected = (staged.target === target && staged.id === id) ? staged.ids : null;
+    var control = findControl(list, target, id, expected);
+    if (!control) throw new Error('could not find the form control - open the Edit tab first');
+    var current = control.values || [];
+    var have = {};
+    current.forEach(function (t) { have[String(t.id)] = true; });
+    var added = addIds.filter(function (aid) { return !have[aid]; }).map(makeItem);
+    if (!added.length) return 0;
+    var next = current.concat(added);
+    control.props.onSelect(next);
+    control.values = next;
+    setStaged({ target: target, id: id, ids: next.map(function (t) { return String(t.id); }) });
+    return added.length;
+  }
+
+  // Every plan entry for this one entity, staged into whichever control its kind
+  // uses. Names come from what `AutoRun` already gathered while planning - the tag
+  // hierarchy's `tagMap` and the performer names carried on any performers-kind
+  // path's payload - so staging costs no query of its own.
+  function applyPlanToForm(target, id, plan, tagMap, performerNames) {
+    var total = 0;
+    plan.forEach(function (entry) {
+      if (entry.target !== target || entry.id !== id || !entry.add.length) return;
+      if (entry.kind === 'tags') {
+        total += stageEntry(_tagCaptures, _stagedTags, function (v) { _stagedTags = v; },
+          target, id, entry.add, function (tid) {
+            return { id: tid, name: tagName(tagMap, tid) || ('tag ' + tid), aliases: [], image_path: null };
+          });
+      } else {
+        total += stageEntry(_perfCaptures, _stagedPerfs, function (v) { _stagedPerfs = v; },
+          target, id, entry.add, function (pid) {
+            return { id: pid, name: (performerNames && performerNames[pid]) || ('performer ' + pid) };
+          });
+      }
+    });
+    return total;
+  }
+
+  // ── The click: plan one entity, then save or stage it ───────────────────────
+  //
+  // `guarded()` around the whole thing for the same reason auto mode needs it: with
+  // "save immediately" on, `run.apply()` issues the very bulk mutation the fetch
+  // wrapper watches for, and without the guard a click would react to its own write.
+  function runManual(target, id) {
+    return autoSettings().then(function (s) {
+      var paths = enabledPaths(s).filter(function (p) { return p.target === target; });
+      if (!paths.length) throw new Error('no enabled paths into this page');
+      return guarded(function () {
+        return autoContext(s).then(function (ctx) {
+          var run = new AutoRun(s, ctx.tagMap, ctx.filters);
+          return run.planEntities(target, paths, [String(id)]).then(function () {
+            if (s.a2SaveImmediately) {
+              return run.apply('manual: ' + TARGETS[target].label + ' ' + id).then(function (n) {
+                return { mode: 'saved', count: n };
+              });
+            }
+            var count = applyPlanToForm(target, String(id), run.plan, run.tagMap, run.performerNames);
+            return { mode: 'staged', count: count };
+          });
+        });
+      });
+    });
+  }
+
+  // ── The buttons themselves ───────────────────────────────────────────────────
+
+  var MANUAL_BTN_CLASS = 'ptp2re-manual-btn';
+  var FLASH_MS = 1500;
+
+  function manualButtonId(path) {
+    return 'ptp2re-mbtn-' + path.id.replace(/[^a-zA-Z0-9]+/g, '-');
+  }
+
+  function clearManualButtons() {
+    (document.querySelectorAll('.' + MANUAL_BTN_CLASS) || []).forEach(function (b) {
+      if (b.parentNode) b.parentNode.removeChild(b);
+    });
+  }
+
+  function manualButtonTitle(path, immediate) {
+    return pathLabel(path) + (immediate
+      ? ' - copies and saves immediately.'
+      : ' - stages into the form for review; you still press Save.');
+  }
+
+  function buildManualButton(path, target, id, immediate) {
+    var btn = button(path.button, MANUAL_BTN_CLASS + ' mx-1');
+    btn.id = manualButtonId(path);
+    btn._ptp2reEntityId = id;
+    btn.title = manualButtonTitle(path, immediate);
+    btn.addEventListener('click', function (event) {
+      if (event && event.preventDefault) event.preventDefault();
+      var orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Working...';
+      runManual(target, id).then(function (result) {
+        btn.disabled = false;
+        btn.textContent = result.count ? ('Added ' + result.count) : 'No changes';
+        setTimeout(function () { btn.textContent = orig; }, FLASH_MS);
+      }, function (err) {
+        btn.disabled = false;
+        btn.textContent = orig;
+        console.error('[ptp2re]', err);
+        alert('Error: ' + (err && err.message ? err.message : err));
+      });
+    });
+    return btn;
+  }
+
+  // Reconciles the container's buttons against the currently enabled paths for this
+  // page, adding what is missing and dropping what no longer belongs - a stale
+  // button left over from the previous entity, or every button at once when the
+  // setting is off or the page is not one of the four.
+  function manualButtonsTick() {
+    autoSettings().then(function (s) {
+      var rt = s.a1ShowManualButtons ? currentRouteTarget() : null;
+      if (!rt) { clearManualButtons(); return; }
+      var container = document.querySelector('.edit-buttons');
+      if (!container) { clearManualButtons(); return; }
+      var paths = enabledPaths(s).filter(function (p) { return p.target === rt.target; });
+      // A button whose path is no longer enabled is removed outright. A button for a
+      // *different* entity (the container reused across a navigation) is not handled
+      // here - the loop below already replaces it, since `existing` would fail the
+      // entity-id check and get torn down before its replacement is appended. Two
+      // removal paths for the same case would be one more place to keep in sync.
+      (container.childNodes || []).slice().forEach(function (node) {
+        if (!hasClass(node, MANUAL_BTN_CLASS)) return;
+        var stillWanted = paths.some(function (p) { return manualButtonId(p) === node.id; });
+        if (!stillWanted && node.parentNode) node.parentNode.removeChild(node);
+      });
+      paths.forEach(function (p) {
+        var existing = document.getElementById(manualButtonId(p));
+        if (existing && existing._ptp2reEntityId === rt.id) return;
+        if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+        container.appendChild(buildManualButton(p, rt.target, rt.id, !!s.a2SaveImmediately));
+      });
+    });
+  }
+
+  // A MutationObserver, unlike the settings page's decoration-only tick: a button
+  // has to land before the user can click it, and React re-renders the edit panel
+  // constantly enough (every keystroke in the form) that polling alone would leave
+  // it flickering in and out. Coalesced into one tick per burst.
+  var _entityTickScheduled = false;
+  function scheduleEntityTick() {
+    if (_entityTickScheduled) return;
+    _entityTickScheduled = true;
+    setTimeout(function () { _entityTickScheduled = false; manualButtonsTick(); }, 100);
+  }
+
+  function startEntityObserver() {
+    var target = document.getElementById('root') || document.body || document.documentElement;
+    if (!target) return false;
+    try {
+      new MutationObserver(scheduleEntityTick).observe(target, { childList: true, subtree: true });
+      return true;
+    } catch (e) {
+      console.warn('[ptp2re] could not observe the DOM; falling back to polling:', e);
+      return true; // the interval below still drives the tick
+    }
+  }
+
+  if (!installSelectPatches()) {
+    window.addEventListener('load', function () { installSelectPatches(); });
+  }
+  if (window.addEventListener) {
+    window.addEventListener('load', function () { manualButtonsTick(); startEntityObserver(); });
+    window.addEventListener('popstate', function () { setTimeout(manualButtonsTick, 300); });
+  }
+  document.addEventListener('click', function () { setTimeout(manualButtonsTick, 300); }, true);
+  setInterval(manualButtonsTick, 1000);
+  manualButtonsTick();
+
   // ── Task interception ─────────────────────────────────────────────────────
   //
   // Layer 1: capture-phase click. React attaches its handlers to the root container,
@@ -3119,5 +3390,8 @@
     sourceFieldQuery: sourceFieldQuery,
     sourceFilterQuery: sourceFilterQuery,
     AUTO_COOLDOWN_MS: AUTO_COOLDOWN_MS,
+    currentRouteTarget: currentRouteTarget,
+    manualButtonId: manualButtonId,
+    MANUAL_BTN_CLASS: MANUAL_BTN_CLASS,
   };
 }());

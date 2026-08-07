@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.8.2';
+  var PLUGIN_VERSION = '0.8.3';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3145,6 +3145,15 @@
     btn.id = manualButtonId(path);
     btn._ptp2reEntityId = id;
     btn.title = manualButtonTitle(path, immediate);
+    // The container is a flex row, and its default `align-items: stretch` makes any
+    // child sitting beside a taller sibling - Stash's own Save/Delete, or
+    // MergePerformerTagsToScenes' button, which carries no `btn-sm` - stretch to
+    // match it. A button that wraps to its own row, with nothing tall beside it,
+    // keeps its natural height instead - the same `btn-sm` button rendering two
+    // different heights purely by which row it landed on. `align-self` opts every
+    // one of ours out of that per-row inheritance, so they are consistently sized
+    // regardless of what else is sharing the row.
+    btn.style = 'align-self:flex-start;';
     btn.addEventListener('click', function (event) {
       if (event && event.preventDefault) event.preventDefault();
       var orig = btn.textContent;
@@ -3183,6 +3192,37 @@
     return null;
   }
 
+  // Whether some *other* loaded plugin declares this same path - the `declares`
+  // registry from step 7, read here for the first time by anything other than the
+  // task dialog's log line.
+  function otherPluginDeclaresPath(pathId) {
+    var declares = coop().declares;
+    for (var id in declares) {
+      if (!hasOwn(declares, id) || id === PLUGIN_ID) continue;
+      if ((declares[id] || []).indexOf(pathId) !== -1) return true;
+    }
+    return false;
+  }
+
+  // Whether a button for that path is already sitting in the container, placed by
+  // someone else. `declares` alone is not enough to act on: it says another plugin
+  // *can* cover this path, not that its button is showing right now - that plugin's
+  // own manual-button setting could just as easily be off, in which case deferring
+  // to it would leave neither button on the page. Matching on the exact label text
+  // is the ground truth instead, and it needs no knowledge of the other plugin's
+  // class names or settings: `path.button` is the same string a user would
+  // recognise as "this one" regardless of which plugin put it there, which is what
+  // makes two plugins doing the identical path call it the same thing worth relying
+  // on. Only a match outside our own `MANUAL_BTN_CLASS` buttons counts, so this
+  // never mistakes our own button, added on an earlier tick, for someone else's.
+  function foreignButtonAlreadyShows(container, label) {
+    var kids = Array.prototype.slice.call(container.childNodes || []);
+    for (var i = 0; i < kids.length; i++) {
+      if (!hasClass(kids[i], MANUAL_BTN_CLASS) && kids[i].textContent === label) return true;
+    }
+    return false;
+  }
+
   // Reconciles the container's buttons against the currently enabled paths for this
   // page, adding what is missing and dropping what no longer belongs - a stale
   // button left over from the previous entity, or every button at once when the
@@ -3193,7 +3233,14 @@
       if (!rt) { clearManualButtons(); return; }
       var container = findManualButtonContainer();
       if (!container) { clearManualButtons(); return; }
-      var paths = enabledPaths(s).filter(function (p) { return p.target === rt.target; });
+      // A path another plugin also declares, whose button is already visible right
+      // here, is dropped from what we want before either loop below ever sees it -
+      // so the removal loop tears an earlier one of ours down the moment a sibling
+      // plugin's appears, and the add loop never puts a second one up beside it.
+      var paths = enabledPaths(s).filter(function (p) { return p.target === rt.target; })
+        .filter(function (p) {
+          return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, p.button));
+        });
       // A button whose path is no longer enabled is removed outright. A button for a
       // *different* entity (the container reused across a navigation) is not handled
       // here - the loop below already replaces it, since `existing` would fail the

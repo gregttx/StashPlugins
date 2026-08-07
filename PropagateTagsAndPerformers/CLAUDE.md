@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.8.2.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.8.3.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -20,19 +20,19 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | 6 | Auto mode, target side, **and** the per-entity cooldown | **0.5.0** |
 | | — auto mode, source side (the fan-out) | **0.6.0** |
 | 7 | The `declares` registry, **and** NormalizeParentTags awareness | **0.7.0** |
-| 8 | Manual buttons and staging | **0.8.0**, fixed at 0.8.1 and 0.8.2 |
+| 8 | Manual buttons and staging | **0.8.0**, fixed at 0.8.1, 0.8.2 and 0.8.3 |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
-**Step 8 placement, as verified live so far: Scene and Group confirmed, Gallery and Image still
-open.** Scene uses `.edit-buttons` (`MergePerformerTagsToScenes`' own scene button already proved
-it). Group does not — its edit form lives in `.details-edit`, a container Stash swaps between two
-states (a detail-view navbar carrying a Delete button, and the edit form itself carrying Cancel/Save
-in its place), the same container `MergePerformerTagsToScenes`' own performer button already
-depends on for the *other* state. `findManualButtonContainer` tries `.edit-buttons` first and falls
-back to whichever `.details-edit` does **not** carry a Delete button. Gallery and Image have not been
-looked at live yet; if a button is missing there, this is the first place to check — and if
-`.details-edit` is not it either, the container name is not yet a two-guess problem, it is a
-three-or-more-guess one, and worth asking rather than adding a third blind fallback.
+**Step 8 placement is now confirmed live on all four target pages.** Scene, Gallery and Image use
+`.edit-buttons` (`MergePerformerTagsToScenes`' own scene button already proved it for Scene; Gallery
+and Image confirmed at 0.8.2). Group does not — its edit form lives in `.details-edit`, a container
+Stash swaps between two states (a detail-view navbar carrying a Delete button, and the edit form
+itself carrying Cancel/Save in its place), the same container `MergePerformerTagsToScenes`' own
+performer button already depends on for the *other* state. `findManualButtonContainer` tries
+`.edit-buttons` first and falls back to whichever `.details-edit` does **not** carry a Delete button.
+What is still unverified is everything a screenshot cannot show: the actual `PerformerSelect` item
+shape staging relies on, and whether a button should exist at all when its path has nothing to add
+(see the 0.8.3 note below).
 
 **0.8.1 fixed the first thing a live Stash actually found: no buttons ever appeared, anywhere, on
 any page.** `manualButtonsTick` called `.slice()` directly on `container.childNodes`, which throws
@@ -49,6 +49,28 @@ straight off the live collection.
 
 **0.8.2 added the `.details-edit` fallback** once 0.8.1 let the Group finding through: with the
 crash fixed, Group still showed nothing, because it does not use `.edit-buttons` at all.
+
+**0.8.3, from screenshots of all four pages at once: a height inconsistency and a real duplicate.**
+`.edit-buttons` defaults to flex `align-items: stretch`, so a `btn-sm` button sharing a row with a
+taller sibling — Stash's own Save/Delete, or `MergePerformerTagsToScenes`' button, which carries no
+`btn-sm` — stretches to match it, while one that wraps to its own row does not: the same button
+class rendering two different heights purely by which row it landed on. Every manual button now
+carries `align-self: flex-start` to opt out of that inheritance regardless of its neighbours.
+
+Separately, the screenshots showed Scene's `tags:performer>scene` button doubled — this plugin's own
+"Add Perf Tags" sitting right beside `MergePerformerTagsToScenes`' identically-labelled one.
+`declares` (step 7) already knew the two plugins could collide here; it just had never been asked
+before button-rendering time. `otherPluginDeclaresPath` answers "could another plugin be showing a
+button for this path", and `foreignButtonAlreadyShows` answers the question that actually matters -
+"is one, right now" - by matching the exact visible label rather than any plugin-specific class name,
+so a path only this plugin declares is never affected and the check needs no per-plugin knowledge to
+extend to a future third one. Both have to be true before a path drops out of what this plugin wants
+to show: `declares` alone is a capability, not a fact about what is on screen right now, since the
+other plugin's own manual-button setting could just as easily be off - suppressing on that signal
+alone would leave neither button up for a path the user explicitly asked to see. This is one-directional:
+`MergePerformerTagsToScenes` is not coop-aware of this plugin, so it does not defer in return.
+Deliberate, not a gap to close by symmetry alone - it is the newer plugin's role to yield to a UI
+element that was already there, not the other way round.
 
 **Steps 3 and 5 were re-cut during step 3.** The plan had two hops and the "common tags only" modes
 as a step of their own, on the assumption that reaching a group's performers through its scenes
@@ -580,7 +602,7 @@ about one specific *kind* of plugin NPT is the only example of here, and forcing
 vocabulary would need a second, richer vocabulary (categories, not paths, plus a collision matrix)
 that nothing here needs yet.
 
-## 5b. Manual buttons and staging (0.8.0, best-effort; fixed at 0.8.1 and 0.8.2)
+## 5b. Manual buttons and staging (0.8.0, best-effort; fixed at 0.8.1, 0.8.2 and 0.8.3)
 
 D8 of the design plan, built without a running Stash to check the DOM against — the plan's own
 caveat, carried forward rather than resolved. One button per enabled path whose target is the page
@@ -721,7 +743,11 @@ of it apply unchanged:
   cannot, since its `childNodes` is a genuine array. Since 0.8.2, the `.details-edit` fallback: it is
   used when `.edit-buttons` is absent, the detail-view instance (carrying Delete) is skipped, the
   edit-form instance is still chosen when both are present at once, and `.edit-buttons` wins outright
-  when both containers exist - the confirmed case must never lose to the fallback.
+  when both containers exist - the confirmed case must never lose to the fallback. Since 0.8.3: every
+  button carries `align-self: flex-start`; and the duplicate-button check in all four directions - a
+  foreign button for the same declared path suppresses ours, a declared-but-not-shown path does not,
+  a foreign button for a *different* path leaves an unrelated one alone, and our own already-rendered
+  button is never mistaken for a foreign one on a later, idle tick.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.**

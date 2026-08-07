@@ -174,6 +174,13 @@ function nodeListLikeContainer() {
       btns.map((b) => b.textContent).join(','));
     h.check('labelled from the path table, not a second copy of the string',
       btns[0].textContent === 'Add Perf Tags', btns[0].textContent);
+    // `.edit-buttons` defaults to flex `align-items: stretch`, so a button sharing a
+    // row with a taller sibling (Stash's own Save/Delete, or a non-`btn-sm` button
+    // from another plugin) stretches to match it while one that wraps alone does
+    // not - the same button rendering two different heights purely by which row it
+    // landed on. `align-self` opts every one of ours out of that.
+    h.check('opts out of the container\'s flex stretch, so its height never depends on its row',
+      /align-self\s*:\s*flex-start/.test(btns[0].style || ''), btns[0].style);
   }
 
   // ── Restraint ───────────────────────────────────────────────────────────────
@@ -286,6 +293,64 @@ function nodeListLikeContainer() {
     const labels = manualButtons(env).map((b) => b.textContent).sort();
     h.check('one button per enabled path, not one that tries to name both',
       labels.join(',') === 'Add Perf Tags,Add Studio Tags', labels.join(','));
+  }
+
+  // ── Not duplicating another plugin's identical button ─────────────────────────
+  //
+  // MergePerformerTagsToScenes covers `tags:performer>scene` too. `declares` alone
+  // says it *could* be showing a button here; only a matching label actually in the
+  // container says it *is* - the ground truth these checks are really about.
+  {
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
+    const foreign = h.makeElement('button');
+    foreign.className = 'cpt2s-merge-from-perfs-btn';
+    foreign.textContent = 'Add Perf Tags';
+    container.appendChild(foreign);
+    env.tick();
+    await h.flush(60);
+    h.check('our own button is not added alongside a foreign one for the same path',
+      manualButtons(env).length === 0);
+  }
+  {
+    // Declared but not actually shown - the other plugin's own manual-button
+    // setting could just as easily be off. Suppressing ours too would leave
+    // neither button on the page for something the user asked to see.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    editButtonsContainer(env);
+    env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
+    env.tick();
+    await h.flush(60);
+    h.check('declared but not shown does not suppress ours', manualButtons(env).length === 1);
+  }
+  {
+    // A different path from the same plugin is unrelated - its foreign button must
+    // not blanket-suppress a button for a path it was never declared for.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b2TagsStudioToScenes: true } });
+    const container = editButtonsContainer(env);
+    env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
+    const foreign = h.makeElement('button');
+    foreign.textContent = 'Add Perf Tags';
+    container.appendChild(foreign);
+    env.tick();
+    await h.flush(60);
+    h.check('a foreign button for a different path leaves this one alone',
+      manualButtons(env).length === 1);
+  }
+  {
+    // Our own button must never be mistaken for a foreign one just because it
+    // carries the same label a declaring plugin also happens to use - it is
+    // excluded from the foreign-button scan by its own MANUAL_BTN_CLASS.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    editButtonsContainer(env);
+    env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
+    env.tick();
+    await h.flush(60);
+    h.check('our own button renders once', manualButtons(env).length === 1);
+    env.tick(); // idle tick - must not tear itself down as though it were foreign
+    await h.flush(60);
+    h.check('and is not removed by a later tick seeing itself', manualButtons(env).length === 1);
   }
 
   // ── Staging (the default) ────────────────────────────────────────────────────

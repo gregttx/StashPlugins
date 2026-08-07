@@ -1,16 +1,17 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.8.2, every step but the last has landed
+> ## 🚧 Under construction — 0.8.3, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
-> the two sibling plugins, and manual buttons with staging are now confirmed working on **Scene**
-> and **Group**; **Gallery and Image are still unverified**, see the warning further down.
+> the two sibling plugins, and manual buttons with staging are now confirmed working on **all four
+> pages** — Scene, Gallery, Image and Group.
 >
-> Two fixes landed after real-Stash testing found real problems: 0.8.1 fixed the buttons not
-> appearing **anywhere** (a real-browser `childNodes` bug, not a placement problem), and 0.8.2 fixed
-> Group specifically (its edit form uses a different container than Scene's). If you installed
-> 0.8.0 or 0.8.1, update first.
+> Three fixes landed after real-Stash testing found real problems: 0.8.1 fixed the buttons not
+> appearing **anywhere** (a real-browser `childNodes` bug, not a placement problem); 0.8.2 fixed
+> Group specifically (its edit form uses a different container than Scene's); 0.8.3 fixed a height
+> inconsistency between buttons and stopped this plugin duplicating `MergePerformerTagsToScenes`'
+> own button for the one path they share. If you installed anything before 0.8.3, update.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -28,7 +29,7 @@
 > | Automatic mode when the **target** is saved, with the per-entity cooldown | **done** (0.5.0) |
 > | Automatic mode when the **source** is saved, fanning out to its targets | **done** (0.6.0) |
 > | Cooperating with `MergePerformerTagsToScenes` and `NormalizeParentTags` | **done** (0.7.0) |
-> | Manual buttons and staging | **done; Scene & Group confirmed, Gallery & Image unverified** (0.8.0, fixed 0.8.1 + 0.8.2) |
+> | Manual buttons and staging | **done; confirmed on all four pages** (0.8.0, fixed 0.8.1 + 0.8.2 + 0.8.3) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -49,16 +50,6 @@
 
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (the custom-field exclusion filter) and UI
 > plugin component patching (staging into an edit form) both depend on it.
-
-> ## ⚠ Manual button placement is unverified on the gallery and image pages
->
-> The buttons look for a `.edit-buttons` container first, falling back to whichever `.details-edit`
-> does not carry a Delete button. Both are confirmed against a running Stash: **scene** uses
-> `.edit-buttons` (`MergePerformerTagsToScenes`' own button already proved it), **group** uses the
-> `.details-edit` fallback. **Gallery and image have not been checked yet** — they reuse whichever
-> of the two containers is found first, on the same working assumption as before, just narrowed to
-> two candidates instead of one. If a button never appears on either of those two pages, that is the
-> first thing to check; the task and both automatic modes are unaffected either way.
 
 ## What it does
 
@@ -217,9 +208,14 @@ Clicking one does one of two things, depending on **Save Immediately**:
   modes and the library-wide task make. There is no staging, no review and no per-click undo — the
   library-wide task's Undo only ever reaches what that task's own dialog wrote.
 
-A button that cannot find the tag or performer box — the Edit tab was never opened, or Stash's
-markup does not match what this plugin expects on that page (see the warning near the top of this
-README) — reports the problem in an alert rather than silently doing nothing.
+A button that cannot find the tag or performer box — the Edit tab was never opened, or a fresh
+Stash version has changed markup this plugin has not seen yet — reports the problem in an alert
+rather than silently doing nothing.
+
+**If `MergePerformerTagsToScenes` is also installed and showing its own button for the same path**
+("Add Perf Tags" on the scene page, today the only path the two plugins share), this plugin does
+not add a second one next to it (0.8.3). Nothing else changes: click MPTTS's button and you get its
+behaviour; enable more paths here and you still get buttons for all of them, this one path aside.
 
 ## Installing
 
@@ -236,7 +232,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.8.2 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.8.3 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

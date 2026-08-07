@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.3.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.3.1.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -15,6 +15,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | 2 | Shared base: cooperation, GraphQL, task interception, dialog, settings page | 0.1.0 |
 | 3 | The planner — all eleven walk-based paths | **0.2.0** |
 | 4 | Phase 2 apply, and Undo | **0.3.0** |
+| | — the log names the source entity, not the path | **0.3.1** |
 | 5 | The two reverse-query paths (a gallery's images) | — |
 | 6 | Auto mode **and** the per-entity cooldown, together | — |
 | 7 | The `declares` registry | — |
@@ -200,16 +201,41 @@ it is there to protect and nothing here removes anything afterwards. The exclusi
 copied onto anything, or whatever received it would be permanently excluded.
 
 **Naming.** Tags are named from the one `findTags` query every run makes anyway; `custom_fields` is
-requested only when that filter is set. Performers carry `name` on the traversal instead, because
-fetching every performer in the library to name the handful a plan mentions would be a query for a
-log line. `entityLabel` reads whichever of `files` / `visual_files` / `folder` is present rather
-than switching on the target type — a per-type branch there is what let galleries and images log as
-"untitled" in the sibling for three releases.
+requested only when that filter is set. Everything else carries its name on the traversal instead,
+because fetching every performer in the library to name the handful a plan mentions would be a query
+for a log line. `entityLabel` reads whichever of `files` / `visual_files` / `folder` is present
+rather than switching on the target type — a per-type branch there is what let galleries and images
+log as "untitled" in the sibling for three releases.
 
-**Attribution is per path, not per source entity.** A line reads `- from Performers`, not
-`- from Performer "Jane" (7)`. Naming the individual source would mean a name field for scenes,
-galleries, groups, studios and markers on every traversal, for a clause the path already answers.
-Worth revisiting only if someone asks for it.
+**Attribution names the source entity** (0.3.1). A line reads `- from Performer "Jane" (7)`, not
+`- from Performers`. Naming the path answered "which rule fired", which the rest of the line
+already implies; naming the entity answers "which performer", which is the thing the user has to
+open to understand or reverse a copy by hand. It cost a name field on every traversal — `SOURCES`,
+which is where the seven source types get a singular label and the fields their label reads.
+
+Four rules it turns on:
+
+- **`SOURCES` reuses `TARGETS` for the four types that are both.** Two field lists for one entity
+  are two lists that can drift, and the fallback chain reads whichever of `title` / `name` /
+  `files` / `visual_files` / `folder` is present — the same chain `entityLabel` uses, for the same
+  reason it does not switch on type.
+- **Only the leaf of a walk is named.** An intermediate step is passed through and never logged;
+  naming it would put a join on every scene under every group for a string nobody reads.
+- **One name and a count**, `Performer "Jane" (7), +2 more`. A scene with forty performers would
+  otherwise put forty of them on one line, and the first in walk order is enough to start from —
+  walk order being what makes it the same name on every run.
+- **The count is over the sources of the path that supplied it first**, not over every path. A tag
+  reaching a scene from both its studio and a performer is one addition, attributed to whichever
+  path reached it; counting across paths would mean holding attribution for additions never made.
+
+Attribution is computed once, in phase 1, and held on the plan entry. Phase 2 and Undo read it back
+rather than recomputing — by then the sources are long out of scope, and a batch groups entities
+that wanted the same tag for different reasons, which is why the line is built per entry and never
+per batch.
+
+A **titleless marker is named by its primary tag**, which is what Stash shows on the scene's marker
+list and which every marker path already selects. Marker titles are optional and usually blank, so
+this is the common case rather than a fallback.
 
 **A failed page is logged and the pass carries on.** One bad page must not cancel a library-wide
 review, and a plan that is honest about being partial beats one that is quietly short. A failed
@@ -350,7 +376,7 @@ of it apply unchanged:
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.**
-Forty-three mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
+Fifty-two mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
 reason is worse than no suite. Use `SRC=/path/to/mutant.js node tests/propagate-base.test.js`.
 
 What they cannot cover: Stash's own behaviour. The suites reproduce its markup and its schema from

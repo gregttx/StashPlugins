@@ -245,12 +245,19 @@ h.check('a two-hop path walks two steps',
 // These four cover every shape the builder has to produce.
 
 h.check('a one-hop tag path selects its source tags',
-  api.pathSelection(api.pathById('tags:performer>scene')) === 'performers { id tags { id } }',
+  api.pathSelection(api.pathById('tags:performer>scene')) ===
+    'performers { id name tags { id } }',
   api.pathSelection(api.pathById('tags:performer>scene')));
 
 h.check('a two-hop tag path nests both steps',
   api.pathSelection(api.pathById('tags:performer>group')) ===
-    'scenes { performers { id tags { id } } }',
+    'scenes { performers { id name tags { id } } }',
+  api.pathSelection(api.pathById('tags:performer>group')));
+
+// Only the leaf. An intermediate step is passed through, never logged, and naming it
+// would put a join on every scene under every group for a string nobody reads.
+h.check('and names only the entity the copy comes from',
+  api.pathSelection(api.pathById('tags:performer>group')).indexOf('scenes { performers') === 0,
   api.pathSelection(api.pathById('tags:performer>group')));
 
 // The source entity's own id, at the innermost level of every walk. It is what the
@@ -270,19 +277,20 @@ h.check('every walk asks for the source entity own id',
 // much as one that lists it. Asking only for `tags` would silently drop it.
 h.check('a marker path asks for the primary tag as well',
   api.pathSelection(api.pathById('tags:marker>scene')) ===
-    'scene_markers { id primary_tag { id } tags { id } }',
+    'scene_markers { id title primary_tag { id } tags { id } }',
   api.pathSelection(api.pathById('tags:marker>scene')));
 
 // Scene.groups is [SceneGroup!] and Group.sub_groups is [GroupDescription!], neither
 // of which is a Group - both wrap one in a `group` field. Walking straight to `tags`
 // would ask for a field the type does not have.
 h.check('an edge through a group description unwraps it',
-  api.pathSelection(api.pathById('tags:group>scene')) === 'groups { group { id tags { id } } }',
+  api.pathSelection(api.pathById('tags:group>scene')) ===
+    'groups { group { id name tags { id } } }',
   api.pathSelection(api.pathById('tags:group>scene')));
 
 h.check('a sub-group edge unwraps it too',
   api.pathSelection(api.pathById('tags:subgroup>group')) ===
-    'sub_groups { group { id tags { id } } }',
+    'sub_groups { group { id name tags { id } } }',
   api.pathSelection(api.pathById('tags:subgroup>group')));
 
 // Performers carry `name` because nothing else in a run knows it: tags are named
@@ -290,12 +298,63 @@ h.check('a sub-group edge unwraps it too',
 // the library to name the handful a plan mentions would be a query for a log line.
 h.check('a performer path selects performer ids and names',
   api.pathSelection(api.pathById('performers:gallery>scene')) ===
-    'galleries { id performers { id name } }',
+    'galleries { id title files { basename } folder { basename } performers { id name } }',
   api.pathSelection(api.pathById('performers:gallery>scene')));
 
 h.check('a reverse path has no selection to splice into the target query',
   api.pathSelection(api.pathById('tags:image>gallery')) === '',
   api.pathSelection(api.pathById('tags:image>gallery')));
+
+// ── Naming the source ─────────────────────────────────────────────────────
+//
+// The log names the entity a copy came from, so every path's source needs a label and
+// the fields that label reads. A sourceType with no entry would log "Source" and an
+// id, which is the failure this pins.
+
+h.check('every path source type is one this can name',
+  PATHS.every((p) => api.SOURCES[p.sourceType] && api.SOURCES[p.sourceType].label),
+  PATHS.filter((p) => !api.SOURCES[p.sourceType]).map((p) => p.id).join(' '));
+
+h.check('and asks for the fields its label reads',
+  Object.keys(api.SOURCES).every((k) => /(^|\s)id(\s|$)/.test(api.SOURCES[k].fields) &&
+    /name|title/.test(api.SOURCES[k].fields)),
+  Object.keys(api.SOURCES).map((k) => k + '=' + api.SOURCES[k].fields).join(' | '));
+
+// Four of the seven source types are also targets. Two field lists for one entity are
+// two lists that can drift, and the fallback chain reads whichever is present - so a
+// gallery-as-source must ask for exactly what a gallery-as-target does.
+h.check('a source that is also a target reuses the target field list',
+  ['scene', 'gallery', 'image', 'group'].every((k) => api.SOURCES[k] === api.TARGETS[k]),
+  ['scene', 'gallery', 'image', 'group']
+    .filter((k) => api.SOURCES[k] !== api.TARGETS[k]).join(' '));
+
+h.check('a source names the entity, not the path',
+  api.sourceLabel({}, { id: '7', name: 'Jane' }, api.pathById('tags:performer>scene')) ===
+    'Performer "Jane" (7)',
+  api.sourceLabel({}, { id: '7', name: 'Jane' }, api.pathById('tags:performer>scene')));
+
+// A marker's title is optional and usually blank. Stash shows it by its primary tag,
+// which every marker path already selects, so the log can say the same thing.
+h.check('a titleless marker is named by its primary tag',
+  api.sourceLabel({ 4: { name: 'Interview' } }, { id: '300', title: null, primary_tag: { id: '4' } },
+    api.pathById('tags:marker>scene')) === 'Marker "Interview" (300)',
+  api.sourceLabel({ 4: { name: 'Interview' } }, { id: '300', title: null, primary_tag: { id: '4' } },
+    api.pathById('tags:marker>scene')));
+
+// A gallery with neither title nor files still has to log something. The fallback
+// chain is the target one, so a source falls back the same way a target does.
+h.check('a source with nothing to be named by still names its type and id',
+  api.sourceLabel({}, { id: '30' }, api.pathById('performers:gallery>scene')) ===
+    'Gallery "untitled" (30)',
+  api.sourceLabel({}, { id: '30' }, api.pathById('performers:gallery>scene')));
+
+h.check('one source is named alone',
+  api.fromLabel('Performer "Jane" (7)', 1) === 'Performer "Jane" (7)',
+  api.fromLabel('Performer "Jane" (7)', 1));
+
+h.check('and the rest are counted rather than listed',
+  api.fromLabel('Performer "Jane" (7)', 3) === 'Performer "Jane" (7), +2 more',
+  api.fromLabel('Performer "Jane" (7)', 3));
 
 // ── Writing ───────────────────────────────────────────────────────────────
 

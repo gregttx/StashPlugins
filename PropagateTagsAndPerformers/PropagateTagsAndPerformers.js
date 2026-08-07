@@ -29,7 +29,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.3.0';
+  var PLUGIN_VERSION = '0.3.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -254,6 +254,28 @@
       walk: ['galleries'] },
   ];
 
+  // How a source entity is named in the log, keyed by a path's `sourceType`.
+  //
+  // "from Performers" told the user which *path* was responsible; it did not tell them
+  // which performer, which is the thing they have to open to understand or undo a copy
+  // by hand. So each source carries the fields its own label needs.
+  //
+  // The four that are also targets reuse the target's field list rather than repeating
+  // it: two lists describing one entity are two lists that can drift, and the fallback
+  // chain reads whichever of them is present.
+  var SOURCES = {
+    performer: { label: 'Performer', fields: 'id name' },
+    studio: { label: 'Studio', fields: 'id name' },
+    // A marker's title is optional and usually blank. `sourceLabel` falls back to the
+    // primary tag, which is what Stash itself shows on the scene's marker list, and
+    // which every marker path already selects.
+    marker: { label: 'Marker', fields: 'id title' },
+    scene: TARGETS.scene,
+    gallery: TARGETS.gallery,
+    image: TARGETS.image,
+    group: TARGETS.group,
+  };
+
   // What a path reads off whatever its walk lands on.
   //
   // A marker keeps its primary tag in a required field of its own rather than in
@@ -275,10 +297,13 @@
   // The source entity's own `id` comes back with the payload, and it is not
   // decoration: where the source is itself one of our targets, an earlier stage may
   // have *planned* additions to it that this stage has to see, and the id is how
-  // those are looked up. See the cascade note on `plannedFor`.
+  // those are looked up. See the cascade note on `plannedFor`. Its name comes back for
+  // a smaller reason - the log line naming what was responsible - and rides along with
+  // the traversal rather than costing a query of its own.
   function pathSelection(path) {
     if (!path.walk) return '';
-    var sel = 'id ' + leafSelection(path);
+    var src = SOURCES[path.sourceType];
+    var sel = (src ? src.fields : 'id') + ' ' + leafSelection(path);
     for (var i = path.walk.length - 1; i >= 0; i--) sel = path.walk[i] + ' { ' + sel + ' }';
     return sel;
   }
@@ -697,17 +722,46 @@
   // rather than switched on the target type: a per-type branch here is what let
   // galleries and images log as "untitled" in the sibling for three releases, the
   // fallback having been written for scenes and never extended.
-  function entityLabel(target, ent) {
-    var t = TARGETS[target];
-    var name = ent.title || ent.name ||
+  function displayName(ent) {
+    return ent.title || ent.name ||
       firstBasename(ent.files) || firstBasename(ent.visual_files) ||
-      (ent.folder && ent.folder.basename) || 'untitled';
-    return t.label + ' "' + name + '" (' + ent.id + ')';
+      (ent.folder && ent.folder.basename) || null;
+  }
+
+  function entityLabel(target, ent) {
+    return TARGETS[target].label + ' "' + (displayName(ent) || 'untitled') + '" (' + ent.id + ')';
+  }
+
+  // The entity a copy came *from*, for the log line. Same shape as a target's label so
+  // the two read as one sentence, and same fallback chain, since four of the seven
+  // source types are targets.
+  function sourceLabel(tagMap, src, path) {
+    var s = SOURCES[path.sourceType];
+    var name = displayName(src);
+    // Stash shows a titleless marker by its primary tag, which is the name the user
+    // will recognise on the scene. Only the marker paths select it.
+    if (!name && src.primary_tag && src.primary_tag.id != null) {
+      name = tagName(tagMap, src.primary_tag.id);
+    }
+    return (s ? s.label : 'Source') + ' "' + (name || 'untitled') + '" (' + src.id + ')';
+  }
+
+  // How many entities beyond the named one carried the same thing. The count is over
+  // the sources of the path that supplied it first, not over every path: a tag on a
+  // scene from both its studio and a performer is one addition, attributed to whichever
+  // path reached it, and counting across paths would mean holding attribution for
+  // additions that were never made.
+  function fromLabel(label, sources) {
+    return label + (sources > 1 ? ', +' + (sources - 1) + ' more' : '');
+  }
+
+  function tagName(tagMap, id) {
+    var t = tagMap[String(id)];
+    return t ? t.name : null;
   }
 
   function tagLabel(tagMap, id) {
-    var t = tagMap[String(id)];
-    return 'Tag "' + (t ? t.name : 'unknown') + '" (' + id + ')';
+    return 'Tag "' + (tagName(tagMap, id) || 'unknown') + '" (' + id + ')';
   }
 
   function performerLabel(names, id) {
@@ -1347,7 +1401,10 @@
       // group with no scenes has no scenes agreeing on anything.
       if (!sources.length) return;
 
-      var counts = {}, order = [];
+      // `first` is the label of the earliest source carrying each id, in walk order;
+      // `counts` is how many sources carry it. Together they are what the log line
+      // names - one entity by name, and how many others agreed with it.
+      var counts = {}, order = [], first = {};
       sources.forEach(function (src) {
         // Performer names ride along with the traversal, so the log can name one
         // without a query of its own. Recorded from every source seen, not only from
@@ -1369,7 +1426,11 @@
         ids.forEach(function (id) {
           if (seen[id]) return;         // one source counts once, however it lists it
           seen[id] = true;
-          if (!hasOwn(counts, id)) { counts[id] = 0; order.push(id); }
+          if (!hasOwn(counts, id)) {
+            counts[id] = 0;
+            order.push(id);
+            first[id] = sourceLabel(self.tagMap, src, path);
+          }
           counts[id]++;
         });
       });
@@ -1399,13 +1460,15 @@
         if (entry.has[id]) return;      // another path already asked for it
         entry.has[id] = true;
         entry.add.push(id);
-        entry.from[id] = path.source;
+        // Held on the entry, not recomputed: phase 2 and Undo log the same attribution
+        // for the same addition, and by then the sources are long out of scope.
+        entry.from[id] = fromLabel(first[id], counts[id]);
         self.log(path.kind === 'performers' ? 'PERF' : 'TAG',
           entry.label + ' - ' +
           (path.kind === 'performers'
             ? performerLabel(self.performerNames, id)
             : tagLabel(self.tagMap, id)) +
-          ' - from ' + path.source);
+          ' - from ' + entry.from[id]);
       });
     });
   };
@@ -2199,6 +2262,7 @@
     README_URL: README_URL,
     TASKS: TASKS,
     TARGETS: TARGETS,
+    SOURCES: SOURCES,
     PATHS: PATHS,
     DEFAULTS: DEFAULTS,
     pathSelection: pathSelection,
@@ -2216,6 +2280,8 @@
     walkSources: walkSources,
     payloadOf: payloadOf,
     entityLabel: entityLabel,
+    sourceLabel: sourceLabel,
+    fromLabel: fromLabel,
     injectStyle: injectStyle,
   };
 }());

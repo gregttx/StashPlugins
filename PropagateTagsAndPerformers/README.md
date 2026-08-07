@@ -1,6 +1,6 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.3.0 works, for eleven of the thirteen paths
+> ## 🚧 Under construction — 0.3.1 works, for eleven of the thirteen paths
 >
 > The library-wide task is complete: it reviews, applies and undoes. **Back up your database before
 > running it** — see below. What is still missing is the two paths out of a gallery's images, the
@@ -53,6 +53,18 @@ This plugin copies those assignments **along the relationship**, onto the entity
 It is always a **copy**. Nothing is ever removed from the source, and nothing is removed from the
 target either — the only thing in the plugin that removes anything at all is the dialog's Undo,
 taking back what that same dialog just wrote.
+
+Every line of the review log names the entity being changed, what is being added to it, and **which
+entity it came from**:
+
+```
+[TAG] Scene "Interview 04" (1182) - Tag "Blonde" (2) - from Performer "Jane Doe" (7)
+[TAG] Scene "Interview 04" (1182) - Tag "Outdoor" (3) - from Marker "Outdoor" (994), +2 more
+```
+
+Where several entities carried the same thing, one is named and the rest are counted — the named
+one is where to start looking. Numbers in brackets are Stash ids, so you can go straight to
+`/performers/7` to see why a tag was copied, or to undo one by hand later.
 
 `MergePerformerTagsToScenes` already does one of these thirteen paths, and does it well. This
 plugin implements it too, so it can stand alone; the two coexist, and the dialog says so when both
@@ -146,7 +158,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.3.0 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.3.1 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

@@ -82,11 +82,11 @@ function appliedLines(d) {
 const LIB = {
   findScenes: { node: 'scenes', list: [
     { id: '10', title: 'One', tags: [], organized: false,
-      performers: [{ id: '100', tags: [{ id: '2' }] }] },
+      performers: [{ id: '100', name: 'Jane', tags: [{ id: '2' }] }] },
     { id: '11', title: 'Two', tags: [], organized: false,
-      performers: [{ id: '100', tags: [{ id: '2' }] }] },
+      performers: [{ id: '100', name: 'Jane', tags: [{ id: '2' }] }] },
     { id: '12', title: 'Three', tags: [], organized: false,
-      performers: [{ id: '101', tags: [{ id: '3' }] }] },
+      performers: [{ id: '101', name: 'Ada', tags: [{ id: '3' }] }] },
   ] },
 };
 const SETTINGS = { b1TagsPerformersToScenes: true };
@@ -159,6 +159,13 @@ Promise.resolve()
       h.check('the apply logs a line per entity per addition',
         appliedLines(dd).filter((l) => /^\[TAG\] Scene .* - Tag /.test(l)).length === 3,
         'got ' + appliedLines(dd).filter((l) => /^\[TAG\]/.test(l)).length);
+      // Attribution is held on the plan entry, not recomputed: by phase 2 the sources
+      // are long out of scope, and a batch groups entities that wanted the same tag
+      // for different reasons - so it is read per entry, not per batch.
+      h.check('and each names the entity responsible, as the plan did',
+        appliedLines(dd).some((l) =>
+          /^\[TAG\] Scene "One" \(10\) - Tag "Blonde" \(2\) - from Performer "Jane" \(100\)$/.test(l)),
+        appliedLines(dd).filter((l) => /^\[TAG\]/.test(l)).join('\n'));
       h.check('and reports what landed', dd.lines.some((l) => /3 entity change\(s\) applied/.test(l)),
         dd.lines.filter((l) => /Finished/.test(l)).join('\n'));
       // A finished run is not a settled library: the plan was computed before the
@@ -297,6 +304,14 @@ Promise.resolve()
         h.check('the recap names what was removed again',
           ddd.lines.some((l) => /tag\(s\) removed again/.test(l)),
           ddd.lines.filter((l) => /removed again/.test(l)).join('\n'));
+        // The same line as the apply, marked as its reversal. Which entity was
+        // responsible is exactly what the user is checking when they read an Undo,
+        // and the entry carries it, so nothing has to be recomputed to say it.
+        h.check('and each reversal names what the addition came from',
+          ddd.lines.some((l) =>
+            /^\[TAG\] Undo - Scene "One" \(10\) - Tag "Blonde" \(2\) - from Performer "Jane" \(100\)$/
+              .test(l)),
+          ddd.lines.filter((l) => /Undo - /.test(l)).join('\n'));
         h.check('and Undo is no longer offered', !ddd.visible('Undo'));
       });
     });

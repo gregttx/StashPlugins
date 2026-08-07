@@ -79,8 +79,8 @@ Promise.resolve()
     library: {
       findScenes: { node: 'scenes', list: [
         { id: '10', title: 'One', tags: [{ id: '1' }], organized: false,
-          performers: [{ id: '100', tags: [{ id: '1' }, { id: '2' }] },
-                       { id: '101', tags: [{ id: '3' }] }] },
+          performers: [{ id: '100', name: 'Jane', tags: [{ id: '1' }, { id: '2' }] },
+                       { id: '101', name: 'Ada', tags: [{ id: '3' }] }] },
       ] },
     },
   })).then(({ env, d }) => {
@@ -91,8 +91,11 @@ Promise.resolve()
     // against what the target has, not against what the sources carry.
     h.check('and not the one it already has',
       lines.every((l) => !/Tag "Hair Colour"/.test(l)), lines.join('\n'));
-    h.check('the lines name the entity, the tag, and where it came from',
-      /Scene "One" \(10\) - Tag "Blonde" \(2\) - from Performers/.test(lines.join('\n')),
+    // Naming the path ("from Performers") did not say *which* performer, which is the
+    // thing the user has to open to understand or reverse a copy by hand.
+    h.check('the lines name the entity, the tag, and the entity responsible',
+      /Scene "One" \(10\) - Tag "Blonde" \(2\) - from Performer "Jane" \(100\)$/m
+        .test(lines.join('\n')),
       lines.join('\n'));
     h.check('planning writes nothing', mutations(env.calls).length === 0);
     h.check('and Proceed is enabled once there is a plan',
@@ -106,11 +109,19 @@ Promise.resolve()
         // Two performers both carrying the same tag. The plan is keyed by the entity
         // being written, so this is one entry with one addition, not two.
         { id: '10', title: 'One', tags: [], organized: false,
-          performers: [{ id: '100', tags: [{ id: '2' }] }, { id: '101', tags: [{ id: '2' }] }] },
+          performers: [{ id: '100', name: 'Jane', tags: [{ id: '2' }] },
+                       { id: '101', name: 'Ada', tags: [{ id: '2' }] },
+                       { id: '102', name: 'Ida', tags: [{ id: '2' }] }] },
       ] },
     },
   })).then(({ d }) => {
-    h.check('a tag two sources agree on is planned once', tagLines(d).length === 1,
+    h.check('a tag three sources agree on is planned once', tagLines(d).length === 1,
+      tagLines(d).join('\n'));
+    // One name and a count, not three names: a scene with forty performers would
+    // otherwise put forty of them on one log line, and the first is enough to start
+    // from. In walk order, so it is the same name every run.
+    h.check('and names one of them, counting the rest',
+      / - from Performer "Jane" \(100\), \+2 more$/.test(tagLines(d)[0] || ''),
       tagLines(d).join('\n'));
   })
 
@@ -141,22 +152,26 @@ Promise.resolve()
     library: {
       findScenes: { node: 'scenes', list: [
         { id: '10', title: 'One', tags: [], organized: false,
-          performers: [{ id: '100', tags: [{ id: '2' }] }],
-          studio: { id: '200', tags: [{ id: '3' }] },
-          scene_markers: [{ id: '300', primary_tag: { id: '4' }, tags: [] }] },
+          performers: [{ id: '100', name: 'Jane', tags: [{ id: '2' }] }],
+          studio: { id: '200', name: 'Acme', tags: [{ id: '3' }] },
+          // No title, which is the usual state of a marker.
+          scene_markers: [{ id: '300', title: null, primary_tag: { id: '4' }, tags: [] }] },
       ] },
     },
   })).then(({ env, d }) => {
     h.check('three paths onto one scene are gathered together', tagLines(d).length === 3,
       tagLines(d).join('\n'));
     // A marker's primary tag is a required field of its own, and it counts: a marker
-    // whose primary tag is the only place a tag appears still carries it.
+    // whose primary tag is the only place a tag appears still carries it. It also
+    // names the marker, since Stash shows a titleless one the same way.
     h.check('a marker primary tag is copied like any other',
-      /Tag "Interview" \(4\) - from Markers/.test(tagLines(d).join('\n')), tagLines(d).join('\n'));
+      /Tag "Interview" \(4\) - from Marker "Interview" \(300\)/.test(tagLines(d).join('\n')),
+      tagLines(d).join('\n'));
     // A studio is a single object, not a list. The walk handles both rather than the
     // table annotating which, which is exactly the case that would break it.
     h.check('a single-object step is walked like a list',
-      /Tag "Outdoor" \(3\) - from Studio/.test(tagLines(d).join('\n')), tagLines(d).join('\n'));
+      /Tag "Outdoor" \(3\) - from Studio "Acme" \(200\)/.test(tagLines(d).join('\n')),
+      tagLines(d).join('\n'));
     // Three paths, one stage, one target - so one query, not three. Repeating a field
     // is legal GraphQL and the server merges the selections.
     const finds = env.calls.filter((c) => /query PTP_findScenes/.test(c.query || ''));
@@ -268,13 +283,17 @@ Promise.resolve()
           scene_markers: [{ id: '300', primary_tag: { id: '4' }, tags: [] }] },
       ] },
       findGroups: { node: 'groups', list: [
-        { id: '20', name: 'Series', tags: [], scenes: [{ id: '10', tags: [] }] },
+        { id: '20', name: 'Series', tags: [], scenes: [{ id: '10', title: 'One', tags: [] }] },
       ] },
     },
   })).then(({ d }) => {
     const lines = tagLines(d).join('\n');
+    // Attributed to the scene it came through, not to the marker two steps back. That
+    // is the honest answer to "why does this group carry Interview": because scene One
+    // will, and that is the entity to look at.
     h.check('a tag planned onto a scene reaches its group in the same run',
-      /Group "Series" \(20\) - Tag "Interview" \(4\) - from Scenes/.test(lines), lines);
+      /Group "Series" \(20\) - Tag "Interview" \(4\) - from Scene "One" \(10\)/.test(lines),
+      lines);
   })
 
   .then(() => run({

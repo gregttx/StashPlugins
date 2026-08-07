@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.8.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.8.1.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -20,7 +20,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | 6 | Auto mode, target side, **and** the per-entity cooldown | **0.5.0** |
 | | — auto mode, source side (the fan-out) | **0.6.0** |
 | 7 | The `declares` registry, **and** NormalizeParentTags awareness | **0.7.0** |
-| 8 | Manual buttons and staging | **0.8.0** |
+| 8 | Manual buttons and staging | **0.8.0**, fixed at 0.8.1 |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Step 8 placement is unverified against a live Stash beyond one page.** `.edit-buttons` is
@@ -28,6 +28,18 @@ confirmed to exist on the scene page (`MergePerformerTagsToScenes`' own scene bu
 it); this plugin reuses it unverified for the gallery, image and group pages, on the working
 assumption that Stash builds every entity's edit panel from the same button-row component. §5b says
 what to check first if a button never appears somewhere.
+
+**0.8.1 fixed the first thing a live Stash actually found: no buttons ever appeared, anywhere.**
+`manualButtonsTick` called `.slice()` directly on `container.childNodes`, which throws in a real
+browser — `childNodes` is a live `NodeList`, not an `Array`, and has no `.slice()`. The test suite
+never caught it because the harness's own fake `childNodes` *is* a real array (other suites depend
+on that: `.filter()`/`.indexOf()` against it, throughout `propagate-base`, `merge-task` and
+`normalize-auto`), so nothing in this repo's testing could have distinguished the two shapes without
+a container built specifically to reproduce a `NodeList`'s absence of `Array.prototype` methods —
+which `tests/propagate-buttons.test.js` now has (`nodeListLikeContainer`), pinning this exact error.
+The placement guess itself was fine; the bug was underneath it, in code this plugin's own dialog
+never needed and so never wrote - every other `.childNodes` read in this file uses index access or
+`.length`, never an `Array.prototype` method straight off the live collection.
 
 **Steps 3 and 5 were re-cut during step 3.** The plan had two hops and the "common tags only" modes
 as a step of their own, on the assumption that reaching a group's performers through its scenes
@@ -559,7 +571,7 @@ about one specific *kind* of plugin NPT is the only example of here, and forcing
 vocabulary would need a second, richer vocabulary (categories, not paths, plus a collision matrix)
 that nothing here needs yet.
 
-## 5b. Manual buttons and staging (0.8.0, best-effort)
+## 5b. Manual buttons and staging (0.8.0, best-effort; fixed at 0.8.1)
 
 D8 of the design plan, built without a running Stash to check the DOM against — the plan's own
 caveat, carried forward rather than resolved. One button per enabled path whose target is the page
@@ -687,7 +699,10 @@ of it apply unchanged:
   so a second click reports no changes; save-immediately issuing a bulk `ADD` delta instead; a
   missing captured control surfacing as an alert rather than a silent no-op; reconciliation not
   duplicating a button on an idle tick and replacing a stale one after navigating to a different
-  entity; and the route matcher against all four page shapes plus an unrelated route.
+  entity; and the route matcher against all four page shapes plus an unrelated route. Since 0.8.1,
+  a dedicated `nodeListLikeContainer` reproduces a real `NodeList`'s missing `Array.prototype`
+  methods to pin the `.slice()` bug a live Stash actually found - the shared harness's own container
+  cannot, since its `childNodes` is a genuine array.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.**

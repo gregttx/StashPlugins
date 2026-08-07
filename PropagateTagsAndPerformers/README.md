@@ -1,12 +1,13 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.8.0, every step but the last has landed
+> ## 🚧 Under construction — 0.8.1, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
 > the two sibling plugins, and manual buttons with staging are now on the four edit pages —
 > **but their placement has not been checked against a running Stash beyond the scene page**, see
-> the warning further down.
+> the warning further down. 0.8.1 fixed the buttons not appearing at all (a real-browser
+> `childNodes` bug, not a placement problem); if you installed 0.8.0, update first.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -24,7 +25,7 @@
 > | Automatic mode when the **target** is saved, with the per-entity cooldown | **done** (0.5.0) |
 > | Automatic mode when the **source** is saved, fanning out to its targets | **done** (0.6.0) |
 > | Cooperating with `MergePerformerTagsToScenes` and `NormalizeParentTags` | **done** (0.7.0) |
-> | Manual buttons and staging | **done, placement unverified** (0.8.0) |
+> | Manual buttons and staging | **done, placement unverified** (0.8.0, fixed 0.8.1) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -231,7 +232,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.8.0 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.8.1 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

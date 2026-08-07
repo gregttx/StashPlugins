@@ -85,7 +85,68 @@ const manualButtons = (env) => (env.body.descendants() || [])
 
 const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query || ''));
 
+// A real browser's `.childNodes` is a live `NodeList` - it has `.length` and index
+// access, but no `Array.prototype` methods at all, `.slice()` included. The shared
+// harness's `childNodes` is a genuine array (other suites rely on `.filter()` and
+// `.indexOf()` against it), so it cannot catch code that assumes `.slice()` exists
+// on a container's `childNodes`. This builds the one container that can: minimal,
+// standing in only for `.edit-buttons`, with `childNodes` reconstructed on every
+// read as a plain object carrying nothing from `Array.prototype` or `Object.prototype`.
+function nodeListLikeContainer() {
+  var kids = [];
+  var container = {
+    className: 'edit-buttons',
+    appendChild: function (node) { kids.push(node); node.parentNode = container; return node; },
+    removeChild: function (node) {
+      var i = kids.indexOf(node);
+      if (i !== -1) kids.splice(i, 1);
+      node.parentNode = null;
+      return node;
+    },
+  };
+  Object.defineProperty(container, 'childNodes', {
+    get: function () {
+      var nodeList = Object.create(null);
+      for (var i = 0; i < kids.length; i++) nodeList[i] = kids[i];
+      nodeList.length = kids.length;
+      return nodeList;
+    },
+  });
+  return container;
+}
+
 (async () => {
+  // ── Real-DOM childNodes (regression) ─────────────────────────────────────────
+  //
+  // Caught live: `manualButtonsTick` called `.slice()` directly on `container.
+  // childNodes`, which throws in any real browser (`TypeError: ...slice is not a
+  // function`) because `childNodes` is a `NodeList`, not an `Array`. The shared
+  // harness's own container never exposed this, since its `childNodes` already is
+  // a real array - hence `nodeListLikeContainer` above.
+  {
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = nodeListLikeContainer();
+    const orig = env.ctx.document.querySelector;
+    env.ctx.document.querySelector = (sel) => (sel === '.edit-buttons' ? container : orig(sel));
+
+    // Not `env.tick()`: the script's own load-time call to `manualButtonsTick()` is
+    // already pending (queued before the container override above could apply to
+    // it), and a second invocation would double-add - `document.getElementById`
+    // cannot see into this container, since it was never attached to `env.body`, so
+    // neither invocation would recognise the other's button as already there. One
+    // pending call is enough to prove the fix.
+    let caught = null;
+    const onRejection = (err) => { caught = err; };
+    process.on('unhandledRejection', onRejection);
+    await h.flush(80);
+    process.removeListener('unhandledRejection', onRejection);
+
+    h.check('reconciling buttons does not assume childNodes is a real Array',
+      caught === null, caught && caught.stack);
+    h.check('and a button lands in the NodeList-like container anyway',
+      container.childNodes.length === 1, container.childNodes.length);
+  }
+
   // ── The button appears, labelled from the path table ────────────────────────
   {
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });

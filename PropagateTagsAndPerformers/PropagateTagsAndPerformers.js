@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.8.0';
+  var PLUGIN_VERSION = '0.8.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3180,7 +3180,13 @@
       // here - the loop below already replaces it, since `existing` would fail the
       // entity-id check and get torn down before its replacement is appended. Two
       // removal paths for the same case would be one more place to keep in sync.
-      (container.childNodes || []).slice().forEach(function (node) {
+      //
+      // `childNodes` is a live NodeList in a real browser, not an Array - it has no
+      // `.slice()`, only `.length` and index access. `Array.prototype.slice.call`
+      // copies it into a real array first, both so `.forEach` exists at all and so
+      // removing a node mid-loop cannot skip the next one the way mutating a live
+      // collection while iterating it would.
+      Array.prototype.slice.call(container.childNodes || []).forEach(function (node) {
         if (!hasClass(node, MANUAL_BTN_CLASS)) return;
         var stillWanted = paths.some(function (p) { return manualButtonId(p) === node.id; });
         if (!stillWanted && node.parentNode) node.parentNode.removeChild(node);

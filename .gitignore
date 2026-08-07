@@ -1,5 +1,10 @@
 node_modules/
 package-lock.json
 .tmp/
-.plans/
+# The working plan is tracked; everything else under .plans/ is not — .plans/memory/
+# is a mirror of Claude's auto-memory and is personal notes, not project material.
+# Written as `.plans/*` rather than `.plans/`, because git cannot re-include a file
+# whose parent directory is itself excluded.
+.plans/*
+!.plans/migrate-tags-and-performers.md
 .claude/

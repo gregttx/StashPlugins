@@ -2,14 +2,14 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — steps 1-8 done, the plugin is at 0.8.0** (last checked 2026-08-07).
-All eight decisions are settled (§4) and every open question is closed (§6). The library-wide task
-is complete for **all thirteen paths**, both automatic modes work, this plugin cooperates with both
-siblings (§7), and manual buttons with staging now sit on all four target pages (§8) — **built
-best-effort, without a live Stash to check the DOM against**, per the user's explicit go-ahead;
-`.edit-buttons` is confirmed only on the scene page. Remaining: the repo `CLAUDE.md` TODO/IDEAS
-section, and a real run against a running Stash to settle everything this snapshot could only guess
-at. See §8.
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.8.0**
+(last checked 2026-08-07). All eight decisions are settled (§4) and every open question is closed
+(§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
+plugin cooperates with both siblings (step 7), and manual buttons with staging now sit on all four
+target pages (step 8) — **built best-effort, without a live Stash to check the DOM against**, per
+the user's explicit go-ahead; `.edit-buttons` is confirmed only on the scene page. Step 9 (a repo
+`CLAUDE.md` TODO/IDEAS section) turned out to have nothing left to append — see §7. Remaining: a
+real run against a running Stash, to settle everything this snapshot could only guess at. See §8.
 
 Where it stands, in numbers:
 
@@ -35,7 +35,9 @@ order (stage 1 was wrong), and §4 D3's guess that staging would not generalise 
 Where this file and the plugin's own `CLAUDE.md` differ, the plugin's is current — it documents
 what the code does, this documents why it was asked for.
 
-Lives at `.plans/migrate-tags-and-performers.md`, which is git-excluded via `.gitignore`.
+Lives at `.plans/migrate-tags-and-performers.md`, tracked in git since "Track the working plan"
+(before that, `.plans/*` was excluded wholesale; the repo `.gitignore` now carves this one file back
+in). Everything else under `.plans/` — scratch notes, `.plans/memory/` — stays untracked.
 
 ---
 
@@ -49,7 +51,8 @@ library-wide task, the two-phase review dialog with Undo, exclusion filters, and
 lease protocol.
 
 Alongside the build, the user asked three design questions (answered in §4) and asked that the
-thinking be recorded in a new **TODO / IDEAS** section of the repo `CLAUDE.md` (draft in §7).
+thinking be recorded in a new **TODO / IDEAS** section of the repo `CLAUDE.md`. §7 explains why that
+never happened, and why nothing was lost by its not happening.
 
 Terminology note carried through: this is a **copy**, not a move. Nothing is removed from the
 source. "Migrate" in the request is read as "propagate". This matches MPTTS §1 ("merging only ever
@@ -227,8 +230,9 @@ generalise cleanly — it is specific to the scene edit page's tag control.~~ **
 The premise was false: `TagSelect` is used across every edit panel and `PerformerSelect` is equally
 patchable. Staging generalises to all four target pages.
 
-**Status of the registry itself: not built.** `declares` is step 7, and it is the one remaining
-step that edits the two *sibling* plugins as well as this one.
+**Status of the registry itself: built, step 7, 0.7.0.** It ended up narrower than sketched here —
+see step 7's own entry in §8 for what actually shipped and why the sibling plugins' hardcoded checks
+were *not* replaced wholesale.
 
 ### D4 — Not unifying with NormalizeParentTags ✅ *(recommendation, user did not object)*
 
@@ -504,102 +508,32 @@ Structural notes that fall out of the set:
 
 ---
 
-## 7. Draft: new `TODO / IDEAS` section for the repo `CLAUDE.md`
+## 7. The `TODO / IDEAS` section that was never appended
 
-Drafted here, to be appended to `/d/AI_Projects/StashPlugins/CLAUDE.md` at **step 9**, once the
-plugin is finished. Deliberately not written there yet: the repo `CLAUDE.md` describes what exists,
-and half of this is still forward-looking.
+Originally drafted here for appending to the repo `CLAUDE.md` at step 9, once the plugin was
+finished. It had two parts, and both turned out unnecessary to move anywhere:
 
-**Rewritten 2026-08-07** to match what was actually built. The first draft was written before
-implementation and had two things wrong in text meant to become repo documentation: it prescribed
-the per-gallery `findImages` query that step 5 replaced with a sweep, and its worked example of a
-bidirectional pair used `Scenes ↔ Galleries` — a pair **D5 explicitly rejected**, and one that does
-not exist in the shipped path table. The real pairs are `Scenes ↔ Groups` and `Images ↔ Galleries`.
+- **The cooperation registry** was the draft's proposal for `declares`. Step 7 built it, and the
+  repo `CLAUDE.md` now has a "Cross-plugin cooperation: the `declares` registry" section describing
+  the real thing — more accurate than this draft ever was, since it also explains why
+  `NormalizeParentTags`' collision stays a separate, bespoke check rather than folding in, a
+  decision this draft predates. Appending the draft on top would have duplicated it, one version
+  stale the moment the other shipped.
+- **The schema findings and rejected-path reasoning** (§2, §5 above) were assumed to need rescuing
+  into the repo `CLAUDE.md` before they were lost, on the belief that this file was git-ignored
+  scratch space. It was not: `.plans/migrate-tags-and-performers.md` has been tracked since "Track
+  the working plan", and the repo `CLAUDE.md`'s own convention already covers this — a plugin's
+  `CLAUDE.md` points here for "the decisions that were taken and the paths that were rejected"
+  rather than duplicating them (see `PropagateTagsAndPerformers/CLAUDE.md`'s opening). Nothing here
+  is more durable for having a copy pasted into a different file.
 
-```markdown
-## TODO / IDEAS
-
-### A third plugin: propagating tags and performers along entity relationships
-
-Where `NormalizeParentTags` walks the **tag hierarchy**, `PropagateTagsAndPerformers` walks **entity
-relationships** — copying a scene's performers' tags onto the scene, a gallery's images' performers
-onto the gallery, a group's scenes' tags onto the group. `MergePerformerTagsToScenes` is one path of
-it. Copy, never move: nothing is removed from the source.
-
-**What the schema allows** (verified against `stashapp/stash` `graphql/schema/types/*`, 2026-08-06 —
-re-verify before relying on it). Three types carry no `performers` field at all: **Studio**,
-**SceneMarker** and **Group**. So performer propagation into a Group is impossible in any direction,
-and the only real performer path into a Scene is from its Galleries.
-
-`Gallery` has no `images` field either, and the obvious workaround is a trap. Filtering `findImages`
-to one gallery costs a request per gallery and, with `per_page: -1`, returns a twenty-thousand-image
-gallery in one response. Reaching a gallery's images safely means **sweeping** every image once,
-paged, and bucketing by `Image.galleries` — the reverse of the traversal you wanted, which is the
-general shape for any "no field points this way" relationship in Stash.
-
-Every write is a single ADD-mode bulk mutation. `BulkSceneUpdateInput`, `BulkGalleryUpdateInput` and
-`BulkImageUpdateInput` all carry `tag_ids` **and** `performer_ids`; `BulkGroupUpdateInput` and
-`BulkStudioUpdateInput` carry `tag_ids` only.
-
-**Order is semantics, not detail.** Paths cascade: `markers → scenes` before `scenes → groups` means
-groups transitively inherit marker tags, and the reverse order does not. An implementation needs a
-fixed, documented pipeline order and must say so in the dialog — and, like MPTTS's task, must key
-its plan by the entity being *written*. The subtlest ordering rule is that **assignments come before
-the paths that read them**: copying galleries' performers onto a scene after copying performers'
-tags onto it defers the new performers' tags by a whole run, silently and without error.
-
-Because the review happens before any write, "read sources fresh at each stage" cannot mean
-re-reading the server — nothing has been written yet. It means reading the **plan**: a later stage
-must count what an earlier stage already decided for an entity as though it were already there.
-
-**Reverse paths are where the danger is.** Enabling both `Scenes → Groups` and `Groups → Scenes`
-(or both halves of `Images ↔ Galleries`) drives every member of the group to the same tag set —
-a fixed point under union, reached in two rounds. That is what running both directions *means*, not
-a bug, but a user who enabled each half on its own merits will not expect it. Under a task it is
-harmless: one run applies each direction once, in a fixed order. Under a reactive auto mode the two
-writes trigger each other. `NormalizeParentTags` has the defence — the per-entity cooldown at
-`AUTO_COOLDOWN_MS` — and `MergePerformerTagsToScenes` does not. Ship reactive modes for a
-bidirectional pair only with the cooldown ported across; `guarded()`/`_writeDepth` is **not** it,
-since it suppresses our own writes within one reaction, not the next reaction the first one causes.
-
-**Union vs intersection generalises.** Two aggregations into a Group need the choice today — from
-its scenes, and from its sub-groups — but every multi-source path has it (a scene's performers, a
-scene's markers, a gallery's images). Single-source paths collapse to the same answer either way,
-so promoting it later needs no special case. Intersection is also the gentler half of a
-bidirectional pair: a group that only gains tags every scene already has has almost nothing to
-push back down.
-
-**Considered and rejected:** tags from Scenes/Images/Galleries onto **Performers** — a performer
-appears in thousands of scenes, so the union of their tags is enormous and near-meaningless. Tags
-between Scenes and Galleries in either direction — the link exists and carries performers usefully,
-but the tag sets are not the same kind of thing. Tags from child studios up to a parent studio —
-siblings under a shared parent are typically unrelated, so rolling them up merges unrelated things.
-
-### Cooperation: from a two-way sibling check to an N-way registry
-
-`checkSibling` is hardcoded to one other plugin on both sides (`MergePerformerTagsToScenes.js:1275`,
-`NormalizeParentTags.js:1418`), which does not survive a third plugin. The fix is small and fits the
-existing handshake: a `declares` map alongside `leases` and `respecters`, in which each plugin
-publishes the migrations it performs.
-
-    window.StashPluginCoop.declares = { pluginId: ["tags:performer>scene", ...] }
-
-A plugin then warns when another plugin declares a path it also performs *and* has its reactive mode
-on. Absent `declares` is handled exactly as absent `respecters` already is — "too old to know" — and
-a future plugin gets the warning without any existing plugin being edited. Advisory like the lease:
-it warns, it never stands down.
-
-### Do not merge the plugins into one
-
-Folding `NormalizeParentTags` and `MergePerformerTagsToScenes` into a unified tag manager has been
-considered and rejected. They walk different graphs with different algorithms — an ancestor closure
-and antichain against a relational gather — and share only chrome. One ES5 IIFE of 5,500+ lines with
-no build step is unreviewable, and because the plugin id is the folder name *and* the settings
-storage namespace, merging resets every user's settings and forces a reinstall. The duplication
-worth removing is in the cooperation layer, not the code.
-```
+The user's original ask — get the thinking recorded somewhere permanent — was satisfied a different
+way than planned: not by a deferred end-of-project dump, but by writing it into the plugin's own
+`CLAUDE.md` as each step actually landed, and into the repo `CLAUDE.md` for the one piece
+(cooperation) that other plugins needed to read. Step 9 is retired rather than done.
 
 ---
+
 
 ## 8. Implementation order
 
@@ -774,9 +708,13 @@ step 9 plus a run against a real Stash, not step 9 alone.
    one of them found a genuinely dead branch (an entity-id staleness check duplicated across two
    removal paths, only one of which was ever reachable) and it was simplified out rather than kept
    for symmetry.
-9. Append §7 to the repo `CLAUDE.md`.
+9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
+   halves of the draft turned out to already be where they needed to be by the time this step was
+   reached, one shipped and documented live, the other never actually at risk of being lost. Nothing
+   is pending here.
 
-Then **1.0.0**, which is step 9 *plus* a real run against a real instance — not step 9 alone.
+Then **1.0.0**, which needs a real run against a real Stash instance — the standing caveat on every
+step since 5, and the only thing left undone now that step 9 is retired rather than outstanding.
 
 Verify with `node tests/run.js`, and check each new regression test fails against the unfixed
 source via `SRC=…` before trusting it. Step 5 is the standing argument for that discipline: two

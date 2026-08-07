@@ -39,7 +39,7 @@ paths out of a *gallery's images*, which have no field to walk and need a revers
 step 5 now.
 
 The full design, including the decisions that were taken and the paths that were rejected, is in
-`.plans/migrate-tags-and-performers.md` (git-ignored).
+`.plans/migrate-tags-and-performers.md`, tracked in git alongside the rest of this plugin.
 
 ---
 

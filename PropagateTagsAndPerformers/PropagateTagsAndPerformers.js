@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.8.1';
+  var PLUGIN_VERSION = '0.8.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3164,6 +3164,25 @@
     return btn;
   }
 
+  // Where the buttons go. `.edit-buttons` is Scene's own row, confirmed live - both
+  // MergePerformerTagsToScenes' own scene button and this plugin's use it. Every
+  // other page checked so far (Group, confirmed live; Performer, per
+  // MergePerformerTagsToScenes' own container-finding code) renders its edit form
+  // inside `.details-edit` instead, a container Stash swaps between two states: a
+  // detail-view navbar carrying a Delete button, and the edit form itself carrying
+  // Cancel/Save in its place. We want the edit-form instance, so - the opposite
+  // filter from MergePerformerTagsToScenes' performer button, which wants the
+  // *other* one - skip any `.details-edit` that carries a Delete button.
+  function findManualButtonContainer() {
+    var c = document.querySelector('.edit-buttons');
+    if (c) return c;
+    var candidates = document.querySelectorAll('.details-edit');
+    for (var i = 0; i < candidates.length; i++) {
+      if (!candidates[i].querySelector('button.delete')) return candidates[i];
+    }
+    return null;
+  }
+
   // Reconciles the container's buttons against the currently enabled paths for this
   // page, adding what is missing and dropping what no longer belongs - a stale
   // button left over from the previous entity, or every button at once when the
@@ -3172,7 +3191,7 @@
     autoSettings().then(function (s) {
       var rt = s.a1ShowManualButtons ? currentRouteTarget() : null;
       if (!rt) { clearManualButtons(); return; }
-      var container = document.querySelector('.edit-buttons');
+      var container = findManualButtonContainer();
       if (!container) { clearManualButtons(); return; }
       var paths = enabledPaths(s).filter(function (p) { return p.target === rt.target; });
       // A button whose path is no longer enabled is removed outright. A button for a

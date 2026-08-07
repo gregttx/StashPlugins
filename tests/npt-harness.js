@@ -77,10 +77,20 @@ function makeElement(tag) {
     // still assert that the plugin asked for a row to be brought into view.
     scrollIntoView(opts) { this.scrolledIntoView = opts || true; },
     get parentElement() { return this.parentNode; },
-    // Enough of a selector engine for the two selectors the plugin uses: a tag
-    // name ('h3') downwards, and 'button' upwards.
+    // Enough of a selector engine for what the plugins actually ask a node for: a
+    // bare tag name ('h3'), and a tag-plus-class compound ('button.delete') for the
+    // details-edit container's Delete button. The dot split covers both: an empty
+    // tag before the dot ('.foo') skips the tag check entirely.
     querySelector(sel) {
-      return this.descendants().filter((n) => n.tagName === String(sel).toUpperCase())[0] || null;
+      const s = String(sel);
+      const dot = s.indexOf('.');
+      const tag = dot === -1 ? s : s.slice(0, dot);
+      const cls = dot === -1 ? null : s.slice(dot + 1);
+      return this.descendants().filter((n) => {
+        if (tag && n.tagName !== tag.toUpperCase()) return false;
+        if (cls && !hasClass(n, cls)) return false;
+        return true;
+      })[0] || null;
     },
     closest(sel) {
       const want = String(sel).toUpperCase();

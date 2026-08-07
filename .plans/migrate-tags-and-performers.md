@@ -2,32 +2,41 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.8.1**
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.8.2**
 (last checked 2026-08-07). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging now sit on all four
 target pages (step 8) — **built best-effort, without a live Stash to check the DOM against**, per
-the user's explicit go-ahead; `.edit-buttons` is confirmed only on the scene page. Step 9 (a repo
-`CLAUDE.md` TODO/IDEAS section) turned out to have nothing left to append — see §7.
+the user's explicit go-ahead. Step 9 (a repo `CLAUDE.md` TODO/IDEAS section) turned out to have
+nothing left to append — see §7.
 
-**First real-Stash finding, 0.8.1: no buttons appeared anywhere, on any page.** Not the placement
-gap the caveat above was written for — `manualButtonsTick` called `.slice()` on `container.
-childNodes`, which throws in a real browser (`NodeList`, not `Array`) and never got the chance to.
-The test suite could not have caught it: the shared harness's own `childNodes` is a real array, by
-design, since other suites depend on `.filter()`/`.indexOf()` against it. Fixed, and pinned by a
-container built specifically to reproduce a `NodeList`'s missing `Array.prototype` methods (see
-step 8's own entry below). Remaining: a real run against a running Stash to settle everything else
-this snapshot could only guess at — the placement question is still completely open.
+**Two real-Stash findings so far, both on step 8, neither the kind the other was.**
+
+- **0.8.1: no buttons appeared anywhere, on any page.** Not the placement gap the caveat was
+  written for — `manualButtonsTick` called `.slice()` on `container.childNodes`, which throws in a
+  real browser (`NodeList`, not `Array`) and never got the chance to reach the placement logic at
+  all. The test suite could not have caught it: the shared harness's own `childNodes` is a real
+  array, by design, since other suites depend on `.filter()`/`.indexOf()` against it. Fixed, and
+  pinned by a container built specifically to reproduce a `NodeList`'s missing `Array.prototype`
+  methods.
+- **0.8.2: with 0.8.1 fixed, Group still showed nothing.** This *is* the placement gap, arriving
+  exactly as expected — Group's edit form uses `.details-edit`, not `.edit-buttons`, a container
+  `MergePerformerTagsToScenes`' own performer button already reads (for the swap's other state).
+  Scene is now confirmed live; Group is now confirmed live via the fallback; Gallery and Image
+  remain open.
+
+Remaining: a real run against Gallery and Image specifically, plus everything else this snapshot
+could only guess at (staging's actual chip rendering, the `PerformerSelect` item shape, and so on).
 
 Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.8.1, in all three places |
+| Version | 0.8.2, in all three places |
 | `PropagateTagsAndPerformers.js` | ~3,400 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 29 = **353** |
+| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 34 = **358** |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 2 (spot-checked) = **81+** |
 | Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.12.0, `NormalizeParentTags` 1.7.5 → 1.7.6 |
 | Landed on `main` | through 0.6.0 (`fa58bf2`); 0.7.0 is uncommitted |
@@ -325,6 +334,18 @@ exactly what a user picking from the dropdown does. That is what makes this port
 
 **No performer button on the Group page** — `Group` has no `performers` field. Groups are tag-only
 sinks; #7 exists precisely because performers' *tags* must route through the group's scenes.
+
+**This table is target-side only, and that is a real gap, surfaced after 0.8.0 shipped.** MPTTS
+actually has a manual button in *both* directions for its one path: a scene-page button (pull tags
+in) and a performer-page button (push this performer's tags out to every scene they appear in).
+PTP2RE's source direction exists only as the reactive auto mode (step 6) — there is no on-demand
+button for it. Filling that gap is not "add one button": MPTTS only ever needed one source page
+(Performer); PTP2RE has *seven* distinct source types (Performer, Studio, SceneMarker, plus each of
+Scene/Gallery/Image/Group also acting as a source for some paths on top of being a target for
+others), so it is a second button surface roughly the size of this one, on pages this plugin has
+never placed anything on before. Deliberately not scoped or built yet — noted here so it is not
+mistaken for an oversight in the table above, which was always target-side by design (D8's own
+framing), not by omission.
 
 Buttons are gated on their path's own setting under one master `ShowManualButtons` toggle, so a
 user who enabled two scene paths sees two buttons rather than five.
@@ -729,6 +750,28 @@ step 9 plus a run against a real Stash, not step 9 alone.
    `propagate-base`, `merge-task`, `normalize-auto`), so this was a dedicated container for one
    suite, not a harness change. Confirmed against the unfixed source: it throws the user's exact
    error, to the character.
+
+   **0.8.2 — with the crash gone, Group still showed nothing, and this time it was the placement
+   guess.** Group's edit form does not use `.edit-buttons` at all; a live console check (`Inspect` on
+   the Save button) found `.details-edit col-xl-9 mt-3` instead. That container was not a fresh
+   discovery - `MergePerformerTagsToScenes`' own performer button already reads it, for the *other*
+   half of a swap Stash does on it: a detail-view navbar carrying a Delete button, and the edit form
+   itself carrying Cancel/Save in its place. `findManualButtonContainer` now tries `.edit-buttons`
+   first (Scene) and falls back to whichever `.details-edit` does not carry a `button.delete` (Group,
+   and by the sibling's precedent, Performer - though Performer is not one of this plugin's four
+   target pages). Five checks added (29 → 34), including the exact URL the live Group was found at
+   (`/groups/53/scenes` - a tab, not the bare entity route, which is why the route regex matches on a
+   trailing `/` rather than requiring end-of-string) and that `.edit-buttons` still wins outright when
+   both containers are present, so the fallback can never shadow the confirmed case.
+
+   Also required extending `tests/npt-harness.js` itself, not just this suite: `makeElement`'s own
+   per-node `querySelector` only matched a bare tag name, and `button.delete` - the same compound
+   selector `MergePerformerTagsToScenes` already uses, real enough to be covered by `placement.test.js`
+   against actual jsdom - needs a tag-plus-class match. Low risk to extend: nothing existing calls
+   `querySelector` with anything but a bare tag today, so widening what it accepts could not narrow
+   what already passed.
+
+   Gallery and Image remain completely unverified - neither confirmed working nor confirmed broken.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

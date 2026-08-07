@@ -59,6 +59,22 @@ function editButtonsContainer(env) {
   return c;
 }
 
+// Group's (and, per MergePerformerTagsToScenes' own code, Performer's) edit form,
+// found live: `.details-edit`, the same container Stash swaps between a detail-view
+// navbar (carries a Delete button) and the edit form itself (does not). `withDelete`
+// builds the navbar shape so a test can prove it is skipped.
+function detailsEditContainer(env, withDelete) {
+  const c = h.makeElement('div');
+  c.className = 'details-edit col-xl-9 mt-3';
+  if (withDelete) {
+    const del = h.makeElement('button');
+    del.className = 'delete';
+    c.appendChild(del);
+  }
+  env.body.appendChild(c);
+  return c;
+}
+
 function start(opts) {
   opts = opts || {};
   const patches = {};
@@ -200,6 +216,60 @@ function nodeListLikeContainer() {
     env.tick();
     await h.flush(60);
     h.check('with no container found, no button appears', manualButtons(env).length === 0);
+  }
+
+  // ── The `.details-edit` fallback (Group, and per MPTTS also Performer) ───────
+  {
+    // The exact URL a live Group's edit tab was found at - a sub-route, not the
+    // bare entity path, and the reason the route regex matches on a trailing "/"
+    // rather than requiring end-of-string.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true }, pathname: '/groups/53/scenes',
+    });
+    const container = detailsEditContainer(env, false); // the edit-form instance
+    env.tick();
+    await h.flush(60);
+    const btns = manualButtons(env);
+    h.check('falls back to .details-edit when .edit-buttons is absent', btns.length === 1,
+      btns.map((b) => b.textContent).join(','));
+    h.check('and lands inside it', btns.length && btns[0].parentNode === container);
+  }
+  {
+    // The *other* state of the same container - the detail-view navbar, carrying a
+    // Delete button - must not be mistaken for the edit form.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true }, pathname: '/groups/53',
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('the detail-view instance (carrying Delete) is not used', manualButtons(env).length === 0);
+  }
+  {
+    // Both instances present (a render caught mid-swap, or simply defensive against
+    // it) - the one without Delete is still the one picked.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true }, pathname: '/groups/53',
+    });
+    detailsEditContainer(env, true);
+    const editForm = detailsEditContainer(env, false);
+    env.tick();
+    await h.flush(60);
+    const btns = manualButtons(env);
+    h.check('with both instances present, the edit-form one is still chosen',
+      btns.length === 1 && btns[0].parentNode === editForm);
+  }
+  {
+    // .edit-buttons wins outright when both exist - Scene is the one page confirmed
+    // to use it, and nothing here should prefer the fallback over the confirmed case.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const primary = editButtonsContainer(env);
+    detailsEditContainer(env, false);
+    env.tick();
+    await h.flush(60);
+    const btns = manualButtons(env);
+    h.check('.edit-buttons takes priority over the .details-edit fallback',
+      btns.length === 1 && btns[0].parentNode === primary);
   }
 
   // ── Multiple enabled paths into one page ─────────────────────────────────────

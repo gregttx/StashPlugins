@@ -1,13 +1,16 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.8.1, every step but the last has landed
+> ## 🚧 Under construction — 0.8.2, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
-> the two sibling plugins, and manual buttons with staging are now on the four edit pages —
-> **but their placement has not been checked against a running Stash beyond the scene page**, see
-> the warning further down. 0.8.1 fixed the buttons not appearing at all (a real-browser
-> `childNodes` bug, not a placement problem); if you installed 0.8.0, update first.
+> the two sibling plugins, and manual buttons with staging are now confirmed working on **Scene**
+> and **Group**; **Gallery and Image are still unverified**, see the warning further down.
+>
+> Two fixes landed after real-Stash testing found real problems: 0.8.1 fixed the buttons not
+> appearing **anywhere** (a real-browser `childNodes` bug, not a placement problem), and 0.8.2 fixed
+> Group specifically (its edit form uses a different container than Scene's). If you installed
+> 0.8.0 or 0.8.1, update first.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -25,7 +28,7 @@
 > | Automatic mode when the **target** is saved, with the per-entity cooldown | **done** (0.5.0) |
 > | Automatic mode when the **source** is saved, fanning out to its targets | **done** (0.6.0) |
 > | Cooperating with `MergePerformerTagsToScenes` and `NormalizeParentTags` | **done** (0.7.0) |
-> | Manual buttons and staging | **done, placement unverified** (0.8.0, fixed 0.8.1) |
+> | Manual buttons and staging | **done; Scene & Group confirmed, Gallery & Image unverified** (0.8.0, fixed 0.8.1 + 0.8.2) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -47,14 +50,15 @@
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (the custom-field exclusion filter) and UI
 > plugin component patching (staging into an edit form) both depend on it.
 
-> ## ⚠ Manual button placement is unverified beyond the scene page
+> ## ⚠ Manual button placement is unverified on the gallery and image pages
 >
-> The buttons look for a `.edit-buttons` container on each of the four edit tabs. That container is
-> confirmed to exist on the **scene** page — `MergePerformerTagsToScenes`' own button already uses
-> it — but the gallery, image and group pages reuse the same selector on the working assumption that
-> Stash builds every entity's edit panel the same way, not on anything checked against a running
-> instance. If a button never appears on one of those three pages, that assumption is the first
-> thing to check; the task and both automatic modes are unaffected either way.
+> The buttons look for a `.edit-buttons` container first, falling back to whichever `.details-edit`
+> does not carry a Delete button. Both are confirmed against a running Stash: **scene** uses
+> `.edit-buttons` (`MergePerformerTagsToScenes`' own button already proved it), **group** uses the
+> `.details-edit` fallback. **Gallery and image have not been checked yet** — they reuse whichever
+> of the two containers is found first, on the same working assumption as before, just narrowed to
+> two candidates instead of one. If a button never appears on either of those two pages, that is the
+> first thing to check; the task and both automatic modes are unaffected either way.
 
 ## What it does
 
@@ -232,7 +236,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.8.1 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.8.2 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

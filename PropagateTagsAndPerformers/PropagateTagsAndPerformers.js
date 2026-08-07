@@ -18,6 +18,14 @@
   var PLUGIN_ID   = 'PropagateTagsAndPerformers';
   var PLUGIN_NAME = 'Propagate Tags and Performers to Related Entities';
 
+  // NormalizeParentTags is the one sibling this plugin reads settings from by name
+  // - see `checkHierarchySibling` below. MergePerformerTagsToScenes needs no such
+  // constant: the overlap with it is detected generically, through `coop().declares`
+  // rather than a name lookup, because it is the same kind of collision a future
+  // relationship-copying plugin could have too (see the repo-root CLAUDE.md).
+  var NPT_ID   = 'NormalizeParentTags';
+  var NPT_NAME = 'Normalize Parent Tags';
+
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and goes current the moment plugins are reloaded, while the browser can
   // still be running a script it cached before the edit - so a heading reading 0.2.0
@@ -29,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.6.0';
+  var PLUGIN_VERSION = '0.7.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -416,6 +424,7 @@
     if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
+    if (!c.declares) c.declares = {};
     return c;
   }
 
@@ -438,6 +447,16 @@
   // the settings happen to be. It is what lets another plugin's bulk run tell "will
   // stand down" apart from "too old to know about leases".
   coop().respecters[PLUGIN_ID] = true;
+
+  // The N-way declaration registry (D3 of the design plan): unlike `respecters`,
+  // which is a fixed capability, this is refreshed on every settings load - task or
+  // auto mode alike, see `Run.prototype.begin` and `autoSettings` - because a path
+  // whose setting is off is not one this plugin is actually covering, and another
+  // plugin scanning `coop().declares` for overlap needs to see that as soon as this
+  // plugin's own settings do, not only while its dialog happens to be open.
+  function publishDeclares(settings) {
+    coop().declares[PLUGIN_ID] = enabledPaths(settings).map(function (p) { return p.id; });
+  }
 
   var _standDownAnnounced = false;
   function autoSuppressed() {
@@ -1361,6 +1380,10 @@
       self.settings = loaded.settings;
 
       var paths = enabledPaths(self.settings);
+      // Published whether or not there is anything to scan: another plugin's own
+      // overlap check must see "nothing enabled" as promptly as it sees anything
+      // else, and the early return below must not skip it.
+      publishDeclares(self.settings);
       if (!paths.length) {
         self.log('WARN', 'No paths are enabled. Turn on at least one in Settings - Plugins - ' +
           PLUGIN_NAME + ', then run the task again.');
@@ -1381,6 +1404,9 @@
           'member to the same set of tags. That is what running both directions means, not ' +
           'a fault - but disable one, or turn on "common tags only", if it is not what you want.');
       });
+
+      self.checkDeclaredOverlap(paths);
+      self.checkHierarchySibling(loaded.all[NPT_ID]);
 
       var filters = describeFilters(self.settings);
       self.log('INFO', filters.length
@@ -1668,6 +1694,66 @@
           ' - from ' + entry.from[id]);
       });
     });
+  };
+
+  // The N-way counterpart to `checkHierarchySibling` below: this one needs no name
+  // of its own, because any plugin - present or future - that declares one of our
+  // enabled path ids in `coop().declares` is doing that exact same relationship
+  // copy. That is redundant work and doubled log lines, never wrong data, since
+  // every plugin that could collide here only ever adds. `MergePerformerTagsToScenes`
+  // is the first such plugin, declaring `'tags:performer>scene'` unconditionally at
+  // its own load; nothing here names it, so a second one needs no edit here either.
+  Run.prototype.checkDeclaredOverlap = function (paths) {
+    var declares = coop().declares, byOther = {};
+    paths.forEach(function (p) {
+      for (var id in declares) {
+        if (!hasOwn(declares, id) || id === PLUGIN_ID) continue;
+        if ((declares[id] || []).indexOf(p.id) === -1) continue;
+        if (!byOther[id]) byOther[id] = [];
+        byOther[id].push(pathLabel(p));
+      }
+    });
+    var self = this;
+    Object.keys(byOther).forEach(function (id) {
+      self.log('INFO', id + ' also performs: ' + byOther[id].join('; ') + '. Running both is ' +
+        'redundant work and doubled log lines, never wrong data - both only ever add.');
+    });
+  };
+
+  // The mirror of `MergePerformerTagsToScenes`' own check against the same sibling.
+  // Unlike the overlap above, this is not "the same path" - it is prune/roll-up
+  // along the tag *hierarchy* colliding with an addition along an entity
+  // *relationship*, which applies equally to any of this plugin's eleven tag paths
+  // regardless of which one added the tag. That is why it stays a name-based check
+  // reading NormalizeParentTags' own settings, rather than folding into `declares`:
+  // there is no path id on either side for a generic scan to match.
+  Run.prototype.checkHierarchySibling = function (ps) {
+    if (!ps) return;
+    var prune = !!ps.a8AutoPruneOnUpdate, rollup = !!ps.a9AutoRollUpOnUpdate;
+    // Both at once is that plugin's own documented no-op - they are exact inverses,
+    // so it runs neither - and warning about a mode that is not running would send
+    // the user to turn off something already inert.
+    if (prune === rollup) return;
+
+    var mode = prune ? 'Auto Prune on Entity Updates' : 'Auto Roll Up on Entity Updates';
+    var effect = prune
+      ? 'it will remove the tags this run adds, wherever a more specific tag on the same ' +
+        'entity already implies them'
+      : 'it will add every ancestor of the tags this run adds';
+
+    if (coop().respecters[NPT_ID]) {
+      this.log('INFO', NPT_NAME + ' has ' + mode + ' enabled; it will stand down while this ' +
+        'task writes.');
+      return;
+    }
+    // Not registered means one of two things and there is no way to tell them apart
+    // from here: the plugin is disabled in Stash (so its settings linger in the
+    // config but nothing is running), or the installed copy predates the lease
+    // protocol. Say both rather than assert the alarming one.
+    this.note(NPT_NAME + ' has ' + mode + ' enabled in its settings but has not registered as ' +
+      'honouring bulk-edit leases - either it is disabled in Stash, or the installed copy is ' +
+      'older than the protocol. If it is running, ' + effect + '. Turn it off for the duration, ' +
+      'or check the result afterwards.');
   };
 
   Run.prototype.checkVersion = function () {
@@ -2094,6 +2180,7 @@
       _autoSettings = r.settings;
       _autoSettingsAt = Date.now();
       _autoSettingsWait = null;
+      publishDeclares(_autoSettings);
       return _autoSettings;
     }, function (e) {
       _autoSettingsWait = null;

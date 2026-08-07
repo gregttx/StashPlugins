@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.7.5';
+  var PLUGIN_VERSION = '1.7.6';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -131,6 +131,7 @@
     if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
+    if (!c.declares) c.declares = {};
     return c;
   }
 

@@ -2,24 +2,26 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — steps 1-6 done, the plugin is at 0.6.0** (last checked 2026-08-07).
+**Status: BUILDING — steps 1-7 done, the plugin is at 0.7.0** (last checked 2026-08-07).
 All eight decisions are settled (§4) and every open question is closed (§6). The library-wide task
-is complete for **all thirteen paths**, and both automatic modes now work: a save of any target
-triggers a refresh, and a save of anything an enabled path reads *from* fans out to every target it
-would have copied onto. Remaining: the `declares` registry, manual buttons + staging, and the repo
-`CLAUDE.md` section. See §8.
+is complete for **all thirteen paths**, both automatic modes work, and this plugin now cooperates
+with both siblings: an N-way `declares` registry catches the same-path overlap with
+`MergePerformerTagsToScenes`, and a ported `checkHierarchySibling` warns about `NormalizeParentTags`'
+Prune/Roll Up colliding with an addition, the way `MergePerformerTagsToScenes`' own dialog already
+did. Remaining: manual buttons + staging, and the repo `CLAUDE.md` section. See §8.
 
 Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.6.0, in all three places |
-| `PropagateTagsAndPerformers.js` | ~3,000 lines |
+| Version | 0.7.0, in all three places |
+| `PropagateTagsAndPerformers.js` | ~3,125 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) |
 | Test suites | 7 of the plugin's own, 20 in the repo, all passing |
-| Checks in the seven | paths 60, base 64, plan 50, apply 43, sweep 30, auto 38, auto-source 28 = **313** |
-| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 2 (spot-checked) = **78+** |
-| Landed on `main` | through 0.5.0 (`6fa9cad`); 0.6.0 is uncommitted |
+| Checks in the seven | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28 = **324** |
+| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 (spot-checked) = **79+** |
+| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.12.0, `NormalizeParentTags` 1.7.5 → 1.7.6 |
+| Landed on `main` | through 0.6.0 (`fa58bf2`); 0.7.0 is uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's
@@ -721,9 +723,35 @@ step 9 plus a run against a real Stash, not step 9 alone.
    spot-mutated rather than exhaustively (the two-hop `pick` for markers confirmed; the codebase's
    usual "every branch, every mutant" discipline was traded for breadth across thirteen paths given
    the size of the feature — a debt worth paying down before 1.0.0, not before this commit).
-7. Respecter registration (done at 0.1.0) and the `declares` registry (D3). **The only step that
+7. ~~Respecter registration (done at 0.1.0) and the `declares` registry (D3). **The only step that
    edits the sibling plugins**, both of which need their hardcoded two-way `checkSibling` replaced;
-   both then need a version bump and their own suites re-run.
+   both then need a version bump and their own suites re-run.~~ **DONE, 0.7.0 — narrower than
+   sketched, correctly.** The premise that both siblings' `checkSibling` needed *replacing* turned
+   out wrong on inspection: `MergePerformerTagsToScenes`' check against `NormalizeParentTags` (and
+   the mirror this step added to this plugin) detects Prune/Roll Up colliding with *any* additive
+   write, regardless of which relationship made it — a category-level interaction with no path id on
+   either side, not the "same path" question `declares` answers. Folding it in would have needed a
+   second, richer vocabulary (categories plus a collision matrix) nothing here needs yet, for a
+   result that could only say less than the specific wording each existing check already gives.
+
+   What shipped instead, after a mid-step check-in confirming the broader scope: `coop().declares`
+   (`{ pluginId: [pathId, ...] }`) as an **addition**, not a replacement, solving exactly the "same
+   path" question — `MergePerformerTagsToScenes` declares `'tags:performer>scene'` unconditionally
+   at load, this plugin republishes its *currently enabled* path ids on every settings load (task
+   and auto mode alike), and each scans the other's entries for an overlap, informationally, in its
+   own dialog log. Generic in the sense that mattered: a third relationship-copying plugin needs
+   nothing edited in either existing one. Alongside it, this plugin gained its own
+   `checkHierarchySibling` — `MergePerformerTagsToScenes`' `checkSibling` ported rather than
+   generalised, since eleven of thirteen paths here are exposed to Prune/Roll Up exactly as that
+   plugin's one path is. `NormalizeParentTags` gained the `declares` field on its `coop()` for
+   shape-consistency alone; it has no relationship-copy paths to publish into it.
+
+   All three plugins bumped: `MergePerformerTagsToScenes` 1.11.0 → 1.12.0 and this plugin
+   0.6.0 → 0.7.0 (both a user-visible feature), `NormalizeParentTags` 1.7.5 → 1.7.6 (an internal
+   field with no visible behaviour change). New coverage in `merge-task.test.js` and
+   `propagate-base.test.js`, both confirmed against a pre-step copy — the sibling's suite crashes
+   outright on the missing registry rather than merely failing, the cleanest proof available that a
+   check exercises real code.
 8. Manual buttons + staging across the four target pages (D8). **Blocked on a live Stash** — the
    placement work cannot be done from here, only guessed at, and MPTTS needed `insertBeforeDelete`
    plus a two-container filter for the scene page alone.

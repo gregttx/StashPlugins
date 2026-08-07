@@ -225,10 +225,14 @@ or the Logs page — this is a UI plugin and cannot write there).
 
 - **`MergePerformerTagsToScenes`** implements one of these paths. Both can be installed and enabled
   at once; both only ever add, so the overlap is redundant work rather than wrong data, and the
-  dialog will point it out.
+  task dialog names it in the log when both are covering `Tags: Performers → Scenes`. This works for
+  any future plugin doing the same kind of copy too, not just this one by name.
 - **`NormalizeParentTags`** walks the *tag hierarchy* instead of entity relationships, so the two
   compose rather than overlap: propagate tags onto an entity, then prune or roll up the parents. Its
-  automatic modes and this plugin's stand down for one another while either is writing in bulk.
+  automatic modes and this plugin's stand down for one another while either is writing in bulk. And
+  since eleven of these thirteen paths add tags, the task dialog also warns when NormalizeParentTags'
+  **Auto Prune** or **Auto Roll Up on Entity Updates** is on — naming which, and what it would do to
+  what this run adds — exactly as `MergePerformerTagsToScenes`' own dialog already does.
 
 ## Licence
 

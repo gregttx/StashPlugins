@@ -261,6 +261,105 @@ Promise.resolve()
     h.check('one half of a pair warns about nothing', !/reversible pair/.test(d.note), d.note);
   })
 
+  // ── Declared-path overlap (the N-way registry) ────────────────────────────
+  //
+  // Every settings load publishes this plugin's currently enabled paths into
+  // `coop().declares`, so another relationship-copying plugin (today, only
+  // MergePerformerTagsToScenes) can notice the overlap without either plugin
+  // knowing the other by name.
+  .then(() => open({ settings: { b1TagsPerformersToScenes: true, b2TagsStudioToScenes: true } }))
+  .then(({ env }) => {
+    h.check('it publishes its own enabled paths into the registry',
+      (env.ctx.window.StashPluginCoop.declares[NAME] || []).slice().sort().join() ===
+      ['tags:performer>scene', 'tags:studio>scene'].sort().join(),
+      JSON.stringify(env.ctx.window.StashPluginCoop.declares[NAME]));
+  })
+
+  .then(() => open({ settings: {} })).then(({ env }) => {
+    h.check('with nothing enabled, it publishes an empty list rather than skipping the registry',
+      Array.isArray(env.ctx.window.StashPluginCoop.declares[NAME]) &&
+      env.ctx.window.StashPluginCoop.declares[NAME].length === 0);
+  })
+
+  .then(() => {
+    const env = h.makeEnv({ quiet: true, respond: responder({ settings: { b1TagsPerformersToScenes: true } }) });
+    env.ctx.window.StashPluginCoop = {
+      leases: [], respecters: {},
+      declares: { MergePerformerTagsToScenes: ['tags:performer>scene'] },
+    };
+    h.run(env.ctx, SRC);
+    return h.startTask(env.ctx, TASK, NAME).then(() => h.flush()).then(() => {
+      const d = h.dialog(env.ctx.document.body, PREFIX);
+      h.check('another plugin declaring one of our enabled paths is noted in the log',
+        d.lines.some((l) => /MergePerformerTagsToScenes also performs/.test(l) &&
+          /Tags: Performers → Scenes/.test(l)), d.lines.join('\n'));
+      h.check('and it is informational, not a head warning - both only ever add',
+        d.note === '', d.note);
+    });
+  })
+
+  .then(() => {
+    const env = h.makeEnv({ quiet: true, respond: responder({ settings: { b2TagsStudioToScenes: true } }) });
+    env.ctx.window.StashPluginCoop = {
+      leases: [], respecters: {},
+      declares: { MergePerformerTagsToScenes: ['tags:performer>scene'] },
+    };
+    h.run(env.ctx, SRC);
+    return h.startTask(env.ctx, TASK, NAME).then(() => h.flush()).then(() => {
+      const d = h.dialog(env.ctx.document.body, PREFIX);
+      h.check('a different enabled path is not flagged as overlapping',
+        !d.lines.some((l) => /also performs/.test(l)), d.lines.join('\n'));
+    });
+  })
+
+  // ── NormalizeParentTags awareness ─────────────────────────────────────────
+  //
+  // Not the same mechanism as the overlap above: Prune/Roll Up along the tag
+  // hierarchy collides with any additive path this plugin runs, regardless of
+  // which one added the tag, so this stays a name-based check reading NPT's own
+  // settings rather than a `declares` match. Mirrors MergePerformerTagsToScenes'
+  // own check against the same sibling.
+  .then(() => open({
+    settings: { b1TagsPerformersToScenes: true },
+    otherPlugins: { NormalizeParentTags: { a8AutoPruneOnUpdate: true } },
+  })).then(({ d }) => {
+    h.check('an unregistered NormalizeParentTags with Auto Prune on warns in the head',
+      /Auto Prune on Entity Updates/.test(d.note), d.note);
+    h.check("the warning names what Prune would do to this run's additions",
+      /remove the tags this run adds/.test(d.note), d.note);
+  })
+
+  .then(() => {
+    const env = h.makeEnv({ quiet: true, respond: responder({
+      settings: { b1TagsPerformersToScenes: true },
+      otherPlugins: { NormalizeParentTags: { a9AutoRollUpOnUpdate: true } },
+    }) });
+    env.ctx.window.StashPluginCoop = {
+      leases: [], respecters: { NormalizeParentTags: true }, declares: {},
+    };
+    h.run(env.ctx, SRC);
+    return h.startTask(env.ctx, TASK, NAME).then(() => h.flush()).then(() => {
+      const d = h.dialog(env.ctx.document.body, PREFIX);
+      h.check('a registered NormalizeParentTags is reported, not warned about',
+        d.lines.some((l) => /Normalize Parent Tags has Auto Roll Up on Entity Updates enabled/
+          .test(l)), d.lines.join('\n'));
+      h.check('and nothing lands in the dialog head', d.note === '', d.note);
+    });
+  })
+
+  .then(() => open({
+    settings: { b1TagsPerformersToScenes: true },
+    otherPlugins: { NormalizeParentTags: { a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: true } },
+  })).then(({ d }) => {
+    // Both on is NPT's own documented no-op - exact inverses, so it runs neither.
+    h.check('both of its modes on warns about neither', d.note === '', d.note);
+  })
+
+  .then(() => open({ settings: { b1TagsPerformersToScenes: true } })).then(({ d }) => {
+    h.check('a sibling that is not installed is not mentioned',
+      d.note === '' && !d.lines.some((l) => /Normalize Parent Tags/.test(l)), d.note);
+  })
+
   // ── The exclusion filters ─────────────────────────────────────────────────
   .then(() => open({
     settings: {

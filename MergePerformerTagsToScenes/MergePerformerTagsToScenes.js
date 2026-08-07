@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.11.0';
+  var PLUGIN_VERSION      = '1.12.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -85,6 +85,7 @@
     if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
+    if (!c.declares) c.declares = {};
     return c;
   }
 
@@ -110,6 +111,15 @@
   // Registered at load so a bulk plugin can tell "will stand down" apart from "too
   // old to know about leases" and warn the user accordingly.
   coop().respecters[PLUGIN_ID] = true;
+
+  // Declared at load, unconditionally: this plugin always performs this one path,
+  // via its buttons at minimum, whatever its auto-merge settings say. `declares` is
+  // the N-way registry `PropagateTagsAndPerformers` (a later, generalised sibling
+  // that implements the same path among thirteen) reads to warn about redundant
+  // work - see the repo-root CLAUDE.md. The id matches its own path table exactly,
+  // by agreement rather than by any shared code: the two plugins carry no shared
+  // module, so the string `'tags:performer>scene'` is the entire contract.
+  coop().declares[PLUGIN_ID] = ['tags:performer>scene'];
 
   var _standDownAnnounced = false;
   function autoMergeSuppressed() {
@@ -1280,6 +1290,7 @@
     }
 
     this.checkSibling();
+    this.checkDeclaredOverlap();
     // Not chained ahead of the walk: one small query against a pass that reads every
     // performer in the library. It lands long before Proceed is reachable, and
     // setState is re-applied when it does.
@@ -1335,6 +1346,26 @@
       'as honouring bulk-edit leases - either it is disabled in Stash, or the installed copy is ' +
       'older than the protocol. If it is running, ' + effect + '. Turn it off for the duration, ' +
       'or check the result afterwards.');
+  };
+
+  // The N-way counterpart to `checkSibling` above: that one is specific to
+  // NormalizeParentTags because its collision (prune/roll-up along the tag
+  // hierarchy) is a different kind from this one and needs its own wording. This
+  // one is generic - any plugin, present or future, that declares
+  // `'tags:performer>scene'` in `coop().declares` is doing the exact same path this
+  // plugin does, which is redundant work and doubled log lines, never wrong data,
+  // since both plugins only ever add. `PropagateTagsAndPerformers` is the first
+  // such plugin; nothing here names it, so a second one needs no edit here either.
+  TaskRun.prototype.checkDeclaredOverlap = function () {
+    var declares = coop().declares, others = [];
+    for (var id in declares) {
+      if (!hasOwn(declares, id) || id === PLUGIN_ID) continue;
+      if ((declares[id] || []).indexOf('tags:performer>scene') !== -1) others.push(id);
+    }
+    if (!others.length) return;
+    this.log('INFO', others.join(', ') + ' also merges performer tags onto scenes ' +
+      '(declares the same path). Running both is redundant work and doubled log lines, ' +
+      'never wrong data - both only ever add.');
   };
 
   TaskRun.prototype.describeFilters = function () {

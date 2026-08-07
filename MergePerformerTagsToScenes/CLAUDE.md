@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.11.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.12.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 ---
@@ -432,6 +432,28 @@ which is the safe direction: no warning rather than a wrong one.
 **It never blocks.** Same rule as the lease warning above it: a task click is manual, and §7's rule
 is that manual actions are not suppressed.
 
+## 7d. Declaring the path, and warning about a third plugin doing the same one (1.12.0)
+
+`PropagateTagsAndPerformers` implements the same one path this plugin does —
+`tags:performer>scene` — among thirteen others, and coexists with this plugin by design (its own
+CLAUDE.md D3). `checkSibling` above is the wrong tool for noticing that: it is a *name-based* check
+against one specific plugin's specific settings, built for a collision (NPT's prune/roll-up versus
+any additive write) that has nothing to do with matching paths. This is the opposite shape of
+problem — two plugins doing the *identical* thing — and it needed a mechanism that does not name
+either side, so a third relationship-copying plugin gets the warning for free. See "Cross-plugin
+cooperation: the `declares` registry" in the repo-root CLAUDE.md for the full design.
+
+**Declared unconditionally at load**, alongside `respecters[PLUGIN_ID] = true`:
+`coop().declares[PLUGIN_ID] = ['tags:performer>scene']`. Unconditional because this plugin always
+performs that one path, via its buttons at minimum, regardless of what its auto-merge settings say
+— the same reasoning as the respecter flag being unconditional.
+
+**`checkDeclaredOverlap()` reads the registry, not any plugin's settings.** It scans
+`coop().declares` for any *other* plugin id whose array contains `'tags:performer>scene'` and notes
+it in the log — informational, never a head warning, because redundant work between two
+add-only plugins is never wrong data. Called from `begin()` right after `checkSibling()`; the two
+are independent and both can fire in the same run.
+
 ## 8. Logging
 
 Two different prefixes, deliberately: user-facing merge lines use the full `[MergePerformerTagsToScenes]`
@@ -489,6 +511,13 @@ silence, and neither a sibling without an auto mode nor an absent one being ment
 cases start the task through `openAfterSettings`, which lets the bootstrap settings load land first —
 `checkSibling` reads what that stored, so a helper that races it would test nothing. All four
 behaviours were confirmed against deliberately broken copies before being trusted.
+
+And §7d: the plugin declares its own path unconditionally at load; a second plugin's `coop().declares`
+entry naming the same path is noted in the log, informationally, through `openWithDeclares` (the same
+shape as `openAfterSettings`, seeding the registry instead of a respecter flag); a different path
+from the same plugin is not mentioned; and nothing else declaring the path says nothing. Confirmed
+against a copy without the feature, which throws on the registry lookup rather than merely failing a
+check — the cleanest possible proof the check exercises real code.
 
 `merge-task.test.js` also covers the 1.11.0 settings-page split: the group description collapsing
 behind a `<button>` toggle that expands and flips its caption, a two-paragraph setting keeping only

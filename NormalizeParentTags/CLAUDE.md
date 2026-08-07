@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.7.5.** This file is both the design and the map of the code — the
+**Status: implemented at 1.7.6.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1066,6 +1066,16 @@ naming the owner and the task — the same way that dialog reports ours. It is a
 block: a task click is manual on both sides, and standing down for a lease we would only have taken
 ourselves a moment later helps nobody. Ours is taken in `proceed()`, so nothing in `begin()` can be
 looking at its own.
+
+**A third plugin, `PropagateTagsAndPerformers`, now runs the same check against us** (1.7.6's
+counterpart in that plugin, `checkHierarchySibling`), for the same reason: its eleven tag paths are
+exactly as exposed to Prune/Roll Up as this plugin's merge is. `coop()` here gained a `declares`
+field at the same version, purely for shape-consistency with the other two plugins' shared object —
+this plugin has no relationship-copy paths to publish into it, and nothing reads its absence as
+anything other than "declares nothing." See "Cross-plugin cooperation: the `declares` registry" in
+the repo-root CLAUDE.md for why that registry does *not* also carry this section's collision: it
+answers "same path", not "hierarchy rewrite versus any addition," which is a different question with
+no path id on either side.
 
 ## 9. Testing
 

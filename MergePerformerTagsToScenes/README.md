@@ -309,3 +309,12 @@ Python or executable kind that Stash runs on `Scene.Update.Post` and similar —
 itself, cannot be asked to stand down from here, and will react to this plugin's changes like any
 other edit. If you have one that touches tags, disable it for the run.
 
+## If you also use Propagate Tags and Performers to Related Entities
+
+That plugin implements this same merge as one of its thirteen relationship paths, so both plugins
+can end up doing the same work. Since 1.12.0 the library-wide task's dialog notices — if that
+plugin has its equivalent path enabled, a line in the log says so. This is purely informational:
+both plugins only ever add tags, so running both is redundant work and doubled log lines, never
+wrong data. Nothing is suppressed and nothing blocks; disable one if you would rather not see it
+twice.
+

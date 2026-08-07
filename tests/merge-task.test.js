@@ -108,6 +108,19 @@ function openAfterSettings(opts, respecter) {
   });
 }
 
+// Same shape, but seeding `coop().declares` with another plugin's entry rather
+// than a respecter flag - simulating a second relationship-copying plugin having
+// already loaded and published what it does.
+function openWithDeclares(opts, declares) {
+  const env = h.makeEnv({ quiet: true, respond: makeResponder(opts || {}) });
+  h.run(env.ctx, SRC);
+  if (declares) Object.assign(env.ctx.window.StashPluginCoop.declares, declares);
+  return h.flush(20).then(() => {
+    h.startTask(env.ctx, TASK, PLUGIN_ID);
+    return h.flush(150).then(() => ({ env, d: () => h.dialog(env.body, 'cpt2s') }));
+  });
+}
+
 // The forward merge writes one scene at a time; the undo goes out as a bulk delta.
 // The two names do not overlap as substrings - bulkSceneUpdate capitalises the S -
 // so a plain match on each is enough to tell them apart.
@@ -712,6 +725,40 @@ Promise.resolve()
     h.check('a sibling that is not installed is not mentioned',
       d().note === '' && !d().lines.some((l) => l.indexOf('Normalize Parent Tags') !== -1),
       d().note);
+  })
+
+  // ── Declared-path overlap (the N-way registry) ────────────────────────────
+  //
+  // Unlike the sibling check above, this one is generic: any plugin naming our one
+  // path in `coop().declares` is doing the exact same thing, which is redundant
+  // work rather than the sibling's opposite-direction collision.
+
+  .then(() => {
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });
+    h.run(env.ctx, SRC);
+    h.check('the plugin declares its one path at load, unconditionally',
+      (env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes || []).join() ===
+      'tags:performer>scene');
+  })
+
+  .then(() => openWithDeclares({}, { PropagateTagsAndPerformers: ['tags:performer>scene'] }))
+  .then(({ d }) => {
+    h.check('another plugin declaring the same path is noted in the log',
+      d().lines.some((l) => l.indexOf('PropagateTagsAndPerformers also merges performer ' +
+        'tags onto scenes') !== -1), d().lines.join(' | '));
+    h.check('and it is informational, not a head warning', d().note === '', d().note);
+  })
+
+  .then(() => openWithDeclares({}, { PropagateTagsAndPerformers: ['tags:studio>scene'] }))
+  .then(({ d }) => {
+    h.check('a different path from the same plugin is not mentioned',
+      !d().lines.some((l) => l.indexOf('PropagateTagsAndPerformers') !== -1), d().lines.join(' | '));
+  })
+
+  .then(() => openWithDeclares({}, {}))
+  .then(({ d }) => {
+    h.check('with nothing else declaring the path, nothing is said about it',
+      !d().lines.some((l) => l.indexOf('also merges performer tags') !== -1), d().lines.join(' | '));
   })
 
   // ── The README link on the settings page ─────────────────────────────────

@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.6.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.7.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -19,7 +19,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | 5 | The two reverse-query paths (a gallery's images) | **0.4.0** |
 | 6 | Auto mode, target side, **and** the per-entity cooldown | **0.5.0** |
 | | — auto mode, source side (the fan-out) | **0.6.0** |
-| 7 | The `declares` registry | — |
+| 7 | The `declares` registry, **and** NormalizeParentTags awareness | **0.7.0** |
 | 8 | Manual buttons and staging | — |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
@@ -494,6 +494,8 @@ they meant:
 - warns when both halves of a reversible pair are on
 - names every exclusion filter in force, and says so explicitly when none is
 - warns about another plugin's lease, without standing down
+- notes another relationship-copying plugin declaring one of the same paths (§5a)
+- warns about NormalizeParentTags' Prune/Roll Up modes, where they collide with an addition (§5a)
 - compares the running script against the installed manifest
 
 **The version gate is the only warning here that blocks.** Every other one — the lease, the pair, a
@@ -508,6 +510,48 @@ stranding the user with changes they cannot take back is worse than the mismatch
 hands over the whole session. `viewLines` counts what has gone into the log since the current pass
 emptied the view, and is what the progress line describes — reporting `lines` there produced, in the
 sibling, a header claiming 28 161 lines over a log holding four.
+
+## 5a. Two other plugins, two different kinds of collision (0.7.0)
+
+Step 7 of the design plan. Both checks run from `begin()`, right after the reversible-pair warning,
+and both are informational log lines rather than head warnings — neither collision is a hazard the
+version gate's "you cannot see this" sense is. Full design reasoning is in "Cross-plugin
+cooperation: the `declares` registry" in the repo-root CLAUDE.md; this section is the map of the
+code that implements it.
+
+**`checkDeclaredOverlap` — the same path, run by someone else.** `MergePerformerTagsToScenes`
+implements exactly one of this plugin's thirteen paths (`tags:performer>scene`) and declares it
+unconditionally at its own load, into `coop().declares[MergePerformerTagsToScenes]`. This plugin
+does the reverse: on every settings load — the task's own and auto mode's `autoSettings` refresh
+alike, via the shared `publishDeclares(settings)` — it republishes its *currently enabled* path ids
+into `coop().declares[PLUGIN_ID]`, because a path whose setting is off is not one it is actually
+covering. `checkDeclaredOverlap(paths)` then scans the registry for any other plugin id whose array
+names one of `paths`, and logs one line per other plugin naming every overlapping path label. This
+is deliberately generic on both sides: nothing here names `MergePerformerTagsToScenes`, so a second
+relationship-copying plugin needs no edit to either.
+
+**`checkHierarchySibling` — a different kind of collision, and not part of `declares`.** Ported
+from `MergePerformerTagsToScenes`' own `checkSibling`, reading `NormalizeParentTags`' raw settings
+(`a8AutoPruneOnUpdate` / `a9AutoRollUpOnUpdate`) out of the same `{ configuration { plugins } }`
+response `loadSettings()` already fetches — `loaded.all[NPT_ID]`, no second query. Unlike the
+overlap above, this is not "the same path": Prune can remove any tag this run adds regardless of
+which of the eleven tag paths added it, and Roll Up piles ancestors on top of it the same way. That
+is a category-level interaction (a hierarchy-rewriter versus any additive tag-writer), which has no
+path id on either side for a generic registry scan to match — hence a name-based check reading a
+named sibling's actual settings, exactly like the one it was ported from. `NPT_ID`/`NPT_NAME` are
+this plugin's only hardcoded reference to another plugin, for exactly this reason.
+
+Both halves of NPT's own no-op are handled the same way as the sibling's version: prune and roll-up
+both on cancels out to nothing worth warning about, and "registered as a lease respecter" is
+reported rather than warned about, since a respecting NPT will stand down while this task writes.
+
+**Why one plugin gets a generic mechanism and the other gets a ported bespoke one, in the same
+version.** They are answers to two different questions that happen to have arrived in the same
+step: "is another plugin doing what I am doing" generalises cleanly across an open-ended set of
+future plugins and needs no name; "does a hierarchy rewrite undo what I just added" is inherently
+about one specific *kind* of plugin NPT is the only example of here, and forcing it into the path-id
+vocabulary would need a second, richer vocabulary (categories, not paths, plus a collision matrix)
+that nothing here needs yet.
 
 ## 6. Anchoring in Stash's markup
 
@@ -536,7 +580,11 @@ of it apply unchanged:
   `tests/README.md`.
 - **`propagate-base.test.js`** — both layers of task interception, the dialog head, the
   configuration review, the version gate, the lease warning, the footer, and the settings-page
-  injection.
+  injection. Since 0.7.0 also §5a: publishing enabled paths into `coop().declares` (including an
+  empty list with nothing enabled), another plugin declaring an overlapping path noted in the log
+  and a non-overlapping one staying silent, and the NormalizeParentTags check's four outcomes
+  (registered, unregistered, both modes cancelling out, not installed) ported from the sibling's own
+  suite.
 - **`propagate-plan.test.js`** — the walk over the library: the gather, the diff, both aggregation
   modes and their edges, the cascade, every exclusion filter, pass ordering, naming, the recap, and
   that a review issues no mutation at all.

@@ -63,6 +63,7 @@ function coop() {
   if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
   if (!c.leases) c.leases = [];          // [{ owner, label, until }]
   if (!c.respecters) c.respecters = {};  // { pluginId: true }
+  if (!c.declares) c.declares = {};      // { pluginId: [pathId, ...] }
   return c;
 }
 ```
@@ -102,6 +103,47 @@ Rules that make this safe:
   therefore *say* a lease is held and carry on — an advisory the user can act on, not a lock.
 - **UI plugins only.** A server-side `hooks:` plugin runs in the Stash process, never sees this
   `window`, and cannot be leased against. Do not let documentation imply otherwise.
+
+## Cross-plugin cooperation: the `declares` registry
+
+A third, narrower mechanism, added when `PropagateTagsAndPerformers` made `MergePerformerTagsToScenes`'
+one path (copying a scene's performers' tags onto it) one of thirteen a second plugin now also
+performs. Both only ever add, so running both is never wrong — just redundant work and doubled log
+lines — and the two are otherwise strangers, sharing no module and no knowledge of each other's
+existence.
+
+**What it is for, precisely: two plugins performing the *identical* relationship copy.** A path id
+is the same string `PropagateTagsAndPerformers`'s own `PATHS` table uses (`'tags:performer>scene'`,
+`'tags:studio>group'`, …) — the vocabulary that plugin already had to invent for its thirteen paths,
+reused rather than duplicated. `MergePerformerTagsToScenes` declares its one path unconditionally at
+load, the way it registers as a lease respecter; `PropagateTagsAndPerformers` republishes its
+*currently enabled* paths on every settings load, task or auto mode alike, since a path whose
+setting is off is not one it is actually covering. Each plugin scans the registry for **other**
+entries containing a path id it also handles, and notes the overlap in its dialog log — informational
+only, never a head warning, because redundant work is not a hazard the way NPT's collision (below)
+is.
+
+**A future third relationship-copying plugin needs no existing plugin edited.** It declares its own
+paths at load and gets warned about, and warns about, both siblings automatically — that genericity
+is the entire reason this exists rather than a second hardcoded pairwise check.
+
+**What it deliberately does *not* replace: `NormalizeParentTags`' collision with either sibling.**
+`checkSibling` in `MergePerformerTagsToScenes` (reading NPT's `a8AutoPruneOnUpdate` /
+`a9AutoRollUpOnUpdate`) and its mirror in `PropagateTagsAndPerformers` (`checkHierarchySibling`,
+added alongside `declares` for the same reason) stayed hardcoded, name-based checks reading a named
+sibling's actual settings. That collision is not "the same path" — NPT walks the tag *hierarchy*
+and the other two walk entity *relationships*, two different graphs — so there is no path id on
+either side for a generic scan to match. Prune can undo an addition regardless of which relationship
+put the tag there, which is a category-level interaction (any hierarchy-rewriter versus any
+additive tag-writer), not a per-path one. Folding it into `declares` would need a second, richer
+vocabulary (categories, not path ids, plus a collision matrix between them) that no plugin here
+needs yet; forcing today's problem into that shape now would have been a false generalisation. If a
+fourth plugin ever adds a *second* hierarchy-rewriter, this is the seam to revisit — not before.
+
+**`NormalizeParentTags` declares nothing.** It has no relationship-copy paths to publish, so its
+`coop()` gained the `declares` field only for shape-consistency across all three plugins' shared
+object — nothing reads an absent entry as anything other than "declares nothing", the same way
+`respecters` already treats an unregistered plugin.
 
 ## Cross-plugin cooperation: the shared dialog chrome
 

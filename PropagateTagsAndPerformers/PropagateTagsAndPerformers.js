@@ -29,7 +29,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.5.0';
+  var PLUGIN_VERSION = '0.6.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2094,7 +2094,6 @@
       _autoSettings = r.settings;
       _autoSettingsAt = Date.now();
       _autoSettingsWait = null;
-      announceSourceModePending(_autoSettings);
       return _autoSettings;
     }, function (e) {
       _autoSettingsWait = null;
@@ -2106,21 +2105,7 @@
   // Our own settings being saved invalidates the cache rather than waiting out the
   // TTL, so switching a mode off takes effect on the next save and not ten seconds
   // later.
-  function invalidateAutoSettings() { _autoSettings = null; _autoSettingsAt = 0; _sourceModeAnnounced = false; }
-
-  // The source-side mode is declared in the manifest but not yet built (0.5.0 ships
-  // the target side of step 6). A setting that is visible and silently does nothing is
-  // worse than one that is absent - the user has no way to tell it apart from a mode
-  // that is running and finding nothing to do - so it says so, once, where a plugin
-  // that cannot write to the Stash log can say anything at all.
-  var _sourceModeAnnounced = false;
-  function announceSourceModePending(s) {
-    if (!s.a4AutoOnSourceUpdate || _sourceModeAnnounced) return;
-    _sourceModeAnnounced = true;
-    console.warn('[' + PLUGIN_NAME + '] "Auto Propagate when the Source is Saved" is enabled ' +
-      'but is not implemented yet in ' + PLUGIN_VERSION + ' - it does nothing. The target-side ' +
-      'mode above it works. See the README.');
-  }
+  function invalidateAutoSettings() { _autoSettings = null; _autoSettingsAt = 0; }
 
   // ── The per-entity cooldown ───────────────────────────────────────────────
   //
@@ -2181,6 +2166,171 @@
       return copy.json().then(function (j) { return !(j && j.errors && j.errors.length); },
                               function () { return true; });
     }, function () { return false; });
+  }
+
+  // ── The source side: from a saved source to the targets that read it ───────
+  //
+  // The target side answers "this scene was saved, refresh it from its sources". This
+  // answers the other question: "this performer was saved, which scenes named it and
+  // now need refreshing" - the fan-out `AutoRun.reverseSources` cannot help with,
+  // because that gathers a *known* target's sources, not a source's targets.
+  //
+  // Once the affected target ids are known, this rejoins the target-side machinery -
+  // `runAutoTargets` below is shared by both - so a source reaction plans and writes
+  // exactly as a target reaction would. The only new thing here is finding those ids,
+  // and it is per path because Stash's schema gives each relationship its own shape:
+  //
+  //   - most paths have a plain field back to whatever refers to their source -
+  //     `Image.galleries`, `Gallery.scenes`, `Scene.groups`, `Group.scenes`,
+  //     `Group.containing_groups`, `SceneMarker.scene` - and cost one query per saved
+  //     entity, no filter guessing involved. `kind: 'field'`.
+  //   - three do not: a Performer and a Studio carry no back-reference to the Scenes
+  //     or Groups that use them, and a Gallery has no `images` field for the same
+  //     reason the sweep exists. Those go through a filter on the *target's* own
+  //     filter type - `scene_filter: { performers: { value: [$id], modifier: INCLUDES
+  //     } }` - the same shape `reverseQuery` already trusts Stash to have, and no more
+  //     verified than it was until 0.4.0. `kind: 'filter'`.
+  //
+  // `tags:performer>group` and `tags:marker>group` are two hops (performer/marker to
+  // scene to group) but need no second round trip: the query for the first hop simply
+  // selects the second hop's field too (`groups { group { id } }` alongside the scene
+  // match, or nested under `scene` for a marker's single scene), so `pick` reads the
+  // final ids straight out of the one response.
+  function notNull(v) { return v != null; }
+
+  var SOURCE_REVERSE = {
+    'performers:image>gallery': { kind: 'field', one: 'findImage', sel: 'galleries { id }',
+      pick: function (e) { return (e.galleries || []).map(function (g) { return g.id; }); } },
+    'tags:image>gallery': { kind: 'field', one: 'findImage', sel: 'galleries { id }',
+      pick: function (e) { return (e.galleries || []).map(function (g) { return g.id; }); } },
+    'performers:gallery>scene': { kind: 'field', one: 'findGallery', sel: 'scenes { id }',
+      pick: function (e) { return (e.scenes || []).map(function (s) { return s.id; }); } },
+    'tags:group>scene': { kind: 'field', one: 'findGroup', sel: 'scenes { id }',
+      pick: function (e) { return (e.scenes || []).map(function (s) { return s.id; }); } },
+    'tags:marker>scene': { kind: 'field', one: 'findSceneMarker', sel: 'scene { id }',
+      pick: function (e) { return e.scene && e.scene.id != null ? [e.scene.id] : []; } },
+    'tags:scene>group': { kind: 'field', one: 'findScene', sel: 'groups { group { id } }',
+      pick: function (e) {
+        return (e.groups || []).map(function (g) { return g.group && g.group.id; }).filter(notNull);
+      } },
+    'tags:subgroup>group': { kind: 'field', one: 'findGroup', sel: 'containing_groups { group { id } }',
+      pick: function (e) {
+        return (e.containing_groups || []).map(function (g) { return g.group && g.group.id; }).filter(notNull);
+      } },
+    'tags:marker>group': { kind: 'field', one: 'findSceneMarker', sel: 'scene { groups { group { id } } }',
+      pick: function (e) {
+        var groups = (e.scene && e.scene.groups) || [];
+        return groups.map(function (g) { return g.group && g.group.id; }).filter(notNull);
+      } },
+    'tags:performer>scene': { kind: 'filter', on: 'scene', field: 'performers', modifier: 'INCLUDES',
+      pick: function (n) { return [n.id]; } },
+    'tags:studio>scene': { kind: 'filter', on: 'scene', field: 'studios', modifier: 'INCLUDES',
+      pick: function (n) { return [n.id]; } },
+    'tags:studio>group': { kind: 'filter', on: 'group', field: 'studios', modifier: 'INCLUDES',
+      pick: function (n) { return [n.id]; } },
+    'tags:performer>group': { kind: 'filter', on: 'scene', field: 'performers', modifier: 'INCLUDES',
+      sel: 'groups { group { id } }',
+      pick: function (n) {
+        return (n.groups || []).map(function (g) { return g.group && g.group.id; }).filter(notNull);
+      } },
+    'tags:gallery>image': { kind: 'filter', on: 'image', field: 'galleries', modifier: 'INCLUDES',
+      pick: function (n) { return [n.id]; } },
+  };
+
+  // A `field`-kind lookup: one source entity by id, drilling straight to the
+  // back-reference. Named apart from the task's own single-entity query
+  // (`PTP_one_`) so a log or a test can tell a reaction's target refresh from its
+  // source fan-out.
+  function sourceFieldQuery(entry) {
+    return 'query PTP_sfield_' + entry.one + '($id: ID!) {' +
+      ' ' + entry.one + '(id: $id) { ' + entry.sel + ' } }';
+  }
+
+  function resolveFieldReverse(entry, id) {
+    return gqlRequest(sourceFieldQuery(entry), { id: String(id) }).then(function (data) {
+      var ent = data[entry.one];
+      return ent ? entry.pick(ent) : [];
+    });
+  }
+
+  // A `filter`-kind lookup: paged, like every other query here - a performer with a
+  // six-figure scene count is exactly the case an unbounded response would break on.
+  function sourceFilterQuery(entry) {
+    var t = TARGETS[entry.on];
+    var sel = 'id' + (entry.sel ? ' ' + entry.sel : '');
+    return 'query PTP_sfilter_' + t.find + '_' + entry.field +
+      '($id: ID!, $page: Int!, $per_page: Int!) {' +
+      ' ' + t.find + '(' + t.filterArg + ': { ' + entry.field +
+      ': { value: [$id], modifier: ' + entry.modifier + ' } },' +
+      ' filter: { page: $page, per_page: $per_page, sort: "id", direction: ASC }) {' +
+      ' count ' + t.node + ' { ' + sel + ' } } }';
+  }
+
+  function resolveFilterReverse(entry, id) {
+    var t = TARGETS[entry.on];
+    var out = [], fetched = 0;
+    function page(n) {
+      return gqlRequest(sourceFilterQuery(entry), { id: String(id), page: n, per_page: t.pageSize })
+        .then(function (data) {
+          var res = data[t.find] || {};
+          var list = res[t.node] || [];
+          fetched += list.length;
+          list.forEach(function (node) { out = out.concat(entry.pick(node)); });
+          if (list.length && fetched < (res.count || 0)) return page(n + 1);
+          return out;
+        });
+    }
+    return page(1);
+  }
+
+  // Every id a saved source (one path, one or more ids - a bulk save) puts in play,
+  // deduplicated. Sequential per id, like `AutoRun.reverseSources`, rather than one
+  // combined query: it is what every other reverse lookup in this plugin already
+  // does, and a bulk save of sources is the uncommon case, not the one worth a second
+  // query shape for.
+  function resolveSourceTargets(path, ids) {
+    var entry = SOURCE_REVERSE[path.id];
+    if (!entry) return Promise.resolve([]);
+    var out = {};
+    var chain = Promise.resolve();
+    ids.forEach(function (id) {
+      chain = chain.then(function () {
+        var got = entry.kind === 'filter' ? resolveFilterReverse(entry, id) : resolveFieldReverse(entry, id);
+        return got.then(function (tids) {
+          tids.forEach(function (tid) { if (tid != null) out[String(tid)] = true; });
+        });
+      });
+    });
+    return chain.then(function () { return Object.keys(out); });
+  }
+
+  // Every entity type that appears as a `PATHS` `sourceType`. Four of the seven are
+  // also `TARGETS` and reuse its mutation names; the other three - Performer, Studio,
+  // SceneMarker - are only ever a source in this plugin and are named here instead.
+  var SOURCE_ENTITIES = {
+    performer: { single: 'performerUpdate', bulk: 'bulkPerformerUpdate' },
+    studio: { single: 'studioUpdate', bulk: 'bulkStudioUpdate' },
+    marker: { single: 'sceneMarkerUpdate', bulk: 'bulkSceneMarkerUpdate' },
+  };
+
+  function mutationNamesFor(sourceType) {
+    return hasOwn(TARGETS, sourceType) ? TARGETS[sourceType] : SOURCE_ENTITIES[sourceType];
+  }
+
+  // Same shape as `targetOfMutation`, over the wider set of types this plugin ever
+  // reads from rather than only the four it ever writes to.
+  function sourceOfMutation(q) {
+    var seen = {};
+    for (var i = 0; i < PATHS.length; i++) {
+      var st = PATHS[i].sourceType;
+      if (hasOwn(seen, st)) continue;
+      seen[st] = true;
+      var names = mutationNamesFor(st);
+      if (!names) continue;
+      if (new RegExp('\\b' + names.single + '\\b').test(q)) return { sourceType: st, bulk: false };
+      if (new RegExp('\\b' + names.bulk + '\\b').test(q)) return { sourceType: st, bulk: true };
+    }
+    return null;
   }
 
   // ── The headless run ──────────────────────────────────────────────────────
@@ -2329,33 +2479,81 @@
     });
   }
 
+  // Plans and writes into a fixed set of targets - shared by both auto modes, so a
+  // source reaction and a target reaction end up going through the identical write
+  // path once the target ids are known. `label` is the only thing that tells them
+  // apart in a log.
+  function runAutoTargets(target, ids, s, label) {
+    var paths = enabledPaths(s).filter(function (p) { return p.target === target; });
+    if (!paths.length) return Promise.resolve(0);
+    var fresh = ids.map(String).filter(function (id) { return !cooledDown(target, id); });
+    if (!fresh.length) return Promise.resolve(0);
+    // `guarded()` around the whole reaction, reads included. Its job is the write:
+    // a `bulkSceneUpdate` of ours is exactly what the branches below watch for, so
+    // without it every reaction would react to itself. The cooldown would stop the
+    // recursion at one round, but it is the backstop for the *next* save, not the
+    // guard for this one - relying on it would make every reaction cost a second
+    // pointless pass.
+    return guarded(function () {
+      return autoContext(s).then(function (ctx) {
+        var run = new AutoRun(s, ctx.tagMap, ctx.filters);
+        return run.planEntities(target, paths, fresh).then(function () {
+          return run.apply(label);
+        });
+      });
+    });
+  }
+
   // A save of one or more entities of one type: copy into them whatever the enabled
   // paths say belongs there.
   function reactToTargets(target, ids) {
     return autoSettings().then(function (s) {
       if (!s.a3AutoOnTargetUpdate) return 0;
-      var paths = enabledPaths(s).filter(function (p) { return p.target === target; });
-      if (!paths.length) return 0;
-      var fresh = ids.map(String).filter(function (id) { return !cooledDown(target, id); });
-      if (!fresh.length) return 0;
-      // `guarded()` around the whole reaction, reads included. Its job is the write:
-      // a `bulkSceneUpdate` of ours is exactly what the branch below watches for, so
-      // without it every reaction would react to itself. The cooldown would stop the
-      // recursion at one round, but it is the backstop for the *next* save, not the
-      // guard for this one - relying on it would make every reaction cost a second
-      // pointless pass.
-      return guarded(function () {
-        return autoContext(s).then(function (ctx) {
-          var run = new AutoRun(s, ctx.tagMap, ctx.filters);
-          return run.planEntities(target, paths, fresh).then(function () {
-            return run.apply('auto: into ' + TARGETS[target].plural.toLowerCase());
-          });
-        });
-      });
+      return runAutoTargets(target, ids, s, 'auto: into ' + TARGETS[target].plural.toLowerCase());
     }).catch(function (e) {
       // Never rethrown into Stash's own fetch chain: the user's save succeeded, and a
       // failed reaction to it must not look like a failed save.
       console.error('[ptp2re] auto mode (' + target + '):', e);
+      return 0;
+    });
+  }
+
+  // The reverse: one or more *sources* were saved. Every enabled path reading that
+  // source type is resolved to the target ids it names, grouped by target type - a
+  // studio names both scenes and groups - and each group is written through
+  // `runAutoTargets`, exactly as if those targets had been saved themselves. That is
+  // deliberate: once the ids are known, a source reaction is a target reaction, and
+  // carrying a second write path here would be the second planner `AutoRun` was
+  // built to avoid.
+  function reactToSources(sourceType, ids) {
+    return autoSettings().then(function (s) {
+      if (!s.a4AutoOnSourceUpdate) return 0;
+      var paths = enabledPaths(s).filter(function (p) { return p.sourceType === sourceType; });
+      if (!paths.length) return 0;
+      var byTarget = {};
+      var chain = Promise.resolve();
+      paths.forEach(function (p) {
+        chain = chain.then(function () {
+          return resolveSourceTargets(p, ids).then(function (tids) {
+            if (!byTarget[p.target]) byTarget[p.target] = {};
+            tids.forEach(function (tid) { byTarget[p.target][tid] = true; });
+          });
+        });
+      });
+      return chain.then(function () {
+        var total = Promise.resolve(0);
+        Object.keys(byTarget).forEach(function (target) {
+          var tids = Object.keys(byTarget[target]);
+          if (!tids.length) return;
+          total = total.then(function (sum) {
+            return runAutoTargets(target, tids, s, 'auto: from a ' + sourceType + ' save')
+              .then(function (n) { return sum + n; });
+          });
+        });
+        return total;
+      });
+    }).catch(function (e) {
+      console.error('[ptp2re] auto mode (source: ' + sourceType + '):', e);
       return 0;
     });
   }
@@ -2772,6 +2970,21 @@
           });
         }
       }
+
+      // A save of anything this plugin ever reads *from* - independent of the check
+      // above, since a save can be both: a Scene is a target of its own paths and a
+      // source of `tags:scene>group`.
+      var srcHit = sourceOfMutation(q);
+      if (srcHit && !autoSuppressed()) {
+        var sids = srcHit.bulk
+          ? (v.input && v.input.ids) || []
+          : (v.input && v.input.id != null ? [v.input.id] : []);
+        if (sids.length) {
+          mutationSucceeded(p).then(function (ok) {
+            if (ok) reactToSources(srcHit.sourceType, sids);
+          });
+        }
+      }
     } catch (e) {
       // Not JSON, or no variables - nothing to match on.
     }
@@ -2814,6 +3027,10 @@
     targetParts: targetParts,
     resolveExclusionTagId: resolveExclusionTagId,
     targetOfMutation: targetOfMutation,
+    sourceOfMutation: sourceOfMutation,
+    SOURCE_REVERSE: SOURCE_REVERSE,
+    sourceFieldQuery: sourceFieldQuery,
+    sourceFilterQuery: sourceFilterQuery,
     AUTO_COOLDOWN_MS: AUTO_COOLDOWN_MS,
   };
 }());

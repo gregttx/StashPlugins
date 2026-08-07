@@ -2,23 +2,24 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — steps 1-5 done and step 6 half done, the plugin is at 0.5.0** (last checked 2026-08-07).
+**Status: BUILDING — steps 1-6 done, the plugin is at 0.6.0** (last checked 2026-08-07).
 All eight decisions are settled (§4) and every open question is closed (§6). The library-wide task
-is complete for **all thirteen paths**: it reviews, applies on Proceed and reverses on Undo, and a
-save of any target now triggers a reaction. Remaining: the **source** half of step 6, then the
-`declares` registry, manual buttons + staging, and the repo `CLAUDE.md` section. See §8.
+is complete for **all thirteen paths**, and both automatic modes now work: a save of any target
+triggers a refresh, and a save of anything an enabled path reads *from* fans out to every target it
+would have copied onto. Remaining: the `declares` registry, manual buttons + staging, and the repo
+`CLAUDE.md` section. See §8.
 
 Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.5.0, in all three places |
-| `PropagateTagsAndPerformers.js` | ~2,750 lines |
+| Version | 0.6.0, in all three places |
+| `PropagateTagsAndPerformers.js` | ~3,000 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) |
-| Test suites | 6 of the plugin's own, 19 in the repo, all passing |
-| Checks in the six | paths 60, base 64, plan 50, apply 43, sweep 30, auto 38 = **285** |
-| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 = **76** |
-| Landed on `main` | through 0.4.0 (`4c5bc96`); 0.5.0 is on `feat/propagate-auto` |
+| Test suites | 7 of the plugin's own, 20 in the repo, all passing |
+| Checks in the seven | paths 60, base 64, plan 50, apply 43, sweep 30, auto 38, auto-source 28 = **313** |
+| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 2 (spot-checked) = **78+** |
+| Landed on `main` | through 0.5.0 (`6fa9cad`); 0.6.0 is uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's
@@ -702,11 +703,24 @@ step 9 plus a run against a real Stash, not step 9 alone.
      *either way*. Same failure mode as step 5's two escapees: a check that cannot tell "refused to
      run" from "ran and found nothing".
 
-   **Not done: the source side** (`a4AutoOnSourceUpdate`). It needs a reverse lookup per path —
-   given a saved performer, which scenes? — which is a new column in the path table and thirteen
-   Stash filter shapes that cannot be verified from here. Until it lands the setting warns once to
-   the console that it does nothing, rather than sitting there looking like a mode that runs and
-   finds nothing.
+   **DONE, 0.6.0 — the source side** (`a4AutoOnSourceUpdate`). The reverse lookup this entry
+   predicted turned out cheaper than fearing "thirteen unverifiable filter shapes" suggested: ten of
+   the thirteen paths have a plain field on the source pointing back at what refers to it
+   (`Image.galleries`, `Gallery.scenes`, `Scene.groups`, `Group.scenes`, `Group.containing_groups`,
+   `SceneMarker.scene`), costing one query per saved entity and no filter guessing at all. Only
+   three — a performer's scenes, a studio's scenes and groups, a gallery's images — need the filter
+   shape this entry expected, and it is one shape (`<field>: { value: [$id], modifier: INCLUDES }`
+   on the target's own filter type) reused three times rather than thirteen invented ones. The two
+   two-hop paths (`tags:performer>group`, `tags:marker>group`) needed no second round trip: the
+   first hop's query simply asks for the second hop's field too, so `pick()` reads the final ids
+   straight out of one response.
+
+   Once the affected target ids are known, a source reaction *is* a target reaction: `runAutoTargets`
+   is what the target-side `reactToTargets` was split into, shared verbatim by both modes, so a
+   second planner never had the chance to exist. `tests/propagate-auto-source.test.js`, 28 checks,
+   spot-mutated rather than exhaustively (the two-hop `pick` for markers confirmed; the codebase's
+   usual "every branch, every mutant" discipline was traded for breadth across thirteen paths given
+   the size of the feature — a debt worth paying down before 1.0.0, not before this commit).
 7. Respecter registration (done at 0.1.0) and the `declares` registry (D3). **The only step that
    edits the sibling plugins**, both of which need their hardcoded two-way `checkSibling` replaced;
    both then need a version bump and their own suites re-run.

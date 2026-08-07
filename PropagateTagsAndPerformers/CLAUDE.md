@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.5.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.6.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -18,7 +18,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — the log names the source entity, not the path | **0.3.1** |
 | 5 | The two reverse-query paths (a gallery's images) | **0.4.0** |
 | 6 | Auto mode, target side, **and** the per-entity cooldown | **0.5.0** |
-| | — auto mode, source side (the fan-out) | — |
+| | — auto mode, source side (the fan-out) | **0.6.0** |
 | 7 | The `declares` registry | — |
 | 8 | Manual buttons and staging | — |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
@@ -355,8 +355,7 @@ reads as a stalled pass.
 
 The first thing here that writes without a Proceed button. Half of step 6: it reacts when one of the
 four **targets** is saved. The source side — a save of a performer, a studio, a marker fanning out
-to everything that reads it — is not built, and its setting warns once to the console rather than
-sitting there looking like a mode that runs and finds nothing.
+to everything that reads it — is §4e below, one minor version later.
 
 **`AutoRun` borrows `Run`'s planner rather than owning one.** `planEntry`, `plannedFor`,
 `addSource`, `aggregate` and `planTarget` are assigned onto its prototype from `Run`'s. This is the
@@ -422,6 +421,64 @@ the capital S breaks the word boundary — and the two read their ids from diffe
 **A reaction's failure is never rethrown into Stash's fetch chain.** The user's save succeeded; a
 failed reaction to it must not look like a failed save.
 
+## 4e. Auto mode, source side (0.6.0)
+
+The other half of step 6: a save of a **Performer, Studio, SceneMarker**, or of a Scene, Gallery,
+Image or Group acting as a *source* rather than a target, fans out to every target an enabled path
+would have copied it onto. Enabling this on a popular performer's tag is genuinely expensive — the
+setting's own description says so — but the mechanism reuses everything §4d built rather than
+carrying a second write path.
+
+**Once the affected target ids are known, a source reaction *is* a target reaction.**
+`runAutoTargets(target, ids, settings, label)` is what §4d's `reactToTargets` was split into: the
+cooldown, `guarded()`, the lease, `AutoRun`'s planner, all of it, called identically by both modes.
+The only thing this section adds is finding those ids — `resolveSourceTargets` — and a wider
+mutation matcher, `sourceOfMutation`, that recognises every entity type a `PATHS` entry ever reads
+from rather than only the four it ever writes to.
+
+**Two shapes of lookup, one per path, in `SOURCE_REVERSE`:**
+
+- **`kind: 'field'`** — most paths have a plain field on the source pointing back at what refers to
+  it: `Image.galleries`, `Gallery.scenes`, `Scene.groups`, `Group.scenes`, `Group.containing_groups`,
+  `SceneMarker.scene`. One query per saved entity, no filter guessing. `tags:marker>group` and
+  `performers:marker>group`'s tag counterpart chain two of these in **one** query rather than two
+  round trips — `scene { groups { group { id } } }` off a single `findSceneMarker` — because a
+  marker names exactly one scene, so there is nothing to page between the hops.
+- **`kind: 'filter'`** — three paths have no back-reference to walk: a Performer and a Studio carry
+  no field naming the Scenes or Groups that use them, and a Gallery has no `images` field, the same
+  reason the sweep exists (§4c). These go through a filter on the *target's* own filter type —
+  `scene_filter: { performers: { value: [$id], modifier: INCLUDES } }` — which is exactly the shape
+  `reverseQuery` already trusts Stash to have for `Image.galleries`, generalised, and no more
+  verified against a running instance than that was until 0.4.0. `tags:performer>group` reuses the
+  same `performers` filter as `tags:performer>scene` but asks for `groups { group { id } }` in the
+  same response, so the second hop costs nothing extra either.
+
+**Every one of the thirteen has an entry, and `propagate-auto-source.test.js` pins that a `PATHS`
+entry without one fails loudly** rather than silently doing nothing — the same shape of guarantee
+`propagate-paths.test.js` gives the settings table.
+
+**Filter-kind lookups page, field-kind lookups do not need to.** A performer with a six-figure scene
+count is exactly the unbounded-response hazard §4c already named; a marker's single `scene` field or
+a gallery's `scenes` list is not paginated in Stash's own schema, so there is nothing to page.
+
+**Sequential per source id, not one combined query, even for a bulk save.** Every other reverse
+lookup in this plugin already works this way — `AutoRun.reverseSources` fetches one target's sources
+at a time — and a bulk save of *sources* is the uncommon case here, not the one worth a second query
+shape for. The affected target ids are deduplicated across every source id before `runAutoTargets`
+sees them, so two performers naming the same scene refresh it once, not twice.
+
+**One save can be both a target and a source, and both reactions run.** A Scene is a target of its
+own paths and, via `tags:scene>group`, a source for its group's. `targetOfMutation` and
+`sourceOfMutation` are checked independently in the fetch wrapper off the same mutation, each gated
+on its own setting (`a3` / `a4`) and its own cooldown check, because they write to different
+entities and answer different questions — "refresh this" against "propagate this outward."
+
+**A source reaction resolves ids with plain reads, never mutations**, so nothing here needs
+`guarded()` of its own — only `runAutoTargets`'s write does, exactly as it did for the target side.
+The resolution queries do not match `targetOfMutation` or `sourceOfMutation` at all, being `find*`
+reads rather than `*Update` mutations, so there is no risk of a lookup being mistaken for a save
+worth reacting to.
+
 ## 5. The dialog (0.1.0)
 
 Ported from both siblings and deliberately identical to them: same head with a backup warning and an
@@ -473,7 +530,7 @@ of it apply unchanged:
 
 ## 7. Testing
 
-`node tests/run.js`. Five suites touch this plugin so far:
+`node tests/run.js`. Seven suites touch this plugin so far:
 
 - **`propagate-paths.test.js`** — the tables, and the invariants the order carries. See
   `tests/README.md`.
@@ -491,6 +548,16 @@ of it apply unchanged:
   Stop, Rescan, the leases, the arm/confirm latch, and that phase 2 reads nothing. It takes about
   nine seconds, four of which are spent waiting out `UNDO_ARM_MS` to prove an expired arm does not
   write. That wait is the check; do not shorten it by reaching into the constant.
+- **`propagate-auto.test.js`** — auto mode, target side (§4d): it reacts and writes an ADD delta;
+  restraint around the mode being off, no matching path, a rejected save, a deleted entity; that the
+  reaction never reacts to its own write; the per-entity cooldown, keyed and marked correctly; the
+  lease, honoured and released; bulk saves; the settings cache and its TTL; the exclusion filters;
+  and a reverse path reacting without sweeping the library.
+- **`propagate-auto-source.test.js`** — auto mode, source side (§4e): both lookup kinds, including a
+  two-hop `field` and a two-hop `filter`; that every `PATHS` entry has a `SOURCE_REVERSE` entry; the
+  same restraint suite as the target side, reused rather than re-derived because `runAutoTargets` is
+  the same code; a bulk save deduplicating across sources; and that a save which is both a target and
+  a source runs both reactions.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.**

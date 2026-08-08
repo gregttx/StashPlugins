@@ -1,17 +1,39 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.8.3, every step but the last has landed
+> ## 🚧 Under construction — 0.10.0, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
 > the two sibling plugins, and manual buttons with staging are now confirmed working on **all four
-> pages** — Scene, Gallery, Image and Group.
+> target pages** — Scene, Gallery, Image and Group — with a second set of buttons, added at 0.9.0,
+> on the **source's own page** instead: a performer, a studio, or one of those same four entities
+> acting as a source for another.
 >
 > Three fixes landed after real-Stash testing found real problems: 0.8.1 fixed the buttons not
 > appearing **anywhere** (a real-browser `childNodes` bug, not a placement problem); 0.8.2 fixed
 > Group specifically (its edit form uses a different container than Scene's); 0.8.3 fixed a height
 > inconsistency between buttons and stopped this plugin duplicating `MergePerformerTagsToScenes`'
-> own button for the one path they share. If you installed anything before 0.8.3, update.
+> own button for the one path they share. 0.9.0 fixed the height fix's blind spot (it was still
+> `btn-sm`, smaller than every neighbouring button regardless of row), fixed a button showing even
+> when its source did not exist at all, renamed every button to a consistent
+> `"Copy [Tags|Perfs] [to|from] all <plural>"` convention (`MergePerformerTagsToScenes` 1.12.1
+> renamed its two to match), and added the source-side buttons above. 0.9.1 fixed two more
+> live-tested problems with those same buttons: both kinds were landing **after** Stash's own
+> Save/Delete rather than grouping with them, and a page with two enabled paths wrapped its second
+> button onto a row with no gap above it. 0.9.1's fix for that second problem was itself a bug,
+> caught by the next round of real-Stash testing: the vertical margin it added grew *Stash's own*
+> Save/Delete/Submit buttons taller, since a flex row stretches every button on it to match the
+> tallest one sharing it. 0.9.2 moves that spacing onto the container as a `row-gap` instead, which
+> cannot leak into another button's height the way a margin can. If you installed anything before
+> 0.9.0, update — and update `MergePerformerTagsToScenes` to 1.13.0 or newer alongside it, or its
+> Performer/Scene buttons and this plugin's will duplicate on the one path they share.
+>
+> 0.10.0 fixes something a live install with both plugins' manual buttons enabled found: on a page
+> where both plugins add a button to the same row (Scene, Performer), each one independently placed
+> itself immediately before Save/Delete, so whichever plugin's button finished its own eligibility
+> check last ended up closest to it - a detail decided by network timing, not a rule, and it could
+> flip between page loads. The two plugins now agree on a fixed relative order regardless of which
+> one finishes first; see "Relationship to the other plugins in this repo" below.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -29,7 +51,11 @@
 > | Automatic mode when the **target** is saved, with the per-entity cooldown | **done** (0.5.0) |
 > | Automatic mode when the **source** is saved, fanning out to its targets | **done** (0.6.0) |
 > | Cooperating with `MergePerformerTagsToScenes` and `NormalizeParentTags` | **done** (0.7.0) |
-> | Manual buttons and staging | **done; confirmed on all four pages** (0.8.0, fixed 0.8.1 + 0.8.2 + 0.8.3) |
+> | Manual buttons and staging, target side | **done; confirmed on all four pages** (0.8.0 – 0.8.3) |
+> | Button fixes, renamed buttons, and manual buttons on the source side | **done** (0.9.0) |
+> | Button placement (before Save/Delete) and wrapped-row spacing | **done** (0.9.1) |
+> | Wrapped-row spacing redone as `row-gap`, fixing 0.9.1's button-growth regression | **done** (0.9.2) |
+> | Deterministic ordering against `MergePerformerTagsToScenes`' buttons in the same row | **done** (0.10.0) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -190,11 +216,30 @@ Both automatic modes share the rest of their behaviour:
   being accepted, and copying tags onto an entity because of an edit that never happened would be
   the worst kind of surprise.
 
-## Manual buttons and staging (0.8.0)
+## Manual buttons and staging (0.8.0 – 0.9.2)
 
 With **Show Manual Buttons** on, each enabled path adds a small button to the Edit tab of its
 target — a scene with the performer-tags and studio-tags paths both enabled shows two buttons, not
-one that tries to name both, and a path with no button setting simply has no button.
+one that tries to name both, and a path with no button setting simply has no button. Since 0.9.0,
+each button is also labelled consistently: `"Copy [all|common] [Tags|Perfs] from all <plural>"` —
+for example **"Copy all Tags from all Performers"** on a scene, or **"Copy common Tags from all
+Scenes"** on a group if you have turned on that path's "common tags only" setting.
+
+Since 0.9.1, a button lands **beside Save and Delete rather than after them** — grouped with
+Stash's own non-destructive actions, the same placement `MergePerformerTagsToScenes`' button
+already uses, rather than trailing behind. On a page with two enabled paths, the row now also gets
+a small gap between its two lines when it wraps, rather than the second row sitting flush against
+the first. 0.9.1 supplied that gap with a margin on the buttons themselves, which turned out to
+grow Stash's own Save/Delete/Submit buttons taller too — a flex row stretches every button sharing
+it to match whichever one is tallest. 0.9.2 moves the gap onto the row itself instead, which does
+not have that effect.
+
+A button only appears when its source actually exists — a scene with no performers gets no
+performer-tags button, a group with no studio gets no studio-tags button — but it does **not**
+check whether there is anything *new* to copy: a scene whose performers' tags are already all
+present still shows the button, and clicking it reports "No changes." Hiding a button that would
+genuinely add something is worse than one that occasionally does nothing, so this plugin only ever
+hides for a source that is not there at all.
 
 Clicking one does one of two things, depending on **Save Immediately**:
 
@@ -213,9 +258,36 @@ Stash version has changed markup this plugin has not seen yet — reports the pr
 rather than silently doing nothing.
 
 **If `MergePerformerTagsToScenes` is also installed and showing its own button for the same path**
-("Add Perf Tags" on the scene page, today the only path the two plugins share), this plugin does
-not add a second one next to it (0.8.3). Nothing else changes: click MPTTS's button and you get its
-behaviour; enable more paths here and you still get buttons for all of them, this one path aside.
+("Copy Tags to all Scenes" on the performer page, "Copy all Tags from all Performers" on the scene
+page — today the only path the two plugins share), this plugin does not add a second one next to
+it (0.8.3, and again for the new source-side button at 0.9.0 — see below). Nothing else changes:
+click MPTTS's button and you get its behaviour; enable more paths here and you still get buttons
+for all of them, this one path aside. This needs `MergePerformerTagsToScenes` 1.12.1 or newer,
+which renamed its two buttons to match; an older copy's buttons will not be recognised and both
+plugins' buttons will show.
+
+### Source-side buttons (0.9.0)
+
+The buttons above pull tags or performers *in* to whatever page you are viewing. Eleven of the
+thirteen paths also offer the reverse: a button on the **source's own page** that pushes its tags
+or performers *out* to everything an enabled path reaches — a performer's own page gets **"Copy
+Tags to all Scenes"** and **"Copy Tags to all Groups"**, a studio's page the same two, and a
+scene, gallery, image or group's own page (not its Edit tab — its ordinary detail view) gets
+whichever of its own outgoing paths are enabled.
+
+Two paths have no source button: a scene marker has no page of its own to put one on, being
+something you view inside a scene's Markers tab rather than a page you navigate to directly.
+
+Source-side buttons always save immediately, with no staging option — one click can resolve to
+many different entities across many different pages at once, and there is no single form to stage
+the result into. Everything else works the same as the target-side buttons: existence gating, the
+dedup check against `MergePerformerTagsToScenes`, the same **Show Manual Buttons** toggle, and,
+since 0.9.1, landing before Delete rather than after it.
+
+**Placement beyond the performer and studio pages is unverified against a running Stash.** The
+target-side buttons went through three rounds of live fixes (0.8.1 – 0.8.3) before all four of
+their pages were confirmed; the source-side buttons are new at 0.9.0 and have not had that
+round yet. If one is missing on a page it should be on, that is most likely it.
 
 ## Installing
 
@@ -232,7 +304,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.8.3 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.10.0 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 
@@ -259,7 +331,9 @@ or the Logs page — this is a UI plugin and cannot write there).
 - **`MergePerformerTagsToScenes`** implements one of these paths. Both can be installed and enabled
   at once; both only ever add, so the overlap is redundant work rather than wrong data, and the
   task dialog names it in the log when both are covering `Tags: Performers → Scenes`. This works for
-  any future plugin doing the same kind of copy too, not just this one by name.
+  any future plugin doing the same kind of copy too, not just this one by name. Where both plugins'
+  manual buttons land in the same row (Scene, Performer), the two agree on a fixed relative order
+  (0.10.0) rather than whichever one's eligibility check happens to finish first.
 - **`NormalizeParentTags`** walks the *tag hierarchy* instead of entity relationships, so the two
   compose rather than overlap: propagate tags onto an entity, then prune or roll up the parents. Its
   automatic modes and this plugin's stand down for one another while either is writing in bulk. And

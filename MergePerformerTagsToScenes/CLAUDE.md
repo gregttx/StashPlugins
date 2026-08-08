@@ -5,8 +5,39 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.12.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.13.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
+"Add Perf Tags" → "Copy all Tags from all Performers" — to match the naming convention
+`PropagateTagsAndPerformers` settled on ("Copy [all|common] [Tags|Perfs] [to|from] all
+<plural>") when it grew its own source-side buttons for the same path. Purely cosmetic on this
+side, but load-bearing on the other: that plugin's manual-button dedup (§7d here, `declares` on
+its side) matches on this exact label text to tell "another plugin's button is showing" from
+"it only could be" - unrenamed, the two plugins' buttons for `tags:performer>scene` would no
+longer text-match and both would show at once, the exact duplicate this protocol exists to
+prevent.
+
+**1.12.2 fixed the scene button's own placement.** Live-tested against
+`PropagateTagsAndPerformers` 0.9.2 with a second button sharing `.edit-buttons`: ours was
+consistently the one left dangling alone on a wrapped second line, because `addSceneButton`
+placed it with a plain `container.appendChild(button)` — landing after Save and Delete — while
+its sibling, the performer button, has always grouped itself with the other non-destructive
+actions via `insertBeforeDelete`. With only one button in the row this was invisible; DOM order
+decides wrap order, and a button appended last is the one that overflows first. Fixed by giving
+the scene button the same `insertBeforeSave` treatment `PropagateTagsAndPerformers` already uses
+for its own target-side buttons — see §5.
+
+**1.13.0 makes the relative order of the two plugins' buttons deterministic**, where 1.12.2 only
+made sure both landed on the same side of Save/Delete. Both plugins' insertion functions re-find
+the anchor's live position and insert immediately before it, so with two plugins doing that
+independently, whichever one's async eligibility check resolved last ended up closest to the
+anchor — a race decided by network timing that could flip between page loads. `coop().order` fixes
+a priority per plugin (this one registers 20, `PropagateTagsAndPerformers` registers 10) and
+`insertOrdered` reads it back off each button's `_coopOwner`, so the same relative order comes out
+regardless of which plugin's check finishes first. Full reasoning in the repo-root CLAUDE.md
+("Cross-plugin cooperation: deterministic button ordering"); see §5 below for what is specific to
+this plugin's own two buttons.
 
 ---
 
@@ -21,8 +52,8 @@ Five entry points share one core:
 
 | Path | Trigger | Saves? |
 | --- | --- | --- |
-| Performer button, "Add Tags to Scene(s)" | click on the performer detail view | yes, every scene of the performer |
-| Scene button, "Add Perf Tags" | click on the scene Edit tab | **stages** by default; saves if `saveTagsImmediately` |
+| Performer button, "Copy Tags to all Scenes" | click on the performer detail view | yes, every scene of the performer |
+| Scene button, "Copy all Tags from all Performers" | click on the scene Edit tab | **stages** by default; saves if `saveTagsImmediately` |
 | Auto-merge on scene update | `sceneUpdate` / `bulkSceneUpdate` seen in `fetch` | yes |
 | Auto-merge on performer update | `performerUpdate` / `bulkPerformerUpdate` seen in `fetch` | yes, every scene of the performer |
 | Library-wide task (1.2.0, review pass 1.3.0) | click in Settings - Tasks - Plugin Tasks | yes, after the user presses **Proceed** |
@@ -151,12 +182,32 @@ is identified by its **Delete button**, which only the detail view renders. `ins
 walks up from Delete to whichever node is the container's own child, because `insertBefore` only
 accepts a direct child as its reference node.
 
+**The scene button gets the same treatment, against Save (1.12.2).** `.edit-buttons` carries no
+dedicated class for Save the way Delete has one, so `findButtonByLabel` walks the container's
+`childNodes` looking for a `BUTTON` whose `textContent` is exactly `'Save'`, and `insertBeforeSave`
+walks up from there to the container's own child, the same wrapper-handling `insertBeforeDelete`
+already does. Before 1.12.2 the scene button was simply `appendChild`ed — landing after Save and
+Delete, invisible with one button in the row but the one left to wrap onto its own line the moment
+a second button (`PropagateTagsAndPerformers`' own) shares the row and DOM order decides who
+overflows first. `PropagateTagsAndPerformers` carries the identical two functions under the same
+names for its own target-side buttons; the two are separate copies because the plugins share no
+module, not because the logic differs.
+
+**Both `insertBeforeDelete` and `insertBeforeSave` finish through `insertOrdered` (1.13.0)**, not a
+raw `container.insertBefore(button, anchor)`. Finding the anchor is unchanged; what changed is what
+happens once it is found — `insertOrdered` walks back over already-placed siblings, skipping any
+owned (`_coopOwner`) by a plugin `coop().order` ranks higher than this one's own 20, so a button
+`PropagateTagsAndPerformers` (registered at 10) already placed is never displaced from Save or
+Delete by this plugin's own insertion. See the repo-root CLAUDE.md for the full mechanism; this
+plugin's own two button builders (`addPerformerButton`, `addSceneButton`) are what tag their
+elements with `_coopOwner = PLUGIN_ID` before calling `insertBeforeDelete`/`insertBeforeSave`.
+
 **`performerCheck` / `sceneCheck`** cache per-id eligibility (`pending`/`yes`/`no`) so `tick()` —
 which runs every second and on every DOM mutation burst — does not re-query. They are invalidated
 by navigation and by the save-detection branches in §3, not by polling; a change made elsewhere
 (another tab, a bulk edit) is not noticed until one of those happens.
 
-**Caption flashing.** The scene button's messages are each shorter than "Add Perf Tags" so the
+**Caption flashing.** The scene button's messages are each shorter than "Copy all Tags from all Performers" so the
 button never changes width, and `_sceneFlashToken` makes a later click supersede a running
 sequence instead of the two fighting over the caption.
 
@@ -484,6 +535,22 @@ so in three places because users keep looking there.
 `node tests/run.js`. Five suites touch this plugin: `merge-logic`, `placement` (needs `jsdom`),
 `logging`, `staging`, `merge-task`, plus `coop` for the lease. See `tests/README.md` for what each
 covers.
+
+`placement.test.js` also covers the 1.12.2 scene-button fix, in its own Scene Edit tab section
+using an `.edit-buttons` fixture rather than the performer page's dual-container one: the button
+lands immediately before Save rather than appended after Save/Delete, is not the row's last child,
+and a Save nested inside a wrapper element is still handled correctly. Confirmed to fail (3 of the
+suite's 16 checks) against a copy with `addSceneButton`'s pre-1.12.2 plain `appendChild`.
+
+Since 1.13.0 it also covers deterministic ordering (`coop().order`): this plugin registers priority
+20 at load; a lower-priority foreign button (`PropagateTagsAndPerformers`, seeded at 10 via
+`_coopOwner` on a fixture element, since the harness only ever runs this plugin's own script) is
+not displaced from Save when this plugin's own scene button inserts; and, the direction that
+actually exercises `insertOrdered`'s skip branch rather than passing by coincidence, a *higher*-
+priority foreign button (a fictitious 30, since nothing in this repo currently outranks 20) is not
+displaced either - this plugin's own button yields and lands on the far side of it instead.
+Confirmed against a copy with `insertOrdered` reverted to a plain `container.insertBefore(button,
+anchor)`, which fails exactly those two checks and nothing else.
 
 `merge-task.test.js` runs on `npt-harness.js` rather than `harness.js`, because the task builds a
 dialog and `harness.js` fakes only enough DOM for a plugin that injects a button. That harness now

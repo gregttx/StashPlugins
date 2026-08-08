@@ -1,5 +1,5 @@
 // Reproduces Stash's two performer-page markup states in jsdom and checks where the
-// "Add Tags to Scene(s)" button lands.
+// "Copy Tags to all Scenes" button lands.
 //
 // This is the only suite needing a real DOM: the plugin has to distinguish two
 // containers Stash gives the same class, which a stub document cannot express.
@@ -21,6 +21,39 @@ try {
 const SRC = process.env.SRC || path.join(
   __dirname, '..', 'MergePerformerTagsToScenes', 'MergePerformerTagsToScenes.js');
 const BTN = '.cpt2s-merge-to-scenes-btn';
+const SCENE_BTN = '.cpt2s-merge-from-perfs-btn';
+
+// Scene Edit tab: `.edit-buttons`, no dual-container ambiguity like the performer
+// page. Save has no dedicated class, so the button carries no marker of its own -
+// same shape `PropagateTagsAndPerformers` builds a scene edit row from.
+const SCENE_EDIT_VIEW = `
+  <div id="scene-page">
+    <div class="edit-buttons">
+      <button class="btn btn-secondary" type="button">Save</button>
+      <button class="btn btn-danger delete">Delete</button>
+    </div>
+  </div>`;
+
+const SCENE_EDIT_VIEW_WRAPPED = `
+  <div id="scene-page">
+    <div class="edit-buttons">
+      <div class="d-inline"><span><button class="btn btn-secondary" type="button">Save</button></span></div>
+      <button class="btn btn-danger delete">Delete</button>
+    </div>
+  </div>`;
+
+// Simulates PropagateTagsAndPerformers having already inserted its own button
+// before this plugin's own tick runs - the deterministic-ordering case
+// (`coop().order`, repo-root CLAUDE.md) that used to be a race decided by whichever
+// plugin's async check resolved last. `id="foreign-btn"` is how the test locates it
+// to tag it with `_coopOwner`, a JS property that cannot be expressed in markup.
+// No whitespace between the three buttons - React never renders adjacent JSX
+// elements with a text node between them the way an indented HTML literal would,
+// and a stray whitespace sibling here would only test this fixture, not the plugin.
+const SCENE_EDIT_VIEW_WITH_FOREIGN = '<div id="scene-page"><div class="edit-buttons">' +
+  '<button class="btn btn-secondary" id="foreign-btn">Copy Tags to all Scenes</button>' +
+  '<button class="btn btn-secondary" type="button">Save</button>' +
+  '<button class="btn btn-danger delete">Delete</button></div></div>';
 
 // DetailsEditNavbar: the read-only detail view. Delete is rendered only when not editing.
 const DETAIL_VIEW = `
@@ -79,6 +112,9 @@ win.fetch = function (url, o) {
       findPerformer: { tags: performerTags },
       findScenes: { count: 4 },
     } }));
+  }
+  if (q.indexOf('FindScenePerformers') !== -1) {
+    return Promise.resolve(makeResponse({ data: { findScene: { performers: [{ id: '1' }] } } }));
   }
   return Promise.resolve(makeResponse({ data: {} }));
 };
@@ -166,6 +202,79 @@ function check(name, cond, extra) {
   await sleep(2500);
   check('button appears after the performer is saved with new tags, without a reload',
     !!btn());
+
+  // ── Scene Edit tab: the scene button's own placement ────────────────────────
+  //
+  // Live-tested (1.12.2): with `PropagateTagsAndPerformers` also adding a button to
+  // this row, the scene button was consistently the one left dangling on its own
+  // wrapped line, because it landed after Save/Delete via a plain `appendChild`
+  // rather than grouping with the other non-destructive actions the way the
+  // performer button already does via `insertBeforeDelete`.
+  console.log('\nScene button placement');
+
+  win.history.pushState({}, '', '/scenes/55');
+  root().innerHTML = SCENE_EDIT_VIEW;
+  await sleep(2500); // settings load + scene performer check + a tick to inject
+
+  const sbtn = () => win.document.querySelector(SCENE_BTN);
+  const sceneOrder = () => Array.from(win.document.querySelectorAll('.edit-buttons > *'))
+    .map((n) => n.textContent.trim()).join(' | ');
+  const s = sbtn();
+  check('scene button injected', !!s);
+  check('scene button lands before Save, not appended after Save/Delete',
+    !!s && s.nextElementSibling && s.nextElementSibling.textContent.trim() === 'Save',
+    'order: ' + sceneOrder());
+  check('scene button is not last in the row', !!s && s.parentNode.lastElementChild !== s,
+    'order: ' + sceneOrder());
+
+  // Save nested inside a wrapper element - insertBefore only accepts a direct child
+  // as the reference node, so the walk-up has to find the wrapper, not Save itself.
+  root().innerHTML = SCENE_EDIT_VIEW_WRAPPED;
+  await sleep(1500);
+  const sw = sbtn();
+  check('handles a Save button nested in a wrapper element',
+    !!sw && sw.nextElementSibling && !!sw.nextElementSibling.querySelector('button'),
+    sw ? 'next sibling: ' + (sw.nextElementSibling && sw.nextElementSibling.outerHTML) : 'no button');
+
+  // Deterministic ordering against another plugin's button (coop().order): this
+  // plugin registers priority 20, closer to Save/Delete than
+  // PropagateTagsAndPerformers' own 10, so its button always lands adjacent to Save
+  // regardless of whether the other plugin's button was already there first.
+  check('registers its own priority in coop().order at load',
+    win.StashPluginCoop && win.StashPluginCoop.order.MergePerformerTagsToScenes === 20,
+    win.StashPluginCoop && JSON.stringify(win.StashPluginCoop.order));
+  win.StashPluginCoop.order.PropagateTagsAndPerformers = 10;
+  root().innerHTML = SCENE_EDIT_VIEW_WITH_FOREIGN;
+  win.document.getElementById('foreign-btn')._coopOwner = 'PropagateTagsAndPerformers';
+  await sleep(1500);
+  const ordered = sbtn();
+  const orderedRow = sceneOrder();
+  check('a lower-priority foreign button already there is not displaced from Save',
+    !!ordered && ordered.nextElementSibling && ordered.nextElementSibling.textContent.trim() === 'Save',
+    'order: ' + orderedRow);
+  check('our own scene button lands on the near side of it, adjacent to Save',
+    !!ordered && ordered.previousElementSibling &&
+    ordered.previousElementSibling.id === 'foreign-btn',
+    'order: ' + orderedRow);
+
+  // The other direction: a foreign button registered *higher* than this plugin's
+  // own 20 must not be displaced from Save either - proves this plugin's own
+  // insertOrdered actually defers when it is the lower-priority side, rather than
+  // only ever landing next to the anchor because nothing else in this repo
+  // currently outranks it.
+  win.StashPluginCoop.order.SomeNewerPlugin = 30;
+  root().innerHTML = SCENE_EDIT_VIEW_WITH_FOREIGN;
+  win.document.getElementById('foreign-btn')._coopOwner = 'SomeNewerPlugin';
+  await sleep(1500);
+  const outranked = sbtn();
+  const outrankedRow = sceneOrder();
+  check('a higher-priority foreign button already there is not displaced from Save',
+    !!outranked && win.document.getElementById('foreign-btn').nextElementSibling &&
+    win.document.getElementById('foreign-btn').nextElementSibling.textContent.trim() === 'Save',
+    'order: ' + outrankedRow);
+  check('our own scene button yields, landing on the far side of it instead',
+    !!outranked && outranked.nextElementSibling && outranked.nextElementSibling.id === 'foreign-btn',
+    'order: ' + outrankedRow);
 
   console.log(failures === 0
     ? '\n' + passes + ' check(s) passed.'

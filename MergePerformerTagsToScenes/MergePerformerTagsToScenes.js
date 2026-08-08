@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.12.0';
+  var PLUGIN_VERSION      = '1.13.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -86,6 +86,7 @@
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
     if (!c.declares) c.declares = {};
+    if (!c.order) c.order = {};
     return c;
   }
 
@@ -111,6 +112,16 @@
   // Registered at load so a bulk plugin can tell "will stand down" apart from "too
   // old to know about leases" and warn the user accordingly.
   coop().respecters[PLUGIN_ID] = true;
+
+  // A fixed, agreed priority for the deterministic-ordering protocol below
+  // (`insertOrdered`) - not a capability like `respecters`, but a number both sides
+  // have to pick once and keep consistent, the same way the two plugins pin their
+  // overlapping CSS byte-identical. Higher sits closer to Save/Delete; this plugin's
+  // performer and scene buttons were on the page first, so they keep that position
+  // and PropagateTagsAndPerformers (registered at 10) lands to their left instead of
+  // racing them for it. Gaps of 10 leave room for a third plugin to slot in without
+  // renumbering either existing value.
+  coop().order[PLUGIN_ID] = 20;
 
   // Declared at load, unconditionally: this plugin always performs this one path,
   // via its buttons at minimum, whatever its auto-merge settings say. `declares` is
@@ -151,7 +162,7 @@
     if (_warnedNoStaging || settings.saveTagsImmediately || _tagPatchInstalled) return;
     _warnedNoStaging = true;
     console.warn('[cpt2s] tag staging is unavailable — this Stash does not expose PluginApi ' +
-      'component patching, so "Add Perf Tags" will merge and save directly.');
+      'component patching, so "Copy all Tags from all Performers" will merge and save directly.');
   }
   // Depth of merge work currently in flight. A counter rather than a boolean so
   // that overlapping flows (a bulk update racing a single update, a manual button
@@ -2041,7 +2052,7 @@
     return p;
   };
 
-  // ── Performer page: "Add Tags to Scene(s)" ────────────────────────────────
+  // ── Performer page: "Copy Tags to all Scenes" ─────────────────────────────
 
   var performerCheck = null; // { id, status: 'pending'|'yes'|'no' }
 
@@ -2095,8 +2106,62 @@
   function insertBeforeDelete(container, button) {
     var node = container.querySelector('button.delete');
     while (node && node.parentNode !== container) node = node.parentNode;
-    if (node) container.insertBefore(button, node);
-    else container.appendChild(button);
+    insertOrdered(container, button, node);
+  }
+
+  // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,
+  // "Cross-plugin cooperation: deterministic button ordering"). Both this plugin's
+  // and PropagateTagsAndPerformers' `insertBeforeSave`/`insertBeforeDelete` used to
+  // always insert immediately before their anchor, so with both enabled, whichever
+  // plugin's async eligibility check happened to resolve last ended up closest to
+  // Save/Delete - a race decided by network timing, not a rule, and it could flip on
+  // every reload. `coop().order` fixes a priority per plugin id; a button already
+  // sitting there and owned by a higher-priority plugin is skipped over rather than
+  // displaced, so this plugin's own button always lands on the low-priority side of
+  // it regardless of which plugin inserted first. `anchor` may be null (no Save or
+  // Delete found at all), in which case there is nothing to order against.
+  function insertOrdered(container, button, anchor) {
+    if (!anchor) { container.appendChild(button); return; }
+    var order = coop().order;
+    var myPriority = order[PLUGIN_ID] || 0;
+    var ref = anchor;
+    var scan = anchor.previousSibling;
+    while (scan) {
+      var ownerPriority = scan._coopOwner ? (order[scan._coopOwner] || 0) : null;
+      if (ownerPriority === null || ownerPriority <= myPriority) break;
+      ref = scan;
+      scan = scan.previousSibling;
+    }
+    container.insertBefore(button, ref);
+  }
+
+  // The scene button's counterpart: `.edit-buttons` has no dedicated class for Save
+  // the way Delete carries one, so this matches on the button's own text instead. A
+  // plain recursive walk over `childNodes`/`tagName`, not `querySelectorAll`, so it
+  // needs nothing beyond what every DOM node — real or a test harness's — already
+  // implements. Live-tested (1.12.2): the scene button was landing after Save/Delete,
+  // via a plain `appendChild`, unlike this container's own `insertBeforeDelete` above
+  // — invisible with one button in the row, but with `PropagateTagsAndPerformers` also
+  // adding one, ours was consistently the one left to wrap onto its own line whenever
+  // the row ran out of width, since DOM order decides wrap order and ours was last.
+  function findButtonByLabel(root, label) {
+    var kids = root.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.tagName === 'BUTTON' && (k.textContent || '') === label) return k;
+      var found = findButtonByLabel(k, label);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // Save may be nested inside a wrapper element, so walk up to whichever node is the
+  // container's own child, same as `insertBeforeDelete` above. Falls back to
+  // `appendChild` when no Save button is found at all.
+  function insertBeforeSave(container, button) {
+    var node = findButtonByLabel(container, 'Save');
+    while (node && node.parentNode !== container) node = node.parentNode;
+    insertOrdered(container, button, node);
   }
 
   function removePerformerButton() {
@@ -2133,10 +2198,15 @@
 
     var button = document.createElement('button');
     button.type = 'button';
+    button._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
     // mx-2 rather than ml-2: the button now sits between two of Stash's own buttons,
     // so it needs breathing room on both sides instead of just the left.
     button.className = 'btn btn-secondary mx-2 ' + PERFORMER_BTN_CLASS;
-    button.textContent = 'Add Tags to Scene(s)';
+    // "Copy Tags to all Scenes", not the older "Add Tags to Scene(s)": harmonized
+    // with PropagateTagsAndPerformers' naming convention, since that plugin's own
+    // manual-button dedup (§7d's `declares`) matches on this exact label text to
+    // decide whether its own identical-path button is already showing here.
+    button.textContent = 'Copy Tags to all Scenes';
     // The scene set comes from a findScenes query keyed only on this performer, not
     // from the list below, so say so — an active filter looks like it ought to apply.
     button.title = "Add this performer's tags to every scene featuring them. " +
@@ -2166,7 +2236,7 @@
     insertBeforeDelete(container, button);
   }
 
-  // ── Scene page: "Add Perf Tags" ───────────────────────────────────────────
+  // ── Scene page: "Copy all Tags from all Performers" ───────────────────────
 
   var sceneCheck = null; // { id, status: 'pending'|'yes'|'no' }
   var _sceneFlashToken = 0;
@@ -2209,8 +2279,11 @@
 
     var button = document.createElement('button');
     button.type = 'button';
+    button._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
     button.className = 'btn btn-secondary ml-2 ' + SCENE_BTN_CLASS;
-    button.textContent = 'Add Perf Tags';
+    // "Copy all Tags from all Performers", not the older "Add Perf Tags" - same
+    // harmonization as the performer button above.
+    button.textContent = 'Copy all Tags from all Performers';
     function updateSceneButtonTitle() {
       button.title = stagingActive()
         ? "Add all performer tags to the tag box for review — you still have to press Save"
@@ -2226,8 +2299,8 @@
       var orig = btn.textContent;
 
       // Shows each message in turn and then restores the caption. Splitting the
-      // messages keeps every one of them shorter than "Add Perf Tags", so the button
-      // never changes width. The token makes a later click supersede a running
+      // messages keeps every one of them shorter than the button's own label, so the
+      // button never changes width. The token makes a later click supersede a running
       // sequence instead of the two fighting over the caption.
       function flash() {
         var texts = Array.prototype.slice.call(arguments);
@@ -2281,7 +2354,7 @@
         })
         .catch(fail);
     });
-    container.appendChild(button);
+    insertBeforeSave(container, button);
   }
 
   // ── Main loop ─────────────────────────────────────────────────────────────

@@ -99,7 +99,7 @@ function setup(opts) {
 }
 
 function click(env) {
-  const btn = { textContent: 'Add Perf Tags', disabled: false };
+  const btn = { textContent: 'Copy all Tags from all Performers', disabled: false };
   env.clicks[env.clicks.length - 1]({ preventDefault() {}, currentTarget: btn });
   return btn;
 }
@@ -130,15 +130,15 @@ function click(env) {
       H.sceneUpdates(env.calls).length === 0, JSON.stringify(H.sceneUpdates(env.calls)));
     H.check('button reports the staged count', btn.textContent === 'Added 1', btn.textContent);
     H.check('count message fits within the original caption',
-      btn.textContent.length <= 'Add Perf Tags'.length, btn.textContent);
+      btn.textContent.length <= 'Copy all Tags from all Performers'.length, btn.textContent);
     await new Promise((r) => setTimeout(r, 1600));
     H.check('then flashes the save prompt separately',
       btn.textContent === 'Save pending', btn.textContent);
     H.check('save prompt also fits within the original caption',
-      btn.textContent.length <= 'Add Perf Tags'.length, btn.textContent);
+      btn.textContent.length <= 'Copy all Tags from all Performers'.length, btn.textContent);
     await new Promise((r) => setTimeout(r, 1600));
     H.check('and finally restores the caption',
-      btn.textContent === 'Add Perf Tags', btn.textContent);
+      btn.textContent === 'Copy all Tags from all Performers', btn.textContent);
   }
 
   // ── clicking twice without saving ──────────────────────────────────────────
@@ -264,7 +264,7 @@ function click(env) {
     patches.TagSelect({ isMulti: true, onSelect: form.onSetTags, values: form.tags });
     patches.TagSelect(decoy); // renders last
     await H.flush();
-    const btn = { textContent: 'Add Perf Tags', disabled: false };
+    const btn = { textContent: 'Copy all Tags from all Performers', disabled: false };
     clicks[clicks.length - 1]({ preventDefault() {}, currentTarget: btn });
     await H.flush(60);
     H.check('a decoy rendered last does not steal the tags', !decoy.hit);
@@ -287,7 +287,7 @@ function click(env) {
     // No ctx.PluginApi at all.
     H.run(ctx);
     await H.flush();
-    const btn = { textContent: 'Add Perf Tags', disabled: false };
+    const btn = { textContent: 'Copy all Tags from all Performers', disabled: false };
     clicks[clicks.length - 1]({ preventDefault() {}, currentTarget: btn });
     await H.flush(40);
     H.check('without PluginApi the button falls back to merging and saving',

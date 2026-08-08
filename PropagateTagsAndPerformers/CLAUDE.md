@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.8.3.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.10.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -21,6 +21,10 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — auto mode, source side (the fan-out) | **0.6.0** |
 | 7 | The `declares` registry, **and** NormalizeParentTags awareness | **0.7.0** |
 | 8 | Manual buttons and staging | **0.8.0**, fixed at 0.8.1, 0.8.2 and 0.8.3 |
+| | — button size and enabling-logic fixes, source-side buttons, the naming convention | **0.9.0** |
+| | — placement (before Save/Delete, not after) and wrapped-row spacing | **0.9.1** |
+| | — wrapped-row spacing redone as `row-gap`: 0.9.1's `my-1` grew Stash's own buttons | **0.9.2** |
+| | — deterministic ordering against `MergePerformerTagsToScenes`' buttons (`coop().order`) | **0.10.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Step 8 placement is now confirmed live on all four target pages.** Scene, Gallery and Image use
@@ -677,6 +681,235 @@ this plugin's staged item deliberately mirrors (`{ id, name, aliases: [], image_
 empty rather than omitted, on the chance the control's renderer expects the keys to exist even
 when there is nothing in them.
 
+## 5c. Button size, enabling logic, naming, and the source side (0.9.0)
+
+Four "Button Improvement" TODOs came out of the same round of 0.8.x live testing, discussed with
+the user before any of them were built (§8 records the discussion and the decisions). Two were
+built as fixes, one as a rename, and one — deliberately narrower than first discussed — as a new
+half of the feature. Improvement 4 (hide a button that would add nothing) stayed a deferred
+"maybe": the user's stated preference is a button that is sometimes unneeded over one that is
+missing when it was needed, and that preference is exactly what 0.9.0's existence gating below is
+careful not to violate.
+
+**Button size (Improvement 1) was never actually about `align-items: stretch`.** 0.8.3 fixed a
+*relative* problem — our own buttons rendering at two different heights depending on which row they
+landed in — with `align-self: flex-start`. It did not fix the *absolute* one: every manual button
+still used the shared `button()` helper, which carries `btn-sm` for the dialog's own footer.
+`MergePerformerTagsToScenes`' on-page buttons and Stash's own Save/Delete carry plain
+`btn btn-secondary` with no size modifier, so a `btn-sm` button beside them read smaller — in both
+height *and* font-size — on every row, not only a mismatched one. `buildManualButton` now builds
+its own element with `el()` instead of calling `button()`, and `align-self: flex-start` stays, since
+dropping `btn-sm` does not remove the *relative* hazard, only shrinks how often it would be visible.
+
+**Enabling logic (Improvement 2) is existence gating, and it is deliberately not Improvement 4.**
+The live bug: "Add Perf Tags" already hid itself when a scene had no performers, because
+`MergePerformerTagsToScenes`' own scene button gates on exactly that (`checkSceneHasPerformers`) —
+but every other manual button here showed regardless, since eligibility gating was walked back at
+0.8.0 on purpose (see the `a1ShowManualButtons` setting history). That inconsistency, not the
+absence of full eligibility gating, is the bug: a button should hide when its *source does not
+exist at all*, the same question `MergePerformerTagsToScenes` already answers for its one button —
+not "would a click actually change anything," which stays Improvement 4's question and stays
+deferred.
+
+**`MergePerformerTagsToScenes`' own *performer*-page button is stricter still, and deliberately not
+matched.** Its `checkPerformerHasScenes` gates on `hasTags && hasScenes` — the performer must carry
+at least one tag, not merely appear in a scene — while its *scene*-page button (`checkSceneHasPerformers`)
+gates on performer existence alone, the one this plugin's own existence gating was modelled on. The
+two of MPTTS' own buttons are already inconsistent with each other for the same reason Improvement 4
+stays deferred here: gating on "has anything to contribute" is a stronger, more expensive claim than
+gating on "the relationship exists at all," and this plugin picked the weaker, cheaper claim on
+purpose. A performer with scenes but no tags of its own still shows this plugin's button and reports
+"No changes" on click, on any path sourced from a performer — matching the source-side existence
+note below for a studio with no tags, not a bug.
+
+`Run.prototype.planTarget` (shared with `AutoRun` via the same `['planEntry', 'plannedFor',
+'addSource', 'aggregate', 'planTarget']` assignment §4d already relies on) gained one hook, called
+before the "nothing to aggregate" early return that decides eligibility: `self.recordExistence(path.id,
+!!(agg && agg.n))`. It is a no-op everywhere except `checkButtonExistence`, which sets it, runs
+`AutoRun.planEntities` for exactly the paths a page is about to offer, and reads back which of them
+found any source at all. Existence and eligibility read the *same* `agg.n` the diff itself reads,
+computed *before* the diff — so a button's visibility can never disagree with what a click into the
+same entity would compute, and the two questions stay genuinely separate rather than one being a
+cheaper approximation of the other that could drift.
+
+**Cached exactly like `MergePerformerTagsToScenes`' `sceneCheck`/`performerCheck`** — a single
+mutable slot, not a map, because one page is in view at a time. Keyed on the *path set* as well as
+the entity, via `pathIdsKey`, so toggling a path's setting while the page is open re-probes without
+needing a navigation to notice. A failed probe (the tag query `autoContext` needs, most likely) sets
+`has: null`, read downstream as "show everything" rather than "hide everything" — the stated
+preference applied to the one place a network hiccup could otherwise violate it.
+
+**The probe is asynchronous, which the target-side buttons never were before.** A button that was
+showing a moment ago can vanish for one tick while a fresh probe runs after navigating to a
+different entity or toggling a path's setting — there is no synchronous way to know existence
+without the query. `manualButtonsTick` clears every button while a probe is `pending`, the same as
+its other early-return branches (`!rt`, `!container`), so this reads as one more restraint rather
+than a new code path.
+
+**Naming (Improvement 3, rescoped): plain buttons, the user's own call, not the selection-menu
+alternative.** The discussion enumerated both; the user chose "let's use buttons for now as
+originally planned and done in MPT2S," splitting the menu idea out as its own deferred TODO instead
+(Improvement 5, §8). Every path's `button` string moved to the convention agreed in that discussion:
+`"Copy [all|common] [Tags|Perfs] [to|from] all <plural>"`. Two of thirteen carry a `{mode}` token —
+`tags:scene>group` and `tags:subgroup>group`, the only two paths with a "common tags only" setting
+— resolved by the new `buttonLabel(path, s)` at render time, so the caption always names whichever
+mode is currently configured rather than freezing whatever it read on the first tick. `manualButtonsTick`
+compares a rebuilt button's `_ptp2reLabel` (not its live `textContent`, which the click handler
+overwrites with "Working..."/"Added N" mid-flash) against the freshly resolved label, so flipping
+the mode setting while the page is open relabels the button without cutting a flash short.
+
+**The source side (the rest of Improvement 3): a button on the source's own page, pushing outward,
+mirroring `MergePerformerTagsToScenes`' performer button rather than a new mechanism.** Eleven of
+the thirteen paths qualify — `SOURCE_BUTTON_LABELS` deliberately omits both marker paths, because a
+`SceneMarker` has no detail page of its own to put a button on, unlike the other six source types
+(Performer, Studio, and the four entities that are also targets). This is a placement gap, not an
+oversight; §8's discussion flagged it and the user's decision did not ask it to be solved.
+
+- **No staging.** A target-side button stages into *one* captured form control; a source button can
+  resolve to dozens of different targets across dozens of different pages, and there is no single
+  form to stage into. Every source button saves immediately regardless of `a2SaveImmediately` — that
+  setting is about which of the target buttons' two behaviours to use, and a button with only one
+  behaviour is not addressed by it.
+- **Reuses `SOURCE_REVERSE` (§4e) to resolve targets, not a new lookup.** `resolveSourceTargets(path,
+  [id])` is the exact function a source-side *auto-mode* reaction already calls; a click plans and
+  applies just `[path]` onto whatever it resolves, via `AutoRun.planEntities(path.target, [path],
+  targetIds)` — narrower than `runAutoTargets`, which would replan *every* enabled path into that
+  target and do more than the one button clicked promised.
+- **Existence gating here needs no walk at all.** `checkSourceButtonExistence` calls
+  `resolveSourceTargets` per candidate path and treats an empty id list as "hide" — the same lookup
+  the click performs, so button and click can never disagree about what counts as nothing.
+- **`findDetailContainer()` is the *other* half of the swap `findManualButtonContainer` already
+  reads** — the `.details-edit` carrying a Delete button, which the target-side finder explicitly
+  rejects. Confirmed live only for Group (that rejected half) and, through
+  `MergePerformerTagsToScenes`' own precedent, for Performer. Studio, Scene, Gallery and Image are
+  the same guess, unverified — the placement caveat that has applied to every page since 0.8.0
+  applies again here, to six pages instead of four.
+- **`SOURCE_ROUTES` adds `/performers/:id` and `/studios/:id`**, routes this plugin had no reason to
+  recognise before a source could have its own button; the other four reuse `TARGETS[key].route`
+  verbatim, since a source button and a target button for the same entity type live on the identical
+  URL, just in different DOM states.
+- **The dedup check (§5b's 0.8.3 two-signal design) applies unchanged.** `otherPluginDeclaresPath` +
+  `foreignButtonAlreadyShows` are shared verbatim between `manualButtonsTick` and
+  `manualSourceButtonsTick`, reading `sourceButtonLabel(p, s)` in place of `buttonLabel(p, s)`. This
+  is *why* `MergePerformerTagsToScenes` 1.12.1 renamed its own two buttons in the same change: its
+  Performer-page button covers the identical `tags:performer>scene` path this plugin's new
+  Performer-page button does, and the dedup check only works because both plugins now say "Copy Tags
+  to all Scenes" for it — an unrenamed sibling would have shown both, the exact duplicate the whole
+  mechanism exists to prevent.
+
+## 5d. Placement, before Save/Delete, and wrapped-row spacing (0.9.1)
+
+Live-tested against 0.9.0's actual DOM, from screenshots of eight pages at once. Two complaints,
+both about where among Stash's own buttons ours land, plus a third about the gap between two rows
+of them.
+
+**Both container kinds were using plain `appendChild`, which puts a new button after whatever is
+already there** — Save and Delete on the target side, Delete on the source side. That is a visible
+departure from `MergePerformerTagsToScenes`' own placement: its performer-page button already uses
+`insertBeforeDelete`, so on the one page both plugins put a button (Performer), theirs grouped with
+the other non-destructive actions and ours trailed the red button. `insertBeforeDelete` here is the
+same function, ported rather than shared (the two plugins carry no module between them, as
+elsewhere in this repo): find `button.delete`, walk up to whichever ancestor is the container's own
+direct child (`insertBefore` only accepts one), insert there, and fall back to `appendChild` if no
+Delete is found at all.
+
+**The target side needed the equivalent for Save, and Stash gives Save no distinguishing class the
+way Delete carries one** — confirmed live by its absence, not assumed. `findButtonByLabel` is a
+plain recursive walk over `childNodes`/`tagName`, matching on the button's own text instead — the
+same technique `foreignButtonAlreadyShows` already relies on for dedup, and deliberately not
+`querySelectorAll`, which the shared test harness's fake DOM nodes do not implement (only
+`querySelector`, added for exactly what the plugins already asked a node for — see
+`tests/npt-harness.js`). `insertBeforeSave` walks up the same way `insertBeforeDelete` does. Insert
+order on a page with two enabled paths falls out for free: each new button is inserted immediately
+before Save, so the second insertion lands *after* the first one and *before* Save, preserving the
+paths' own left-to-right order rather than reversing it.
+
+**Group's Edit tab has no Delete inside the edit form at all** (§5b already established this — the
+`.details-edit` swap only carries Delete in its detail-view state), which is exactly why the
+target-side fix had to anchor on Save rather than reuse `insertBeforeDelete` unchanged: Save is the
+one button every one of the four edit-form pages is confirmed to render.
+
+**The vertical-spacing complaint was the wrap case, not the single-row one.** Neither
+`.edit-buttons` nor `.details-edit` define a row gap of their own, so a page with two enabled paths
+— Scene Edit, Gallery Edit — wrapped its second button onto a new row sitting flush against the one
+above. `my-1` alongside the existing `mx-1` on both button builders supplies that gap unconditionally,
+the same amount whichever row a button lands on, rather than trying to detect a wrap and margin only
+that case.
+
+**One thing flagged during the same round of screenshots turned out not to be a bug.** A studio
+with no tags of its own still showed "Copy Tags to all Scenes," and that is correct: a source
+button's existence gate (`checkSourceButtonExistence`, §5c) asks whether any *target* exists —
+scenes, here — never whether the source carries what would be copied. That is consistent with
+target-side existence gating's own Improvement-4 boundary (a button that would report "No changes"
+on click still shows), just read from the other direction. No code changed for this one; a test
+(`propagate-buttons.test.js`) now names the scenario explicitly so it stays proven rather than
+merely unbroken by accident.
+
+## 5e. `my-1` was itself a regression: wrapped-row spacing via `row-gap` (0.9.2)
+
+Live-tested against 0.9.1's actual DOM: on Performer Details, Stash's own Edit/Submit-to-stash-box/
+Delete buttons grew visibly taller once the manual button was added beside them, and on a page that
+re-rendered its button row often, visibly jittered as they did. Studio Details showed the same
+growth without the jitter.
+
+**The cause is `my-1` itself, the very fix 0.9.1 added for wrapped-row spacing.** `.edit-buttons`
+and `.details-edit` are flex rows with the default `align-items: stretch`, and a flex line's own
+cross-size is the tallest *margin box* sharing that line — not the tallest content box, and not
+scoped to items that actually stretch. Our button opts itself out of stretching to match that size
+via `align-self: flex-start` (0.8.3), but that only stops *our* button from growing; it does nothing
+to shrink the line back down once something on it has a taller margin box. `my-1`'s vertical margin
+did exactly that: on the common case of one enabled path, our one button shares Save/Delete's own
+line, its margin-inflated outer size becomes that line's cross-size, and Save/Delete — still
+default `stretch` — grow to fill it. The "flicker" reading is the same effect made visible: on a
+page whose button row re-renders often enough for other reasons, each re-render's insert briefly
+re-triggers the same stretch recalculation.
+
+**`row-gap` is the fix, because it is a property of the container, not of any item on it.** CSS
+Flexbox defines `row-gap` as space inserted *between* flex lines, computed independently of either
+line's own cross-size — so it cannot feed back into what Save/Delete stretch to match, unlike a
+margin on an item sharing their line. `ensureRowGap` sets `container.style.rowGap = '.25rem'`
+wherever either tick function finds a container it is about to place a button into (or already has
+one), the same amount `my-1` supplied and only reached by the code path that already touches the
+container — never applied to a container we have not touched. `my-1` is gone from both button
+builders entirely; `align-self: flex-start` stays, since consistency across our own wrapped rows was
+never the part that broke.
+
+**One item flagged in the same round did not need a code change.** "Copy Tags from Studio" landing
+before Save on Scene Edit, matching `MergePerformerTagsToScenes`' own placement, is §5d's fix
+working as intended — confirmed, not a bug.
+
+**Gallery Details reportedly renders no buttons of its own at all**, which would mean
+`findDetailContainer()`'s `.details-edit`-with-`button.delete` search never matches there and the
+source button for `tags:gallery>image` cannot appear — a real gap, not a filtering bug, and a
+different situation from "unverified guess" in §5b: this is a first live signal that the guess is
+actually wrong for this one page. Left alone pending a look at what, if anything, Gallery Details
+does render to anchor on instead — a fallback container built from nothing would be its own
+unverified guess, and this repo's rule (§6) is not to ship one of those without a live screenshot to
+confirm it.
+
+## 5f. Deterministic ordering against `MergePerformerTagsToScenes` (0.10.0)
+
+Reported from a live install with both plugins' manual buttons enabled: on a page where both add a
+button to the same row (Scene, Performer), each plugin's `insertBeforeSave`/`insertBeforeDelete`
+independently re-found the anchor's *current* position and inserted immediately before it. With one
+plugin that is exactly right; with two, whichever plugin's async eligibility check happened to
+resolve last ended up closest to the anchor — a race decided by network timing, and it could flip
+between page loads with nothing in either plugin's own code having changed.
+
+The fix is `coop().order` and `insertOrdered`, documented in full in the repo-root CLAUDE.md
+("Cross-plugin cooperation: deterministic button ordering") since it is a protocol between two
+plugins, not something this one owns alone. What is specific to this plugin: it registers priority
+**10**, lower than `MergePerformerTagsToScenes`' 20, so its own buttons land on the far side of that
+plugin's in the shared row rather than racing it for the position next to Save/Delete. Every button
+`buildManualButton`/`buildManualSourceButton` builds carries `_coopOwner = PLUGIN_ID`, read back by
+whichever plugin's `insertOrdered` scans past it.
+
+**Not the same problem the 0.8.3 dedup solves.** `otherPluginDeclaresPath`/`foreignButtonAlreadyShows`
+answer "is a button for this *exact path* already showing" and suppress one of the two entirely;
+ordering only applies once both plugins have already decided to show a button (necessarily for
+*different* paths, or the dedup check would have suppressed one) and only decides which one sits
+closer to the anchor. The two mechanisms run independently and neither depends on the other.
+
 ## 6. Anchoring in Stash's markup
 
 Every foothold here is a guess until it runs against a real Stash, and a test written from the same
@@ -747,12 +980,40 @@ of it apply unchanged:
   button carries `align-self: flex-start`; and the duplicate-button check in all four directions - a
   foreign button for the same declared path suppresses ours, a declared-but-not-shown path does not,
   a foreign button for a *different* path leaves an unrelated one alone, and our own already-rendered
-  button is never mistaken for a foreign one on a later, idle tick.
+  button is never mistaken for a foreign one on a later, idle tick. Since 0.9.0: existence gating -
+  an absent source hides the button, a present source with nothing new to add still shows it (the
+  Improvement 4 / Improvement 2 distinction §5c documents), two paths on one page gated
+  independently, and a failed probe falling back to showing rather than hiding; the renamed labels,
+  including the two `{mode}`-dependent ones; and the whole source-side half - placement on the
+  performer and studio detail views, existence gating via `resolveSourceTargets`, a click resolving
+  and writing directly with no staging option, the dedup check extended to the source side, and both
+  new route matchers (`currentSourceRouteTarget`, including that a source button and a target button
+  share a route on the four entities that are both). Since 0.9.1: placement - the target-side button
+  lands before Save rather than after it (and a Save nested in a wrapper is still found), two
+  enabled paths land in their own order rather than the second reversing ahead of the first, and the
+  same three checks mirrored for the source-side button against Delete, plus Studio's two source
+  buttons both landing before Delete; `my-1` present on both button builders' class strings; and the
+  studio-with-no-tags-but-scenes scenario named explicitly (§5d - already correct, not a fix). Since
+  0.9.2: `my-1` asserted *absent* from both button builders' class strings instead, and the
+  container carrying `row-gap: .25rem` after either tick function touches it - the two checks that
+  flip a false pass into a true one now that the fix has landed (§5e). Since 0.10.0: `coop().order`
+  registered with the value §5f documents; a higher-priority foreign button (seeded via
+  `_coopOwner`, since `StashPluginCoop` is only ever one plugin's own script away from being real)
+  already in the row is not displaced from Save or Delete, and this plugin's own button lands on
+  the far side of it instead; and the mirror case, a lower-priority foreign button, which must stay
+  put while ours lands adjacent to the anchor - both directions, on both the target and source
+  sides. `tests/npt-harness.js` gained `previousSibling` for this (`nextSibling` already existed,
+  and the scan needs the other direction) - confirmed missing beforehand, since without it every
+  ordering check above passed for the wrong reason regardless of which plugin's priority actually
+  won.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
-**Every check here was confirmed against a deliberately broken copy before being trusted.**
-Sixty-four mutants so far, each failing exactly the check written for it — a suite that passes for the wrong
-reason is worse than no suite. Use `SRC=/path/to/mutant.js node tests/propagate-base.test.js`.
+**Every check here was confirmed against a deliberately broken copy before being trusted.** The
+0.9.0 through 0.10.0 additions were confirmed the coarser way, against the pre-fix source via `SRC=`,
+rather than one hand-built mutant per check; the pre-existing suites below that line follow the
+finer-grained convention - sixty-four mutants so far, each failing exactly the check written for
+it - a suite that passes for the wrong reason is worse than no suite. Use
+`SRC=/path/to/mutant.js node tests/propagate-base.test.js`.
 
 What they cannot cover: Stash's own behaviour. The suites reproduce its markup and its schema from
 notes, so they prove the plugin does the right thing with what it is given, not that Stash still

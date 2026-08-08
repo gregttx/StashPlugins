@@ -2,16 +2,30 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.8.3**
-(last checked 2026-08-07). All eight decisions are settled (§4) and every open question is closed
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.9.2**
+(last checked 2026-08-08). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging now sit on and work
 correctly on **all four target pages, confirmed live** (step 8) — built best-effort, without a live
 Stash to check the DOM against, per the user's explicit go-ahead, and then corrected against one as
 the user tested it. Step 9 (a repo `CLAUDE.md` TODO/IDEAS section) turned out to have nothing left
-to append — see §7.
+to append — see §7. 0.9.0 answered the four "Button Improvement" TODOs the same round of live
+testing raised, building three of them (button size, the naming convention plus new source-side
+buttons, and a narrower existence-gating cut of the fourth) and deferring the rest by explicit
+decision — see step 8's own entry for the detail and `CLAUDE.md` §5c for the code. 0.9.1 fixed two
+more live-tested problems with those same buttons (landing after Save/Delete instead of before, and
+a wrapped second row with no gap above it) and recorded two further TODOs the user split out for
+later rather than asking to be built now — a theme check, and a missing Scene-onto-Studio path. 0.9.2
+fixed a fifth, live-tested against the 0.9.1 build itself: the vertical margin 0.9.1 added for
+wrapped-row spacing grew Stash's own Save/Delete/Submit-to-stash-box buttons taller, and on some
+pages visibly jittered as it did — see step 8's entry below for the flex mechanics and the `row-gap`
+fix. The same round confirmed the Scene Edit placement fix works as designed, surfaced that Gallery
+Details apparently renders no buttons of its own to anchor a source button on (left unfixed pending a
+live look at that page — see step 8), and asked whether `MergePerformerTagsToScenes`' performer
+button gates on the performer having tags: it does (`hasTags && hasScenes`), a stricter check this
+plugin deliberately does not match — see `CLAUDE.md` §5c's Improvement-4 boundary.
 
-**Four real-Stash findings so far, all on step 8, no two the same kind.**
+**Four real-Stash findings on step 8 itself, no two the same kind, before the 0.9.0 round below.**
 
 - **0.8.1: no buttons appeared anywhere, on any page.** Not the placement gap the caveat was
   written for — `manualButtonsTick` called `.slice()` on `container.childNodes`, which throws in a
@@ -44,14 +58,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.8.3, in all three places |
-| `PropagateTagsAndPerformers.js` | ~3,450 lines |
-| Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) |
+| Version | 0.9.2, in all three places |
+| `PropagateTagsAndPerformers.js` | ~3,840 lines |
+| Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged; 0.9.0/0.9.1/0.9.2 changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 40 = **364** |
-| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+** |
-| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.12.0, `NormalizeParentTags` 1.7.5 → 1.7.6 |
-| Landed on `main` | through 0.8.2 (`6f183c5`); 0.8.3 is uncommitted |
+| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 67 = **391** |
+| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**, plus 0.9.0's 16, 0.9.1's 9 and 0.9.2's 2 new button checks confirmed the coarser way (against the pre-fix source, not one hand-built mutant each) |
+| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.12.1 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup), `NormalizeParentTags` 1.7.5 → 1.7.6 |
+| Landed on `main` | through 0.8.3 (`399082d`); 0.9.0, 0.9.1 and 0.9.2 are uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's
@@ -815,25 +829,217 @@ step 9 plus a run against a real Stash, not step 9 alone.
    visible, unaffected by a foreign button on an unrelated path, and never mistaking its own
    already-rendered button for a foreign one). Both confirmed against the unfixed source.
 
-   **Two product questions surfaced during this same round of live testing, not designed or
-   scoped yet:**
+   **Four "Button Improvement" TODOs surfaced during this same round of live testing, discussed
+   with the user before any of them were built, and settled with explicit decisions:**
 
-   - *Source-side buttons, via a selection menu rather than a "propagate everything" button.*
-     MPTTS has one already - a performer-detail button pushing that performer's tags into every
-     scene they appear in - which this plugin has no equivalent of; D8 was target-side only by
-     design (see its own note above). The refinement on top: rather than one button that acts on
-     everything, place the action in Stash's own per-list selection menu (the "..." dropdown next to
-     Select All / Select None / Merge... on a filtered, checkbox-selected list), scoped to whichever
-     items are actually selected. Raised as something to enumerate case-by-case before designing,
-     and explicitly said to possibly apply to MPTTS too, not just here.
-   - *Buttons that cannot add anything.* Right now every enabled path gets a button regardless of
-     whether that specific entity has anything to contribute - a gallery whose images carry no tags
-     still shows "Add Image Tags". D7's original settings-page text promised eligibility gating
-     ("buttons only appear when the related content actually exists") and 0.8.0 walked that back
-     deliberately, choosing "click and see No changes" over a pre-check query per button per page
-     load. Revisiting now that real usage has made the cost of *not* gating visible.
+   - *#1, button height, and #2, duplicate buttons.* Already fixes above (0.8.3's `align-self` and
+     the two-signal `declares` check) — listed here only because they were raised in the same batch
+     as the two below, not because either was still open.
+   - *#3, missing source-side buttons.* Discussed as two alternatives: plain buttons matching
+     MPTTS's own pattern, or moving the action into Stash's native per-list selection menu (the
+     "..." dropdown beside Select All / Select None on a filtered, checkbox-selected list). The
+     user's decision split it in two: build the plain-button version now, under a new naming
+     convention (`"Copy [all|common] [Tags|Perfs] [to|from] all <plural>"`, differing from — and
+     requiring a harmonizing rename of — MPTTS's own two buttons); keep the selection-menu idea as
+     a separate, later TODO (#5 below), since it is a genuinely different placement question the
+     button version does not answer, not a refinement of it.
+   - *#4, buttons that cannot add anything.* Kept as a deferred "maybe," per the user's stated
+     preference verbatim: *"I prefer a button that is always there t[h]an needed even if also when
+     not needed than a missing button when it is needed"* — a false positive (a button that
+     sometimes reports "No changes") is preferred over a false negative (a button silently absent
+     when it would have helped). This is full eligibility gating — "would a click actually add
+     anything" — and stays out of scope. See 0.9.0's entry below for the narrower thing that *did*
+     get built instead, which this preference was checked against before building it.
+   - *#5, new: source-side buttons via Stash's selection menu, split out of #3.* Deferred,
+     unscoped. Noted as possibly applying to MPTTS too, not just here — the same "could this button
+     become a menu item instead" question applies to its performer-page button.
 
-   Neither is a "Fix"; both are open enough to need a decision before code.
+   **0.9.0 built #1 (properly this time), #2 (harmonized both plugins), #3 (plain buttons, the new
+   naming), and a narrower cut of #2 the live testing also turned up: existence gating.** Not #4 —
+   the distinction is the load-bearing thing 0.9.0 had to get right, and it is documented at length
+   in `PropagateTagsAndPerformers/CLAUDE.md` §5c rather than repeated here. In short: "Add Perf
+   Tags" already hid itself with no performers on the scene (MPTTS's own button gates on exactly
+   that), but every other button here showed regardless, since 0.8.0 deliberately walked eligibility
+   gating back. That inconsistency — a button should hide when its source **does not exist at
+   all**, never mind whether a click would find anything *new* — is Improvement 2's actual bug, and
+   it is a strictly cheaper, narrower question than #4's "would this add anything," answered by a
+   new `Run.prototype.planTarget` hook (`recordExistence`) reading the same `agg.n` the diff itself
+   computes, before the diff decides eligibility. A scene whose performers' tags are already all
+   present still shows its button — that is the check that proves this is not #4 wearing a
+   different name.
+
+   #1 turned out to be two separate things: 0.8.3's `align-self: flex-start` fixed the *relative*
+   problem (our own buttons at two different heights depending on row) but not the *absolute* one —
+   every manual button still used the shared `btn-sm` helper built for the dialog's own footer,
+   reading smaller than MPTTS's and Stash's own plain `btn btn-secondary` buttons on every row, not
+   only a mismatched one. `buildManualButton` now builds its own element instead of calling that
+   helper.
+
+   #3's source-side buttons needed `MergePerformerTagsToScenes` 1.12.1 as a companion change:
+   its Performer-page button covers the identical `tags:performer>scene` path this plugin's new
+   Performer-page button now also does, and the dedup check (0.8.3's two-signal design, extended to
+   the source side unchanged) matches on visible label text — an unrenamed sibling would no longer
+   text-match and both buttons would show, the exact duplicate the whole mechanism exists to
+   prevent. Eleven of the thirteen paths got a source button; the two marker paths did not, since a
+   `SceneMarker` has no detail page of its own to put one on — a placement gap, not an oversight.
+
+   Placement for the six source pages (Performer, Studio, and the four target types acting as a
+   source instead) repeats D8's own caveat one level further out: confirmed live only where MPTTS's
+   existing performer button already proved the container (Performer), guessed by the same pattern
+   everywhere else (Studio, and the *detail*, non-edit view of Scene/Gallery/Image/Group). Expect
+   this to need the same kind of live-testing round D8 itself needed across 0.8.1 – 0.8.3.
+
+   Eight checks became sixteen new checks in `propagate-buttons.test.js` (40 → 56): four for
+   existence gating (an absent source hides the button; a present source with nothing new to add
+   still shows it — the #4-versus-Improvement-2 distinction, pinned as a test rather than only a
+   comment; two independently-gated paths on one page; a failed probe falling back to showing
+   rather than hiding), and six for the source side (placement on performer and studio pages, the
+   push-direction label, existence gating hiding an empty one, a click writing directly with no
+   staging, the dedup check extended, and the two new route matchers). Confirmed the coarse way,
+   against the pre-0.9.0 (0.8.3) source via `SRC=`, rather than one hand-built mutant per check —
+   the shared fixture entity also had to grow fields for every path's walk, not only the ones each
+   test names, since the existence probe now runs before *any* button is offered, including one a
+   given test was never about.
+
+   **0.9.1: two more live-Stash findings from the very next round of testing, this time from
+   screenshots of eight pages at once, plus two new TODOs the user split out for later rather than
+   asking to be built now.** Both fixes are placement, not logic — nothing about which button shows
+   changed, only where it lands:
+
+   - Both button kinds were landing **after** Stash's own Save/Delete instead of grouping with them
+     — visible on Performer, Group and Studio detail pages for the source-side buttons, and on
+     Scene and Group's Edit tabs for the target-side ones. `MergePerformerTagsToScenes`' own
+     performer button already used `insertBeforeDelete`; this plugin's buttons, both kinds, were
+     using plain `appendChild`. Fixed with the same technique on the source side (ported, not
+     shared — the plugins carry no module between them) and a text-matched equivalent,
+     `insertBeforeSave`, on the target side, since Stash gives Save no distinguishing class the way
+     Delete carries one.
+   - A page with two enabled paths wraps its second button onto a new row, and neither container
+     Stash renders defines a row gap of its own, so the wrapped row sat flush against the one
+     above — live-tested on Scene Edit and Gallery Edit. `my-1` alongside the existing `mx-1` on
+     both button builders fixed it unconditionally, rather than trying to detect a wrap and margin
+     only that case.
+
+   A third item from the same screenshot round — a studio with no tags still showing "Copy Tags to
+   all Scenes" — turned out to already be correct: the source-side existence gate asks whether any
+   *target* exists (scenes, for that path), never whether the source carries what would be copied,
+   consistent with the target-side gate's own Improvement-4 boundary read from the other direction.
+   No code changed; a test now names the scenario explicitly instead of leaving it proven only by
+   accident.
+
+   Two new TODOs, deferred by the user's own framing ("for later," not "fix now") rather than
+   scoped and built:
+
+   - *#6, check the plugins' dialogs and injected buttons under Stash's other themes.* Everything
+     verified live so far — the screenshots behind 0.8.1 through 0.9.1 alike — was checked against
+     one theme. Unscoped; no design work done.
+   - *#7, a missing path: Scene onto Studio, with a union/intersection choice like the two existing
+     aggregating paths (D2).* None of the thirteen paths write onto a Studio at all today — Studio
+     only ever appears as a *source* (§5c/§5d above). Unscoped; needs its own design pass through §2
+     (does `Studio` have the right back-reference, or does it need a `reverse`-kind lookup the way
+     the two gallery-images paths and §4e's performer/studio filter lookups do) before it is sized.
+
+   Nine checks added to `propagate-buttons.test.js` (56 → 65): six for placement (before Save
+   without a wrapper, before Save with one, two paths ordered correctly — target side; before
+   Delete without a wrapper, before Delete with one, two paths ordered correctly — source side),
+   two for the `my-1` class on each button builder, and one naming the studio-with-no-tags scenario
+   explicitly. Confirmed the coarse way again, against the pre-0.9.1 (0.9.0) source via `SRC=` — all
+   eight of the placement/spacing checks failed against it, and the studio one (already-correct
+   behaviour) passed against it too, as expected for a check that names existing behaviour rather
+   than a fix.
+
+   **0.9.2: 0.9.1's own wrapped-row fix was itself a live-tested regression, caught the very next
+   round.** `my-1`'s vertical margin, added to fix a wrapped row sitting flush against the one
+   above, sits on a flex line shared with Stash's own Save/Delete/Submit-to-stash-box buttons in the
+   common case (one enabled path, no wrap at all) — and `.edit-buttons`/`.details-edit`'s default
+   `align-items: stretch` sizes a flex line to the tallest *margin box* on it, not the tallest
+   content box, so the margin inflated the line and Stash's own buttons — still default `stretch`,
+   unlike ours, which opts out via `align-self` — grew taller to fill it. Visible as button growth
+   on Performer and Studio Details, and, on whichever page re-renders its button row often enough
+   for unrelated reasons, as a visible jitter each time the insert re-triggered the same stretch
+   recalculation. Fixed by moving the spacing onto the *container* as `row-gap` (`ensureRowGap`,
+   called from both tick functions wherever they touch a container) — a property of the flex row
+   itself, which CSS defines as space between lines rather than a contributor to either line's own
+   cross-size, so it cannot leak into another button's height the way per-item margin did. `my-1` is
+   gone from both button builders entirely.
+
+   The same round: confirmed the 0.9.1 Scene Edit placement fix (Copy Tags from Studio landing
+   before Save) works as designed, matching `MergePerformerTagsToScenes`' own placement — no change
+   needed. Answered a question about that sibling plugin: its *performer*-page button
+   (`checkPerformerHasScenes`) gates on `hasTags && hasScenes`, stricter than its own *scene*-page
+   button and stricter than this plugin's own existence gating (source existence only, never the
+   source's own tags) — a deliberate difference, not an oversight; see `CLAUDE.md` §5c. And surfaced
+   a real, unfixed gap: Gallery Details reportedly renders no buttons of its own at all, so
+   `findDetailContainer()`'s `.details-edit`-with-`button.delete` search can never match there and
+   the source button for `tags:gallery>image` cannot appear on that one page. Left open pending a
+   live look at what, if anything, Gallery Details does render to anchor on — a guessed fallback
+   container would be exactly the kind of unverified guess this repo's own rule (§6) says not to
+   ship without a screenshot behind it.
+
+   Two checks added to `propagate-buttons.test.js` (65 → 67), one per button builder: `my-1`
+   asserted *absent* rather than present, and the container asserted to carry `row-gap: .25rem`
+   after either tick function touches it. Both fail against the pre-0.9.2 (0.9.1) source via `SRC=`,
+   confirming they exercise the fix.
+
+   **The very next round: the reported Scene Edit "misplacement" turned out to be
+   `MergePerformerTagsToScenes`' bug, not this plugin's.** Screenshots (Scene Edit with two enabled
+   paths, e.g. Studio + Performers, or Group + Performers) showed this plugin's own button correctly
+   before Save on the first line every time, and "Copy all Tags from all Performers" — the *sibling*
+   plugin's scene button — alone on a wrapped second line underneath. Its `addSceneButton` had always
+   placed that button with a plain `container.appendChild(button)`, landing after Save/Delete rather
+   than grouping with the other non-destructive actions the way its own performer button already
+   does via `insertBeforeDelete` — invisible with one button in the row, but the button left to
+   overflow first, since DOM order decides wrap order and `appendChild` puts it last. Fixed in
+   `MergePerformerTagsToScenes` 1.12.2 by giving the scene button the identical `insertBeforeSave`/
+   `findButtonByLabel` pair this plugin already carries (separate copies, since the two plugins share
+   no module). Three checks added to `placement.test.js` (13 → 16): before Save rather than appended
+   last, not the row's last child, and a Save nested in a wrapper handled correctly — all three fail
+   against the pre-1.12.2 source. This plugin's own placement needed no change.
+
+   **The Performer Details flicker is confirmed to live in `MergePerformerTagsToScenes` too, not
+   introduced by this plugin's 0.9.2 fix.** With this plugin's manual buttons switched off entirely
+   (so nothing of ours touches that page) and the sibling's left on, the flicker on "Copy Tags to all
+   Scenes" and the adjacent Delete button persisted — ruling out `ensureRowGap`/`row-gap` or this
+   plugin's reactive re-insertion as the cause. Root cause not yet found: a static read of the
+   sibling's `tick()`/`addPerformerButton()` found no code path that mutates the DOM once
+   `performerCheck` and the button's parent already match, which is the normal steady state on an
+   idle page — so whatever is happening once a second is either Stash re-rendering that toolbar for
+   reasons external to either plugin (amplified into a visible flash by the reactive re-insertion
+   both plugins do), or something neither a code read nor the available fixtures can surface. Left
+   open pending a live look (Network tab for a repeating request while idle, or React DevTools'
+   "highlight updates") rather than a guessed fix — the same discipline as the still-open Gallery
+   Details gap above.
+
+   **The flicker narrowed further, and one of its two questions got a real answer while the other
+   stayed open.** A synthetic reproduction built on `npt-harness.js` (loading this plugin's real
+   tick loop, not a mutant) proved `_existenceCheckSrc`'s caching does not loop on a static DOM —
+   five simulated one-second ticks after the initial settle produced zero further queries — which
+   rules out a runaway query bug internal to this plugin. The user's own Network tab confirmed the
+   three repeating requests are this plugin's own `PTP_sfilter_findScenes_performers`, and that they
+   only appear on **performers with no tags**. The mechanism: `MergePerformerTagsToScenes`' own
+   performer button gates on `hasTags && hasScenes`, so a tag-less performer never gets *its* button
+   at all — this plugin's dedup (`otherPluginDeclaresPath` + `foreignButtonAlreadyShows`) then never
+   finds a foreign button to defer to, and this plugin becomes the only one actually inserting into
+   the shared container. What is still not reproduced in isolation: why the query re-fires every
+   second on a *live* page when the harness (DOM only, no React) cannot make it loop at all — the
+   leading theory is this plugin's raw DOM insertion disturbing React's own reconciliation of that
+   container, not yet confirmed.
+
+   **The ordering question got a real fix, not just a diagnosis.** "Are we making an assumption
+   about the ordering of loading of the plugins?" — yes, in effect: both plugins' `insertBeforeSave`/
+   `insertBeforeDelete` always re-found the anchor's *live* position and inserted immediately before
+   it, so with two plugins doing that independently, whichever one's async eligibility check happened
+   to resolve last ended up closest to Save/Delete, a result decided by network timing and free to
+   flip between page loads. `coop().order` (repo-root `CLAUDE.md`, "Cross-plugin cooperation:
+   deterministic button ordering") fixes a priority per plugin — `MergePerformerTagsToScenes` 20,
+   this plugin 10 — and `insertOrdered` reads it back off each button's `_coopOwner` tag, walking
+   past already-placed higher-priority siblings rather than displacing them. The two plugins now
+   converge on the same final order regardless of which one ran first. Shipped as
+   `PropagateTagsAndPerformers` 0.10.0 and `MergePerformerTagsToScenes` 1.13.0 together, since
+   neither plugin's fix means anything without the other's matching priority registration.
+   `tests/npt-harness.js` gained `previousSibling` for this (only `nextSibling` existed before) —
+   missing silently, the ordering checks would have passed against the unfixed code too, since the
+   priority scan's backward walk could never advance past the anchor.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

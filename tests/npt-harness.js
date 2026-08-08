@@ -70,6 +70,11 @@ function makeElement(tag) {
       const sibs = this.parentNode.childNodes;
       return sibs[sibs.indexOf(this) + 1] || null;
     },
+    get previousSibling() {
+      if (!this.parentNode) return null;
+      const sibs = this.parentNode.childNodes;
+      return sibs[sibs.indexOf(this) - 1] || null;
+    },
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
     click() { (this.handlers.click || []).forEach((fn) => fn({ preventDefault() {}, stopPropagation() {} })); },
     select() {},

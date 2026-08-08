@@ -23,9 +23,28 @@ const TAGS = [
 ];
 
 // A scene with one performer carrying "Blonde", which the scene does not have yet.
+// Also carries a field for every other path's walk (studio, scene_markers, groups,
+// scenes, galleries, sub_groups, containing_groups) - not because any one test reads
+// all of them, but because `responder` hands this same object back for *any* `PTP_one_`
+// query regardless of target, and the existence probe (checkButtonExistence /
+// checkSourceButtonExistence) now runs before a button is even offered. A field this
+// object lacks reads as "that relationship does not exist" and hides the button, which
+// would silently turn every test not specifically about existence gating into one.
 const SCENE = {
   id: '10', title: 'S', files: [], tags: [], organized: false,
   performers: [{ id: '100', name: 'Jane', tags: [{ id: '1' }] }],
+  studio: { id: '200', name: 'Studio', tags: [{ id: '1' }] },
+  scene_markers: [{ id: '300', title: 'M', primary_tag: { id: '1' }, tags: [] }],
+  groups: [{ group: { id: '400', name: 'G', tags: [{ id: '1' }] } }],
+  galleries: [{ id: '500', title: 'Gal', tags: [{ id: '1' }], performers: [{ id: '100', name: 'Jane' }] }],
+  scenes: [{
+    id: '10', title: 'S', files: [], tags: [{ id: '1' }],
+    performers: [{ id: '100', name: 'Jane' }],
+    scene_markers: [{ id: '300', title: 'M', primary_tag: { id: '1' }, tags: [] }],
+    groups: [{ group: { id: '400', name: 'G', tags: [{ id: '1' }] } }],
+  }],
+  sub_groups: [{ group: { id: '600', name: 'Sub', tags: [{ id: '1' }] } }],
+  containing_groups: [{ group: { id: '700', name: 'CG', tags: [{ id: '1' }] } }],
 };
 
 function responder(opts) {
@@ -37,11 +56,34 @@ function responder(opts) {
       plugins[NAME] = opts.settings || {};
       return { data: { configuration: { plugins } } };
     }
-    if (/PTPTags/.test(q)) return { data: { findTags: { tags: opts.tags || TAGS } } };
+    if (/PTPTags/.test(q)) {
+      if (opts.failTags) return { errors: [{ message: 'tag query boom' }] };
+      return { data: { findTags: { tags: opts.tags || TAGS } } };
+    }
     const m = /query PTP_one_(\w+)\(/.exec(q);
     if (m) {
       const data = {};
       data[m[1]] = opts.entity !== undefined ? opts.entity : SCENE;
+      return { data };
+    }
+    // A source button's `field`-kind lookup: one entity by id, drilling to the
+    // back-reference (`resolveFieldReverse`).
+    const msf = /query PTP_sfield_(\w+)\(/.exec(q);
+    if (msf) {
+      const data = {};
+      data[msf[1]] = opts.sourceField !== undefined ? opts.sourceField : null;
+      return { data };
+    }
+    // A source button's `filter`-kind lookup: paged, like every other query here
+    // (`resolveFilterReverse`). `FIND_TO_NODE` mirrors the same `find` -> `node`
+    // mapping `TARGETS` carries, so a test can hand back a plain list of targets.
+    const msl = /query PTP_sfilter_(\w+)_(\w+)\(/.exec(q);
+    if (msl) {
+      const node = FIND_TO_NODE[msl[1]] || msl[1].toLowerCase();
+      const list = opts.sourceFilter !== undefined ? opts.sourceFilter : [];
+      const data = {};
+      data[msl[1]] = { count: list.length };
+      data[msl[1]][node] = list;
       return { data };
     }
     if (/mutation PTP_bulk/.test(q)) {
@@ -51,6 +93,8 @@ function responder(opts) {
     return { data: {} };
   };
 }
+
+const FIND_TO_NODE = { findScenes: 'scenes', findGroups: 'groups', findGalleries: 'galleries', findImages: 'images' };
 
 function editButtonsContainer(env) {
   const c = h.makeElement('div');
@@ -166,14 +210,14 @@ function nodeListLikeContainer() {
   // ── The button appears, labelled from the path table ────────────────────────
   {
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
-    editButtonsContainer(env);
+    const container = editButtonsContainer(env);
     env.tick();
     await h.flush(60);
     const btns = manualButtons(env);
     h.check('one button for the one enabled path into scenes', btns.length === 1,
       btns.map((b) => b.textContent).join(','));
     h.check('labelled from the path table, not a second copy of the string',
-      btns[0].textContent === 'Add Perf Tags', btns[0].textContent);
+      btns[0].textContent === 'Copy all Tags from all Performers', btns[0].textContent);
     // `.edit-buttons` defaults to flex `align-items: stretch`, so a button sharing a
     // row with a taller sibling (Stash's own Save/Delete, or a non-`btn-sm` button
     // from another plugin) stretches to match it while one that wraps alone does
@@ -181,6 +225,136 @@ function nodeListLikeContainer() {
     // landed on. `align-self` opts every one of ours out of that.
     h.check('opts out of the container\'s flex stretch, so its height never depends on its row',
       /align-self\s*:\s*flex-start/.test(btns[0].style || ''), btns[0].style);
+    // 0.9.1 tried `my-1` on the button itself for wrapped-row spacing and it was a
+    // regression, live-tested: the button's own vertical margin inflated the flex
+    // line it shares with Stash's Save/Delete, and stretch grew *those* buttons
+    // taller to match. No vertical margin on the button itself, ever.
+    h.check('carries no vertical margin of its own - that would inflate the shared row',
+      !/\bmy-\d\b/.test(btns[0].className || ''), btns[0].className);
+    // 0.9.2 moved wrapped-row spacing to the container's own `row-gap`, which sits
+    // between flex lines rather than inflating either one - see `ensureRowGap`.
+    h.check('the container gets row-gap instead, so Stash\'s own buttons never stretch to match ours',
+      container.style && container.style.rowGap === '.25rem', container.style);
+  }
+
+  // ── Placement: before Save, not appended after it ────────────────────────────
+  //
+  // Live-tested: the button was landing after Stash's own Save/Delete instead of
+  // grouping with them, a departure from MergePerformerTagsToScenes' own
+  // insertBeforeDelete placement on the Details side.
+  {
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    const save = h.makeElement('button');
+    save.textContent = 'Save';
+    container.appendChild(save);
+    const del = h.makeElement('button');
+    del.textContent = 'Delete';
+    container.appendChild(del);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    const order = container.childNodes;
+    h.check('the button lands before Save, not after Save/Delete', !!btn &&
+      order.indexOf(btn) !== -1 && order.indexOf(btn) < order.indexOf(save),
+      order.map((n) => n.textContent).join(','));
+  }
+  {
+    // Save nested inside a wrapper element - insertBefore only accepts a direct
+    // child as the reference node, so the walk-up has to find the wrapper, not Save
+    // itself, or insertBefore throws.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    const wrap = h.makeElement('div');
+    const save = h.makeElement('button');
+    save.textContent = 'Save';
+    wrap.appendChild(save);
+    container.appendChild(wrap);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('handles a Save button nested in a wrapper element',
+      !!btn && btn.nextSibling === wrap, btn && btn.nextSibling && btn.nextSibling.className);
+  }
+  {
+    // Two enabled paths into one page: both land before Save, in the order they were
+    // added, rather than the second one landing between the first and Save.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true, b2TagsStudioToScenes: true },
+    });
+    const container = editButtonsContainer(env);
+    const save = h.makeElement('button');
+    save.textContent = 'Save';
+    container.appendChild(save);
+    env.tick();
+    await h.flush(60);
+    const order = container.childNodes;
+    const saveIdx = order.indexOf(save);
+    h.check('both buttons land before Save', manualButtons(env).every((b) => order.indexOf(b) < saveIdx),
+      order.map((n) => n.textContent).join(','));
+  }
+
+  // ── Deterministic ordering against another plugin's button (coop().order) ────
+  //
+  // Before this, both plugins' insertBeforeSave/insertBeforeDelete always inserted
+  // immediately before the anchor, so whichever plugin's async check resolved last
+  // ended up closest to Save/Delete - a race decided by network timing, not a rule.
+  // `coop().order` fixes a priority per plugin id; MergePerformerTagsToScenes
+  // registers 20 (closer to the anchor) and this plugin registers 10, so a foreign
+  // button already in the row is either skipped past or landed on, by priority
+  // alone, regardless of which plugin got there first.
+  {
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    h.check('registers its own priority in coop().order at load',
+      env.ctx.window.StashPluginCoop.order[NAME] === 10, env.ctx.window.StashPluginCoop.order);
+    // MergePerformerTagsToScenes registers its own priority at its own load, which
+    // this single-plugin harness never runs - seeded directly, the way its
+    // `declares` entry already is in the tests below.
+    env.ctx.window.StashPluginCoop.order.MergePerformerTagsToScenes = 20;
+    const container = editButtonsContainer(env);
+    // Simulates MergePerformerTagsToScenes having already inserted its own button
+    // before this plugin's tick ever runs - the case that used to lose the race
+    // half the time, since our own insertion always targeted "immediately before
+    // Save" with no regard for what was already there.
+    const foreign = h.makeElement('button');
+    foreign.textContent = 'Copy Tags to all Scenes';
+    foreign._coopOwner = 'MergePerformerTagsToScenes';
+    container.appendChild(foreign);
+    const save = h.makeElement('button');
+    save.textContent = 'Save';
+    container.appendChild(save);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    const order = container.childNodes;
+    h.check('a higher-priority foreign button already there is not displaced from Save',
+      !!btn && order.indexOf(foreign) === order.indexOf(save) - 1,
+      order.map((n) => n.textContent).join(','));
+    h.check('our own button lands on the far side of it instead of racing it for the anchor',
+      !!btn && order.indexOf(btn) < order.indexOf(foreign),
+      order.map((n) => n.textContent).join(','));
+  }
+  {
+    // The reverse priority: a foreign plugin registered *lower* than this one's 10
+    // stays on the far side, and our button lands between it and Save.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    env.ctx.window.StashPluginCoop.order.SomeOlderPlugin = 5;
+    const container = editButtonsContainer(env);
+    const foreign = h.makeElement('button');
+    foreign.textContent = 'Some Older Button';
+    foreign._coopOwner = 'SomeOlderPlugin';
+    container.appendChild(foreign);
+    const save = h.makeElement('button');
+    save.textContent = 'Save';
+    container.appendChild(save);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    const order = container.childNodes;
+    h.check('a lower-priority foreign button stays where it was, further from Save',
+      !!btn && order.indexOf(foreign) < order.indexOf(btn), order.map((n) => n.textContent).join(','));
+    h.check('and our button sits between it and Save',
+      !!btn && order.indexOf(btn) === order.indexOf(save) - 1, order.map((n) => n.textContent).join(','));
   }
 
   // ── Restraint ───────────────────────────────────────────────────────────────
@@ -223,6 +397,61 @@ function nodeListLikeContainer() {
     env.tick();
     await h.flush(60);
     h.check('with no container found, no button appears', manualButtons(env).length === 0);
+  }
+
+  // ── Existence gating: a button whose source is entirely absent stays off ────
+  {
+    // Not "already has the tags" - genuinely no performers to read from.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      entity: Object.assign({}, SCENE, { performers: [] }),
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('no performers on the scene hides the button', manualButtons(env).length === 0);
+  }
+  {
+    // The scene has a performer, and that performer's only tag is already on the
+    // scene - nothing left to *add*. The button still shows: existence gating only
+    // asks "is there a performer here", never "would a click actually change
+    // anything" - the latter is Improvement #4, deferred by explicit preference for
+    // a button that is sometimes unneeded over one that is missing when needed.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      entity: Object.assign({}, SCENE, { tags: [{ id: '1' }] }),
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('a source with nothing new to add still shows the button', manualButtons(env).length === 1);
+  }
+  {
+    // Two paths on the same page, gated independently: only the one whose source
+    // exists shows.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true, b2TagsStudioToScenes: true },
+      entity: Object.assign({}, SCENE, { studio: null }),
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    const labels = manualButtons(env).map((b) => b.textContent);
+    h.check('a path whose source is absent is gated independently of its sibling',
+      labels.length === 1 && labels[0] === 'Copy all Tags from all Performers', labels.join(','));
+  }
+  {
+    // A failed existence probe (the tag query `autoContext` needs) must not silently
+    // hide every button on the page - same stated preference as above.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      failTags: true,
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('a failed probe falls back to showing the button rather than hiding it',
+      manualButtons(env).length === 1);
   }
 
   // ── The `.details-edit` fallback (Group, and per MPTTS also Performer) ───────
@@ -292,7 +521,7 @@ function nodeListLikeContainer() {
     await h.flush(60);
     const labels = manualButtons(env).map((b) => b.textContent).sort();
     h.check('one button per enabled path, not one that tries to name both',
-      labels.join(',') === 'Add Perf Tags,Add Studio Tags', labels.join(','));
+      labels.join(',') === 'Copy Tags from Studio,Copy all Tags from all Performers', labels.join(','));
   }
 
   // ── Not duplicating another plugin's identical button ─────────────────────────
@@ -306,7 +535,7 @@ function nodeListLikeContainer() {
     env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
     const foreign = h.makeElement('button');
     foreign.className = 'cpt2s-merge-from-perfs-btn';
-    foreign.textContent = 'Add Perf Tags';
+    foreign.textContent = 'Copy all Tags from all Performers';
     container.appendChild(foreign);
     env.tick();
     await h.flush(60);
@@ -331,7 +560,7 @@ function nodeListLikeContainer() {
     const container = editButtonsContainer(env);
     env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
     const foreign = h.makeElement('button');
-    foreign.textContent = 'Add Perf Tags';
+    foreign.textContent = 'Copy all Tags from all Performers';
     container.appendChild(foreign);
     env.tick();
     await h.flush(60);
@@ -398,7 +627,7 @@ function nodeListLikeContainer() {
     btn.click();
     await h.flush(80);
     h.check('with no captured control the button recovers rather than sticking on "Working..."',
-      btn.textContent === 'Add Perf Tags', btn.textContent);
+      btn.textContent === 'Copy all Tags from all Performers', btn.textContent);
     h.check('and reports the error', /open the Edit tab/.test(env.ctx._alert || ''), env.ctx._alert);
   }
 
@@ -476,7 +705,215 @@ function nodeListLikeContainer() {
       now[0] !== first && now[0].parentNode === container);
   }
 
-  // ── The route matcher ─────────────────────────────────────────────────────────
+  // ── Source-side buttons: pushing outward instead of pulling in ──────────────
+  const sourceButtons = (env) => (env.body.descendants() || [])
+    .filter((n) => h.hasClass(n, 'ptp2re-manual-src-btn'));
+
+  {
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }], // one scene this performer is in
+    });
+    detailsEditContainer(env, true); // the detail-view instance, carrying Delete
+    env.tick();
+    await h.flush(60);
+    const btns = sourceButtons(env);
+    h.check('a source button appears on the performer detail view', btns.length === 1,
+      btns.map((b) => b.textContent).join(','));
+    h.check('labelled for the push direction, not the target-side pull label',
+      btns.length && btns[0].textContent === 'Copy Tags to all Scenes', btns[0] && btns[0].textContent);
+  }
+  {
+    // No scenes at all for this performer - the same existence-gating philosophy as
+    // the target-side buttons, applied to the push direction.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [],
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('no scenes at all hides the source button', sourceButtons(env).length === 0);
+  }
+  {
+    // A studio-sourced path lives on `/studios/:id`, a route this plugin never had a
+    // reason to recognise before source buttons existed.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b2TagsStudioToScenes: true },
+      pathname: '/studios/9',
+      sourceFilter: [{ id: '10' }],
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    const btns = sourceButtons(env);
+    h.check('a source button appears on the studio detail view', btns.length === 1,
+      btns.map((b) => b.textContent).join(','));
+  }
+  {
+    // Live-tested and confirmed already correct, not a regression: a source button's
+    // existence gate is `checkSourceButtonExistence`, which asks `resolveSourceTargets`
+    // whether any *target* exists (scenes, here) - never whether the source entity
+    // itself carries the tags being pushed. So a studio with zero tags of its own
+    // still shows "Copy Tags to all Scenes" as long as it has scenes to push into;
+    // the button reporting "No changes" on click is the correct outcome for that
+    // click, not a reason to hide it up front - the same Improvement #4 boundary the
+    // target-side existence gate draws. This test names the scenario explicitly
+    // rather than relying on the studio-button test above never happening to set
+    // `entity`/studio tags at all.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b2TagsStudioToScenes: true },
+      pathname: '/studios/9',
+      entity: Object.assign({}, SCENE, { studio: { id: '9', name: 'Studio', tags: [] } }),
+      sourceFilter: [{ id: '10' }], // the studio has scenes, even though it has no tags
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('a studio with no tags of its own still shows the button, gated on its scenes existing',
+      sourceButtons(env).length === 1);
+  }
+  {
+    // Click: resolves the one scene, plans just this one path onto it, and saves
+    // immediately - there is no staging option for a button that can fan out to many
+    // targets at once.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    const btn = sourceButtons(env)[0];
+    if (btn) btn.click();
+    await h.flush(80);
+    const w = writes(env.calls);
+    h.check('the source button writes directly, with no staging option to fall into', w.length === 1);
+    h.check('onto the resolved scene', w.length > 0 && w[0].variables.input.ids.join() === '10');
+    h.check('reports what was written', !!btn && /Added 1/.test(btn.textContent), btn && btn.textContent);
+  }
+  {
+    // Dedup applies here too: a foreign plugin's identical-path button on the same
+    // page suppresses ours, the same two-signal check as the target side.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+    });
+    const container = detailsEditContainer(env, true);
+    env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
+    const foreign = h.makeElement('button');
+    foreign.textContent = 'Copy Tags to all Scenes';
+    container.appendChild(foreign);
+    env.tick();
+    await h.flush(60);
+    h.check('a foreign button for the same path suppresses the source button too',
+      sourceButtons(env).length === 0);
+  }
+
+  // ── Placement: before Delete, not appended after it ──────────────────────────
+  //
+  // Live-tested on Performer, Group and Studio detail pages: the source button was
+  // landing after Delete instead of grouping with the other non-destructive actions,
+  // the way MergePerformerTagsToScenes' own performer button already does via its
+  // own `insertBeforeDelete`.
+  {
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+    });
+    const container = detailsEditContainer(env, true); // builds Delete as the first child
+    const del = container.childNodes[0];
+    env.tick();
+    await h.flush(60);
+    const btn = sourceButtons(env)[0];
+    const order = container.childNodes;
+    h.check('the source button lands before Delete, not appended after it', !!btn &&
+      order.indexOf(btn) !== -1 && order.indexOf(btn) < order.indexOf(del),
+      order.map((n) => n.textContent).join(','));
+    h.check('carries no vertical margin of its own - that would inflate the shared row',
+      !!btn && !/\bmy-\d\b/.test(btn.className || ''), btn && btn.className);
+    h.check('the container gets row-gap instead, for when a wrapped row is needed (Studio, two paths)',
+      container.style && container.style.rowGap === '.25rem', container.style);
+  }
+  {
+    // Delete nested inside a wrapper element - the same walk-up as the target side's
+    // Save handling, and the case MPTTS's own placement suite covers for its button.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+    });
+    const container = h.makeElement('div');
+    container.className = 'details-edit';
+    const wrap = h.makeElement('div');
+    const del = h.makeElement('button');
+    del.className = 'delete';
+    wrap.appendChild(del);
+    container.appendChild(wrap);
+    env.body.appendChild(container);
+    env.tick();
+    await h.flush(60);
+    const btn = sourceButtons(env)[0];
+    h.check('handles a Delete button nested in a wrapper element',
+      !!btn && btn.nextSibling === wrap, btn && btn.nextSibling && btn.nextSibling.className);
+  }
+  {
+    // Studio is a source for two paths at once - both land before Delete, in the
+    // order they were added, rather than the second landing between the first and
+    // Delete.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b2TagsStudioToScenes: true, e3TagsStudioToGroups: true },
+      pathname: '/studios/9',
+      sourceFilter: [{ id: '10' }],
+    });
+    const container = detailsEditContainer(env, true);
+    const del = container.childNodes[0];
+    env.tick();
+    await h.flush(60);
+    const btns = sourceButtons(env);
+    const order = container.childNodes;
+    const delIdx = order.indexOf(del);
+    h.check('two source buttons on the same page, both before Delete', btns.length === 2 &&
+      btns.every((b) => order.indexOf(b) < delIdx),
+      order.map((n) => n.textContent).join(','));
+  }
+  {
+    // Same coop().order contract as the target side, against Delete instead of Save:
+    // a higher-priority foreign button (MergePerformerTagsToScenes' own performer
+    // button, registered at 20) already in the row is not displaced from the anchor.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+    });
+    env.ctx.window.StashPluginCoop.order.MergePerformerTagsToScenes = 20;
+    const container = detailsEditContainer(env, true); // builds Delete as the first child
+    const del = container.childNodes[0];
+    // Simulates MergePerformerTagsToScenes' own performer button already having run
+    // its own insertBeforeDelete - which lands immediately to Delete's left, exactly
+    // where a second plugin's insertBeforeDelete would also target.
+    const foreign = h.makeElement('button');
+    foreign.textContent = 'Copy Tags to all Scenes';
+    foreign._coopOwner = 'MergePerformerTagsToScenes';
+    container.insertBefore(foreign, del);
+    env.tick();
+    await h.flush(60);
+    const btn = sourceButtons(env)[0];
+    const order = container.childNodes;
+    h.check('a higher-priority foreign button already there is not displaced from Delete',
+      !!btn && order.indexOf(foreign) === order.indexOf(del) - 1,
+      order.map((n) => n.textContent).join(','));
+    h.check('our own source button lands on the far side of it instead of racing it for the anchor',
+      !!btn && order.indexOf(btn) < order.indexOf(foreign),
+      order.map((n) => n.textContent).join(','));
+  }
+
+  // ── The route matchers ────────────────────────────────────────────────────────
   {
     const { env } = start({ settings: {} });
     const rt = env.ctx.window.__ptp2re.currentRouteTarget;
@@ -487,6 +924,19 @@ function nodeListLikeContainer() {
       rt().target === 'image' && rt().id === '7');
     env.ctx.location.pathname = '/performers/1';
     h.check('a route this plugin never writes to matches nothing', rt() === null);
+  }
+  {
+    const { env } = start({ settings: {} });
+    const rt = env.ctx.window.__ptp2re.currentSourceRouteTarget;
+    env.ctx.location.pathname = '/performers/1';
+    h.check('a performer route is recognised as a source', rt().sourceType === 'performer' && rt().id === '1');
+    env.ctx.location.pathname = '/studios/9';
+    h.check('a studio route is recognised as a source', rt().sourceType === 'studio' && rt().id === '9');
+    env.ctx.location.pathname = '/scenes/10';
+    h.check('a scene route is recognised as a source too, the same route a target button uses',
+      rt().sourceType === 'scene' && rt().id === '10');
+    env.ctx.location.pathname = '/settings?tab=tasks';
+    h.check('a route no source path ever reads matches nothing', rt() === null);
   }
 
   h.finish();

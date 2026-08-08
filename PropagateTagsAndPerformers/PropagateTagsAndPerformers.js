@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.8.3';
+  var PLUGIN_VERSION = '0.10.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -192,31 +192,31 @@
     // Stage 1 - performer assignments, before anything reads performers.
     { id: 'performers:image>gallery', kind: 'performers', stage: 1, hops: 1,
       setting: 'c2PerformersImagesToGalleries', target: 'gallery', sourceType: 'image',
-      source: 'Images', button: 'Add Image Perfs',
+      source: 'Images', button: 'Copy all Perfs from all Images',
       reverse: { backRef: 'galleries' } },
     { id: 'performers:gallery>scene', kind: 'performers', stage: 1, hops: 1,
       setting: 'b5PerformersGalleriesToScenes', target: 'scene', sourceType: 'gallery',
-      source: 'Galleries', button: 'Add Gallery Perfs',
+      source: 'Galleries', button: 'Copy all Perfs from all Galleries',
       walk: ['galleries'] },
 
     // Stage 2 - tags onto scenes.
     { id: 'tags:marker>scene', kind: 'tags', stage: 2, hops: 1,
       setting: 'b3TagsMarkersToScenes', target: 'scene', sourceType: 'marker',
-      source: 'Markers', button: 'Add Marker Tags',
+      source: 'Markers', button: 'Copy all Tags from all Markers',
       walk: ['scene_markers'], markerTags: true },
     { id: 'tags:performer>scene', kind: 'tags', stage: 2, hops: 1,
       setting: 'b1TagsPerformersToScenes', target: 'scene', sourceType: 'performer',
-      source: 'Performers', button: 'Add Perf Tags',
+      source: 'Performers', button: 'Copy all Tags from all Performers',
       walk: ['performers'] },
     { id: 'tags:studio>scene', kind: 'tags', stage: 2, hops: 1,
       setting: 'b2TagsStudioToScenes', target: 'scene', sourceType: 'studio',
-      source: 'Studio', button: 'Add Studio Tags',
+      source: 'Studio', button: 'Copy Tags from Studio',
       walk: ['studio'] },
 
     // Stage 3 - tags onto galleries.
     { id: 'tags:image>gallery', kind: 'tags', stage: 3, hops: 1,
       setting: 'c1TagsImagesToGalleries', target: 'gallery', sourceType: 'image',
-      source: 'Images', button: 'Add Image Tags',
+      source: 'Images', button: 'Copy all Tags from all Images',
       pair: 'tags:gallery>image',
       reverse: { backRef: 'galleries' } },
 
@@ -224,27 +224,27 @@
     // own, so those two are two-hop traversals through its scenes.
     { id: 'tags:scene>group', kind: 'tags', stage: 4, hops: 1,
       setting: 'e1TagsScenesToGroups', target: 'group', sourceType: 'scene',
-      source: 'Scenes', button: 'Add Scene Tags',
+      source: 'Scenes', button: 'Copy {mode} Tags from all Scenes',
       mode: 'e2TagsScenesToGroupsCommonOnly', pair: 'tags:group>scene',
       walk: ['scenes'] },
     { id: 'tags:studio>group', kind: 'tags', stage: 4, hops: 1,
       setting: 'e3TagsStudioToGroups', target: 'group', sourceType: 'studio',
-      source: 'Studio', button: 'Add Studio Tags',
+      source: 'Studio', button: 'Copy Tags from Studio',
       walk: ['studio'] },
     { id: 'tags:performer>group', kind: 'tags', stage: 4, hops: 2,
       setting: 'e4TagsPerformersToGroups', target: 'group', sourceType: 'performer',
-      source: 'Performers', button: 'Add Perf Tags',
+      source: 'Performers', button: 'Copy all Tags from all Performers',
       walk: ['scenes', 'performers'] },
     { id: 'tags:marker>group', kind: 'tags', stage: 4, hops: 2,
       setting: 'e5TagsMarkersToGroups', target: 'group', sourceType: 'marker',
-      source: 'Markers', button: 'Add Marker Tags',
+      source: 'Markers', button: 'Copy all Tags from all Markers',
       walk: ['scenes', 'scene_markers'], markerTags: true },
 
     // Stage 5 - sub-groups roll up into their containing group. Group.sub_groups is
     // a list of GroupDescription, not of Group, hence the `group` step.
     { id: 'tags:subgroup>group', kind: 'tags', stage: 5, hops: 1,
       setting: 'e6TagsSubGroupsToGroups', target: 'group', sourceType: 'group',
-      source: 'Sub-groups', button: 'Add Sub-group Tags',
+      source: 'Sub-groups', button: 'Copy {mode} Tags from all Sub-groups',
       mode: 'e7TagsSubGroupsToGroupsCommonOnly',
       walk: ['sub_groups', 'group'] },
 
@@ -253,12 +253,12 @@
     // cooldown above exists; see CLAUDE.md.
     { id: 'tags:group>scene', kind: 'tags', stage: 6, hops: 1,
       setting: 'b4TagsGroupsToScenes', target: 'scene', sourceType: 'group',
-      source: 'Groups', button: 'Add Group Tags',
+      source: 'Groups', button: 'Copy all Tags from all Groups',
       pair: 'tags:scene>group',
       walk: ['groups', 'group'] },
     { id: 'tags:gallery>image', kind: 'tags', stage: 6, hops: 1,
       setting: 'd1TagsGalleriesToImages', target: 'image', sourceType: 'gallery',
-      source: 'Galleries', button: 'Add Gallery Tags',
+      source: 'Galleries', button: 'Copy all Tags from all Galleries',
       pair: 'tags:image>gallery',
       walk: ['galleries'] },
   ];
@@ -340,6 +340,17 @@
 
   function enabledPaths(s) {
     return PATHS.filter(function (p) { return !!s[p.setting]; });
+  }
+
+  // A manual button's caption: "Copy [all|common] [Tags|Perfs] [to|from] all
+  // <plural>". Only the two paths carrying a "common tags only" toggle (`e1`'s
+  // `tags:scene>group`, `e6`'s `tags:subgroup>group`) have a `{mode}` token to fill in
+  // - every other path's `button` is already the final string, same as it always was.
+  // Reads whichever mode is currently configured, so the two buttons whose meaning
+  // depends on it never show a caption the setting has moved past.
+  function buttonLabel(path, s) {
+    if (!path.mode) return path.button;
+    return path.button.replace('{mode}', (s && s[path.mode]) ? 'common' : 'all');
   }
 
   // ── Settings ──────────────────────────────────────────────────────────────
@@ -425,6 +436,7 @@
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
     if (!c.declares) c.declares = {};
+    if (!c.order) c.order = {};
     return c;
   }
 
@@ -447,6 +459,15 @@
   // the settings happen to be. It is what lets another plugin's bulk run tell "will
   // stand down" apart from "too old to know about leases".
   coop().respecters[PLUGIN_ID] = true;
+
+  // A fixed, agreed priority for the deterministic-ordering protocol below
+  // (`insertOrdered`) - not a capability like `respecters`, but a number both sides
+  // have to pick once and keep consistent, the same way the two plugins pin their
+  // overlapping CSS byte-identical. Lower sits further from Save/Delete;
+  // MergePerformerTagsToScenes registers 20, so this plugin's own buttons land to its
+  // left rather than racing it for the position next to the anchor. Gaps of 10 leave
+  // room for a third plugin to slot in without renumbering either existing value.
+  coop().order[PLUGIN_ID] = 10;
 
   // The N-way declaration registry (D3 of the design plan): unlike `respecters`,
   // which is a fixed capability, this is refreshed on every settings load - task or
@@ -1652,6 +1673,11 @@
       var agg = path.reverse
         ? (pass.gathered && pass.gathered[path.id] || {})[String(ent.id)]
         : self.aggregate(walkSources(ent, path), path);
+      // A hook the manual-button existence probe uses: whether this path found any
+      // sources at all, independent of whether there is anything left to add below.
+      // No-op for the task and for a normal auto-mode reaction, neither of which sets
+      // it - only `checkButtonExistence` does.
+      if (self.recordExistence) self.recordExistence(path.id, !!(agg && agg.n));
       // Nothing to aggregate. Under either mode this is "add nothing" - the
       // intersection of no sets is not everything here, it is emptiness, because a
       // group with no scenes has no scenes agreeing on anything.
@@ -3140,19 +3166,31 @@
       : ' - stages into the form for review; you still press Save.');
   }
 
-  function buildManualButton(path, target, id, immediate) {
-    var btn = button(path.button, MANUAL_BTN_CLASS + ' mx-1');
+  function buildManualButton(path, label, target, id, immediate) {
+    // Deliberately not the shared `button()` helper: that carries `btn-sm`, sized for
+    // the dialog's own footer. Stash's own Save/Delete and MergePerformerTagsToScenes'
+    // on-page buttons all carry plain `btn btn-secondary` with no size modifier, so a
+    // `btn-sm` button beside them reads smaller in both height and font-size - not the
+    // row-dependent stretch below, a flat difference present on every row.
+    // No vertical margin here on purpose - see `ensureRowGap` below for why a wrapped
+    // row's spacing comes from the container, not this button's own margin box.
+    var btn = el('button', 'btn btn-secondary mx-1 ' + MANUAL_BTN_CLASS, label);
+    btn.type = 'button';
     btn.id = manualButtonId(path);
+    btn._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
     btn._ptp2reEntityId = id;
+    // The resolved label, held apart from `textContent` because the click handler
+    // below overwrites that with "Working..."/"Added N" while a click is in flight -
+    // comparing live `textContent` against a freshly resolved label would catch the
+    // button mid-flash and rebuild it, cutting the flash short.
+    btn._ptp2reLabel = label;
     btn.title = manualButtonTitle(path, immediate);
     // The container is a flex row, and its default `align-items: stretch` makes any
-    // child sitting beside a taller sibling - Stash's own Save/Delete, or
-    // MergePerformerTagsToScenes' button, which carries no `btn-sm` - stretch to
-    // match it. A button that wraps to its own row, with nothing tall beside it,
-    // keeps its natural height instead - the same `btn-sm` button rendering two
-    // different heights purely by which row it landed on. `align-self` opts every
-    // one of ours out of that per-row inheritance, so they are consistently sized
-    // regardless of what else is sharing the row.
+    // child sitting beside a taller sibling stretch to match it. A button that wraps
+    // to its own row, with nothing tall beside it, keeps its natural height instead -
+    // the same button rendering two different heights purely by which row it landed
+    // on. `align-self` opts every one of ours out of that per-row inheritance, so they
+    // are consistently sized regardless of what else is sharing the row.
     btn.style = 'align-self:flex-start;';
     btn.addEventListener('click', function (event) {
       if (event && event.preventDefault) event.preventDefault();
@@ -3192,6 +3230,82 @@
     return null;
   }
 
+  // The other half of `insertBeforeDelete`, below: on the Edit tab our buttons want
+  // to land beside Save/Delete rather than trail them - the same complaint as the
+  // source side, one row over. There is no dedicated class for Save the way Delete
+  // carries one (confirmed live), so this matches on the button's own text instead -
+  // the same technique `foreignButtonAlreadyShows` already relies on for dedup. A
+  // plain recursive walk over `childNodes`/`tagName`, not `querySelectorAll`, so it
+  // needs nothing beyond what every DOM node - real or the test harness's - already
+  // implements.
+  function findButtonByLabel(root, label) {
+    var kids = root.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.tagName === 'BUTTON' && (k.textContent || '') === label) return k;
+      var found = findButtonByLabel(k, label);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // Save may be nested inside a wrapper element, so walk up to whichever node is the
+  // container's own child - insertBefore only accepts a direct child as the
+  // reference node. Falls back to appendChild when no Save button is found at all -
+  // a container reused by a test fixture, or a future Stash page with no Save.
+  function insertBeforeSave(container, button) {
+    var node = findButtonByLabel(container, 'Save');
+    while (node && node.parentNode !== container) node = node.parentNode;
+    insertOrdered(container, button, node);
+  }
+
+  // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,
+  // "Cross-plugin cooperation: deterministic button ordering"). Both this plugin's
+  // and MergePerformerTagsToScenes' `insertBeforeSave`/`insertBeforeDelete` used to
+  // always insert immediately before their anchor, so with both enabled, whichever
+  // plugin's async eligibility check happened to resolve last ended up closest to
+  // Save/Delete - a race decided by network timing, not a rule, and it could flip on
+  // every reload. `coop().order` fixes a priority per plugin id; a button already
+  // sitting there and owned by a higher-priority plugin is skipped over rather than
+  // displaced, so this plugin's own button always lands on the low-priority side of
+  // it regardless of which plugin inserted first. `anchor` may be null (no Save or
+  // Delete found at all), in which case there is nothing to order against.
+  function insertOrdered(container, button, anchor) {
+    if (!anchor) { container.appendChild(button); return; }
+    var order = coop().order;
+    var myPriority = order[PLUGIN_ID] || 0;
+    var ref = anchor;
+    var scan = anchor.previousSibling;
+    while (scan) {
+      var ownerPriority = scan._coopOwner ? (order[scan._coopOwner] || 0) : null;
+      if (ownerPriority === null || ownerPriority <= myPriority) break;
+      ref = scan;
+      scan = scan.previousSibling;
+    }
+    container.insertBefore(button, ref);
+  }
+
+  // 0.9.1 tried to space a wrapped row against the one above it with `my-1` on the
+  // button itself, live-tested as a regression: `.edit-buttons`/`.details-edit` are
+  // flex rows with the default `align-items: stretch`, and a flex line's own height
+  // is the tallest *margin box* sharing it - so a button's own vertical margin
+  // inflates the line Stash's Save/Delete sit on too, and stretch then grows them to
+  // match. The button opts itself out of stretching via `align-self` above, but that
+  // does not shrink the line back down - Stash's buttons visibly grew taller and,
+  // where the container re-renders often enough, visibly jittered as they did.
+  // `row-gap` is a property of the container, not any one item, and inserts space
+  // *between* flex lines without feeding into either line's own cross-size
+  // calculation - so it gets the same wrapped-row spacing with no stretch to leak
+  // into a line that already had everything it needs.
+  function ensureRowGap(container) {
+    if (!container) return;
+    // A real element's `.style` is always a live CSSStyleDeclaration, never absent -
+    // this guard only ever fires in the test harness, whose fake elements have no
+    // `.style` until something sets one.
+    if (!container.style) container.style = {};
+    container.style.rowGap = '.25rem';
+  }
+
   // Whether some *other* loaded plugin declares this same path - the `declares`
   // registry from step 7, read here for the first time by anything other than the
   // task dialog's log line.
@@ -3223,6 +3337,34 @@
     return false;
   }
 
+  // Whether each of `paths` actually finds a source on this one entity - independent
+  // of whether there is anything left to *add*, which is what a click's diff decides.
+  // A scene can have performers whose tags are already all copied in and still show
+  // "No changes" on click - that is deferred (see the button-existence note below);
+  // this only answers "is there a performer here at all". Reuses `AutoRun`'s own
+  // fetch and walk via `Run.prototype.planTarget`'s `recordExistence` hook, rather
+  // than a second query shape, so a button's visibility can never disagree with what
+  // a click into the same entity would see.
+  function checkButtonExistence(target, paths, id, s) {
+    return autoContext(s).then(function (ctx) {
+      var run = new AutoRun(s, ctx.tagMap, ctx.filters);
+      var has = {};
+      run.recordExistence = function (pathId, exists) { has[pathId] = exists; };
+      return run.planEntities(target, paths, [String(id)]).then(function () { return has; });
+    });
+  }
+
+  function pathIdsKey(paths) {
+    return paths.map(function (p) { return p.id; }).sort().join(',');
+  }
+
+  // Single-slot, like MergePerformerTagsToScenes' own `sceneCheck`/`performerCheck`:
+  // one page is in view at a time, so there is nothing to key a map on beyond what
+  // would immediately be invalidated by navigating away. Keyed on the path *set*, not
+  // just the entity, because toggling a path's setting while the page is open changes
+  // what needs probing without changing either the target or the id.
+  var _existenceCheck = null; // { target, id, pathsKey, status: 'pending'|'ready', has }
+
   // Reconciles the container's buttons against the currently enabled paths for this
   // page, adding what is missing and dropping what no longer belongs - a stale
   // button left over from the previous entity, or every button at once when the
@@ -3233,15 +3375,46 @@
       if (!rt) { clearManualButtons(); return; }
       var container = findManualButtonContainer();
       if (!container) { clearManualButtons(); return; }
+      ensureRowGap(container);
       // A path another plugin also declares, whose button is already visible right
       // here, is dropped from what we want before either loop below ever sees it -
       // so the removal loop tears an earlier one of ours down the moment a sibling
       // plugin's appears, and the add loop never puts a second one up beside it.
       var paths = enabledPaths(s).filter(function (p) { return p.target === rt.target; })
         .filter(function (p) {
-          return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, p.button));
+          return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, buttonLabel(p, s)));
         });
-      // A button whose path is no longer enabled is removed outright. A button for a
+      if (!paths.length) { clearManualButtons(); return; }
+      // Existence gating: a button whose path finds nothing on this entity - no
+      // performers, no studio, no markers, no groups - stays off rather than sitting
+      // there only to report "No changes" on every click. This is deliberately
+      // narrower than Improvement #4's deferred "would this actually add anything":
+      // a scene with performers whose tags are already all present still shows its
+      // button, only an *absent* relationship hides one - matching what
+      // MergePerformerTagsToScenes' own two buttons already do. The probe is async,
+      // so a button that was showing a moment ago can disappear for one tick while a
+      // fresh one is checked; there is no synchronous way to know without the query.
+      var wantKey = pathIdsKey(paths);
+      if (!_existenceCheck || _existenceCheck.target !== rt.target ||
+          _existenceCheck.id !== rt.id || _existenceCheck.pathsKey !== wantKey) {
+        var check = _existenceCheck = { target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', has: null };
+        checkButtonExistence(rt.target, paths, rt.id, s).then(function (has) {
+          if (_existenceCheck === check) { check.has = has; check.status = 'ready'; manualButtonsTick(); }
+        }, function (e) {
+          // A failed probe must not silently hide every button on the page - the
+          // recorded preference is a button that is sometimes unneeded over one that
+          // is missing when it was needed, and a network hiccup is exactly that
+          // trade. `has: null` below is read as "show everything".
+          console.error('[ptp2re] button existence check failed:', e);
+          if (_existenceCheck === check) { check.status = 'ready'; check.has = null; manualButtonsTick(); }
+        });
+      }
+      if (_existenceCheck.status !== 'ready') { clearManualButtons(); return; }
+      if (_existenceCheck.has) {
+        paths = paths.filter(function (p) { return _existenceCheck.has[p.id]; });
+      }
+      // A button whose path is no longer enabled - or no longer wanted because its
+      // source turned out to be empty - is removed outright. A button for a
       // *different* entity (the container reused across a navigation) is not handled
       // here - the loop below already replaces it, since `existing` would fail the
       // entity-id check and get torn down before its replacement is appended. Two
@@ -3258,10 +3431,239 @@
         if (!stillWanted && node.parentNode) node.parentNode.removeChild(node);
       });
       paths.forEach(function (p) {
+        var label = buttonLabel(p, s);
         var existing = document.getElementById(manualButtonId(p));
-        if (existing && existing._ptp2reEntityId === rt.id) return;
+        if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-        container.appendChild(buildManualButton(p, rt.target, rt.id, !!s.a2SaveImmediately));
+        insertBeforeSave(container, buildManualButton(p, label, rt.target, rt.id, !!s.a2SaveImmediately));
+      });
+    });
+  }
+
+  // ── The source-side buttons: push outward instead of pulling in ─────────────
+  //
+  // Everything above puts a button on the *target's* page - "copy my performers'
+  // tags in". This is the other direction: a button on the *source's* own page -
+  // "push my tags out to every scene/group/etc. I reach" - matching MergePerformerTagsToScenes'
+  // own performer-page button rather than the selection-menu alternative discussed
+  // and deferred (see CLAUDE.md). Eleven of the thirteen paths qualify: the two
+  // marker paths are deliberately absent, because a SceneMarker has no detail page of
+  // its own to put a button on - it lives inside a scene's Markers tab.
+  //
+  // There is no staging equivalent here. Staging pushes into *one* captured form
+  // control; a source button can fan out to dozens of targets at once, and there is
+  // no single form to stage into. Every source button saves immediately, regardless
+  // of `a2SaveImmediately` - that setting is about which of the *target* buttons'
+  // two behaviours to use, and does not apply to a button that only ever has one.
+
+  var SOURCE_ROUTES = {
+    // Performer and Studio are only ever a source in this plugin - never one of
+    // `TARGETS` - so they need their own route regexes here.
+    performer: /^\/performers\/(\d+)(?:\/|$)/,
+    studio: /^\/studios\/(\d+)(?:\/|$)/,
+    // The other four are also targets, and a source button lives on the very same
+    // route as a target button - just in the detail-view DOM state rather than the
+    // edit-form one. Reusing `TARGETS[key].route` rather than a second copy of the
+    // four patterns.
+    scene: TARGETS.scene.route,
+    gallery: TARGETS.gallery.route,
+    image: TARGETS.image.route,
+    group: TARGETS.group.route,
+  };
+
+  function currentSourceRouteTarget() {
+    for (var key in SOURCE_ROUTES) {
+      if (!hasOwn(SOURCE_ROUTES, key)) continue;
+      var m = SOURCE_ROUTES[key].exec(location.pathname);
+      if (m) return { sourceType: key, id: m[1] };
+    }
+    return null;
+  }
+
+  // The source-side counterpart to each path's target-side `button` label. Keyed
+  // separately, rather than derived from `path.button`, because the two read in
+  // opposite directions ("from all Performers" versus "to all Scenes") and a table
+  // that tried to flip one string into the other would be harder to audit than two
+  // short tables. A path missing here gets no source button - both marker paths, on
+  // purpose (see above).
+  var SOURCE_BUTTON_LABELS = {
+    'tags:performer>scene': 'Copy Tags to all Scenes',
+    'tags:performer>group': 'Copy Tags to all Groups',
+    'tags:studio>scene': 'Copy Tags to all Scenes',
+    'tags:studio>group': 'Copy Tags to all Groups',
+    'tags:scene>group': 'Copy {mode} Tags to all Groups',
+    'performers:gallery>scene': 'Copy Perfs to all Scenes',
+    'tags:gallery>image': 'Copy Tags to all Images',
+    'performers:image>gallery': 'Copy Perfs to all Galleries',
+    'tags:image>gallery': 'Copy Tags to all Galleries',
+    'tags:group>scene': 'Copy Tags to all Scenes',
+    'tags:subgroup>group': 'Copy {mode} Tags to all Containing Groups',
+  };
+
+  function sourceButtonLabel(path, s) {
+    var template = SOURCE_BUTTON_LABELS[path.id];
+    if (!path.mode) return template;
+    return template.replace('{mode}', (s && s[path.mode]) ? 'common' : 'all');
+  }
+
+  // The other half of the swap `findManualButtonContainer` already reads: the
+  // detail-view navbar carrying a Delete button, rather than the edit form a target
+  // button wants. This is where a source button belongs, on the page *about* the
+  // source entity rather than inside its edit form.
+  // MergePerformerTagsToScenes' own performer button already depends on exactly this
+  // container. Confirmed live only for Group (via the edit-container fallback's own
+  // rejected half) and, through that plugin's precedent, for Performer; Studio,
+  // Scene, Gallery and Image are the same guess, unverified - see CLAUDE.md.
+  function findDetailContainer() {
+    var candidates = document.querySelectorAll('.details-edit');
+    for (var i = 0; i < candidates.length; i++) {
+      if (candidates[i].querySelector('button.delete')) return candidates[i];
+    }
+    return null;
+  }
+
+  // Places a button just ahead of Delete, the same `insertBeforeDelete` technique
+  // MergePerformerTagsToScenes' own performer button already uses - our source
+  // buttons live in the same container as that button (Performer's, at least) and
+  // landing after Delete instead of beside it read as a departure from that plugin's
+  // own placement. Delete may be nested inside a wrapper element, so walk up to
+  // whichever node is the container's own child - insertBefore only accepts a direct
+  // child as the reference node.
+  function insertBeforeDelete(container, button) {
+    var node = container.querySelector('button.delete');
+    while (node && node.parentNode !== container) node = node.parentNode;
+    insertOrdered(container, button, node);
+  }
+
+  var MANUAL_SRC_BTN_CLASS = 'ptp2re-manual-src-btn';
+
+  function manualSourceButtonId(path) {
+    return 'ptp2re-msbtn-' + path.id.replace(/[^a-zA-Z0-9]+/g, '-');
+  }
+
+  function clearManualSourceButtons() {
+    (document.querySelectorAll('.' + MANUAL_SRC_BTN_CLASS) || []).forEach(function (b) {
+      if (b.parentNode) b.parentNode.removeChild(b);
+    });
+  }
+
+  // Whether each of `paths` finds any target at all from this one source entity -
+  // the source-side equivalent of `checkButtonExistence`, but simpler: there is no
+  // walk to aggregate, only `resolveSourceTargets`' own id list, the same lookup a
+  // click performs. A performer in no scenes yields an empty list either way, so the
+  // button and the click can never disagree about what counts as "nothing here".
+  function checkSourceButtonExistence(paths, id) {
+    var has = {};
+    var chain = Promise.resolve();
+    paths.forEach(function (p) {
+      chain = chain.then(function () {
+        return resolveSourceTargets(p, [String(id)]).then(function (ids) { has[p.id] = ids.length > 0; });
+      });
+    });
+    return chain.then(function () { return has; });
+  }
+
+  function manualSourceButtonTitle(path) {
+    return pathLabel(path) + ' - copies and saves immediately into every ' +
+      TARGETS[path.target].label.toLowerCase() + ' this reaches. There is no staging ' +
+      'here: the write fans out to many entities at once, and there is no single form ' +
+      'to stage it into.';
+  }
+
+  // The click: resolve which targets this source reaches, then plan and apply just
+  // this one path onto them - not `runAutoTargets`' "replan everything enabled for
+  // this target", which would pull in *other* sources' paths too and do more than
+  // the button that was clicked promised. `guarded()` around the whole thing, same
+  // reason as `runManual`: `run.apply()` issues the bulk mutation the fetch wrapper
+  // watches for, and without it a click would react to its own write.
+  function runManualSource(path, id) {
+    return autoSettings().then(function (s) {
+      return guarded(function () {
+        return resolveSourceTargets(path, [String(id)]).then(function (targetIds) {
+          if (!targetIds.length) return 0;
+          return autoContext(s).then(function (ctx) {
+            var run = new AutoRun(s, ctx.tagMap, ctx.filters);
+            return run.planEntities(path.target, [path], targetIds).then(function () {
+              return run.apply('manual source: ' + path.id + ' ' + id);
+            });
+          });
+        });
+      });
+    }).then(function (n) { return { count: n }; });
+  }
+
+  function buildManualSourceButton(path, label, id) {
+    // No vertical margin here either - same `ensureRowGap` reasoning as the
+    // target-side button above. Studio can show two of these at once and wraps just
+    // as readily.
+    var btn = el('button', 'btn btn-secondary mx-1 ' + MANUAL_SRC_BTN_CLASS, label);
+    btn.type = 'button';
+    btn.id = manualSourceButtonId(path);
+    btn._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
+    btn._ptp2reEntityId = id;
+    btn._ptp2reLabel = label;
+    btn.style = 'align-self:flex-start;';
+    btn.title = manualSourceButtonTitle(path);
+    btn.addEventListener('click', function (event) {
+      if (event && event.preventDefault) event.preventDefault();
+      var orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Working...';
+      runManualSource(path, id).then(function (result) {
+        btn.disabled = false;
+        btn.textContent = result.count ? ('Added ' + result.count) : 'No changes';
+        setTimeout(function () { btn.textContent = orig; }, FLASH_MS);
+      }, function (err) {
+        btn.disabled = false;
+        btn.textContent = orig;
+        console.error('[ptp2re]', err);
+        alert('Error: ' + (err && err.message ? err.message : err));
+      });
+    });
+    return btn;
+  }
+
+  var _existenceCheckSrc = null; // same shape as `_existenceCheck`, keyed on sourceType instead of target
+
+  function manualSourceButtonsTick() {
+    autoSettings().then(function (s) {
+      var rt = s.a1ShowManualButtons ? currentSourceRouteTarget() : null;
+      if (!rt) { clearManualSourceButtons(); return; }
+      var container = findDetailContainer();
+      if (!container) { clearManualSourceButtons(); return; }
+      ensureRowGap(container);
+      var paths = PATHS.filter(function (p) {
+        return p.sourceType === rt.sourceType && !!s[p.setting] && hasOwn(SOURCE_BUTTON_LABELS, p.id);
+      }).filter(function (p) {
+        return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, sourceButtonLabel(p, s)));
+      });
+      if (!paths.length) { clearManualSourceButtons(); return; }
+      var wantKey = pathIdsKey(paths);
+      if (!_existenceCheckSrc || _existenceCheckSrc.sourceType !== rt.sourceType ||
+          _existenceCheckSrc.id !== rt.id || _existenceCheckSrc.pathsKey !== wantKey) {
+        var check = _existenceCheckSrc = { sourceType: rt.sourceType, id: rt.id, pathsKey: wantKey, status: 'pending', has: null };
+        checkSourceButtonExistence(paths, rt.id).then(function (has) {
+          if (_existenceCheckSrc === check) { check.has = has; check.status = 'ready'; manualSourceButtonsTick(); }
+        }, function (e) {
+          console.error('[ptp2re] source button existence check failed:', e);
+          if (_existenceCheckSrc === check) { check.status = 'ready'; check.has = null; manualSourceButtonsTick(); }
+        });
+      }
+      if (_existenceCheckSrc.status !== 'ready') { clearManualSourceButtons(); return; }
+      if (_existenceCheckSrc.has) {
+        paths = paths.filter(function (p) { return _existenceCheckSrc.has[p.id]; });
+      }
+      Array.prototype.slice.call(container.childNodes || []).forEach(function (node) {
+        if (!hasClass(node, MANUAL_SRC_BTN_CLASS)) return;
+        var stillWanted = paths.some(function (p) { return manualSourceButtonId(p) === node.id; });
+        if (!stillWanted && node.parentNode) node.parentNode.removeChild(node);
+      });
+      paths.forEach(function (p) {
+        var label = sourceButtonLabel(p, s);
+        var existing = document.getElementById(manualSourceButtonId(p));
+        if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
+        if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+        insertBeforeDelete(container, buildManualSourceButton(p, label, rt.id));
       });
     });
   }
@@ -3274,7 +3676,7 @@
   function scheduleEntityTick() {
     if (_entityTickScheduled) return;
     _entityTickScheduled = true;
-    setTimeout(function () { _entityTickScheduled = false; manualButtonsTick(); }, 100);
+    setTimeout(function () { _entityTickScheduled = false; manualButtonsTick(); manualSourceButtonsTick(); }, 100);
   }
 
   function startEntityObserver() {
@@ -3289,16 +3691,18 @@
     }
   }
 
+  function bothButtonTicks() { manualButtonsTick(); manualSourceButtonsTick(); }
+
   if (!installSelectPatches()) {
     window.addEventListener('load', function () { installSelectPatches(); });
   }
   if (window.addEventListener) {
-    window.addEventListener('load', function () { manualButtonsTick(); startEntityObserver(); });
-    window.addEventListener('popstate', function () { setTimeout(manualButtonsTick, 300); });
+    window.addEventListener('load', function () { bothButtonTicks(); startEntityObserver(); });
+    window.addEventListener('popstate', function () { setTimeout(bothButtonTicks, 300); });
   }
-  document.addEventListener('click', function () { setTimeout(manualButtonsTick, 300); }, true);
-  setInterval(manualButtonsTick, 1000);
-  manualButtonsTick();
+  document.addEventListener('click', function () { setTimeout(bothButtonTicks, 300); }, true);
+  setInterval(bothButtonTicks, 1000);
+  bothButtonTicks();
 
   // ── Task interception ─────────────────────────────────────────────────────
   //
@@ -3463,6 +3867,7 @@
     sourceFilterQuery: sourceFilterQuery,
     AUTO_COOLDOWN_MS: AUTO_COOLDOWN_MS,
     currentRouteTarget: currentRouteTarget,
+    currentSourceRouteTarget: currentSourceRouteTarget,
     manualButtonId: manualButtonId,
     MANUAL_BTN_CLASS: MANUAL_BTN_CLASS,
   };

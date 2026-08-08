@@ -145,6 +145,54 @@ fourth plugin ever adds a *second* hierarchy-rewriter, this is the seam to revis
 object — nothing reads an absent entry as anything other than "declares nothing", the same way
 `respecters` already treats an unregistered plugin.
 
+## Cross-plugin cooperation: deterministic button ordering
+
+A fourth, narrower mechanism than the three above — this one is not about avoiding a duplicate or a
+collision, but about two *legitimate* buttons from two different plugins sharing one row
+(`.edit-buttons` on Scene, `.details-edit` on Performer/Studio/Group) and needing a fixed relative
+order.
+
+**The problem it replaces: a race decided by network timing.** `MergePerformerTagsToScenes` and
+`PropagateTagsAndPerformers` each place their manual buttons with `insertBeforeSave`/
+`insertBeforeDelete`, and both independently re-find the anchor's *current* live position and
+insert immediately before it. With one plugin that is enough; with two, whichever plugin's async
+eligibility/existence check happened to resolve last ended up closest to Save or Delete — a detail
+that could flip between page loads depending on which round trip landed first, not something either
+plugin's own code decided.
+
+**`coop().order` is a fixed priority per plugin id**, registered unconditionally at load next to
+`respecters[PLUGIN_ID] = true` — a number both sides pick once and keep consistent, the same way
+the shared dialog chrome's overlapping CSS is pinned byte-identical rather than left to drift.
+Higher sits closer to the anchor. `MergePerformerTagsToScenes` registers 20 (its buttons were on the
+page first); `PropagateTagsAndPerformers` registers 10, leaving a gap of 10 either side for a future
+third plugin to slot in without renumbering either existing value.
+
+**Every button carries `_coopOwner = PLUGIN_ID`**, a plain JS property (not a DOM attribute — there
+is no need to serialise it) set at the point each plugin builds its own button element. This is
+what a sibling's insertion code reads back; a node with no `_coopOwner` is just part of Stash's own
+markup and never treated as something to order against.
+
+**`insertOrdered(container, button, anchor)` is the shared shape, duplicated in both plugins like
+everything else in this repo — there is no module between them.** It walks backward from the anchor
+over already-placed siblings, skipping past any whose owner outranks the inserting plugin (they
+stay between the new button and the anchor) and stopping at the first one that does not (an unowned
+Stash button, a same-or-lower-priority sibling, or the anchor itself). Two plugins converge on the
+same final order regardless of which one ran first:
+
+- MPTTS (20) already placed: PTP2RE (10) scans back, sees MPTTS's button outranks it, inserts
+  before it → `[PTP2RE, MPTTS, Save]`.
+- PTP2RE (10) already placed: MPTTS (20) scans back, sees PTP2RE's button does *not* outrank it,
+  stops immediately and inserts before the anchor → `[PTP2RE, MPTTS, Save]`.
+
+Same result either way. A plugin's own multiple buttons inserted in the same tick are unaffected —
+same-priority siblings are never skipped, so left-to-right insertion order is preserved exactly as
+it was before this existed.
+
+**Only a priority number, never a name-based rule.** Nothing in `insertOrdered` mentions the other
+plugin by id; it reads whatever `coop().order` and `_coopOwner` say, the same generic shape as
+`declares`. A future third plugin needs only to pick an unused number and tag its own buttons — no
+edit to either existing plugin.
+
 ## Cross-plugin cooperation: the shared dialog chrome
 
 Every plugin here puts up a full-screen review dialog, and they are one design: same head with a

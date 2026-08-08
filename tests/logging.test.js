@@ -246,7 +246,7 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
     patches.TagSelect({ isMulti: true, onSelect: form.onSetTags, values: form.tags });
     await H.flush();
     clicks[clicks.length - 1]({
-      preventDefault() {}, currentTarget: { textContent: 'Add Perf Tags', disabled: false } });
+      preventDefault() {}, currentTarget: { textContent: 'Copy all Tags from all Performers', disabled: false } });
     await H.flush(60);
     H.check('staging logs one line for the staged tag', merges(info).length === 1, info.join(' | '));
     H.check('and calls the action "staged"',

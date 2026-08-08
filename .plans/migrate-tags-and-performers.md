@@ -1040,6 +1040,28 @@ step 9 plus a run against a real Stash, not step 9 alone.
    `tests/npt-harness.js` gained `previousSibling` for this (only `nextSibling` existed before) —
    missing silently, the ordering checks would have passed against the unfixed code too, since the
    priority scan's backward walk could never advance past the anchor.
+
+   **The very next round of feedback: the anchor itself was wrong, not just the ordering between
+   two plugins' buttons on it.** Reported still seeing the flicker (unresolved, see above) and
+   Gallery Edit's button landing before Save, which sounded at first like the same "wrong (before
+   the save)" wording from the previous round — but this time confirmed, when asked directly, to
+   mean the button was never wanted before Save at all: the actually-wanted position was **between**
+   Save and Delete. `insertBeforeSave`/`findButtonByLabel` (0.9.1) were retired outright rather than
+   patched — since Delete already sits right after Save on every page that has one, anchoring on
+   Delete alone produces "between Save and Delete" without needing to locate Save at all, so both
+   plugins' target-side buttons now go through the exact same `insertBeforeDelete` the source side
+   always used. Group's edit-form state, the one page confirmed to render no Delete (§5b), falls
+   back to `insertOrdered`'s existing no-anchor branch — appending at the end, landing after Save
+   simply because Save is the last thing there. Shipped as `PropagateTagsAndPerformers` 0.11.0 and
+   `MergePerformerTagsToScenes` 1.14.0. Confirmed against two kinds of mutant: the pre-0.9.1 plain
+   `appendChild` (lands after both), and a copy with the Save-anchored walk restored (lands before
+   Save instead of between) — the second one is what makes this round's tests worth trusting, since
+   a test only checking "not appended last" would have kept passing against the very bug just fixed.
+
+   **The flicker itself is still open** — nothing in this round touched it, since no new evidence
+   (an Initiator stack trace, or confirmation of whether it is now also on Gallery Edit rather than
+   only tag-less performers) has come in yet to confirm or rule out the leading React-disruption
+   theory from the previous round.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

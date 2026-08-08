@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.10.0';
+  var PLUGIN_VERSION = '0.11.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3230,46 +3230,18 @@
     return null;
   }
 
-  // The other half of `insertBeforeDelete`, below: on the Edit tab our buttons want
-  // to land beside Save/Delete rather than trail them - the same complaint as the
-  // source side, one row over. There is no dedicated class for Save the way Delete
-  // carries one (confirmed live), so this matches on the button's own text instead -
-  // the same technique `foreignButtonAlreadyShows` already relies on for dedup. A
-  // plain recursive walk over `childNodes`/`tagName`, not `querySelectorAll`, so it
-  // needs nothing beyond what every DOM node - real or the test harness's - already
-  // implements.
-  function findButtonByLabel(root, label) {
-    var kids = root.childNodes || [];
-    for (var i = 0; i < kids.length; i++) {
-      var k = kids[i];
-      if (k.tagName === 'BUTTON' && (k.textContent || '') === label) return k;
-      var found = findButtonByLabel(k, label);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  // Save may be nested inside a wrapper element, so walk up to whichever node is the
-  // container's own child - insertBefore only accepts a direct child as the
-  // reference node. Falls back to appendChild when no Save button is found at all -
-  // a container reused by a test fixture, or a future Stash page with no Save.
-  function insertBeforeSave(container, button) {
-    var node = findButtonByLabel(container, 'Save');
-    while (node && node.parentNode !== container) node = node.parentNode;
-    insertOrdered(container, button, node);
-  }
-
   // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,
   // "Cross-plugin cooperation: deterministic button ordering"). Both this plugin's
-  // and MergePerformerTagsToScenes' `insertBeforeSave`/`insertBeforeDelete` used to
-  // always insert immediately before their anchor, so with both enabled, whichever
-  // plugin's async eligibility check happened to resolve last ended up closest to
-  // Save/Delete - a race decided by network timing, not a rule, and it could flip on
-  // every reload. `coop().order` fixes a priority per plugin id; a button already
-  // sitting there and owned by a higher-priority plugin is skipped over rather than
-  // displaced, so this plugin's own button always lands on the low-priority side of
-  // it regardless of which plugin inserted first. `anchor` may be null (no Save or
-  // Delete found at all), in which case there is nothing to order against.
+  // and MergePerformerTagsToScenes' `insertBeforeDelete` used to always insert
+  // immediately before their anchor, so with both enabled, whichever plugin's async
+  // eligibility check happened to resolve last ended up closest to it - a race
+  // decided by network timing, not a rule, and it could flip on every reload.
+  // `coop().order` fixes a priority per plugin id; a button already sitting there
+  // and owned by a higher-priority plugin is skipped over rather than displaced, so
+  // this plugin's own button always lands on the low-priority side of it regardless
+  // of which plugin inserted first. `anchor` may be null (no Delete found at all,
+  // Group's edit-form state - see `insertBeforeDelete` below), in which case there
+  // is nothing to order against.
   function insertOrdered(container, button, anchor) {
     if (!anchor) { container.appendChild(button); return; }
     var order = coop().order;
@@ -3283,6 +3255,27 @@
       scan = scan.previousSibling;
     }
     container.insertBefore(button, ref);
+  }
+
+  // Shared by both the target and source sides (0.11.0 unified them - see below).
+  // Delete carries a dedicated `.delete` class, so no text-matching walk is needed
+  // to find it, unlike Save. Delete may itself be nested inside a wrapper element,
+  // so walk up to whichever node is the container's own child - `insertBefore` only
+  // accepts a direct child as its reference node. Falls back to appending at the end
+  // when no Delete is found at all - Group's edit-form state, which carries no
+  // Delete button, so a target-side button there lands after Save by simply landing
+  // last; the source side falls back the same way for a page this plugin has never
+  // actually seen render without one.
+  //
+  // 0.11.0: the target side used to anchor on Save instead (`insertBeforeSave`,
+  // since retired), landing buttons before it. Live feedback was that "between Save
+  // and Delete" was the actually-wanted position, not "before Save" - and since
+  // Delete already sits right after Save on every page that has one, anchoring on
+  // Delete produces exactly that without needing to know where Save is at all.
+  function insertBeforeDelete(container, button) {
+    var node = container.querySelector('button.delete');
+    while (node && node.parentNode !== container) node = node.parentNode;
+    insertOrdered(container, button, node);
   }
 
   // 0.9.1 tried to space a wrapped row against the one above it with `my-1` on the
@@ -3435,7 +3428,7 @@
         var existing = document.getElementById(manualButtonId(p));
         if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-        insertBeforeSave(container, buildManualButton(p, label, rt.target, rt.id, !!s.a2SaveImmediately));
+        insertBeforeDelete(container, buildManualButton(p, label, rt.target, rt.id, !!s.a2SaveImmediately));
       });
     });
   }
@@ -3520,19 +3513,6 @@
       if (candidates[i].querySelector('button.delete')) return candidates[i];
     }
     return null;
-  }
-
-  // Places a button just ahead of Delete, the same `insertBeforeDelete` technique
-  // MergePerformerTagsToScenes' own performer button already uses - our source
-  // buttons live in the same container as that button (Performer's, at least) and
-  // landing after Delete instead of beside it read as a departure from that plugin's
-  // own placement. Delete may be nested inside a wrapper element, so walk up to
-  // whichever node is the container's own child - insertBefore only accepts a direct
-  // child as the reference node.
-  function insertBeforeDelete(container, button) {
-    var node = container.querySelector('button.delete');
-    while (node && node.parentNode !== container) node = node.parentNode;
-    insertOrdered(container, button, node);
   }
 
   var MANUAL_SRC_BTN_CLASS = 'ptp2re-manual-src-btn';

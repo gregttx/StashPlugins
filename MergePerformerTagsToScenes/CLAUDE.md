@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.13.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.14.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -38,6 +38,14 @@ a priority per plugin (this one registers 20, `PropagateTagsAndPerformers` regis
 regardless of which plugin's check finishes first. Full reasoning in the repo-root CLAUDE.md
 ("Cross-plugin cooperation: deterministic button ordering"); see §5 below for what is specific to
 this plugin's own two buttons.
+
+**1.14.0 moves the scene button's anchor itself, from Save to Delete.** Further live feedback after
+1.13.0 shipped was that "before Save" was never actually the wanted position — "between Save and
+Delete" was. Since Delete already sits right after Save on every page that has one, anchoring on
+Delete alone produces that without needing to know where Save is at all — so `insertBeforeSave`/
+`findButtonByLabel` are retired, and the scene button now goes through the exact same
+`insertBeforeDelete` the performer button has used since 1.1.0. `PropagateTagsAndPerformers` 0.11.0
+ships the identical change to its own target-side buttons, for the same reported reason.
 
 ---
 
@@ -182,25 +190,28 @@ is identified by its **Delete button**, which only the detail view renders. `ins
 walks up from Delete to whichever node is the container's own child, because `insertBefore` only
 accepts a direct child as its reference node.
 
-**The scene button gets the same treatment, against Save (1.12.2).** `.edit-buttons` carries no
-dedicated class for Save the way Delete has one, so `findButtonByLabel` walks the container's
-`childNodes` looking for a `BUTTON` whose `textContent` is exactly `'Save'`, and `insertBeforeSave`
-walks up from there to the container's own child, the same wrapper-handling `insertBeforeDelete`
-already does. Before 1.12.2 the scene button was simply `appendChild`ed — landing after Save and
-Delete, invisible with one button in the row but the one left to wrap onto its own line the moment
-a second button (`PropagateTagsAndPerformers`' own) shares the row and DOM order decides who
-overflows first. `PropagateTagsAndPerformers` carries the identical two functions under the same
-names for its own target-side buttons; the two are separate copies because the plugins share no
-module, not because the logic differs.
+**The scene button gets the same treatment as the performer button (1.12.2, re-anchored 1.14.0).**
+Before 1.12.2 the scene button was simply `appendChild`ed — landing after Save and Delete, invisible
+with one button in the row but the one left to wrap onto its own line the moment a second button
+(`PropagateTagsAndPerformers`' own) shares the row and DOM order decides who overflows first. 1.12.2
+gave it a Save-anchored `insertBeforeSave`/`findButtonByLabel` (`.edit-buttons` carries no dedicated
+class for Save the way Delete has one, so that pair walked `childNodes` matching on `textContent`
+instead), landing it before Save. Live feedback after that shipped was that "before Save" was not
+actually the wanted position — "between Save and Delete" was — and since Delete already sits right
+after Save on every page that has one, anchoring on Delete alone produces that for free. 1.14.0
+retired `insertBeforeSave`/`findButtonByLabel` entirely and the scene button now calls the exact same
+`insertBeforeDelete` the performer button always has. `PropagateTagsAndPerformers` carries an
+identical `insertBeforeDelete` under the same name for its own target- and source-side buttons; the
+two are separate copies because the plugins share no module, not because the logic differs.
 
-**Both `insertBeforeDelete` and `insertBeforeSave` finish through `insertOrdered` (1.13.0)**, not a
-raw `container.insertBefore(button, anchor)`. Finding the anchor is unchanged; what changed is what
+**`insertBeforeDelete` finishes through `insertOrdered` (1.13.0)**, not a raw
+`container.insertBefore(button, anchor)`. Finding the anchor is unchanged; what changed is what
 happens once it is found — `insertOrdered` walks back over already-placed siblings, skipping any
 owned (`_coopOwner`) by a plugin `coop().order` ranks higher than this one's own 20, so a button
-`PropagateTagsAndPerformers` (registered at 10) already placed is never displaced from Save or
-Delete by this plugin's own insertion. See the repo-root CLAUDE.md for the full mechanism; this
-plugin's own two button builders (`addPerformerButton`, `addSceneButton`) are what tag their
-elements with `_coopOwner = PLUGIN_ID` before calling `insertBeforeDelete`/`insertBeforeSave`.
+`PropagateTagsAndPerformers` (registered at 10) already placed is never displaced from Delete by
+this plugin's own insertion. See the repo-root CLAUDE.md for the full mechanism; this plugin's own
+two button builders (`addPerformerButton`, `addSceneButton`) are what tag their elements with
+`_coopOwner = PLUGIN_ID` before calling `insertBeforeDelete`.
 
 **`performerCheck` / `sceneCheck`** cache per-id eligibility (`pending`/`yes`/`no`) so `tick()` —
 which runs every second and on every DOM mutation burst — does not re-query. They are invalidated
@@ -536,16 +547,18 @@ so in three places because users keep looking there.
 `logging`, `staging`, `merge-task`, plus `coop` for the lease. See `tests/README.md` for what each
 covers.
 
-`placement.test.js` also covers the 1.12.2 scene-button fix, in its own Scene Edit tab section
-using an `.edit-buttons` fixture rather than the performer page's dual-container one: the button
-lands immediately before Save rather than appended after Save/Delete, is not the row's last child,
-and a Save nested inside a wrapper element is still handled correctly. Confirmed to fail (3 of the
-suite's 16 checks) against a copy with `addSceneButton`'s pre-1.12.2 plain `appendChild`.
+`placement.test.js` also covers the scene button's own placement, in its own Scene Edit tab section
+using an `.edit-buttons` fixture rather than the performer page's dual-container one: since 1.14.0,
+the button lands between Save and Delete rather than before Save or after both, including a Delete
+nested inside a wrapper element (the target side never needed this check before 1.14.0, since it
+never searched for Delete). Confirmed to fail against a copy of the pre-1.12.2 plain `appendChild`
+(landing after both), and separately against a copy with the 1.12.2-through-1.13.0 Save-anchored
+walk restored (landing before Save instead of between).
 
 Since 1.13.0 it also covers deterministic ordering (`coop().order`): this plugin registers priority
 20 at load; a lower-priority foreign button (`PropagateTagsAndPerformers`, seeded at 10 via
 `_coopOwner` on a fixture element, since the harness only ever runs this plugin's own script) is
-not displaced from Save when this plugin's own scene button inserts; and, the direction that
+not displaced from Delete when this plugin's own scene button inserts; and, the direction that
 actually exercises `insertOrdered`'s skip branch rather than passing by coincidence, a *higher*-
 priority foreign button (a fictitious 30, since nothing in this repo currently outranks 20) is not
 displaced either - this plugin's own button yields and lands on the far side of it instead.

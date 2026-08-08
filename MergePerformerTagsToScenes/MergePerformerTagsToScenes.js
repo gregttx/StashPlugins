@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.13.0';
+  var PLUGIN_VERSION      = '1.14.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2102,7 +2102,8 @@
   // Places the button just ahead of Delete so it groups with the other non-destructive
   // actions instead of trailing the red button. Delete may be nested inside a wrapper
   // element, so walk up to whichever node is the container's own child — insertBefore
-  // only accepts a direct child as the reference node.
+  // only accepts a direct child as the reference node. Shared by both this plugin's
+  // buttons since 1.14.0 — see below.
   function insertBeforeDelete(container, button) {
     var node = container.querySelector('button.delete');
     while (node && node.parentNode !== container) node = node.parentNode;
@@ -2111,15 +2112,15 @@
 
   // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,
   // "Cross-plugin cooperation: deterministic button ordering"). Both this plugin's
-  // and PropagateTagsAndPerformers' `insertBeforeSave`/`insertBeforeDelete` used to
-  // always insert immediately before their anchor, so with both enabled, whichever
-  // plugin's async eligibility check happened to resolve last ended up closest to
-  // Save/Delete - a race decided by network timing, not a rule, and it could flip on
-  // every reload. `coop().order` fixes a priority per plugin id; a button already
-  // sitting there and owned by a higher-priority plugin is skipped over rather than
-  // displaced, so this plugin's own button always lands on the low-priority side of
-  // it regardless of which plugin inserted first. `anchor` may be null (no Save or
-  // Delete found at all), in which case there is nothing to order against.
+  // and PropagateTagsAndPerformers' `insertBeforeDelete` used to always insert
+  // immediately before their anchor, so with both enabled, whichever plugin's async
+  // eligibility check happened to resolve last ended up closest to it - a race
+  // decided by network timing, not a rule, and it could flip on every reload.
+  // `coop().order` fixes a priority per plugin id; a button already sitting there
+  // and owned by a higher-priority plugin is skipped over rather than displaced, so
+  // this plugin's own button always lands on the low-priority side of it regardless
+  // of which plugin inserted first. `anchor` may be null (no Delete found at all),
+  // in which case there is nothing to order against.
   function insertOrdered(container, button, anchor) {
     if (!anchor) { container.appendChild(button); return; }
     var order = coop().order;
@@ -2133,35 +2134,6 @@
       scan = scan.previousSibling;
     }
     container.insertBefore(button, ref);
-  }
-
-  // The scene button's counterpart: `.edit-buttons` has no dedicated class for Save
-  // the way Delete carries one, so this matches on the button's own text instead. A
-  // plain recursive walk over `childNodes`/`tagName`, not `querySelectorAll`, so it
-  // needs nothing beyond what every DOM node — real or a test harness's — already
-  // implements. Live-tested (1.12.2): the scene button was landing after Save/Delete,
-  // via a plain `appendChild`, unlike this container's own `insertBeforeDelete` above
-  // — invisible with one button in the row, but with `PropagateTagsAndPerformers` also
-  // adding one, ours was consistently the one left to wrap onto its own line whenever
-  // the row ran out of width, since DOM order decides wrap order and ours was last.
-  function findButtonByLabel(root, label) {
-    var kids = root.childNodes || [];
-    for (var i = 0; i < kids.length; i++) {
-      var k = kids[i];
-      if (k.tagName === 'BUTTON' && (k.textContent || '') === label) return k;
-      var found = findButtonByLabel(k, label);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  // Save may be nested inside a wrapper element, so walk up to whichever node is the
-  // container's own child, same as `insertBeforeDelete` above. Falls back to
-  // `appendChild` when no Save button is found at all.
-  function insertBeforeSave(container, button) {
-    var node = findButtonByLabel(container, 'Save');
-    while (node && node.parentNode !== container) node = node.parentNode;
-    insertOrdered(container, button, node);
   }
 
   function removePerformerButton() {
@@ -2354,7 +2326,7 @@
         })
         .catch(fail);
     });
-    insertBeforeSave(container, button);
+    insertBeforeDelete(container, button);
   }
 
   // ── Main loop ─────────────────────────────────────────────────────────────

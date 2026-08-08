@@ -34,25 +34,30 @@ const SCENE_EDIT_VIEW = `
     </div>
   </div>`;
 
+// Delete nested in a wrapper element - `insertBeforeDelete` finds it via
+// `querySelector('button.delete')`, unaffected by nesting, but `insertBefore` only
+// accepts a direct child of the container as its reference node, so the walk-up has
+// to find the wrapper, not Delete itself.
 const SCENE_EDIT_VIEW_WRAPPED = `
   <div id="scene-page">
     <div class="edit-buttons">
-      <div class="d-inline"><span><button class="btn btn-secondary" type="button">Save</button></span></div>
-      <button class="btn btn-danger delete">Delete</button>
+      <button class="btn btn-secondary" type="button">Save</button>
+      <div class="d-inline"><span><button class="btn btn-danger delete">Delete</button></span></div>
     </div>
   </div>`;
 
-// Simulates PropagateTagsAndPerformers having already inserted its own button
-// before this plugin's own tick runs - the deterministic-ordering case
-// (`coop().order`, repo-root CLAUDE.md) that used to be a race decided by whichever
-// plugin's async check resolved last. `id="foreign-btn"` is how the test locates it
-// to tag it with `_coopOwner`, a JS property that cannot be expressed in markup.
-// No whitespace between the three buttons - React never renders adjacent JSX
-// elements with a text node between them the way an indented HTML literal would,
-// and a stray whitespace sibling here would only test this fixture, not the plugin.
+// Simulates PropagateTagsAndPerformers having already inserted its own button,
+// between Save and Delete, before this plugin's own tick runs - the
+// deterministic-ordering case (`coop().order`, repo-root CLAUDE.md) that used to be
+// a race decided by whichever plugin's async check resolved last. `id="foreign-btn"`
+// is how the test locates it to tag it with `_coopOwner`, a JS property that cannot
+// be expressed in markup. No whitespace between the three buttons - React never
+// renders adjacent JSX elements with a text node between them the way an indented
+// HTML literal would, and a stray whitespace sibling here would only test this
+// fixture, not the plugin.
 const SCENE_EDIT_VIEW_WITH_FOREIGN = '<div id="scene-page"><div class="edit-buttons">' +
-  '<button class="btn btn-secondary" id="foreign-btn">Copy Tags to all Scenes</button>' +
   '<button class="btn btn-secondary" type="button">Save</button>' +
+  '<button class="btn btn-secondary" id="foreign-btn">Copy Tags to all Scenes</button>' +
   '<button class="btn btn-danger delete">Delete</button></div></div>';
 
 // DetailsEditNavbar: the read-only detail view. Delete is rendered only when not editing.
@@ -205,11 +210,12 @@ function check(name, cond, extra) {
 
   // ── Scene Edit tab: the scene button's own placement ────────────────────────
   //
-  // Live-tested (1.12.2): with `PropagateTagsAndPerformers` also adding a button to
-  // this row, the scene button was consistently the one left dangling on its own
-  // wrapped line, because it landed after Save/Delete via a plain `appendChild`
-  // rather than grouping with the other non-destructive actions the way the
-  // performer button already does via `insertBeforeDelete`.
+  // Live-tested twice on this same row. 1.12.2 fixed a button landing after
+  // Save/Delete entirely (a plain `appendChild`), anchoring on Save instead. Live
+  // feedback after that shipped was that "before Save" was not actually the wanted
+  // position - "between Save and Delete" was - so 1.14.0 retired the Save-anchored
+  // `insertBeforeSave` and reuses `insertBeforeDelete`, the performer button's own
+  // mechanism, for the scene button too.
   console.log('\nScene button placement');
 
   win.history.pushState({}, '', '/scenes/55');
@@ -221,25 +227,25 @@ function check(name, cond, extra) {
     .map((n) => n.textContent.trim()).join(' | ');
   const s = sbtn();
   check('scene button injected', !!s);
-  check('scene button lands before Save, not appended after Save/Delete',
-    !!s && s.nextElementSibling && s.nextElementSibling.textContent.trim() === 'Save',
-    'order: ' + sceneOrder());
-  check('scene button is not last in the row', !!s && s.parentNode.lastElementChild !== s,
+  check('scene button lands between Save and Delete, not before Save or after Delete',
+    !!s && s.previousElementSibling && s.previousElementSibling.textContent.trim() === 'Save' &&
+    s.nextElementSibling && s.nextElementSibling.textContent.trim() === 'Delete',
     'order: ' + sceneOrder());
 
-  // Save nested inside a wrapper element - insertBefore only accepts a direct child
-  // as the reference node, so the walk-up has to find the wrapper, not Save itself.
+  // Delete nested inside a wrapper element - insertBefore only accepts a direct
+  // child as the reference node, so the walk-up has to find the wrapper, not Delete
+  // itself.
   root().innerHTML = SCENE_EDIT_VIEW_WRAPPED;
   await sleep(1500);
   const sw = sbtn();
-  check('handles a Save button nested in a wrapper element',
-    !!sw && sw.nextElementSibling && !!sw.nextElementSibling.querySelector('button'),
+  check('handles a Delete button nested in a wrapper element',
+    !!sw && sw.nextElementSibling && !!sw.nextElementSibling.querySelector('button.delete'),
     sw ? 'next sibling: ' + (sw.nextElementSibling && sw.nextElementSibling.outerHTML) : 'no button');
 
   // Deterministic ordering against another plugin's button (coop().order): this
-  // plugin registers priority 20, closer to Save/Delete than
-  // PropagateTagsAndPerformers' own 10, so its button always lands adjacent to Save
-  // regardless of whether the other plugin's button was already there first.
+  // plugin registers priority 20, closer to Delete than PropagateTagsAndPerformers'
+  // own 10, so its button always lands adjacent to Delete regardless of whether the
+  // other plugin's button was already there first.
   check('registers its own priority in coop().order at load',
     win.StashPluginCoop && win.StashPluginCoop.order.MergePerformerTagsToScenes === 20,
     win.StashPluginCoop && JSON.stringify(win.StashPluginCoop.order));
@@ -249,16 +255,16 @@ function check(name, cond, extra) {
   await sleep(1500);
   const ordered = sbtn();
   const orderedRow = sceneOrder();
-  check('a lower-priority foreign button already there is not displaced from Save',
-    !!ordered && ordered.nextElementSibling && ordered.nextElementSibling.textContent.trim() === 'Save',
+  check('a lower-priority foreign button already there is not displaced from Delete',
+    !!ordered && ordered.nextElementSibling && ordered.nextElementSibling.textContent.trim() === 'Delete',
     'order: ' + orderedRow);
-  check('our own scene button lands on the near side of it, adjacent to Save',
+  check('our own scene button lands on the near side of it, adjacent to Delete',
     !!ordered && ordered.previousElementSibling &&
     ordered.previousElementSibling.id === 'foreign-btn',
     'order: ' + orderedRow);
 
   // The other direction: a foreign button registered *higher* than this plugin's
-  // own 20 must not be displaced from Save either - proves this plugin's own
+  // own 20 must not be displaced from Delete either - proves this plugin's own
   // insertOrdered actually defers when it is the lower-priority side, rather than
   // only ever landing next to the anchor because nothing else in this repo
   // currently outranks it.
@@ -268,9 +274,9 @@ function check(name, cond, extra) {
   await sleep(1500);
   const outranked = sbtn();
   const outrankedRow = sceneOrder();
-  check('a higher-priority foreign button already there is not displaced from Save',
+  check('a higher-priority foreign button already there is not displaced from Delete',
     !!outranked && win.document.getElementById('foreign-btn').nextElementSibling &&
-    win.document.getElementById('foreign-btn').nextElementSibling.textContent.trim() === 'Save',
+    win.document.getElementById('foreign-btn').nextElementSibling.textContent.trim() === 'Delete',
     'order: ' + outrankedRow);
   check('our own scene button yields, landing on the far side of it instead',
     !!outranked && outranked.nextElementSibling && outranked.nextElementSibling.id === 'foreign-btn',

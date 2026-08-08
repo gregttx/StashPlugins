@@ -163,6 +163,15 @@ function nodeListLikeContainer() {
       node.parentNode = null;
       return node;
     },
+    // `insertBeforeDelete` calls this to find the anchor - minimal, since this
+    // fixture only ever needs to match 'button.delete' among its flat, direct kids.
+    querySelector: function (sel) {
+      if (sel !== 'button.delete') throw new Error('unsupported selector: ' + sel);
+      for (var i = 0; i < kids.length; i++) {
+        if (kids[i].tagName === 'BUTTON' && h.hasClass(kids[i], 'delete')) return kids[i];
+      }
+      return null;
+    },
   };
   Object.defineProperty(container, 'childNodes', {
     get: function () {
@@ -237,72 +246,104 @@ function nodeListLikeContainer() {
       container.style && container.style.rowGap === '.25rem', container.style);
   }
 
-  // ── Placement: before Save, not appended after it ────────────────────────────
+  // ── Placement: between Save and Delete (0.11.0) ───────────────────────────────
   //
-  // Live-tested: the button was landing after Stash's own Save/Delete instead of
-  // grouping with them, a departure from MergePerformerTagsToScenes' own
-  // insertBeforeDelete placement on the Details side.
-  {
-    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
-    const container = editButtonsContainer(env);
+  // Live-tested twice on this same row: 0.9.1 fixed a button landing after
+  // Save/Delete entirely (a plain `appendChild`), anchoring on Save instead. Live
+  // feedback after that shipped was that "before Save" was not actually the wanted
+  // position - "between Save and Delete" was - so 0.11.0 retired the Save-anchored
+  // `insertBeforeSave` and reuses `insertBeforeDelete` for the target side too:
+  // Delete already sits right after Save on every page that has one, so anchoring
+  // on Delete lands a button between them without this plugin ever needing to know
+  // where Save is.
+  function buildSaveDelete(container) {
     const save = h.makeElement('button');
     save.textContent = 'Save';
     container.appendChild(save);
     const del = h.makeElement('button');
     del.textContent = 'Delete';
+    del.className = 'delete';
     container.appendChild(del);
+    return { save, del };
+  }
+  {
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    const { save, del } = buildSaveDelete(container);
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
     const order = container.childNodes;
-    h.check('the button lands before Save, not after Save/Delete', !!btn &&
-      order.indexOf(btn) !== -1 && order.indexOf(btn) < order.indexOf(save),
+    h.check('the button lands between Save and Delete, not before Save or after Delete',
+      !!btn && order.indexOf(btn) === order.indexOf(save) + 1 && order.indexOf(btn) === order.indexOf(del) - 1,
       order.map((n) => n.textContent).join(','));
   }
   {
-    // Save nested inside a wrapper element - insertBefore only accepts a direct
-    // child as the reference node, so the walk-up has to find the wrapper, not Save
-    // itself, or insertBefore throws.
+    // Delete nested inside a wrapper element - insertBefore only accepts a direct
+    // child as the reference node, so the walk-up has to find the wrapper, not
+    // Delete itself, or insertBefore throws.
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     const container = editButtonsContainer(env);
-    const wrap = h.makeElement('div');
     const save = h.makeElement('button');
     save.textContent = 'Save';
-    wrap.appendChild(save);
+    container.appendChild(save);
+    const wrap = h.makeElement('div');
+    const del = h.makeElement('button');
+    del.className = 'delete';
+    wrap.appendChild(del);
     container.appendChild(wrap);
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
-    h.check('handles a Save button nested in a wrapper element',
-      !!btn && btn.nextSibling === wrap, btn && btn.nextSibling && btn.nextSibling.className);
+    h.check('handles a Delete button nested in a wrapper element',
+      !!btn && btn.previousSibling === save && btn.nextSibling === wrap,
+      btn && [btn.previousSibling, btn.nextSibling].map((n) => n && n.className));
   }
   {
-    // Two enabled paths into one page: both land before Save, in the order they were
-    // added, rather than the second one landing between the first and Save.
-    const { env } = start({
-      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true, b2TagsStudioToScenes: true },
-    });
+    // Group's edit-form state carries no Delete at all (§5b/§5d) - the button lands
+    // after Save by simply landing last, the same fallback `insertBeforeDelete`
+    // already used on the source side for a Delete-less page.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     const container = editButtonsContainer(env);
     const save = h.makeElement('button');
     save.textContent = 'Save';
     container.appendChild(save);
     env.tick();
     await h.flush(60);
+    const btn = manualButtons(env)[0];
     const order = container.childNodes;
-    const saveIdx = order.indexOf(save);
-    h.check('both buttons land before Save', manualButtons(env).every((b) => order.indexOf(b) < saveIdx),
+    h.check('with no Delete in the container, the button lands after Save at the end',
+      !!btn && order.indexOf(btn) === order.indexOf(save) + 1 && order.indexOf(btn) === order.length - 1,
       order.map((n) => n.textContent).join(','));
+  }
+  {
+    // Two enabled paths into one page: both land between Save and Delete, in the
+    // order they were added, rather than the second one reversing ahead of the first.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true, b2TagsStudioToScenes: true },
+    });
+    const container = editButtonsContainer(env);
+    const { save, del } = buildSaveDelete(container);
+    env.tick();
+    await h.flush(60);
+    const order = container.childNodes;
+    const btns = manualButtons(env);
+    h.check('both buttons land between Save and Delete', btns.length === 2 &&
+      btns.every((b) => order.indexOf(b) > order.indexOf(save) && order.indexOf(b) < order.indexOf(del)),
+      order.map((n) => n.textContent).join(','));
+    h.check('in the order they were added, not reversed',
+      order.indexOf(btns[0]) < order.indexOf(btns[1]), order.map((n) => n.textContent).join(','));
   }
 
   // ── Deterministic ordering against another plugin's button (coop().order) ────
   //
-  // Before this, both plugins' insertBeforeSave/insertBeforeDelete always inserted
-  // immediately before the anchor, so whichever plugin's async check resolved last
-  // ended up closest to Save/Delete - a race decided by network timing, not a rule.
-  // `coop().order` fixes a priority per plugin id; MergePerformerTagsToScenes
-  // registers 20 (closer to the anchor) and this plugin registers 10, so a foreign
-  // button already in the row is either skipped past or landed on, by priority
-  // alone, regardless of which plugin got there first.
+  // Before this, both plugins' insertBeforeDelete always inserted immediately
+  // before the anchor, so whichever plugin's async check resolved last ended up
+  // closest to Delete - a race decided by network timing, not a rule. `coop().order`
+  // fixes a priority per plugin id; MergePerformerTagsToScenes registers 20 (closer
+  // to the anchor) and this plugin registers 10, so a foreign button already in the
+  // row is either skipped past or landed on, by priority alone, regardless of which
+  // plugin got there first.
   {
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     h.check('registers its own priority in coop().order at load',
@@ -312,49 +353,45 @@ function nodeListLikeContainer() {
     // `declares` entry already is in the tests below.
     env.ctx.window.StashPluginCoop.order.MergePerformerTagsToScenes = 20;
     const container = editButtonsContainer(env);
+    const { save, del } = buildSaveDelete(container);
     // Simulates MergePerformerTagsToScenes having already inserted its own button
     // before this plugin's tick ever runs - the case that used to lose the race
     // half the time, since our own insertion always targeted "immediately before
-    // Save" with no regard for what was already there.
+    // Delete" with no regard for what was already there.
     const foreign = h.makeElement('button');
     foreign.textContent = 'Copy Tags to all Scenes';
     foreign._coopOwner = 'MergePerformerTagsToScenes';
-    container.appendChild(foreign);
-    const save = h.makeElement('button');
-    save.textContent = 'Save';
-    container.appendChild(save);
+    container.insertBefore(foreign, del);
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
     const order = container.childNodes;
-    h.check('a higher-priority foreign button already there is not displaced from Save',
-      !!btn && order.indexOf(foreign) === order.indexOf(save) - 1,
+    h.check('a higher-priority foreign button already there is not displaced from Delete',
+      !!btn && order.indexOf(foreign) === order.indexOf(del) - 1,
       order.map((n) => n.textContent).join(','));
     h.check('our own button lands on the far side of it instead of racing it for the anchor',
-      !!btn && order.indexOf(btn) < order.indexOf(foreign),
+      !!btn && order.indexOf(btn) > order.indexOf(save) && order.indexOf(btn) < order.indexOf(foreign),
       order.map((n) => n.textContent).join(','));
   }
   {
     // The reverse priority: a foreign plugin registered *lower* than this one's 10
-    // stays on the far side, and our button lands between it and Save.
+    // stays on the far side, and our button lands between it and Delete.
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     env.ctx.window.StashPluginCoop.order.SomeOlderPlugin = 5;
     const container = editButtonsContainer(env);
+    const { save, del } = buildSaveDelete(container);
     const foreign = h.makeElement('button');
     foreign.textContent = 'Some Older Button';
     foreign._coopOwner = 'SomeOlderPlugin';
-    container.appendChild(foreign);
-    const save = h.makeElement('button');
-    save.textContent = 'Save';
-    container.appendChild(save);
+    container.insertBefore(foreign, del);
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
     const order = container.childNodes;
-    h.check('a lower-priority foreign button stays where it was, further from Save',
+    h.check('a lower-priority foreign button stays where it was, further from Delete',
       !!btn && order.indexOf(foreign) < order.indexOf(btn), order.map((n) => n.textContent).join(','));
-    h.check('and our button sits between it and Save',
-      !!btn && order.indexOf(btn) === order.indexOf(save) - 1, order.map((n) => n.textContent).join(','));
+    h.check('and our button sits between it and Delete',
+      !!btn && order.indexOf(btn) === order.indexOf(del) - 1, order.map((n) => n.textContent).join(','));
   }
 
   // ── Restraint ───────────────────────────────────────────────────────────────

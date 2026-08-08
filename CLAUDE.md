@@ -153,12 +153,23 @@ collision, but about two *legitimate* buttons from two different plugins sharing
 order.
 
 **The problem it replaces: a race decided by network timing.** `MergePerformerTagsToScenes` and
-`PropagateTagsAndPerformers` each place their manual buttons with `insertBeforeSave`/
-`insertBeforeDelete`, and both independently re-find the anchor's *current* live position and
-insert immediately before it. With one plugin that is enough; with two, whichever plugin's async
-eligibility/existence check happened to resolve last ended up closest to Save or Delete — a detail
-that could flip between page loads depending on which round trip landed first, not something either
-plugin's own code decided.
+`PropagateTagsAndPerformers` each place their manual buttons with `insertBeforeDelete`, and both
+independently re-find the anchor's *current* live position and insert immediately before it. With
+one plugin that is enough; with two, whichever plugin's async eligibility/existence check happened
+to resolve last ended up closest to Delete — a detail that could flip between page loads depending
+on which round trip landed first, not something either plugin's own code decided.
+
+**One anchor, not two.** Both plugins' target-side buttons (Scene/Gallery/Image/Group) originally
+anchored on *Save* instead (`insertBeforeSave`), landing buttons before it — a separate mechanism
+from the source-side buttons' `insertBeforeDelete`, because Save carries no CSS class the way Delete
+does and needed its own text-matching walk to find. Live feedback after that shipped was that
+"before Save" was not the wanted position — "between Save and Delete" was. Since Delete already
+sits right after Save on every page that has one, anchoring on Delete alone produces that without
+either plugin needing to know where Save is at all, so `insertBeforeSave`/`findButtonByLabel` were
+retired and every manual button, target and source side alike, now goes through the one
+`insertBeforeDelete`. The one page without a Delete in this state — Group's edit form — falls back
+to appending at the end, which is still after Save, the only button that page is confirmed to
+render.
 
 **`coop().order` is a fixed priority per plugin id**, registered unconditionally at load next to
 `respecters[PLUGIN_ID] = true` — a number both sides pick once and keep consistent, the same way
@@ -180,9 +191,9 @@ Stash button, a same-or-lower-priority sibling, or the anchor itself). Two plugi
 same final order regardless of which one ran first:
 
 - MPTTS (20) already placed: PTP2RE (10) scans back, sees MPTTS's button outranks it, inserts
-  before it → `[PTP2RE, MPTTS, Save]`.
+  before it → `[Save, PTP2RE, MPTTS, Delete]`.
 - PTP2RE (10) already placed: MPTTS (20) scans back, sees PTP2RE's button does *not* outrank it,
-  stops immediately and inserts before the anchor → `[PTP2RE, MPTTS, Save]`.
+  stops immediately and inserts before the anchor → `[Save, PTP2RE, MPTTS, Delete]`.
 
 Same result either way. A plugin's own multiple buttons inserted in the same tick are unaffected —
 same-priority siblings are never skipped, so left-to-right insertion order is preserved exactly as

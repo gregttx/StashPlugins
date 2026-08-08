@@ -322,5 +322,7 @@ Where both plugins' manual buttons land in the same row (the performer detail vi
 tab), each used to place itself immediately next to Save or Delete independently of the other, so
 whichever plugin's button finished appearing last ended up closest to it — a detail decided by
 network timing, not a rule, that could flip between page loads. Since 1.13.0 the two plugins agree
-on a fixed relative order instead, regardless of which one finishes first.
+on a fixed relative order instead, regardless of which one finishes first. Since 1.14.0, the scene
+button's own anchor also moved from before Save to between Save and Delete — matching where the
+performer button, and `PropagateTagsAndPerformers`' own buttons, already land.
 

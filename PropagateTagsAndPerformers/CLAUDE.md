@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.10.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.11.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -25,6 +25,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — placement (before Save/Delete, not after) and wrapped-row spacing | **0.9.1** |
 | | — wrapped-row spacing redone as `row-gap`: 0.9.1's `my-1` grew Stash's own buttons | **0.9.2** |
 | | — deterministic ordering against `MergePerformerTagsToScenes`' buttons (`coop().order`) | **0.10.0** |
+| | — target-side placement moved from before Save to between Save and Delete | **0.11.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Step 8 placement is now confirmed live on all four target pages.** Scene, Gallery and Image use
@@ -887,7 +888,8 @@ does render to anchor on instead — a fallback container built from nothing wou
 unverified guess, and this repo's rule (§6) is not to ship one of those without a live screenshot to
 confirm it.
 
-## 5f. Deterministic ordering against `MergePerformerTagsToScenes` (0.10.0)
+## 5f. Deterministic ordering against `MergePerformerTagsToScenes` (0.10.0), and the anchor
+     itself moving from Save to Delete (0.11.0)
 
 Reported from a live install with both plugins' manual buttons enabled: on a page where both add a
 button to the same row (Scene, Performer), each plugin's `insertBeforeSave`/`insertBeforeDelete`
@@ -900,7 +902,7 @@ The fix is `coop().order` and `insertOrdered`, documented in full in the repo-ro
 ("Cross-plugin cooperation: deterministic button ordering") since it is a protocol between two
 plugins, not something this one owns alone. What is specific to this plugin: it registers priority
 **10**, lower than `MergePerformerTagsToScenes`' 20, so its own buttons land on the far side of that
-plugin's in the shared row rather than racing it for the position next to Save/Delete. Every button
+plugin's in the shared row rather than racing it for the position next to the anchor. Every button
 `buildManualButton`/`buildManualSourceButton` builds carries `_coopOwner = PLUGIN_ID`, read back by
 whichever plugin's `insertOrdered` scans past it.
 
@@ -909,6 +911,19 @@ answer "is a button for this *exact path* already showing" and suppress one of t
 ordering only applies once both plugins have already decided to show a button (necessarily for
 *different* paths, or the dedup check would have suppressed one) and only decides which one sits
 closer to the anchor. The two mechanisms run independently and neither depends on the other.
+
+**0.11.0: further live feedback was that the anchor itself was wrong, not just the ordering between
+two plugins' buttons on it.** "Before Save" (0.9.1's own fix, at the time a real improvement over
+appending after Save/Delete entirely) turned out not to be the position actually wanted — "between
+Save and Delete" was. `findManualButtonContainer`'s target-side buttons had anchored on Save via
+`insertBeforeSave`/`findButtonByLabel`, a text-matching walk built because Save carries no CSS class
+the way Delete does; the source side had always anchored on Delete via `insertBeforeDelete`, which
+needs no text match at all (`button.delete`). Since Delete already sits right after Save on every
+page that has one, anchoring on Delete alone produces "between Save and Delete" for free — so
+0.11.0 retires `insertBeforeSave`/`findButtonByLabel` entirely and routes the target-side buttons
+through the same `insertBeforeDelete` the source side already used. Group's edit-form state, the one
+page confirmed to render no Delete at all (§5b), falls back to `insertOrdered`'s no-anchor branch —
+`container.appendChild`, landing after Save simply because Save is the last thing there.
 
 ## 6. Anchoring in Stash's markup
 
@@ -1005,11 +1020,19 @@ of it apply unchanged:
   sides. `tests/npt-harness.js` gained `previousSibling` for this (`nextSibling` already existed,
   and the scan needs the other direction) - confirmed missing beforehand, since without it every
   ordering check above passed for the wrong reason regardless of which plugin's priority actually
-  won.
+  won. Since 0.11.0: the target-side placement checks re-anchored on Delete instead of Save
+  (between Save and Delete, not before Save or after Delete), a Delete nested in a wrapper element
+  (the target side never needed this before, since it never searched for Delete), Group's no-Delete
+  fallback landing after Save at the end of the container, and the two ordering checks' fixtures
+  rebuilt with the foreign button adjacent to Delete rather than adjacent to Save, since that is now
+  where a plugin's own `insertBeforeDelete` would have already placed it. `nodeListLikeContainer`
+  gained a minimal `querySelector('button.delete')` for the same reason - the regression it exists
+  to pin now goes through `insertBeforeDelete` too, which needs it. All fail against a copy with the
+  target-side call site reverted to a Save-anchored walk.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.** The
-0.9.0 through 0.10.0 additions were confirmed the coarser way, against the pre-fix source via `SRC=`,
+0.9.0 through 0.11.0 additions were confirmed the coarser way, against the pre-fix source via `SRC=`,
 rather than one hand-built mutant per check; the pre-existing suites below that line follow the
 finer-grained convention - sixty-four mutants so far, each failing exactly the check written for
 it - a suite that passes for the wrong reason is worse than no suite. Use

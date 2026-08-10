@@ -1243,9 +1243,28 @@ step 9 plus a run against a real Stash, not step 9 alone.
    carries no margin while the button inside it does, which is exactly the "contributes nothing"
    misreading that doubled Group's gap.
 
-   **Stated plainly: this is a hypothesis about Group, not a confirmed cause.** It is the one
-   structural explanation left that fits every report, and it costs nothing if wrong. If Group is
-   still doubled after this, the next move is a dump of that row's markup — not a seventh derivation.
+   That was stated as a hypothesis rather than a confirmed cause, and it was half right: live, it
+   fixed Group's **edit** form and left its **detail** row doubled exactly as before.
+
+   **0.12.8 / 1.15.8 — the same mistake has a second form, and that is the one the detail row had.**
+   Resolving *through* an element only helps if there is an action inside it to resolve to. The
+   element before our first button there holds none — an empty slot where a conditional action would
+   go — so its own absent margin was still being taken for the whole gap while the real one came from
+   the button behind it. **A zero read off something this code cannot identify as an action is not
+   evidence of a zero gap; it is evidence that nothing was read.**
+
+   `neighbourGap` walks outward until it finds something recognisable, adding skipped elements' own
+   margins on the way and assuming they have no width — width being the one quantity that cannot be
+   had without consulting a layout that has not settled, which was 0.12.6's whole error. Three
+   distinguishable answers, treated differently: an action found (top up to the row's step), elements
+   present but nothing recognisable (add **nothing**, since guessing is precisely what doubles a
+   gap), and nothing at all on that side (the row's own end margin, our button being at that end).
+
+   **The arithmetic pinned this before any DOM was inspected, which is the transferable part.** Group
+   was correct at 0.12.4 with `margin-left: 0` and doubled from 0.12.5 once a step was added — so the
+   gap exists without us, and whatever we measured reported zero. That narrows the cause to "the
+   thing measured is not the thing making the gap" without knowing what the element is. Naming it
+   would still need a dump of that row; fixing it did not.
 
    **What is left on this thread is taste, not a defect.** The edit rows sit at Stash's own 10px on
    every boundary and live feedback calls that "a bit too large" (the reported ideal is nearer 7px,

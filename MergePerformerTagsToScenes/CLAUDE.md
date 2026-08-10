@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.7.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.8.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -142,6 +142,19 @@ through a wrapper to the action facing us (the last `.btn` inside the element be
 inside the element after) and sums the wrapper's own margin with it, since React wraps some row
 actions and a wrapper carries no margin while the button inside it does. No layout is consulted, so
 the answer is the same whenever it is asked.
+
+**1.15.8 extends that one step: an element holding *no* action at all is walked past entirely.**
+Resolving *through* a sibling only helps when there is something inside it; where there is not, its
+own absent margin was still being read as the whole gap. That is what left `PropagateTagsAndPerformers`'
+Group detail row doubled for three releases after the wrapper fix sorted its edit row out. **A zero
+read off something this code cannot identify as an action is not evidence of a zero gap.**
+`neighbourGap` walks outward until it finds an action, adding skipped elements' own margins on the
+way and assuming they have no width — width being the one quantity that needs a layout, which is
+1.15.6's entire mistake. It returns three answers `sideMargin` treats differently: an action found
+(top up to the row's step), elements present but nothing recognisable (add **nothing** — guessing is
+what doubles a gap), and nothing at all on that side (take the row's own end margin, since our button
+is at that end of the row). Again this plugin's own two pages were not affected; it is here because
+the rule is one design in two copies.
 
 **The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
 argued about *which* anchor to prefer while the anchor search was failing on the row being tested.

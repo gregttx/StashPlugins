@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.7.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.8.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -34,6 +34,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — gaps filled against the real neighbours, for rows Stash spaces unevenly | **0.12.5** |
 | | — the gap measured off the page rather than derived (reverted at 0.12.7) | **0.12.6** |
 | | — a wrapped neighbour read through to the action inside it | **0.12.7** |
+| | — an *actionless* neighbour walked past entirely, to the button behind it | **0.12.8** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
@@ -97,16 +98,8 @@ the gap before our first button went to roughly double the row's step and nowher
 there was already correct at 0.12.4 (`margin-left: 0`), which means it is produced by something other
 than the neighbouring element's own `margin-right`: a wrapper element between us, container padding,
 a margin on something invisible. Reading a margin cannot distinguish those; `getBoundingClientRect`
-does not have to. `horizontalGap` returns the distance the page has actually laid out between two
-siblings, and only the shortfall against the row's step is added.
-
-Three cases it has to separate, and the third is why this is not just arithmetic: a measurable gap
-(top up to the step), no measurable layout at all (fall back to reading the neighbour's margin —
-both test harnesses, and any container that is not currently displayed), and *different visual rows*,
-where the horizontal distance between two siblings is meaningless. The wrapped case resolves to a
-flush left edge, which is what `.edit-buttons` was live-confirmed correct with. Note the asymmetry:
-a wrapped **right** margin stays at the full step rather than 0, because removing it could let the
-next button fit on this row after all and invalidate the very measurement it came from.
+does not have to. `horizontalGap` returned the distance the page had actually laid out between two
+siblings, and only the shortfall against the row's step was added. It is gone; see below.
 
 **0.12.7 removes 0.12.6's measurement, and the reason is a rule worth keeping.** A
 `getBoundingClientRect` gap is true of the instant it is taken, and these rows are still settling
@@ -118,14 +111,40 @@ change at all. That second half is what pins the diagnosis: for the right-hand m
 our button must have had a width; for the left to have fallen back to the margin path, the element
 *before* it must have had none. **The DOM sibling beside our button is not the action the user sees.**
 
-`marginContribution` resolves through that sibling to the action facing us — the last `.btn` inside
-the element before ours, the first inside the element after — and sums the wrapper's own margin with
-it. React wraps some row actions (a file input beside its button, a dropdown beside its toggle), and
-a wrapper carries no margin while the button inside it does, so reading the sibling reported
-"contributes nothing" for a neighbour plainly contributing a gap. No layout is consulted, so the
-answer is the same whenever it is asked. **This is a hypothesis about Group, not a confirmed cause**
-— it is the one remaining structural explanation consistent with every report, and if Group is still
-doubled after this, the next step is a dump of that row rather than a seventh derivation.
+`borderingAction` resolves through that sibling to the action facing us — the last `.btn` inside the
+element before ours, the first inside the element after — and its margin is summed with the
+wrapper's own. React wraps some row actions (a file input beside its button, a dropdown beside its
+toggle), and a wrapper carries no margin while the button inside it does, so reading the sibling
+reported "contributes nothing" for a neighbour plainly contributing a gap. No layout is consulted,
+so the answer is the same whenever it is asked. Live, this fixed **Group's edit form** and left its
+detail row exactly as it was.
+
+**0.12.8: the same mistake has a second form, and it is the one Group's detail row had.** Resolving
+*through* an element only helps if there is an action inside it. The element before our first button
+on that page holds none — an empty slot React left where a conditional action would go — so its own
+absent margin was still being taken for the whole gap, three releases running, while the real gap
+came from the button *behind* it. **A zero read off something this code cannot identify as an action
+is not evidence of a zero gap; it is evidence that nothing was read.**
+
+`neighbourGap` therefore walks outward until it finds something recognisable, adding the skipped
+elements' own margins on the way and assuming they have no width (width is the one quantity here
+that cannot be had without a layout that has not settled — 0.12.6's whole mistake). It returns three
+distinguishable answers, and `sideMargin` treats them differently:
+
+| Answer | Meaning | Margin applied |
+|---|---|---|
+| `{ gap: n }` | an action found, `n` px of margin already between us | `step - n`, floored at 0 |
+| `{ gap: null }` | elements are there, nothing recognisable among them | **0** — guessing is what doubles a gap |
+| `null` | nothing at all on that side | the row's own end margin (`m.left` / `m.right`) |
+
+That third row is a small behaviour change of its own: a trailing button used to take the full step
+on its right, and now takes whatever Stash's own end button carries, which on the usual
+`margin: 0 10px 0 0` row is the same 10px and on a left-spaced row is correctly nothing.
+
+**The arithmetic pinned this before any DOM was inspected, and that is the transferable part.** Group
+was correct at 0.12.4 with `margin-left: 0` and doubled from 0.12.5 when a step started being added —
+so the gap exists without us, and whatever we measured reported zero. No dump needed to narrow the
+cause to "the thing measured is not the thing making the gap"; only to name the element.
 
 **What is left is taste, not a defect.** The edit rows now sit at Stash's own 10px on every boundary,
 which live feedback calls "a bit too large" — but tightening it means our buttons no longer match the

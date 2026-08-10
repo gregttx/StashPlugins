@@ -397,6 +397,60 @@ function nodeListLikeContainer() {
       !!btn && /margin-left\s*:\s*1px/.test(btn.style || ''), btn && btn.style);
   }
   {
+    // 0.12.8, and the same mistake as 0.12.7 one step further out: an element beside our
+    // button that holds no action *at all*. Reading its absent margin as the whole gap
+    // added a full step on top of the space the real button behind it was already
+    // making - which is Group's detail row, doubled for three releases after the wrapper
+    // fix sorted its edit row out. The arithmetic pins it: at 0.12.4 our `margin-left: 0`
+    // there looked right, so the gap exists without us; at 0.12.5 we added a step on top
+    // of it, so whatever we were reading reported zero.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    container.appendChild(stashAction(h, 'Edit', { marginLeft: '0px', marginRight: '7px' }));
+    const slot = h.makeElement('div');
+    slot._computed = { marginLeft: '0px', marginRight: '0px' };
+    container.appendChild(slot);
+    container.appendChild(stashAction(h, 'Delete', { marginLeft: '0px', marginRight: '7px' }));
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('an element holding no action is walked past to the button behind it',
+      !!btn && /margin-left\s*:\s*0px/.test(btn.style || ''), btn && btn.style);
+  }
+  {
+    // And when the walk finds nothing recognisable on that side at all, we add nothing
+    // rather than a step. An unidentifiable element could be occupying any amount of
+    // space, and guessing is what doubles a gap; `margin-left: 0` at worst leaves our
+    // button where Stash's own spacing puts it.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    const slot = h.makeElement('div');
+    slot._computed = { marginLeft: '0px', marginRight: '0px' };
+    container.appendChild(slot);
+    container.appendChild(stashAction(h, 'Delete', { marginLeft: '0px', marginRight: '7px' }));
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('nothing recognisable on a side means nothing is added to it',
+      !!btn && /margin-left\s*:\s*0px/.test(btn.style || ''), btn && btn.style);
+  }
+  {
+    // Nothing *at all* on a side is a different answer again: our button is at that end
+    // of the row, so the row's own convention for an end button is the whole story. Here
+    // the row spaces on the left, so the trailing button takes no right margin - which is
+    // what Stash's own last button in such a row carries.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    container.appendChild(stashAction(h, 'Auto tag...', { marginLeft: '7px', marginRight: '0px' }));
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('a button at the end of the row takes the row\'s own end margin',
+      !!btn && /margin-right\s*:\s*0px/.test(btn.style || ''), btn && btn.style);
+    h.check('and still fills the gap on the side that has a neighbour',
+      !!btn && /margin-left\s*:\s*7px/.test(btn.style || ''), btn && btn.style);
+  }
+  {
     // Stash styles some row actions as links - established at 0.12.1, where Delete
     // turned out to be an `<a class="btn btn-danger">` on the Scene edit row. A row
     // whose spacing lives on links is still a row with a convention to copy, so the

@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.7';
+  var PLUGIN_VERSION = '0.12.8';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3435,17 +3435,12 @@
     return n > 0 ? n : 0;
   }
 
-  // The elements either side of our button in the row, skipping text nodes. Both are
-  // read once from a single `childNodes` snapshot: a real `NodeList` is live, and this
-  // repo's own test harness models one that is rebuilt on every read (0.8.1's bug).
-  function elementNeighbours(container, button) {
-    var kids = container.childNodes || [], idx = -1, i;
-    for (i = 0; i < kids.length; i++) { if (kids[i] === button) { idx = i; break; } }
-    var out = { prev: null, next: null };
-    if (idx === -1) return out;
-    for (i = idx - 1; i >= 0; i--) { if (kids[i] && kids[i].tagName) { out.prev = kids[i]; break; } }
-    for (i = idx + 1; i < kids.length; i++) { if (kids[i] && kids[i].tagName) { out.next = kids[i]; break; } }
-    return out;
+  // The index of our button among the container's children, read once from a single
+  // `childNodes` snapshot: a real `NodeList` is live, and this repo's own test harness
+  // models one that is rebuilt on every read (0.8.1's bug).
+  function childIndex(kids, button) {
+    for (var i = 0; i < kids.length; i++) { if (kids[i] === button) return i; }
+    return -1;
   }
 
   // The element whose margin actually borders ours. A row's DOM siblings are not all
@@ -3453,12 +3448,14 @@
   // beside its toggle), and a wrapper carries no margin of its own while the action
   // inside it does. Reading the wrapper therefore reports "contributes nothing" for a
   // neighbour that plainly contributes a gap - which is what made 0.12.5 double the
-  // space before our first button on Group's two pages and nowhere else.
+  // space before our first button on Group's two pages and nowhere else. This fixed
+  // Group's *edit* row at 0.12.7; its detail row needed `neighbourGap` to walk past the
+  // element entirely, one release later.
   //
   // `fromEnd` picks which end of a wrapper faces us: the last action inside the element
   // before ours, the first inside the element after. An element that is itself an action
-  // is returned as-is, and one holding no action at all falls back to itself, so a row
-  // of plain buttons behaves exactly as it did before this existed.
+  // is returned as-is; one holding no action anywhere inside returns null, which is the
+  // signal `neighbourGap` walks on rather than trusting the element's own margin.
   function borderingAction(node, fromEnd) {
     if (!node) return null;
     if (hasClass(node, 'btn')) return node;
@@ -3472,19 +3469,56 @@
     return null;
   }
 
-  // What a neighbour contributes to the gap on the side facing us: its own margin, plus
-  // the margin of the action nested inside it when the two differ. A wrapper with a
-  // margin *and* an inset button is rare, but summing is closer to the truth than
-  // picking one, and both are usually zero.
-  function marginContribution(node, prop) {
-    var action = borderingAction(node, prop === 'marginRight');
-    var cs = computedStyleOf(node);
-    var total = pxOf(cs && cs[prop]);
-    if (action && action !== node) {
-      var acs = computedStyleOf(action);
-      total += pxOf(acs && acs[prop]);
+  // What already separates our button from the nearest *action* on one side, walking
+  // outward from it rather than stopping at the first DOM sibling. 0.12.7 resolved
+  // *through* a wrapper to the action inside it; 0.12.8 also walks *past* an element
+  // holding no action at all, because the two are the same mistake one step apart:
+  // **a zero read off something this code cannot identify as an action is not evidence
+  // of a zero gap.** Group's detail row is the case - the element before our first
+  // button holds nothing we recognise, so its (absent) margin was being taken for the
+  // whole gap and the real one was doubled on top of it, three releases running.
+  //
+  // Returns one of three answers, and the caller treats them differently:
+  //   { gap: n }      an action was found, n px away - top our margin up to the step.
+  //   { gap: null }   elements are there but nothing recognisable - add nothing. We
+  //                   have no idea what space they occupy, and a wrong guess here is
+  //                   what doubles a gap.
+  //   null            nothing at all on this side - fall back to Stash's own margin.
+  //
+  // Skipped elements contribute both their margins to the total and are assumed to have
+  // no width of their own; a zero-width slot is what an unrecognised element in a button
+  // row usually is, and width is the one thing here that cannot be read without
+  // consulting a layout that has not settled yet (0.12.6).
+  function neighbourGap(container, button, forward) {
+    var kids = container.childNodes || [];
+    var idx = childIndex(kids, button);
+    if (idx === -1) return null;
+    var near = forward ? 'marginLeft' : 'marginRight';
+    var far = forward ? 'marginRight' : 'marginLeft';
+    var step = forward ? 1 : -1;
+    var total = 0, seen = false;
+    for (var i = idx + step; i >= 0 && i < kids.length; i += step) {
+      var k = kids[i];
+      if (!k || !k.tagName) continue;
+      seen = true;
+      var cs = computedStyleOf(k);
+      total += pxOf(cs && cs[near]);
+      var action = borderingAction(k, !forward);
+      if (action) {
+        // A wrapper with a margin *and* an inset button is rare, but summing the two is
+        // closer to the truth than picking one, and both are usually zero.
+        if (action !== k) total += pxOf((computedStyleOf(action) || {})[near]);
+        return { gap: total };
+      }
+      total += pxOf(cs && cs[far]);
     }
-    return total;
+    return seen ? { gap: null } : null;
+  }
+
+  function sideMargin(info, step, own) {
+    if (!info) return pxOf(own);
+    if (info.gap === null) return 0;
+    return Math.max(0, step - info.gap);
   }
 
   // 0.12.5. The gap between two inline siblings is the first's right margin plus the
@@ -3510,17 +3544,18 @@
   //
   // That second half is the actual diagnosis, and it is structural rather than a matter
   // of timing: **the DOM sibling beside our button is not always the action the user
-  // sees**. `marginContribution` resolves through a wrapper to the action inside it, so
-  // the margin read is the one that borders us. No layout is consulted; the answer is
-  // the same whenever it is asked.
+  // sees**. `neighbourGap` resolves through a wrapper to the action inside it and past
+  // an element that holds no action at all, so the margin read is the one that actually
+  // borders us. No layout is consulted; the answer is the same whenever it is asked.
   function fillNeighbourGaps(container, button, m) {
     var step = Math.max(pxOf(m.left), pxOf(m.right));
-    var n = elementNeighbours(container, button);
-    // No previous element: our button starts the row, and a left margin would only push
-    // it off the edge Stash's own first button sits on.
-    var left = n.prev ? Math.max(0, step - marginContribution(n.prev, 'marginRight')) : 0;
-    var right = n.next ? Math.max(0, step - marginContribution(n.next, 'marginLeft')) : step;
-    return ['margin-left:' + left + 'px', 'margin-right:' + right + 'px'];
+    // Nothing on a side means our button is at that end of the row, where Stash's own
+    // convention is the whole answer: `margin: 0 10px 0 0`, so no left margin to push it
+    // off the edge its first button sits on, and a right margin to trail the last.
+    return [
+      'margin-left:' + sideMargin(neighbourGap(container, button, false), step, m.left) + 'px',
+      'margin-right:' + sideMargin(neighbourGap(container, button, true), step, m.right) + 'px'
+    ];
   }
 
   // Rebuilt as one `cssText` assignment rather than property-by-property, matching how

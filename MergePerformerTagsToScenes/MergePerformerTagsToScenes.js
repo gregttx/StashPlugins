@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.7';
+  var PLUGIN_VERSION      = '1.15.8';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2233,11 +2233,17 @@
   // button is not always the action the user sees**. React wraps some row actions (a
   // file input beside its button, a dropdown beside its toggle), and a wrapper carries no
   // margin of its own while the action inside it does - so reading the sibling reports
-  // "contributes nothing" for a neighbour that plainly contributes a gap.
-  // `marginContribution` resolves through the wrapper to the action facing us. No layout
-  // is consulted, so the answer is the same whenever it is asked.
+  // "contributes nothing" for a neighbour that plainly contributes a gap. `neighbourGap`
+  // resolves through the wrapper to the action facing us. No layout is consulted, so the
+  // answer is the same whenever it is asked.
   //
-  // Both neighbours come from one `childNodes` snapshot: a real `NodeList` is live.
+  // 1.15.8 takes the same idea one step further, because the same mistake has a second
+  // form: an element holding *no* action at all. Reading its (absent) margin as the whole
+  // gap is what left Group's detail row doubled for three releases after the wrapper fix
+  // sorted its edit row out. **A zero read off something this code cannot identify as an
+  // action is not evidence of a zero gap** - so `neighbourGap` walks past it instead.
+  //
+  // Both directions are walked from one `childNodes` snapshot: a real `NodeList` is live.
   function borderingAction(node, fromEnd) {
     if (!node) return null;
     if (hasClass(node, 'btn')) return node;
@@ -2251,30 +2257,57 @@
     return null;
   }
 
-  function marginContribution(node, prop) {
-    var action = borderingAction(node, prop === 'marginRight');
-    var cs = computedStyleOf(node);
-    var total = pxOf(cs && cs[prop]);
-    if (action && action !== node) {
-      var acs = computedStyleOf(action);
-      total += pxOf(acs && acs[prop]);
+  // What already separates our button from the nearest *action* on one side. Three
+  // answers, treated differently by `sideMargin`:
+  //   { gap: n }      an action n px away - top our margin up to the row's step.
+  //   { gap: null }   elements are there but nothing recognisable - add nothing, since
+  //                   we have no idea what space they take and a wrong guess doubles it.
+  //   null            nothing at all on this side - fall back to Stash's own margin.
+  //
+  // Skipped elements contribute both their margins and are assumed to have no width;
+  // width is the one thing here that cannot be read without consulting a layout that has
+  // not settled yet, which is exactly what 1.15.6 got wrong.
+  function neighbourGap(container, button, forward) {
+    var kids = container.childNodes || [], idx = -1, i;
+    for (i = 0; i < kids.length; i++) { if (kids[i] === button) { idx = i; break; } }
+    if (idx === -1) return null;
+    var near = forward ? 'marginLeft' : 'marginRight';
+    var far = forward ? 'marginRight' : 'marginLeft';
+    var dir = forward ? 1 : -1;
+    var total = 0, seen = false;
+    for (i = idx + dir; i >= 0 && i < kids.length; i += dir) {
+      var k = kids[i];
+      if (!k || !k.tagName) continue;
+      seen = true;
+      var cs = computedStyleOf(k);
+      total += pxOf(cs && cs[near]);
+      var action = borderingAction(k, !forward);
+      if (action) {
+        // A wrapper with a margin *and* an inset button is rare, but summing the two is
+        // closer to the truth than picking one, and both are usually zero.
+        if (action !== k) total += pxOf((computedStyleOf(action) || {})[near]);
+        return { gap: total };
+      }
+      total += pxOf(cs && cs[far]);
     }
-    return total;
+    return seen ? { gap: null } : null;
+  }
+
+  function sideMargin(info, step, own) {
+    if (!info) return pxOf(own);
+    if (info.gap === null) return 0;
+    return Math.max(0, step - info.gap);
   }
 
   function fillNeighbourGaps(container, button, m) {
     var step = Math.max(pxOf(m.left), pxOf(m.right));
-    var kids = container.childNodes || [], idx = -1, prev = null, next = null, i;
-    for (i = 0; i < kids.length; i++) { if (kids[i] === button) { idx = i; break; } }
-    if (idx !== -1) {
-      for (i = idx - 1; i >= 0; i--) { if (kids[i] && kids[i].tagName) { prev = kids[i]; break; } }
-      for (i = idx + 1; i < kids.length; i++) { if (kids[i] && kids[i].tagName) { next = kids[i]; break; } }
-    }
-    // No previous element: our button starts the row, and a left margin would only push
-    // it off the edge Stash's own first button sits on.
-    var left = prev ? Math.max(0, step - marginContribution(prev, 'marginRight')) : 0;
-    var right = next ? Math.max(0, step - marginContribution(next, 'marginLeft')) : step;
-    return ['margin-left:' + left + 'px', 'margin-right:' + right + 'px'];
+    // Nothing on a side means our button is at that end of the row, where Stash's own
+    // convention is the whole answer: `margin: 0 10px 0 0`, so no left margin to push it
+    // off the edge its first button sits on, and a right margin to trail the last.
+    return [
+      'margin-left:' + sideMargin(neighbourGap(container, button, false), step, m.left) + 'px',
+      'margin-right:' + sideMargin(neighbourGap(container, button, true), step, m.right) + 'px'
+    ];
   }
 
   function applyButtonSpacing(container, button) {

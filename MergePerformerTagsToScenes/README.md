@@ -364,3 +364,9 @@ true of the instant it is taken, and that row is still settling when a button is
 element happens to sit beside ours in the page's structure, since Stash wraps some of its buttons in
 an extra element that carries no spacing of its own.
 
+**1.15.8 extends that to an element with no button in it at all** — an empty slot, where reading
+through finds nothing and the absent margin was still being taken for the whole gap. The search now
+walks past anything it cannot recognise as a button, to the nearest one it can, and adds no spacing
+at all where it finds nothing recognisable. Neither of this plugin's own two pages was affected by
+either change; both are here because the placement code is one design kept in two copies.
+

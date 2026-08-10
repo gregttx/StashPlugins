@@ -302,6 +302,25 @@ beside its toggle — and the wrapper carries no margin while the button inside 
 through it: the last `.btn` inside the element before yours, the first inside the element after,
 summed with the wrapper's own margin. Structural, no layout consulted, same answer every time.
 
+**A zero read off something you cannot identify is not evidence of a zero gap.** The wrapper fix
+above sorted Group's *edit* row and left its *detail* row doubled exactly as before, because that
+row has the same mistake in a second form: the element beside the button holds no action at all —
+an empty slot where a conditional one would go. Resolving *through* it finds nothing, so its own
+absent margin was still being taken for the whole gap, and the real one (from the button behind it)
+was added on top. Walk *past* such an element to the nearest thing that is recognisably an action,
+adding the skipped elements' own margins on the way; assume they have no width, since width is the
+one quantity here that cannot be had without a layout that has not settled. There are then three
+answers per side, and they are not the same answer: **an action found** tops the margin up to the
+row's step; **elements present but nothing recognisable** adds *nothing*, because guessing is
+precisely what doubles a gap; **nothing at all on that side** means the button is at that end of
+the row, where the row's own end margin is the whole story.
+
+The arithmetic is what pins a bug like this, before any DOM is inspected. Group's detail row was
+correct when the plugin set `margin-left: 0` and doubled when it started adding a step — so the gap
+exists without the plugin, and whatever the plugin measured reported zero. That narrows the cause to
+"the thing being measured is not the thing making the gap" without needing to know what the element
+actually is.
+
 **Test the donor scan with a positive length check, not `!== '0px'`.** A style engine with no
 stylesheet loaded — jsdom, in the `placement` suite — reports `''` rather than `0px` for an unset
 margin, which an inequality reads as "worth copying" and then applies as `margin-left:;`: nothing at

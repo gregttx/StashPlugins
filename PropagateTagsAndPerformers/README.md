@@ -1,6 +1,6 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.12.7, every step but the last has landed
+> ## 🚧 Under construction — 0.12.8, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
@@ -86,8 +86,15 @@
 >
 > What 0.12.7 does instead is read the margin of the button you can actually see, rather than of
 > whatever element happens to sit beside ours in the page's structure — Stash wraps some of its
-> buttons in an extra element, and that wrapper has no spacing of its own to read. This is the
-> remaining candidate for Group's doubled gap.
+> buttons in an extra element, and that wrapper has no spacing of its own to read. That fixed
+> Group's edit form and left its detail page doubled exactly as before.
+>
+> 0.12.8 finishes it. On Group's detail page the element beside the button is not a wrapper around
+> something — it is an empty slot with nothing in it at all, so there was still no margin to read and
+> a full gap was added on top of the one the button behind it was already making. The search now
+> walks past anything it cannot recognise as a button, to the nearest one it can; where it finds
+> nothing recognisable it adds no spacing rather than guessing, since guessing is what doubled the
+> gap in the first place.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -119,6 +126,7 @@
 > | Gaps filled against the actual neighbours, for rows Stash spaces unevenly | **done** (0.12.5) |
 > | The gap measured off the page rather than derived | **reverted** (0.12.6, out at 0.12.7) |
 > | A wrapped neighbour read through to the button inside it | **done** (0.12.7) |
+> | A neighbour that is not a button at all walked past, to the one behind it | **done** (0.12.8) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -375,7 +383,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.12.7 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.12.8 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

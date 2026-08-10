@@ -156,6 +156,19 @@ const DETAIL_VIEW_WRAPPED_NEIGHBOUR = `
     </div>
   </div>`;
 
+// And a row whose neighbouring sibling holds no action at all - an empty slot React left
+// where a conditional action would go. Its margin is zero, but the gap is not: the button
+// behind it is making one. Reading the slot doubled that gap on Group's detail row, which
+// is what 1.15.8 walks past.
+const DETAIL_VIEW_ACTIONLESS_NEIGHBOUR = `
+  <div id="performer-page" class="row">
+    <div class="details-edit">
+      <button class="btn btn-primary edit" style="margin-right:7px">Edit</button>
+      <div class="d-inline"></div>
+      <button class="btn btn-danger delete" style="margin-right:7px">Delete</button>
+    </div>
+  </div>`;
+
 // Same, but with Delete nested in a wrapper element (insertBefore needs a direct child).
 const DETAIL_VIEW_WRAPPED = `
   <div id="performer-page" class="row">
@@ -286,6 +299,17 @@ function check(name, cond, extra) {
     !!wrappedStyle && wrappedStyle.marginLeft === '0px', wrappedStyle && wrappedStyle.marginLeft);
   check('and the far side still gets the row\'s step',
     !!wrappedStyle && wrappedStyle.marginRight === '7px', wrappedStyle && wrappedStyle.marginRight);
+
+  // 1.15.8: an element holding no action at all is walked past entirely, to the button
+  // behind it. A zero read off something this code cannot identify as an action is not
+  // evidence of a zero gap - it is evidence that nothing was read.
+  root().innerHTML = DETAIL_VIEW_ACTIONLESS_NEIGHBOUR;
+  await sleep(1500);
+  const actionless = btn();
+  const actionlessStyle = actionless ? win.getComputedStyle(actionless) : null;
+  check('an element holding no action is walked past to the button behind it',
+    !!actionlessStyle && actionlessStyle.marginLeft === '0px',
+    actionlessStyle && actionlessStyle.marginLeft);
 
   // Delete nested inside a wrapper: must still land before the wrapper, not at the end.
   root().innerHTML = DETAIL_VIEW_WRAPPED;

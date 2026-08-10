@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.4';
+  var PLUGIN_VERSION = '0.12.5';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3430,6 +3430,50 @@
     return !!value && value !== 'normal' && parseFloat(value) > 0;
   }
 
+  function pxOf(value) {
+    var n = parseFloat(value);
+    return n > 0 ? n : 0;
+  }
+
+  // The elements either side of our button in the row, skipping text nodes. Both are
+  // read once from a single `childNodes` snapshot: a real `NodeList` is live, and this
+  // repo's own test harness models one that is rebuilt on every read (0.8.1's bug).
+  function elementNeighbours(container, button) {
+    var kids = container.childNodes || [], idx = -1, i;
+    for (i = 0; i < kids.length; i++) { if (kids[i] === button) { idx = i; break; } }
+    var out = { prev: null, next: null };
+    if (idx === -1) return out;
+    for (i = idx - 1; i >= 0; i--) { if (kids[i] && kids[i].tagName) { out.prev = kids[i]; break; } }
+    for (i = idx + 1; i < kids.length; i++) { if (kids[i] && kids[i].tagName) { out.next = kids[i]; break; } }
+    return out;
+  }
+
+  // 0.12.5. The gap between two inline siblings is the first's right margin plus the
+  // second's left margin, so what our button needs on a given side depends on what its
+  // actual neighbour already contributes - not on what one donor button happens to
+  // carry. Copying the donor's margins wholesale (0.12.4) gave every button of ours
+  // `margin-left: 0`, which is correct on a row where every button carries a right
+  // margin - Scene's `.edit-buttons`, where it is also what keeps a wrapped second row
+  // flush with the first - and wrong on a row where they do not. Stash's own detail
+  // navbars are inconsistently spaced: `Auto tag...` and `Merge` touch each other on
+  // Performer, and landing after one of the marginless ones left our button touching it
+  // too, live-reported at 0.12.4.
+  //
+  // So: take the row's own step from the donor, then fill whatever is missing on each
+  // side. A neighbour already contributing the full step leaves us nothing to add,
+  // which is why this changes nothing on the edit rows and un-sticks the navbars.
+  function fillNeighbourGaps(container, button, m) {
+    var step = Math.max(pxOf(m.left), pxOf(m.right));
+    var n = elementNeighbours(container, button);
+    var prevCs = n.prev ? computedStyleOf(n.prev) : null;
+    var nextCs = n.next ? computedStyleOf(n.next) : null;
+    // No previous element: our button starts the row, and a left margin would only
+    // push it off the edge Stash's own first button sits on.
+    var left = n.prev ? Math.max(0, step - pxOf(prevCs && prevCs.marginRight)) : 0;
+    var right = n.next ? Math.max(0, step - pxOf(nextCs && nextCs.marginLeft)) : step;
+    return ['margin-left:' + left + 'px', 'margin-right:' + right + 'px'];
+  }
+
   // Rebuilt as one `cssText` assignment rather than property-by-property, matching how
   // the button builders already set `align-self` - and so the whole inline style stays
   // one readable string in the DOM inspector while chasing a placement bug.
@@ -3448,14 +3492,16 @@
   //   1. The container spaces its own children with `column-gap` - our button gets it
   //      too, so any margin of ours is *added* to Stash's spacing rather than matching
   //      it. Nothing to apply.
-  //   2. A donor exists - copy its margins, and leave the class off so they apply.
+  //   2. A donor exists - take the row's own spacing step from it and fill whatever
+  //      each neighbour is not already contributing (`fillNeighbourGaps`), leaving the
+  //      class off so the inline margins are not outranked.
   //   3. Neither - restore `mx-1`, which is what shipped before any of this.
   function applyButtonSpacing(container, button) {
     var parts = ['align-self:flex-start'];
     var cs = computedStyleOf(container);
     if (!cs || !nonZeroLength(cs.columnGap)) {
       var m = stashButtonMargins(container);
-      if (m) parts.push('margin-left:' + m.left, 'margin-right:' + m.right);
+      if (m) parts = parts.concat(fillNeighbourGaps(container, button, m));
       else if (!hasClass(button, SPACING_CLASS)) button.className += ' ' + SPACING_CLASS;
     }
     if (container._ptp2reBlockRow) parts.push('margin-bottom:' + ROW_GAP);

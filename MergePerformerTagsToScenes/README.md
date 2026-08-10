@@ -352,3 +352,8 @@ horizontal half changed nothing at all. That class is now applied only when ther
 row to measure, and a row that spaces its own buttons by other means is left alone entirely rather
 than given a margin on top of it.
 
+**1.15.5 stops the performer button landing flush against the one before it.** Stash spaces the
+performer navbar unevenly — some of its own buttons touch each other there — so matching one of them
+exactly is not the same as looking right next to it. The button now fills in whatever gap its actual
+neighbours leave, which changes nothing on the scene Edit tab and un-sticks the detail page.
+

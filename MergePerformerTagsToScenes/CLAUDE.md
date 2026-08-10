@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.4.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.5.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -111,6 +111,17 @@ row with neither gets `mx-2`. A donor is any element carrying `btn` with no `_co
 `<button>` — Stash styles some row actions as links, as 1.15.1 already established for Delete — and
 the test for one is a *positive* length check, since a style engine with no stylesheet loaded reports
 `''` rather than `0px` and the old inequality read that as a margin worth copying.
+
+**1.15.5: matching a button exactly is not the same as looking right next to it.** The gap between
+two inline siblings is the first's right margin plus the second's left, and the donor's margins are a
+*right* margin only — so copying them gave our button `margin-left: 0`. Correct on `.edit-buttons`,
+where every one of Stash's buttons carries the right margin (and where it is what keeps a wrapped
+second row flush with the first). Wrong on the performer navbar, which Stash spaces unevenly — its
+own `Auto tag...` and `Merge` touch each other there — so our button landed flush against
+`Submit to Stash-Box`. `fillNeighbourGaps` takes the row's *step* from the donor and adds only what
+each actual neighbour is not already contributing, which is a no-op on the edit rows and the fix on
+the navbar. The no-previous-element case is deliberately 0: our button starting the row should sit
+on the same edge Stash's own first button does.
 
 **The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
 argued about *which* anchor to prefer while the anchor search was failing on the row being tested.

@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.4';
+  var PLUGIN_VERSION      = '1.15.5';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2207,6 +2207,42 @@
     return (' ' + String((node && node.className) || '') + ' ').indexOf(' ' + name + ' ') !== -1;
   }
 
+  function pxOf(value) {
+    var n = parseFloat(value);
+    return n > 0 ? n : 0;
+  }
+
+  // 1.15.4 copied the donor's margins onto our button wholesale, which gave it
+  // `margin-left: 0`. That is correct on a row where every button carries a right
+  // margin - Scene's `.edit-buttons`, where it is also what keeps a wrapped second row
+  // flush with the first - and wrong on a row where they do not. Stash's own detail
+  // navbars are inconsistently spaced (`Auto tag...` and `Merge` touch each other on
+  // Performer), so landing after one of the marginless ones left our button touching
+  // it, live-reported at 1.15.4.
+  //
+  // The gap between two inline siblings is the first's right margin plus the second's
+  // left margin, so 1.15.5 takes the row's own step from the donor and fills whatever
+  // each *actual neighbour* is not already contributing. A neighbour already carrying
+  // the full step leaves nothing to add, which is why this changes nothing on the edit
+  // rows and un-sticks the navbars. Both neighbours come from one `childNodes`
+  // snapshot: a real `NodeList` is live.
+  function fillNeighbourGaps(container, button, m) {
+    var step = Math.max(pxOf(m.left), pxOf(m.right));
+    var kids = container.childNodes || [], idx = -1, prev = null, next = null, i;
+    for (i = 0; i < kids.length; i++) { if (kids[i] === button) { idx = i; break; } }
+    if (idx !== -1) {
+      for (i = idx - 1; i >= 0; i--) { if (kids[i] && kids[i].tagName) { prev = kids[i]; break; } }
+      for (i = idx + 1; i < kids.length; i++) { if (kids[i] && kids[i].tagName) { next = kids[i]; break; } }
+    }
+    var prevCs = prev ? computedStyleOf(prev) : null;
+    var nextCs = next ? computedStyleOf(next) : null;
+    // No previous element: our button starts the row, and a left margin would only push
+    // it off the edge Stash's own first button sits on.
+    var left = prev ? Math.max(0, step - pxOf(prevCs && prevCs.marginRight)) : 0;
+    var right = next ? Math.max(0, step - pxOf(nextCs && nextCs.marginLeft)) : step;
+    return ['margin-left:' + left + 'px', 'margin-right:' + right + 'px'];
+  }
+
   function applyButtonSpacing(container, button) {
     var kids = container.childNodes || [], m = null;
     var cs = computedStyleOf(container);
@@ -2233,8 +2269,7 @@
     if (!m && !gapped && !hasClass(button, SPACING_CLASS)) {
       button.className += ' ' + SPACING_CLASS;
     }
-    var parts = [];
-    if (m) parts.push('margin-left:' + m.left, 'margin-right:' + m.right);
+    var parts = m ? fillNeighbourGaps(container, button, m) : [];
     if (blockRow) parts.push('margin-bottom:.25rem');
     if (parts.length) button.style = parts.join(';') + ';';
   }

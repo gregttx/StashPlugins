@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.4.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.5.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -31,6 +31,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — the source button's blink loop: it saw its own label as a foreign button's | **0.12.2** |
 | | — row and column spacing measured off the row itself, per container kind | **0.12.3** |
 | | — the measured margins now win the cascade; `mx-1` is a fallback, not a default | **0.12.4** |
+| | — gaps filled against the real neighbours, for rows Stash spaces unevenly | **0.12.5** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
@@ -73,6 +74,24 @@ The donor test is a *positive* length check, not `!== '0px'`: a style engine wit
 loaded reports `''` for an unset margin, which the inequality read as a margin worth copying and then
 applied as `margin-left:;` — nothing, with the class fallback already skipped. jsdom caught it in the
 `placement` suite; the same hazard exists live on any row whose buttons genuinely carry no margin.
+
+**0.12.5: matching a button exactly is not the same as looking right next to it.** The gap between
+two inline siblings is the first's right margin plus the second's left, and the donor's margins are a
+*right* margin only — so copying them gave every button of ours `margin-left: 0`. Correct on
+`.edit-buttons`, where every one of Stash's buttons carries the right margin, and where it is also
+what keeps a wrapped second row flush with the first (live-confirmed good). Wrong on the Performer
+and Studio detail navbars, which Stash spaces unevenly — its own `Auto tag...` and `Merge` touch each
+other on Performer — so a button of ours landing after one of the marginless ones touched it too.
+
+`fillNeighbourGaps` takes the row's *step* from the donor and adds only what each actual neighbour is
+not already contributing: a no-op on the edit rows, the fix on the navbars. Two deliberate edges — no
+previous element means no left margin (our button starting the row should sit on the same edge
+Stash's own first button does), and inserting a second button of ours next to the first needs no
+recomputation, since the first's right margin is exactly what the second then measures against.
+
+**What is left is taste, not a defect.** The edit rows now sit at Stash's own 10px on every boundary,
+which live feedback calls "a bit too large" — but tightening it means our buttons no longer match the
+row they are in. That is a call for the user, not a bug to fix silently.
 
 **0.9.0 through 0.12.0 are four versions of anchor churn over one unnoticed fact**, and 0.12.1 is
 the fix. Every one of them searched for Delete with `container.querySelector('button.delete')` and

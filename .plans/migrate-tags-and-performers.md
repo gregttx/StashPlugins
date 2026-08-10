@@ -1191,6 +1191,25 @@ step 9 plus a run against a real Stash, not step 9 alone.
    **Three rounds, three mechanisms, one shape:** the anchor searched for a class that was not
    there, the row-gap set a property the container did not honour, and the margin lost to a rule it
    could not outrank. In each, the code did exactly what it said and the page disagreed.
+
+   **0.12.5 / 1.15.5 — matching a button exactly is not the same as looking right next to it.** With
+   the cascade fixed, the edit rows came back correct (every boundary at Stash's own 10px, and the
+   wrapped second row flush on the left, both confirmed live) and the *detail navbars* came back
+   worse: our button now touched the one before it on Performer and Studio. The reason is that a gap
+   between two inline siblings is the first's right margin plus the second's left, and the donor's
+   margins are a right margin only — so copying them wholesale gives our button `margin-left: 0`,
+   which is right after a button that carries a right margin and wrong after one that does not.
+   Stash's navbars are unevenly spaced: its own `Auto tag...` and `Merge` touch each other there.
+
+   `fillNeighbourGaps` takes the row's *step* from the donor and adds only what each actual
+   neighbour is not already contributing — a no-op on the edit rows, the fix on the navbars. Note
+   that this is the first rule here that reads the button's *position*, not just its container: the
+   same button needs different margins depending on what it landed next to.
+
+   **What is left on this thread is taste, not a defect.** The edit rows sit at Stash's own 10px on
+   every boundary and live feedback calls that "a bit too large" (the reported ideal is nearer 7px,
+   `mx-2`). Tightening it means our buttons deliberately not matching the row they are in, which is
+   the user's call to make, not one to take silently while fixing something else.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

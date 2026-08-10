@@ -317,6 +317,43 @@ function nodeListLikeContainer() {
       !!btn && /margin-right\s*:\s*10px/.test(btn.style || ''), btn && btn.style);
   }
   {
+    // 0.12.5. The gap between two inline siblings is the first's right margin plus the
+    // second's left margin, so copying the donor's margins wholesale - which is a right
+    // margin only - lands our button flush against any neighbour that has none. Stash's
+    // own detail navbars are inconsistently spaced exactly that way (`Auto tag...` and
+    // `Merge` touch each other on Performer), and 0.12.4 was live-reported as touching
+    // the button before it there. The row's step is taken from the donor and whatever
+    // the actual neighbour is not contributing is filled in.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    container.appendChild(stashAction(h, 'Edit', { marginLeft: '0px', marginRight: '7px' }));
+    container.appendChild(stashAction(h, 'Auto tag...', { marginLeft: '0px', marginRight: '0px' }));
+    container.appendChild(stashAction(h, 'Delete', { marginLeft: '0px', marginRight: '7px' }));
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('a neighbour with no margin of its own gets the row\'s step from us',
+      !!btn && /margin-left\s*:\s*7px/.test(btn.style || ''), btn && btn.style);
+    h.check('and the far side is filled to the same step',
+      !!btn && /margin-right\s*:\s*7px/.test(btn.style || ''), btn && btn.style);
+  }
+  {
+    // The other direction, and the reason this is "fill" rather than "always add": a
+    // neighbour already contributing the full step leaves nothing to add, so nothing is
+    // added. This is what keeps a wrapped second row flush with the first on
+    // `.edit-buttons`, where every one of Stash's buttons carries the right margin -
+    // live-confirmed good at 0.12.4 and not to be regressed by the fix above.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    container.appendChild(stashAction(h, 'Save', { marginLeft: '0px', marginRight: '10px' }));
+    container.appendChild(stashAction(h, 'Delete', { marginLeft: '0px', marginRight: '10px' }));
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('a neighbour already carrying the step leaves us nothing to add',
+      !!btn && /margin-left\s*:\s*0px/.test(btn.style || ''), btn && btn.style);
+  }
+  {
     // Stash styles some row actions as links - established at 0.12.1, where Delete
     // turned out to be an `<a class="btn btn-danger">` on the Scene edit row. A row
     // whose spacing lives on links is still a row with a convention to copy, so the

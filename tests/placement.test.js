@@ -129,6 +129,21 @@ const DETAIL_VIEW = `
     </div>
   </div>`;
 
+// The performer navbar as it is actually spaced, which is: inconsistently. `Auto tag...`
+// and `Merge` touch each other on a live page, so the button our own lands after may
+// carry no right margin at all - and the gap between two inline siblings is the first's
+// right margin plus the second's left. 1.15.4 copied the donor's margins wholesale, so
+// our button took `margin-left: 0` and touched `Submit to Stash-Box`, live-reported. The
+// row's own step (7px, off Edit) is now filled in on whichever side is short.
+const DETAIL_VIEW_MARGINS = `
+  <div id="performer-page" class="row">
+    <div class="details-edit">
+      <button class="btn btn-primary edit" style="margin-right:7px">Edit</button>
+      <button class="btn btn-secondary">Submit to Stash-Box</button>
+      <button class="btn btn-danger delete" style="margin-right:7px">Delete</button>
+    </div>
+  </div>`;
+
 // Same, but with Delete nested in a wrapper element (insertBefore needs a direct child).
 const DETAIL_VIEW_WRAPPED = `
   <div id="performer-page" class="row">
@@ -236,6 +251,16 @@ function check(name, cond, extra) {
   check('with both containers mounted, picks the navbar',
     !!both && !!both.parentNode.querySelector('button.delete'),
     both ? 'parent classes: ' + both.parentNode.className : 'no button');
+
+  // Spacing against an inconsistently spaced navbar - see the fixture's own comment.
+  root().innerHTML = DETAIL_VIEW_MARGINS;
+  await sleep(1500);
+  const navSpaced = btn();
+  const navStyle = navSpaced ? win.getComputedStyle(navSpaced) : null;
+  check('fills the gap a marginless neighbour leaves, rather than touching it',
+    !!navStyle && navStyle.marginLeft === '7px', navStyle && navStyle.marginLeft);
+  check('and fills the far side to the same step',
+    !!navStyle && navStyle.marginRight === '7px', navStyle && navStyle.marginRight);
 
   // Delete nested inside a wrapper: must still land before the wrapper, not at the end.
   root().innerHTML = DETAIL_VIEW_WRAPPED;

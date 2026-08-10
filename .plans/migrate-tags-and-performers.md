@@ -1163,6 +1163,34 @@ step 9 plus a run against a real Stash, not step 9 alone.
    multi-round guess** — the anchor's missing `.delete` class was the first. The pattern is now
    explicit in the repo-root `CLAUDE.md`: ask the page what it is before reasoning about what to do
    with it.
+
+   **0.12.4 / 1.15.4 — the measurement was right and the page never saw it.** The live report after
+   0.12.3 was that wrapped-row spacing was fixed everywhere ("the top 2 lines are now spaced
+   properly", "Group Edit: line spacing is perfect") while *every* horizontal gap was unchanged,
+   page for page, with the exact signature the old fixed classes produced: large after Save (10px +
+   `mx-1`'s 3.5px), tight before Delete (3.5px + 0), and the one boundary next to
+   `MergePerformerTagsToScenes`' button a step wider (`mx-2`, 7px). One `cssText` assignment landing
+   in one axis and not the other is not a wrong value — it is the cascade, and **Bootstrap's spacing
+   utilities are `!important`**. `mx-1`/`mx-2` on our own buttons outranked the inline margins;
+   `margin-bottom`, which no class sets, went through untouched.
+
+   The class is now off the button at build time and `applyButtonSpacing` adds it back only where
+   there is nothing to measure, so the two can never both be in play. Two adjacent gaps closed while
+   the file was open: a donor is any `btn`-classed element with no `_coopOwner` rather than a
+   `<button>` specifically (Stash styles some row actions as links — the same fact 0.12.1 had to
+   absorb for Delete, and a navbar whose actions are all links had no donor at all), and a container
+   that spaces its own children with `column-gap` now gets no margin from us, since ours inherits
+   that gap and a margin would be added to the row's spacing rather than match it. That branch is
+   speculative-but-cheap insurance for `.details-edit`, whose convention is *still* unmeasured.
+
+   The donor test also became a positive length check rather than `!== '0px'`: jsdom reports `''`
+   for an unset margin, which the inequality read as worth copying and applied as `margin-left:;` —
+   nothing, with the class fallback already skipped. Found by the new fallback test failing, which
+   is the argument for writing the fallback branch's test at all.
+
+   **Three rounds, three mechanisms, one shape:** the anchor searched for a class that was not
+   there, the row-gap set a property the container did not honour, and the margin lost to a rule it
+   could not outrank. In each, the code did exactly what it said and the page disagreed.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

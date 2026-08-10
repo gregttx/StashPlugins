@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.4.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -96,6 +96,21 @@ had been shipping wrong:
   measured from here, which is the point: `.details-edit`'s own convention is still unknown.
 
 This plugin carries its own copy as `applyButtonSpacing` (1.15.3); the two share no module.
+
+**1.15.4: the measurement was right and the page never saw it — Bootstrap's spacing utilities are
+`!important`.** The `mx-2` both on-page buttons were built with outranked the inline
+`margin-left`/`margin-right` copied from the row, so every horizontal gap stayed exactly what it had
+been. The tell was the *same* `cssText` assignment working in the other axis: `margin-bottom`, which
+no utility class sets, visibly fixed wrapped rows in that same release. **One declaration landing and
+its neighbour not is a specificity problem, not a wrong value.** `SPACING_CLASS` is now off the
+button at build time and added back by `applyButtonSpacing`, only on the branch with nothing to
+measure — so the class and the measurement can never both be in play. Three cases, in order: a
+container spacing its children with `column-gap` (ours inherits it, so a margin would be *added* to
+the row's spacing rather than match it) gets nothing; a row with a donor gets the donor's margins; a
+row with neither gets `mx-2`. A donor is any element carrying `btn` with no `_coopOwner`, not just a
+`<button>` — Stash styles some row actions as links, as 1.15.1 already established for Delete — and
+the test for one is a *positive* length check, since a style engine with no stylesheet loaded reports
+`''` rather than `0px` and the old inequality read that as a margin worth copying.
 
 **The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
 argued about *which* anchor to prefer while the anchor search was failing on the row being tested.

@@ -269,6 +269,29 @@ gap that matched nothing. Both plugins now copy the computed margins off a butto
 row, found by its lack of a `_coopOwner`. A rule that reads the row cannot be wrong about a row
 nobody has measured, which matters here because `.details-edit`'s own convention still has not been.
 
+**A measured value still has to win the cascade — Bootstrap's spacing utilities are `!important`.**
+The copy rule above shipped at 0.12.3 / 1.15.3 and changed nothing on the page, because both plugins
+were still building their buttons with `mx-1` / `mx-2` and a Bootstrap `mx-*` outranks any inline
+`margin-left` / `margin-right`. The tell was that the *same* `cssText` assignment worked in one axis
+and not the other: `margin-bottom`, which no utility class here sets, visibly fixed wrapped-row
+spacing in that same release while every horizontal gap stayed exactly as it had been. **One
+declaration landing and its neighbour not is a specificity problem, not a wrong value** — check what
+else is setting the property before re-deriving the number.
+
+The fix is that the spacing class is no longer on the button at build time. `applyButtonSpacing`
+adds it back, and only on the branch that has nothing to measure — so the class and the measurement
+can never both be in play. Three cases, in order: a container that spaces its own children with
+`column-gap` (ours inherits it, so any margin of ours would be *added* to the row's spacing rather
+than match it) gets nothing; a row with a donor gets the donor's margins; a row with neither gets the
+class. A donor is any element carrying `btn` without a `_coopOwner` — not just `<button>`, since
+Stash styles some row actions as links, the same fact `findActionByLabel` already had to absorb.
+
+**Test the donor scan with a positive length check, not `!== '0px'`.** A style engine with no
+stylesheet loaded — jsdom, in the `placement` suite — reports `''` rather than `0px` for an unset
+margin, which an inequality reads as "worth copying" and then applies as `margin-left:;`: nothing at
+all, with the class fallback already skipped. That is a live-page hazard too, wherever a row's
+buttons genuinely carry no margin.
+
 **Giving up is the safe default, not an error.** A row whose last button is neither Delete nor Save
 — unrecognised, or genuinely nothing — gets a plain append. Never invent a third detection tier for
 a button this code cannot identify as important; a wrong guess about importance is worse than

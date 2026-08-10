@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.3';
+  var PLUGIN_VERSION      = '1.15.4';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -34,6 +34,10 @@
   cpt2s('[cpt2s] MergePerformerTagsToScenes.js ' + PLUGIN_VERSION + ' loaded. This is the ' +
     'running script’s own version — the settings page reads the manifest instead, which can ' +
     'be newer than the script your browser has cached.');
+  // The horizontal fallback both on-page buttons get when the row has no spacing of its
+  // own to copy - see `applyButtonSpacing`. Deliberately not on the button at build
+  // time: Bootstrap's spacing utilities are `!important`.
+  var SPACING_CLASS       = 'mx-2';
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
 
@@ -2180,25 +2184,59 @@
     try { return w.getComputedStyle(node) || null; } catch (e) { return null; }
   }
 
+  // 1.15.4, mirroring `PropagateTagsAndPerformers` 0.12.4 - and the release that made
+  // 1.15.3's measurement actually reach the page. **Bootstrap's spacing utilities are
+  // `!important`**, so the `mx-2` these buttons carried at build time beat the inline
+  // `margin-left`/`margin-right` copied from the row, and every horizontal gap stayed
+  // exactly what it had been - while `margin-bottom`, which no class sets, took effect
+  // and visibly fixed wrapped-row spacing in that same release. One `cssText`
+  // assignment working in one axis and not the other is the shape of a specificity
+  // problem, not a wrong value.
+  //
+  // So `SPACING_CLASS` is off the button at build time and added back here, only on the
+  // branch that has nothing to measure. Three cases, in order: a container that spaces
+  // its own children with `column-gap` (ours gets it too, so any margin would be added
+  // to Stash's spacing rather than match it); a donor to copy from - any element with
+  // the `btn` class and no `_coopOwner`, `<a>` included, since Stash styles some row
+  // actions as links; or neither, in which case the class is what shipped.
+  function nonZeroLength(value) {
+    return !!value && value !== 'normal' && parseFloat(value) > 0;
+  }
+
+  function hasClass(node, name) {
+    return (' ' + String((node && node.className) || '') + ' ').indexOf(' ' + name + ' ') !== -1;
+  }
+
   function applyButtonSpacing(container, button) {
     var kids = container.childNodes || [], m = null;
-    for (var i = 0; i < kids.length && !m; i++) {
+    var cs = computedStyleOf(container);
+    var gapped = !!cs && nonZeroLength(cs.columnGap);
+    for (var i = 0; i < kids.length && !m && !gapped; i++) {
       var k = kids[i];
-      if (k.tagName !== 'BUTTON' || k._coopOwner) continue;
+      if (k._coopOwner || !hasClass(k, 'btn')) continue;
       var ks = computedStyleOf(k);
-      if (!ks) return;
-      if (ks.marginLeft !== '0px' || ks.marginRight !== '0px') {
-        m = { left: ks.marginLeft, right: ks.marginRight };
+      // No `getComputedStyle` at all (the shared test harness's fake DOM): nothing can
+      // be measured, so stop and let the class fallback below stand in - which is
+      // exactly what shipped before any of this was measured.
+      if (!ks) break;
+      // A *positive* test, not "not 0px": a style engine with no stylesheet loaded
+      // reports the empty string rather than `0px`, which the inequality read as a
+      // margin worth copying and then applied as `margin-left:;` - nothing at all, with
+      // the class fallback already skipped. Caught by jsdom in the placement suite; a
+      // live Stash always computes to a length.
+      if (nonZeroLength(ks.marginLeft) || nonZeroLength(ks.marginRight)) {
+        m = { left: ks.marginLeft || '0px', right: ks.marginRight || '0px' };
       }
     }
-    var cs = computedStyleOf(container);
     var display = (cs && cs.display) || '';
     var blockRow = !!display && display.indexOf('flex') === -1 && display.indexOf('grid') === -1;
-    if (!m && !blockRow) return;
+    if (!m && !gapped && !hasClass(button, SPACING_CLASS)) {
+      button.className += ' ' + SPACING_CLASS;
+    }
     var parts = [];
     if (m) parts.push('margin-left:' + m.left, 'margin-right:' + m.right);
     if (blockRow) parts.push('margin-bottom:.25rem');
-    button.style = parts.join(';') + ';';
+    if (parts.length) button.style = parts.join(';') + ';';
   }
 
   // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,
@@ -2262,9 +2300,10 @@
     var button = document.createElement('button');
     button.type = 'button';
     button._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
-    // mx-2 rather than ml-2: the button now sits between two of Stash's own buttons,
-    // so it needs breathing room on both sides instead of just the left.
-    button.className = 'btn btn-secondary mx-2 ' + PERFORMER_BTN_CLASS;
+    // No spacing class here since 1.15.4 - `applyButtonSpacing` copies the row's own
+    // margins inline and adds `mx-2` back itself when there is nothing to copy. A
+    // Bootstrap `mx-*` is `!important` and would outrank the copied margins.
+    button.className = 'btn btn-secondary ' + PERFORMER_BTN_CLASS;
     // "Copy Tags to all Scenes", not the older "Add Tags to Scene(s)": harmonized
     // with PropagateTagsAndPerformers' naming convention, since that plugin's own
     // manual-button dedup (§7d's `declares`) matches on this exact label text to
@@ -2343,11 +2382,11 @@
     var button = document.createElement('button');
     button.type = 'button';
     button._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
-    // mx-2, not ml-2: since 1.14.0 this button lands *between* Save and Delete rather
-    // than at the end of the row, so a left-only margin left it touching Delete -
-    // live-reported at 1.15.1. Matches the performer button, which moved off ml-2 for
-    // the same reason when it started sitting between two of Stash's own buttons.
-    button.className = 'btn btn-secondary mx-2 ' + SCENE_BTN_CLASS;
+    // No spacing class here since 1.15.4, same as the performer button - the fallback
+    // `mx-2` (which replaced a left-only `ml-2` at 1.15.2, once this button started
+    // landing *between* Save and Delete rather than at the row's end) is now applied by
+    // `applyButtonSpacing` only when the row has no margins of its own to copy.
+    button.className = 'btn btn-secondary ' + SCENE_BTN_CLASS;
     // "Copy all Tags from all Performers", not the older "Add Perf Tags" - same
     // harmonization as the performer button above.
     button.textContent = 'Copy all Tags from all Performers';

@@ -346,3 +346,9 @@ ours being a different width from its neighbours'. On the scene Edit tab it also
 row properly, which the previous approach could not: that row is not laid out the way the performer
 page's is, and the spacing property being set only works on the latter.
 
+**1.15.4 is what makes 1.15.3's spacing visible.** The margins it measured were being overridden by
+a styling class the buttons still carried, so the wrapped-row half of that release worked and the
+horizontal half changed nothing at all. That class is now applied only when there is nothing in the
+row to measure, and a row that spaces its own buttons by other means is left alone entirely rather
+than given a margin on top of it.
+

@@ -178,7 +178,8 @@ function makeEnv(opts) {
   // plain block element with no margins, which is also what an untouched fixture
   // should look like.
   ctx.window.getComputedStyle = (el) => Object.assign(
-    { display: 'block', marginTop: '0px', marginRight: '0px', marginBottom: '0px', marginLeft: '0px' },
+    { display: 'block', columnGap: 'normal', rowGap: 'normal',
+      marginTop: '0px', marginRight: '0px', marginBottom: '0px', marginLeft: '0px' },
     (el && el._computed) || {});
 
   ctx.fetch = function (url, o) {

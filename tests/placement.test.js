@@ -85,6 +85,24 @@ const SCENE_EDIT_VIEW_MARGINS = '<div id="scene-page"><div class="edit-buttons">
   '<button class="btn btn-primary" style="margin:0 10px 0 0">Save</button>' +
   '<button class="btn btn-danger delete" style="margin:0 10px 0 0">Delete</button></div></div>';
 
+// A row that spaces its own children with `column-gap` instead of per-button margins.
+// Our button gets that gap too, so a margin of ours would be added to the row's spacing
+// rather than match it - 1.15.4 applies neither the copied margins nor the fallback
+// class here. No live page is known to be this shape; it is the branch that keeps the
+// copy rule from being wrong about a container nobody has measured.
+const SCENE_EDIT_VIEW_GAPPED = '<div id="scene-page">' +
+  '<div class="edit-buttons" style="display:flex;column-gap:10px">' +
+  '<button class="btn btn-primary">Save</button>' +
+  '<button class="btn btn-danger delete">Delete</button></div></div>';
+
+// A row with no spacing of its own at all: nothing to copy, so the utility class is
+// what our button falls back to - which is what shipped before any of this was
+// measured. Since 1.15.4 that class is added by `applyButtonSpacing` rather than by the
+// builder, so this is the only branch on which it exists.
+const SCENE_EDIT_VIEW_NO_MARGINS = '<div id="scene-page"><div class="edit-buttons">' +
+  '<button class="btn btn-primary">Save</button>' +
+  '<button class="btn btn-danger delete">Delete</button></div></div>';
+
 // Simulates PropagateTagsAndPerformers having already inserted its own button,
 // between Save and Delete, before this plugin's own tick runs - the
 // deterministic-ordering case (`coop().order`, repo-root CLAUDE.md) that used to be
@@ -321,6 +339,28 @@ function check(name, cond, extra) {
   check('and spaces a wrapped row with a bottom margin, since .edit-buttons is display:block',
     !!spacedStyle && spacedStyle.marginBottom !== '0px' && spacedStyle.marginBottom !== '',
     spacedStyle && spacedStyle.marginBottom);
+  // 1.15.4, and the reason 1.15.3's measurement never reached a live page: Bootstrap's
+  // spacing utilities carry `!important`, so the `mx-2` this button was built with
+  // outranked the inline margins above and the copied value lost in the cascade. jsdom
+  // loads no Bootstrap stylesheet, so it cannot show the losing margin - what it can
+  // pin is the class being absent, which is the whole fix.
+  check('and carries no utility spacing class, which would outrank them (!important)',
+    !!spaced && !/\bmx-\d\b/.test(spaced.className), spaced && spaced.className);
+
+  root().innerHTML = SCENE_EDIT_VIEW_GAPPED;
+  await sleep(1500);
+  const gapped = sbtn();
+  check('a row spaced by column-gap gets no horizontal margin from us',
+    !!gapped && !/margin-left|margin-right/.test(gapped.getAttribute('style') || ''),
+    gapped && gapped.getAttribute('style'));
+  check('and no fallback class either - the gap already spaces our button',
+    !!gapped && !/\bmx-\d\b/.test(gapped.className), gapped && gapped.className);
+
+  root().innerHTML = SCENE_EDIT_VIEW_NO_MARGINS;
+  await sleep(1500);
+  const unspaced = sbtn();
+  check('a row with no spacing of its own falls back to the utility class',
+    !!unspaced && /\bmx-2\b/.test(unspaced.className), unspaced && unspaced.className);
 
   // Deterministic ordering against another plugin's button (coop().order): this
   // plugin registers priority 20, closer to Delete than PropagateTagsAndPerformers'

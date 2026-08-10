@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.3';
+  var PLUGIN_VERSION = '0.12.4';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3172,9 +3172,13 @@
     // on-page buttons all carry plain `btn btn-secondary` with no size modifier, so a
     // `btn-sm` button beside them reads smaller in both height and font-size - not the
     // row-dependent stretch below, a flat difference present on every row.
-    // No vertical margin here on purpose - see `ensureRowGap` below for why a wrapped
-    // row's spacing comes from the container, not this button's own margin box.
-    var btn = el('button', 'btn btn-secondary mx-1 ' + MANUAL_BTN_CLASS, label);
+    // No vertical margin here on purpose - see `ensureRowSpacing` below for why a
+    // wrapped row's spacing comes from the container, not this button's own margin box.
+    // No horizontal one either, and that is 0.12.4: `applyButtonSpacing` copies the
+    // row's own margins inline, and a Bootstrap `mx-*` class is `!important`, so a
+    // spacing class here would outrank them. It adds `mx-1` back itself when there is
+    // nothing to copy.
+    var btn = el('button', 'btn btn-secondary ' + MANUAL_BTN_CLASS, label);
     btn.type = 'button';
     btn.id = manualButtonId(path);
     btn._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
@@ -3356,6 +3360,11 @@
   // to match. A block container has no flex line; an inline-block's margin box feeds
   // the line box, which is the spacing we are after.
   var ROW_GAP = '.25rem';
+  // The horizontal fallback, applied by `applyButtonSpacing` and *only* on the branch
+  // that has nothing to measure. It is deliberately not on the button at build time:
+  // Bootstrap's spacing utilities carry `!important`, so a class here outranks the
+  // inline margins copied off the row and the measurement never reaches the page.
+  var SPACING_CLASS = 'mx-1';
 
   function computedStyleOf(node) {
     var w = (typeof window !== 'undefined') ? window : null;
@@ -3392,27 +3401,63 @@
   // and it self-calibrates to a container whose convention has never been measured
   // from here. Falling back to the utility class when there is nothing to copy is the
   // safe direction: it is what shipped.
+  // 0.12.4: the donor no longer has to be a `<button>`. Stash styles some row actions
+  // as links - already established at 0.12.1, where Delete turned out to be an `<a>` on
+  // the Scene edit row - so a row whose actions are all links had no donor at all and
+  // fell back to the utility class. What identifies a donor is the `btn` class plus the
+  // absence of `_coopOwner`: styled like a row action, and not put there by a plugin
+  // that reads this registry.
   function stashButtonMargins(container) {
     var kids = container.childNodes || [];
     for (var i = 0; i < kids.length; i++) {
       var k = kids[i];
-      if (k.tagName !== 'BUTTON' || k._coopOwner) continue;
+      if (k._coopOwner || !hasClass(k, 'btn')) continue;
       var cs = computedStyleOf(k);
       if (!cs) return null;
-      if (cs.marginLeft !== '0px' || cs.marginRight !== '0px') {
-        return { left: cs.marginLeft, right: cs.marginRight };
+      // A *positive* test, not "not 0px": a style engine with no stylesheet loaded
+      // reports the empty string rather than `0px`, which the inequality read as a
+      // margin worth copying and then applied as `margin-left:;` - nothing at all,
+      // with the class fallback already skipped. Caught by jsdom in the placement
+      // suite, where no Bootstrap is loaded; a live Stash always computes to a length.
+      if (nonZeroLength(cs.marginLeft) || nonZeroLength(cs.marginRight)) {
+        return { left: cs.marginLeft || '0px', right: cs.marginRight || '0px' };
       }
     }
     return null;
   }
 
+  function nonZeroLength(value) {
+    return !!value && value !== 'normal' && parseFloat(value) > 0;
+  }
+
   // Rebuilt as one `cssText` assignment rather than property-by-property, matching how
   // the button builders already set `align-self` - and so the whole inline style stays
   // one readable string in the DOM inspector while chasing a placement bug.
+  //
+  // 0.12.4 is the version that made 0.12.3's measurement actually reach the page, and
+  // the reason it did not is worth stating: **Bootstrap's spacing utilities are
+  // `!important`**. `mx-1` on our own button therefore beat the inline `margin-left` /
+  // `margin-right` 0.12.3 set from the row's own convention - so every horizontal gap
+  // stayed exactly what it had been, while `margin-bottom` (which no class sets) took
+  // effect and visibly fixed the wrapped-row spacing in the same release. A fix that
+  // works in one axis and not the other, from one `cssText` assignment, is the shape of
+  // a specificity problem rather than a wrong value.
+  //
+  // So the class is no longer on the button at build time; it is added back here, and
+  // only on the branch that still needs it. Three cases, in order:
+  //   1. The container spaces its own children with `column-gap` - our button gets it
+  //      too, so any margin of ours is *added* to Stash's spacing rather than matching
+  //      it. Nothing to apply.
+  //   2. A donor exists - copy its margins, and leave the class off so they apply.
+  //   3. Neither - restore `mx-1`, which is what shipped before any of this.
   function applyButtonSpacing(container, button) {
     var parts = ['align-self:flex-start'];
-    var m = stashButtonMargins(container);
-    if (m) parts.push('margin-left:' + m.left, 'margin-right:' + m.right);
+    var cs = computedStyleOf(container);
+    if (!cs || !nonZeroLength(cs.columnGap)) {
+      var m = stashButtonMargins(container);
+      if (m) parts.push('margin-left:' + m.left, 'margin-right:' + m.right);
+      else if (!hasClass(button, SPACING_CLASS)) button.className += ' ' + SPACING_CLASS;
+    }
     if (container._ptp2reBlockRow) parts.push('margin-bottom:' + ROW_GAP);
     button.style = parts.join(';') + ';';
   }
@@ -3706,10 +3751,10 @@
   }
 
   function buildManualSourceButton(path, label, id) {
-    // No vertical margin here either - same `ensureRowGap` reasoning as the
-    // target-side button above. Studio can show two of these at once and wraps just
-    // as readily.
-    var btn = el('button', 'btn btn-secondary mx-1 ' + MANUAL_SRC_BTN_CLASS, label);
+    // No margin of either axis here - same reasoning as the target-side button above,
+    // and `applyButtonSpacing` handles both. Studio can show two of these at once and
+    // wraps just as readily.
+    var btn = el('button', 'btn btn-secondary ' + MANUAL_SRC_BTN_CLASS, label);
     btn.type = 'button';
     btn.id = manualSourceButtonId(path);
     btn._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan

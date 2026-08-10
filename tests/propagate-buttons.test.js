@@ -103,6 +103,18 @@ function editButtonsContainer(env) {
   return c;
 }
 
+// One of Stash's own actions in a button row: `btn` plus a variant, which is what the
+// plugin's margin donor scan looks for (0.12.4 - it used to require `<button>`, and
+// Stash styles some row actions as links). `computed` is what `getComputedStyle`
+// reports for it, so a fixture can state the row's own spacing convention.
+function stashAction(harness, label, computed, tag) {
+  const node = harness.makeElement(tag || 'button');
+  node.className = 'btn btn-secondary';
+  node.textContent = label;
+  node._computed = computed;
+  return node;
+}
+
 // Group's (and, per MergePerformerTagsToScenes' own code, Performer's) edit form,
 // found live: `.details-edit`, the same container Stash swaps between a detail-view
 // navbar (carries a Delete button) and the edit form itself (does not). `withDelete`
@@ -275,36 +287,81 @@ function nodeListLikeContainer() {
     // matches instead of our fixed `mx-1` producing a third gap.
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     const container = editButtonsContainer(env);
-    const save = h.makeElement('button');
-    save.textContent = 'Save';
-    save._computed = { marginLeft: '0px', marginRight: '10px' };
-    container.appendChild(save);
+    container.appendChild(stashAction(h, 'Save', { marginLeft: '0px', marginRight: '10px' }));
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
     h.check('our button copies the margins off a button Stash put in the row',
       !!btn && /margin-left\s*:\s*0px/.test(btn.style || '') &&
       /margin-right\s*:\s*10px/.test(btn.style || ''), btn && btn.style);
+    // 0.12.4, and the whole reason 0.12.3's measurement never reached a live page:
+    // Bootstrap's spacing utilities carry `!important`, so an `mx-*` class on our own
+    // button outranks the inline margins above and the copied value is discarded by
+    // the cascade. The class has to be *absent* for the measurement to mean anything.
+    h.check('and carries no utility spacing class that would outrank them',
+      !/\bmx-\d\b/.test(btn.className || ''), btn.className);
   }
   {
     // A button belonging to the *other* plugin is not Stash's, and must not be the one
     // copied from - it carries `_coopOwner`, which is exactly what tells them apart.
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     const container = editButtonsContainer(env);
-    const foreign = h.makeElement('button');
-    foreign.textContent = 'Copy all Tags from all Performers';
+    const foreign = stashAction(h, 'Copy all Tags from all Performers', { marginLeft: '7px', marginRight: '7px' });
     foreign._coopOwner = 'MergePerformerTagsToScenes';
-    foreign._computed = { marginLeft: '7px', marginRight: '7px' };
     container.appendChild(foreign);
-    const save = h.makeElement('button');
-    save.textContent = 'Save';
-    save._computed = { marginLeft: '0px', marginRight: '10px' };
-    container.appendChild(save);
+    container.appendChild(stashAction(h, 'Save', { marginLeft: '0px', marginRight: '10px' }));
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
     h.check('another plugin\'s button is skipped when copying the row\'s margins',
       !!btn && /margin-right\s*:\s*10px/.test(btn.style || ''), btn && btn.style);
+  }
+  {
+    // Stash styles some row actions as links - established at 0.12.1, where Delete
+    // turned out to be an `<a class="btn btn-danger">` on the Scene edit row. A row
+    // whose spacing lives on links is still a row with a convention to copy, so the
+    // donor is identified by the `btn` class rather than by its tag.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    const link = h.makeElement('a');
+    link.className = 'btn btn-danger';
+    link.textContent = 'Delete';
+    link._computed = { marginLeft: '0px', marginRight: '10px' };
+    container.appendChild(link);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('a link styled as a row action is a donor too',
+      !!btn && /margin-right\s*:\s*10px/.test(btn.style || ''), btn && btn.style);
+  }
+  {
+    // A container that spaces its own children with `column-gap` gives ours that gap
+    // too, so any margin we add is *on top of* the row's spacing rather than equal to
+    // it. Nothing to apply - not the copied margins, and not the fallback class.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    container._computed = { display: 'flex', columnGap: '10px' };
+    container.appendChild(stashAction(h, 'Save', { marginLeft: '0px', marginRight: '10px' }));
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('a gap-spaced row gets no horizontal margin from us at all',
+      !!btn && !/margin-left|margin-right/.test(btn.style || ''), btn && btn.style);
+    h.check('and no utility class either',
+      !!btn && !/\bmx-\d\b/.test(btn.className || ''), btn && btn.className);
+  }
+  {
+    // Nothing to measure - no donor, no gap - falls back to the utility class, which
+    // is what shipped before any of this was measured. The class is added by
+    // `applyButtonSpacing`, not by the builder, so this is the only branch it exists on.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    container.appendChild(stashAction(h, 'Save', { marginLeft: '0px', marginRight: '0px' }));
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('a row with no spacing of its own falls back to the utility class',
+      !!btn && /\bmx-1\b/.test(btn.className || ''), btn && btn.className);
   }
 
   // ── Placement: between Save and Delete (0.11.0) ───────────────────────────────

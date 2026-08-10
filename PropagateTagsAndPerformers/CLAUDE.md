@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.3.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.4.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -30,6 +30,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — Delete is also found by text: the `.delete` class does not exist on Scene's row | **0.12.1** |
 | | — the source button's blink loop: it saw its own label as a foreign button's | **0.12.2** |
 | | — row and column spacing measured off the row itself, per container kind | **0.12.3** |
+| | — the measured margins now win the cascade; `mx-1` is a fallback, not a default | **0.12.4** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
@@ -51,6 +52,27 @@ had been shipping wrong:
   having no `_coopOwner`, so neither plugin's own buttons can be mistaken for Stash's. Every
   boundary in the row then matches, and it self-calibrates to a container that has never been
   measured from here, which is the point: `.details-edit`'s own convention is still unknown.
+
+**0.12.4: the measurement was right and the page never saw it — Bootstrap's spacing utilities are
+`!important`.** `mx-1` on our own button outranked the inline `margin-left`/`margin-right` 0.12.3 set
+from the row, so every horizontal gap stayed exactly what it had been, on every page. What made it
+findable is that the *same* `cssText` assignment worked in the other axis: `margin-bottom`, which no
+utility class here sets, visibly fixed wrapped rows in that same release. **One declaration landing
+and its neighbour not is a specificity problem, not a wrong value.**
+
+So the class is off the button at build time and `applyButtonSpacing` adds it back, only on the
+branch with nothing to measure — the class and the measurement can never both be in play. Three
+cases, in order: a container spacing its own children with `column-gap` (ours inherits it, so a
+margin of ours would be *added* to the row's spacing rather than match it) gets nothing; a row with a
+donor gets the donor's margins; a row with neither gets `mx-1`. A donor is now any element carrying
+`btn` with no `_coopOwner`, not just a `<button>` — Stash styles some row actions as links, the same
+fact `findActionByLabel` already absorbed at 0.12.1, and a navbar whose actions are all links had no
+donor at all under the old scan.
+
+The donor test is a *positive* length check, not `!== '0px'`: a style engine with no stylesheet
+loaded reports `''` for an unset margin, which the inequality read as a margin worth copying and then
+applied as `margin-left:;` — nothing, with the class fallback already skipped. jsdom caught it in the
+`placement` suite; the same hazard exists live on any row whose buttons genuinely carry no margin.
 
 **0.9.0 through 0.12.0 are four versions of anchor churn over one unnoticed fact**, and 0.12.1 is
 the fix. Every one of them searched for Delete with `container.querySelector('button.delete')` and

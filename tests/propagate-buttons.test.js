@@ -240,10 +240,71 @@ function nodeListLikeContainer() {
     // taller to match. No vertical margin on the button itself, ever.
     h.check('carries no vertical margin of its own - that would inflate the shared row',
       !/\bmy-\d\b/.test(btns[0].className || ''), btns[0].className);
-    // 0.9.2 moved wrapped-row spacing to the container's own `row-gap`, which sits
-    // between flex lines rather than inflating either one - see `ensureRowGap`.
-    h.check('the container gets row-gap instead, so Stash\'s own buttons never stretch to match ours',
+    // 0.9.2 moved wrapped-row spacing to the container's own `row-gap`. 0.12.3 found
+    // that only ever worked on half the pages: `.edit-buttons` computes to
+    // `display: block` on a live Stash, where `row-gap` is inert - which is why its
+    // wrapped rows sat flush while Group's flex `.details-edit` spaced correctly from
+    // the identical call. The harness reports `display: block` by default, so this
+    // fixture is the measured shape, and the spacing has to arrive as a bottom margin
+    // on our own button instead. Safe here for the reason it was a regression there:
+    // a block container has no flex line for a margin box to inflate.
+    h.check('a block container gets the spacing as a bottom margin on our own button',
+      /margin-bottom\s*:\s*\.25rem/.test(btns[0].style || ''), btns[0].style);
+    h.check('and no inert row-gap is left on it',
+      !container.style || !container.style.rowGap, container.style);
+  }
+  {
+    // The other half of the same branch: a flex container still gets `row-gap`, and
+    // its buttons still carry no vertical margin - the 0.9.2 regression must not come
+    // back on the pages that never had it.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    container._computed = { display: 'flex' };
+    env.tick();
+    await h.flush(60);
+    const btns = manualButtons(env);
+    h.check('a flex container still gets row-gap',
       container.style && container.style.rowGap === '.25rem', container.style);
+    h.check('and its button carries no vertical margin that could inflate the row',
+      !!btns[0] && !/margin-bottom/.test(btns[0].style || ''), btns[0] && btns[0].style);
+  }
+  {
+    // The horizontal half, measured the same way: Stash's own buttons in
+    // `.edit-buttons` compute to a right margin only, at a value no utility class
+    // here can name. Ours copy whatever the row already uses, so every boundary in it
+    // matches instead of our fixed `mx-1` producing a third gap.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    const save = h.makeElement('button');
+    save.textContent = 'Save';
+    save._computed = { marginLeft: '0px', marginRight: '10px' };
+    container.appendChild(save);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('our button copies the margins off a button Stash put in the row',
+      !!btn && /margin-left\s*:\s*0px/.test(btn.style || '') &&
+      /margin-right\s*:\s*10px/.test(btn.style || ''), btn && btn.style);
+  }
+  {
+    // A button belonging to the *other* plugin is not Stash's, and must not be the one
+    // copied from - it carries `_coopOwner`, which is exactly what tells them apart.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    const foreign = h.makeElement('button');
+    foreign.textContent = 'Copy all Tags from all Performers';
+    foreign._coopOwner = 'MergePerformerTagsToScenes';
+    foreign._computed = { marginLeft: '7px', marginRight: '7px' };
+    container.appendChild(foreign);
+    const save = h.makeElement('button');
+    save.textContent = 'Save';
+    save._computed = { marginLeft: '0px', marginRight: '10px' };
+    container.appendChild(save);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('another plugin\'s button is skipped when copying the row\'s margins',
+      !!btn && /margin-right\s*:\s*10px/.test(btn.style || ''), btn && btn.style);
   }
 
   // ── Placement: between Save and Delete (0.11.0) ───────────────────────────────
@@ -939,7 +1000,13 @@ function nodeListLikeContainer() {
       order.map((n) => n.textContent).join(','));
     h.check('carries no vertical margin of its own - that would inflate the shared row',
       !!btn && !/\bmy-\d\b/.test(btn.className || ''), btn && btn.className);
-    h.check('the container gets row-gap instead, for when a wrapped row is needed (Studio, two paths)',
+    // `.details-edit` is the flex one (Group Edit's wrapped rows space correctly from
+    // this today), so it keeps `row-gap` - pinned explicitly rather than relying on
+    // the harness default, which reports the *other* container's `display: block`.
+    container._computed = { display: 'flex' };
+    env.tick();
+    await h.flush(60);
+    h.check('a flex .details-edit gets row-gap, for when a wrapped row is needed (Studio, two paths)',
       container.style && container.style.rowGap === '.25rem', container.style);
   }
   {

@@ -241,6 +241,34 @@ about that page.** The churn happened because four successive versions reasoned 
 to prefer while the anchor search was silently failing on the very row being tested. Before moving an
 anchor again, check that the current one is being *found*.
 
+**Ask the page what it is before reasoning about what to do with it.** Twice in two rounds, a single
+`getComputedStyle` dump from a live Stash replaced a multi-round guess: once for the missing
+`.delete` class above, and once for row spacing, where `.edit-buttons` turned out to be
+`display: block` — so the `row-gap` both plugins were setting had been inert on three of the four
+edit pages since it shipped, while flex `.details-edit` spaced correctly from the identical call.
+Neither was findable by reading the plugins' own code, and both looked exactly like a fix that had
+"not worked" rather than a mechanism aimed at the wrong property.
+
+The snippet that settles most of it, worth pasting into a report rather than iterating on a guess:
+
+```js
+['.edit-buttons', '.details-edit'].forEach(sel =>
+  document.querySelectorAll(sel).forEach((el, i) => {
+    const cs = getComputedStyle(el);
+    console.log(sel, i, { display: cs.display, rowGap: cs.rowGap, alignItems: cs.alignItems });
+    [...el.children].forEach(c => { const s = getComputedStyle(c);
+      console.log('   ', c.tagName, JSON.stringify(c.textContent.trim().slice(0, 30)),
+        s.marginTop, s.marginRight, s.marginBottom, s.marginLeft); });
+  }));
+```
+
+**Where a value has to match Stash's, read Stash's rather than naming one.** Its buttons in
+`.edit-buttons` carry `margin: 0 10px 0 0`, and 10px is not a step either plugin's utility classes
+can express (that Stash's root is 14px, so `mx-1` is 3.5px, `mx-2` is 7px) — so any class produced a
+gap that matched nothing. Both plugins now copy the computed margins off a button Stash put in the
+row, found by its lack of a `_coopOwner`. A rule that reads the row cannot be wrong about a row
+nobody has measured, which matters here because `.details-edit`'s own convention still has not been.
+
 **Giving up is the safe default, not an error.** A row whose last button is neither Delete nor Save
 — unrecognised, or genuinely nothing — gets a plain append. Never invent a third detection tier for
 a button this code cannot identify as important; a wrong guess about importance is worse than

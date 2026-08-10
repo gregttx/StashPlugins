@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.2';
+  var PLUGIN_VERSION      = '1.15.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2155,6 +2155,50 @@
             || findActionByLabel(container, 'Save');
     while (node && node.parentNode !== container) node = node.parentNode;
     insertOrdered(container, button, node);
+    applyButtonSpacing(container, button);
+  }
+
+  // 1.15.3, mirroring `PropagateTagsAndPerformers` 0.12.3 - the two carry no shared
+  // module, so this is a second copy of one design rather than one implementation.
+  //
+  // Measured on a live Stash rather than chosen: `.edit-buttons` computes to
+  // `display: block`, and its own buttons to `margin: 0 10px 0 0` - a *right* margin
+  // only, at a value no utility class here can name (that Stash's root is 14px, so
+  // `mx-1` is 3.5px and `mx-2` is 7px). A fixed class therefore produced a different
+  // gap on every boundary in the row. Copying the margins off a button Stash put
+  // there - one with no `_coopOwner`, so neither plugin's own buttons can be mistaken
+  // for Stash's - makes every boundary match, and self-calibrates to a container this
+  // has never been measured against.
+  //
+  // The bottom margin is the wrapped-row spacing, and only where `row-gap` cannot do
+  // it: a block container has no flex line whose cross-size a margin could inflate,
+  // which is what made vertical margin a regression in a flex row (see
+  // `PropagateTagsAndPerformers` 0.9.2 - this plugin's single buttons never hit it).
+  function computedStyleOf(node) {
+    var w = (typeof window !== 'undefined') ? window : null;
+    if (!w || typeof w.getComputedStyle !== 'function' || !node) return null;
+    try { return w.getComputedStyle(node) || null; } catch (e) { return null; }
+  }
+
+  function applyButtonSpacing(container, button) {
+    var kids = container.childNodes || [], m = null;
+    for (var i = 0; i < kids.length && !m; i++) {
+      var k = kids[i];
+      if (k.tagName !== 'BUTTON' || k._coopOwner) continue;
+      var ks = computedStyleOf(k);
+      if (!ks) return;
+      if (ks.marginLeft !== '0px' || ks.marginRight !== '0px') {
+        m = { left: ks.marginLeft, right: ks.marginRight };
+      }
+    }
+    var cs = computedStyleOf(container);
+    var display = (cs && cs.display) || '';
+    var blockRow = !!display && display.indexOf('flex') === -1 && display.indexOf('grid') === -1;
+    if (!m && !blockRow) return;
+    var parts = [];
+    if (m) parts.push('margin-left:' + m.left, 'margin-right:' + m.right);
+    if (blockRow) parts.push('margin-bottom:.25rem');
+    button.style = parts.join(';') + ';';
   }
 
   // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,

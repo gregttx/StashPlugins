@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.2.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.3.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -29,7 +29,28 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — the anchor is Delete-or-Save now, so a Delete-less page no longer displaces Save | **0.12.0** |
 | | — Delete is also found by text: the `.delete` class does not exist on Scene's row | **0.12.1** |
 | | — the source button's blink loop: it saw its own label as a foreign button's | **0.12.2** |
+| | — row and column spacing measured off the row itself, per container kind | **0.12.3** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
+
+**The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
+Stash, `.edit-buttons` computes to **`display: block`** — not a flex row — and its own buttons to
+**`margin: 0 10px 0 0`**, a right margin only, at a value no utility class in either plugin can name
+(that Stash's root is 14px, so `mx-1` is 3.5px and `mx-2` is 7px). Two consequences, both of which
+had been shipping wrong:
+
+- **`row-gap` is inert there.** It is a flex/grid property, so `ensureRowGap` did nothing on Scene,
+  Gallery and Image Edit, whose wrapped rows sat flush — while Group's `.details-edit`, which *is*
+  flex, spaced correctly from the identical call. Same code, same value, opposite result, decided
+  entirely by the container. The container is now asked which it is: `row-gap` where it is honoured,
+  a bottom margin on our own buttons where it is not. The margin is safe in a block container for
+  exactly the reason it was a regression in a flex one (`PropagateTagsAndPerformers` 0.9.2) — a
+  block container has no flex line whose cross-size a margin box could inflate.
+- **A fixed margin class cannot match a row whose own convention is 10px.** `mx-1` produced 13.5px
+  after Save, 7px between two of ours and 3.5px before Delete. Rather than guess a fourth value,
+  both plugins now copy the computed margins off a button *Stash* put in the row — identified by
+  having no `_coopOwner`, so neither plugin's own buttons can be mistaken for Stash's. Every
+  boundary in the row then matches, and it self-calibrates to a container that has never been
+  measured from here, which is the point: `.details-edit`'s own convention is still unknown.
 
 **0.9.0 through 0.12.0 are four versions of anchor churn over one unnoticed fact**, and 0.12.1 is
 the fix. Every one of them searched for Delete with `container.querySelector('button.delete')` and

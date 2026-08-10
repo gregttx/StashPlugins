@@ -75,6 +75,16 @@ const SCENE_EDIT_VIEW_UNCLASSED_DELETE = '<div id="scene-page"><div class="edit-
   '<button class="btn btn-primary" type="submit">Save</button>' +
   '<a class="btn btn-danger" href="#"> Delete </a></div></div>';
 
+// Stash's own buttons in this row carry a right margin only, at a value no utility
+// class here can name (measured live: `margin: 0 10px 0 0`). 1.15.3 copies whatever
+// the row already uses onto our own button instead of picking a class, so every gap
+// in the row matches. jsdom computes real styles, so an inline margin here is enough
+// to drive it - and `.edit-buttons` computes to `display: block`, the live shape,
+// which is also what makes the wrapped-row spacing arrive as a bottom margin.
+const SCENE_EDIT_VIEW_MARGINS = '<div id="scene-page"><div class="edit-buttons">' +
+  '<button class="btn btn-primary" style="margin:0 10px 0 0">Save</button>' +
+  '<button class="btn btn-danger delete" style="margin:0 10px 0 0">Delete</button></div></div>';
+
 // Simulates PropagateTagsAndPerformers having already inserted its own button,
 // between Save and Delete, before this plugin's own tick runs - the
 // deterministic-ordering case (`coop().order`, repo-root CLAUDE.md) that used to be
@@ -299,6 +309,18 @@ function check(name, cond, extra) {
     'order: ' + uncRow);
   check('so Delete stays the last thing in the row',
     !!unc && unc.parentNode.lastElementChild.textContent.trim() === 'Delete', 'order: ' + uncRow);
+
+  // Spacing, measured rather than chosen - see the fixture's own comment.
+  root().innerHTML = SCENE_EDIT_VIEW_MARGINS;
+  await sleep(1500);
+  const spaced = sbtn();
+  const spacedStyle = spaced ? win.getComputedStyle(spaced) : null;
+  check('copies the row\'s own horizontal margins onto our button',
+    !!spacedStyle && spacedStyle.marginRight === '10px' && spacedStyle.marginLeft === '0px',
+    spacedStyle && [spacedStyle.marginLeft, spacedStyle.marginRight].join(' / '));
+  check('and spaces a wrapped row with a bottom margin, since .edit-buttons is display:block',
+    !!spacedStyle && spacedStyle.marginBottom !== '0px' && spacedStyle.marginBottom !== '',
+    spacedStyle && spacedStyle.marginBottom);
 
   // Deterministic ordering against another plugin's button (coop().order): this
   // plugin registers priority 20, closer to Delete than PropagateTagsAndPerformers'

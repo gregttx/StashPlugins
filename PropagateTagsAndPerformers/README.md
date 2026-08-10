@@ -1,6 +1,6 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.12.2, every step but the last has landed
+> ## 🚧 Under construction — 0.12.3, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
@@ -60,6 +60,12 @@
 > (only `tags:performer>scene`, shared with `MergePerformerTagsToScenes`) *and* that plugin is not
 > currently showing its own button for it.
 >
+> 0.12.3 fixes the spacing. Buttons now take their horizontal margins from whatever Stash's own
+> buttons in the same row use, instead of a fixed amount that matched nothing — so every gap in the
+> row is the same. And wrapped rows are spaced correctly on the Scene, Gallery and Image edit pages,
+> where the previous mechanism silently did nothing: those rows are not laid out the way Group's is,
+> and the property being set only works on Group's kind.
+>
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
 >
@@ -85,6 +91,7 @@
 > | Anchor falls back to Save when a page has no Delete, instead of appending after it | **done** (0.12.0) |
 > | Delete also found by label — the CSS class it was found by does not exist on Scene | **done** (0.12.1) |
 > | Source button no longer blinks once a second on a page another plugin declares | **done** (0.12.2) |
+> | Button spacing measured off the row itself, so every gap in it matches | **done** (0.12.3) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -341,7 +348,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.12.2 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.12.3 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

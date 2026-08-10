@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.2';
+  var PLUGIN_VERSION = '0.12.3';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3324,6 +3324,9 @@
             || findActionByLabel(container, 'Save');
     while (node && node.parentNode !== container) node = node.parentNode;
     insertOrdered(container, button, node);
+    // After insertion, not in the builder: the margins are copied off a sibling, so
+    // they cannot be known until the button has a container to be a sibling in.
+    applyButtonSpacing(container, button);
   }
 
   // 0.9.1 tried to space a wrapped row against the one above it with `my-1` on the
@@ -3338,13 +3341,80 @@
   // *between* flex lines without feeding into either line's own cross-size
   // calculation - so it gets the same wrapped-row spacing with no stretch to leak
   // into a line that already had everything it needs.
-  function ensureRowGap(container) {
+  // 0.12.3: `row-gap` only ever worked on half the pages, and the measurement that
+  // proved it is worth keeping. On a live Stash `.edit-buttons` computes to
+  // **`display: block`** - not a flex row at all - so `row-gap` there is inert and
+  // wrapped rows sat flush against each other, while Group's `.details-edit`, which
+  // *is* flex, spaced correctly from the identical call. Same code, same value,
+  // opposite result, decided entirely by the container.
+  //
+  // So the container is asked which it is, and gets the mechanism that works there:
+  // `row-gap` where it is honoured, and a bottom margin on our own buttons where it
+  // is not. The margin is safe in a block container for exactly the reason 0.9.2
+  // found it unsafe in a flex one - that regression was a flex line taking its
+  // cross-size from the tallest *margin box* on it and stretching Stash's own buttons
+  // to match. A block container has no flex line; an inline-block's margin box feeds
+  // the line box, which is the spacing we are after.
+  var ROW_GAP = '.25rem';
+
+  function computedStyleOf(node) {
+    var w = (typeof window !== 'undefined') ? window : null;
+    if (!w || typeof w.getComputedStyle !== 'function' || !node) return null;
+    try { return w.getComputedStyle(node) || null; } catch (e) { return null; }
+  }
+
+  function ensureRowSpacing(container) {
     if (!container) return;
     // A real element's `.style` is always a live CSSStyleDeclaration, never absent -
     // this guard only ever fires in the test harness, whose fake elements have no
     // `.style` until something sets one.
     if (!container.style) container.style = {};
-    container.style.rowGap = '.25rem';
+    var cs = computedStyleOf(container);
+    var display = (cs && cs.display) || '';
+    // Unknown display (no `getComputedStyle` at all) keeps the flex treatment: it is
+    // the one that cannot make a row *worse*, since an inert `row-gap` is exactly
+    // what shipped for three versions.
+    var flexish = !display || display.indexOf('flex') !== -1 || display.indexOf('grid') !== -1;
+    container._ptp2reBlockRow = !flexish;
+    container.style.rowGap = flexish ? ROW_GAP : '';
+  }
+
+  // The horizontal half, and the reason it is measured rather than chosen. Stash's
+  // own buttons in `.edit-buttons` compute to `margin: 0 10px 0 0` - a *right* margin
+  // only, and 10px is not a step in the spacing scale either plugin's utility classes
+  // can name (at this Stash's 14px root, `mx-1` is 3.5px and `mx-2` is 7px). Our own
+  // `mx-1` therefore produced a different gap on every boundary: 13.5px after Save,
+  // 7px between two of ours, 3.5px before Delete.
+  //
+  // Rather than guess a fourth value, copy the row's own: find a button Stash put
+  // there - one with no `_coopOwner`, so neither plugin's buttons can be mistaken for
+  // Stash's - and take its computed margins. Every boundary in the row then matches,
+  // and it self-calibrates to a container whose convention has never been measured
+  // from here. Falling back to the utility class when there is nothing to copy is the
+  // safe direction: it is what shipped.
+  function stashButtonMargins(container) {
+    var kids = container.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.tagName !== 'BUTTON' || k._coopOwner) continue;
+      var cs = computedStyleOf(k);
+      if (!cs) return null;
+      if (cs.marginLeft !== '0px' || cs.marginRight !== '0px') {
+        return { left: cs.marginLeft, right: cs.marginRight };
+      }
+    }
+    return null;
+  }
+
+  // Rebuilt as one `cssText` assignment rather than property-by-property, matching how
+  // the button builders already set `align-self` - and so the whole inline style stays
+  // one readable string in the DOM inspector while chasing a placement bug.
+  function applyButtonSpacing(container, button) {
+    var parts = ['align-self:flex-start'];
+    var m = stashButtonMargins(container);
+    if (m) parts.push('margin-left:' + m.left, 'margin-right:' + m.right);
+    if (container._ptp2reBlockRow) parts.push('margin-bottom:' + ROW_GAP);
+    button.style = parts.join(';') + ';';
   }
 
   // Whether some *other* loaded plugin declares this same path - the `declares`
@@ -3431,7 +3501,7 @@
       if (!rt) { clearManualButtons(); return; }
       var container = findManualButtonContainer();
       if (!container) { clearManualButtons(); return; }
-      ensureRowGap(container);
+      ensureRowSpacing(container);
       // A path another plugin also declares, whose button is already visible right
       // here, is dropped from what we want before either loop below ever sees it -
       // so the removal loop tears an earlier one of ours down the moment a sibling
@@ -3674,7 +3744,7 @@
       if (!rt) { clearManualSourceButtons(); return; }
       var container = findDetailContainer();
       if (!container) { clearManualSourceButtons(); return; }
-      ensureRowGap(container);
+      ensureRowSpacing(container);
       var paths = PATHS.filter(function (p) {
         return p.sourceType === rt.sourceType && !!s[p.setting] && hasOwn(SOURCE_BUTTON_LABELS, p.id);
       }).filter(function (p) {

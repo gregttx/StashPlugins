@@ -340,3 +340,9 @@ while it sat at the end of the row — but since 1.14.0 it sits between Save and
 rendered flush against Delete with nothing between them. The performer button already had margins on
 both sides for the same reason.
 
+**1.15.3 takes the spacing from the row instead of choosing it.** The button's margins now match
+whatever Stash's own buttons in the same row use, so every gap in the row is the same rather than
+ours being a different width from its neighbours'. On the scene Edit tab it also spaces a wrapped
+row properly, which the previous approach could not: that row is not laid out the way the performer
+page's is, and the spacing property being set only works on the latter.
+

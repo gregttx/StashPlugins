@@ -1143,6 +1143,26 @@ step 9 plus a run against a real Stash, not step 9 alone.
    container at all, which would make `row-gap` inert on exactly the three pages that touch — and
    would mean the fix differs per container. Awaiting a `getComputedStyle` dump rather than
    shipping a fifth round of the same mistake this entry is about.
+
+   **0.12.3 / 1.15.3 — the dump came back and the hypothesis held.** `.edit-buttons` computes to
+   `display: block`, so `row-gap` was inert on exactly the three pages whose wrapped rows touched,
+   while flex `.details-edit` spaced correctly from the identical call. Its own buttons compute to
+   `margin: 0 10px 0 0` — a right margin only, at a value no utility class in either plugin can name
+   (14px root, so `mx-1` is 3.5px and `mx-2` is 7px), which is why a fixed class produced a
+   different gap on every boundary: 13.5px after Save, 7px between two of ours, 3.5px before Delete.
+
+   Both halves are now measured rather than chosen. The container is asked whether it is flex and
+   gets the mechanism that works there — `row-gap`, or a bottom margin on our own buttons, which is
+   safe in a block container for precisely the reason 0.9.2 found it unsafe in a flex one. And the
+   horizontal margins are copied off a button Stash put in the row, identified by having no
+   `_coopOwner`. That last choice is deliberate over hardcoding 10px: `.details-edit`'s own
+   convention has still never been measured from here, and a rule that reads the row cannot be wrong
+   about a row it has not seen.
+
+   **This is the second time in two rounds that one `getComputedStyle` dump has replaced a
+   multi-round guess** — the anchor's missing `.delete` class was the first. The pattern is now
+   explicit in the repo-root `CLAUDE.md`: ask the page what it is before reasoning about what to do
+   with it.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

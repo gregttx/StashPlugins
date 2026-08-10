@@ -170,6 +170,17 @@ function makeEnv(opts) {
   };
   ctx.window.document = ctx.document;
 
+  // Minimal `getComputedStyle`, added when both button plugins started branching on
+  // the container's computed `display`: `.edit-buttons` is `display: block` on a live
+  // Stash, where `row-gap` is inert, while `.details-edit` is a flex row where it
+  // works, and one call site has to serve both. A test pins whatever it needs on the
+  // node as `_computed`; everything else reports the defaults a real browser gives a
+  // plain block element with no margins, which is also what an untouched fixture
+  // should look like.
+  ctx.window.getComputedStyle = (el) => Object.assign(
+    { display: 'block', marginTop: '0px', marginRight: '0px', marginBottom: '0px', marginLeft: '0px' },
+    (el && el._computed) || {});
+
   ctx.fetch = function (url, o) {
     const req = JSON.parse(o.body);
     calls.push({ query: req.query, variables: req.variables });

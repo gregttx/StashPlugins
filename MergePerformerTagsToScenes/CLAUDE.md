@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -74,6 +74,28 @@ was appended at the end of the row; since 1.14.0 it sits *between* Save and Dele
 nothing on its right and rendered flush against Delete — live-reported. The performer button already
 moved off `ml-2` for exactly this reason when it started sitting between two of Stash's own buttons;
 this is the same fix arriving one button later.
+
+**The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
+Stash, `.edit-buttons` computes to **`display: block`** — not a flex row — and its own buttons to
+**`margin: 0 10px 0 0`**, a right margin only, at a value no utility class in either plugin can name
+(that Stash's root is 14px, so `mx-1` is 3.5px and `mx-2` is 7px). Two consequences, both of which
+had been shipping wrong:
+
+- **`row-gap` is inert there.** It is a flex/grid property, so `ensureRowGap` did nothing on Scene,
+  Gallery and Image Edit, whose wrapped rows sat flush — while Group's `.details-edit`, which *is*
+  flex, spaced correctly from the identical call. Same code, same value, opposite result, decided
+  entirely by the container. The container is now asked which it is: `row-gap` where it is honoured,
+  a bottom margin on our own buttons where it is not. The margin is safe in a block container for
+  exactly the reason it was a regression in a flex one (`PropagateTagsAndPerformers` 0.9.2) — a
+  block container has no flex line whose cross-size a margin box could inflate.
+- **A fixed margin class cannot match a row whose own convention is 10px.** `mx-1` produced 13.5px
+  after Save, 7px between two of ours and 3.5px before Delete. Rather than guess a fourth value,
+  both plugins now copy the computed margins off a button *Stash* put in the row — identified by
+  having no `_coopOwner`, so neither plugin's own buttons can be mistaken for Stash's. Every
+  boundary in the row then matches, and it self-calibrates to a container that has never been
+  measured from here, which is the point: `.details-edit`'s own convention is still unknown.
+
+This plugin carries its own copy as `applyButtonSpacing` (1.15.3); the two share no module.
 
 **The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
 argued about *which* anchor to prefer while the anchor search was failing on the row being tested.

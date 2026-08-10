@@ -1206,6 +1206,27 @@ step 9 plus a run against a real Stash, not step 9 alone.
    that this is the first rule here that reads the button's *position*, not just its container: the
    same button needs different margins depending on what it landed next to.
 
+   **0.12.6 / 1.15.6 — a margin answers "what is this element set to", not "how far apart are
+   these".** 0.12.5 came back fixing Performer and Studio and breaking *Group*, both its detail
+   navbar and its edit form: the gap before our first button roughly doubled, on those two pages and
+   nowhere else. That is diagnostic on its own — Group's gap was already correct at 0.12.4, with
+   `margin-left: 0`, so it is produced by something *other* than the neighbouring element's own
+   `margin-right`, and reading that margin will always under-count it. Rather than hunt for what
+   (a wrapper element between us, container padding, a margin on something invisible - each a
+   separate guess, and this thread has already cost five), `horizontalGap` asks the page how far
+   apart the two actually are and adds only the shortfall against the row's step.
+
+   Three cases have to be separated, and the third is the one that is not arithmetic: a measurable
+   gap, no layout at all (fall back to the margin reading — both harnesses, and any container not
+   currently displayed), and two siblings on *different visual rows*, where the horizontal distance
+   between them is meaningless and the answer is a flush left edge. The right side deliberately does
+   not mirror that last one: a right margin at a row's end is invisible, while dropping it could let
+   the next button fit on the row after all and invalidate the measurement it came from.
+
+   **Every round of this has ended the same way** — the code was right about a value and wrong about
+   what the page would do with it. The class that was not there, the property the container did not
+   honour, the margin that lost the cascade, and now the margin that was not what made the gap.
+
    **What is left on this thread is taste, not a defect.** The edit rows sit at Stash's own 10px on
    every boundary and live feedback calls that "a bit too large" (the reported ideal is nearer 7px,
    `mx-2`). Tightening it means our buttons deliberately not matching the row they are in, which is

@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.5.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.6.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -122,6 +122,17 @@ own `Auto tag...` and `Merge` touch each other there — so our button landed fl
 each actual neighbour is not already contributing, which is a no-op on the edit rows and the fix on
 the navbar. The no-previous-element case is deliberately 0: our button starting the row should sit
 on the same edge Stash's own first button does.
+
+**1.15.6 measures that contribution rather than deriving it.** Reading the neighbour's own
+`margin-right` answers "what does this element contribute to the gap" only where the element beside
+ours is the button the user sees. On `PropagateTagsAndPerformers`' Group pages it is not — the gap
+there was already right, so 1.15.5's top-up doubled it — and whatever produces such a gap (a wrapper
+element, container padding, a margin on something invisible) `getBoundingClientRect` already accounts
+for. This plugin's own two pages were not affected; the change is here because the rule is one design
+in two copies and letting them drift is how the dialog CSS drifted for four months. `horizontalGap`
+separates three cases: a measurable gap, no layout at all (fall back to the margin reading — the test
+harnesses, and an undisplayed container), and two siblings on different visual rows, where the
+horizontal distance means nothing and the left edge should stay flush.
 
 **The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
 argued about *which* anchor to prefer while the anchor search was failing on the row being tested.

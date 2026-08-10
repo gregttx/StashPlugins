@@ -144,6 +144,20 @@ const DETAIL_VIEW_MARGINS = `
     </div>
   </div>`;
 
+// A row whose gap comes from something other than the neighbouring element's own
+// margin - `PropagateTagsAndPerformers`' Group pages, live, where 1.15.5's top-up
+// doubled a gap that was already right. Nothing here carries a `margin-right` for the
+// margin reading to find except Delete, which supplies the row's step; the gap our
+// button lands in is stated as layout instead (jsdom does no layout of its own, so the
+// checks that use this fixture stub `getBoundingClientRect` - see `withLayout`).
+const DETAIL_VIEW_LAID_OUT = `
+  <div id="performer-page" class="row">
+    <div class="details-edit">
+      <button class="btn btn-primary edit" id="laid-out-prev">Edit</button>
+      <button class="btn btn-danger delete" style="margin-right:7px">Delete</button>
+    </div>
+  </div>`;
+
 // Same, but with Delete nested in a wrapper element (insertBefore needs a direct child).
 const DETAIL_VIEW_WRAPPED = `
   <div id="performer-page" class="row">
@@ -261,6 +275,25 @@ function check(name, cond, extra) {
     !!navStyle && navStyle.marginLeft === '7px', navStyle && navStyle.marginLeft);
   check('and fills the far side to the same step',
     !!navStyle && navStyle.marginRight === '7px', navStyle && navStyle.marginRight);
+
+  // 1.15.6: the gap is measured rather than derived from the neighbour's margins, which
+  // is the only thing that can be right about a gap produced by something else. jsdom
+  // does no layout, so `getBoundingClientRect` is stubbed for the length of this check:
+  // `Edit` ends at 50, everything else (our button included, since the plugin creates
+  // it) starts at 57, so the row's 7px step is already there and nothing is added.
+  const realRect = win.Element.prototype.getBoundingClientRect;
+  win.Element.prototype.getBoundingClientRect = function () {
+    return this._rect || { left: 57, right: 100, top: 0, width: 43, height: 20 };
+  };
+  root().innerHTML = DETAIL_VIEW_LAID_OUT;
+  win.document.getElementById('laid-out-prev')._rect =
+    { left: 0, right: 50, top: 0, width: 50, height: 20 };
+  await sleep(1500);
+  const laidOut = btn();
+  const laidOutStyle = laidOut ? win.getComputedStyle(laidOut) : null;
+  win.Element.prototype.getBoundingClientRect = realRect;
+  check('a gap already at the row\'s step is measured, not topped up',
+    !!laidOutStyle && laidOutStyle.marginLeft === '0px', laidOutStyle && laidOutStyle.marginLeft);
 
   // Delete nested inside a wrapper: must still land before the wrapper, not at the end.
   root().innerHTML = DETAIL_VIEW_WRAPPED;

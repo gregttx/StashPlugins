@@ -286,6 +286,19 @@ than match it) gets nothing; a row with a donor gets the donor's margins; a row 
 class. A donor is any element carrying `btn` without a `_coopOwner` — not just `<button>`, since
 Stash styles some row actions as links, the same fact `findActionByLabel` already had to absorb.
 
+**Measure the gap, don't derive it from a margin.** The rule above still had to decide what each
+side of the button needs, and reading the *neighbour's* `margin-right` answers "what is that element
+set to", not "how far apart are these two". Those differ whenever the gap comes from something else —
+a wrapper element between them, container padding, a margin on something invisible — which is exactly
+what Group's two pages turned out to do: topping up a gap that was already correct doubled it there
+and nowhere else. `getBoundingClientRect` answers the real question and costs one reflow on a handful
+of buttons. Three cases to separate: a measurable gap (add the shortfall), no layout at all (fall
+back to reading the margin — both test harnesses, and any container not currently displayed), and two
+siblings on **different visual rows**, where the horizontal distance is meaningless and the answer is
+a flush left edge. Don't mirror that last case on the right: a right margin at a row's end is
+invisible, while dropping it could let the next button fit on the row after all and invalidate the
+measurement it came from.
+
 **Test the donor scan with a positive length check, not `!== '0px'`.** A style engine with no
 stylesheet loaded — jsdom, in the `placement` suite — reports `''` rather than `0px` for an unset
 margin, which an inequality reads as "worth copying" and then applies as `margin-left:;`: nothing at

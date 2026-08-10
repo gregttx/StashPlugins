@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.5';
+  var PLUGIN_VERSION = '0.12.6';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3448,10 +3448,27 @@
     return out;
   }
 
+  // The distance between two siblings' edges as the page has actually laid them out -
+  // the ground truth no reading of anyone's margins can be wrong about. Returns `null`
+  // when it cannot be measured (a fake DOM with no layout, a container that is not
+  // displayed) and `WRAPPED` when the two are on different visual rows, where the
+  // horizontal distance between them means nothing.
+  var WRAPPED = 'wrapped';
+
+  function horizontalGap(before, after) {
+    if (!before || !after ||
+        typeof before.getBoundingClientRect !== 'function' ||
+        typeof after.getBoundingClientRect !== 'function') return null;
+    var a = before.getBoundingClientRect(), b = after.getBoundingClientRect();
+    if (!a || !b || !a.width || !b.width) return null;
+    if (Math.abs(a.top - b.top) > 1) return WRAPPED;
+    return b.left - a.right;
+  }
+
   // 0.12.5. The gap between two inline siblings is the first's right margin plus the
   // second's left margin, so what our button needs on a given side depends on what its
-  // actual neighbour already contributes - not on what one donor button happens to
-  // carry. Copying the donor's margins wholesale (0.12.4) gave every button of ours
+  // neighbour already contributes - not on what one donor button happens to carry.
+  // Copying the donor's margins wholesale (0.12.4) gave every button of ours
   // `margin-left: 0`, which is correct on a row where every button carries a right
   // margin - Scene's `.edit-buttons`, where it is also what keeps a wrapped second row
   // flush with the first - and wrong on a row where they do not. Stash's own detail
@@ -3459,18 +3476,42 @@
   // Performer, and landing after one of the marginless ones left our button touching it
   // too, live-reported at 0.12.4.
   //
-  // So: take the row's own step from the donor, then fill whatever is missing on each
-  // side. A neighbour already contributing the full step leaves us nothing to add,
-  // which is why this changes nothing on the edit rows and un-sticks the navbars.
+  // 0.12.6 measures that contribution instead of deriving it. Reading the neighbour's
+  // own `margin-right` answers "what does this element contribute" only when the element
+  // beside ours is the button the user sees - and on Group (both its detail navbar and
+  // its edit form) it is not: the gap there was already correct at 0.12.4, so topping it
+  // up doubled it, live-reported as "very large" on exactly those two pages and nowhere
+  // else. Whatever produces that gap - a wrapper element between us, container padding,
+  // a margin on something invisible - `getBoundingClientRect` already accounts for it,
+  // and no amount of reasoning about which element to read the margins off can. So:
+  // take the row's own step from the donor, measure the gap that is already there, and
+  // add only the shortfall.
+  //
+  // The margin reading stays as the fallback for when there is no layout to measure -
+  // both test harnesses, and a container that is not currently displayed.
   function fillNeighbourGaps(container, button, m) {
     var step = Math.max(pxOf(m.left), pxOf(m.right));
     var n = elementNeighbours(container, button);
-    var prevCs = n.prev ? computedStyleOf(n.prev) : null;
-    var nextCs = n.next ? computedStyleOf(n.next) : null;
-    // No previous element: our button starts the row, and a left margin would only
-    // push it off the edge Stash's own first button sits on.
-    var left = n.prev ? Math.max(0, step - pxOf(prevCs && prevCs.marginRight)) : 0;
-    var right = n.next ? Math.max(0, step - pxOf(nextCs && nextCs.marginLeft)) : step;
+    // No previous element: our button starts the row, and a left margin would only push
+    // it off the edge Stash's own first button sits on.
+    var left = 0, right = step, gap, cs;
+    if (n.prev) {
+      gap = horizontalGap(n.prev, button);
+      // A wrapped row: our button starts a visual row and follows nothing, which is the
+      // flush-left placement `.edit-buttons` was live-confirmed correct with.
+      if (gap === WRAPPED) left = 0;
+      else if (gap === null) { cs = computedStyleOf(n.prev); left = Math.max(0, step - pxOf(cs && cs.marginRight)); }
+      else left = Math.max(0, step - gap);
+    }
+    if (n.next) {
+      gap = horizontalGap(button, n.next);
+      // Deliberately not 0 here, unlike the left side: a right margin at the end of a
+      // visual row is invisible, while removing it could let the next button fit on this
+      // row after all - changing the wrap this measurement was taken from.
+      if (gap === WRAPPED) right = step;
+      else if (gap === null) { cs = computedStyleOf(n.next); right = Math.max(0, step - pxOf(cs && cs.marginLeft)); }
+      else right = Math.max(0, step - gap);
+    }
     return ['margin-left:' + left + 'px', 'margin-right:' + right + 'px'];
   }
 

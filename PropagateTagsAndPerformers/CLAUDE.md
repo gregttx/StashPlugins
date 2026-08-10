@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.5.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.6.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -32,6 +32,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — row and column spacing measured off the row itself, per container kind | **0.12.3** |
 | | — the measured margins now win the cascade; `mx-1` is a fallback, not a default | **0.12.4** |
 | | — gaps filled against the real neighbours, for rows Stash spaces unevenly | **0.12.5** |
+| | — the gap measured off the page rather than derived from a margin | **0.12.6** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
@@ -88,6 +89,23 @@ not already contributing: a no-op on the edit rows, the fix on the navbars. Two 
 previous element means no left margin (our button starting the row should sit on the same edge
 Stash's own first button does), and inserting a second button of ours next to the first needs no
 recomputation, since the first's right margin is exactly what the second then measures against.
+
+**0.12.6: the neighbour's margin answers the wrong question on Group.** 0.12.5 was live-reported as
+fixing Performer and Studio and *breaking* Group — both its detail navbar and its edit form, where
+the gap before our first button went to roughly double the row's step and nowhere else did. The gap
+there was already correct at 0.12.4 (`margin-left: 0`), which means it is produced by something other
+than the neighbouring element's own `margin-right`: a wrapper element between us, container padding,
+a margin on something invisible. Reading a margin cannot distinguish those; `getBoundingClientRect`
+does not have to. `horizontalGap` returns the distance the page has actually laid out between two
+siblings, and only the shortfall against the row's step is added.
+
+Three cases it has to separate, and the third is why this is not just arithmetic: a measurable gap
+(top up to the step), no measurable layout at all (fall back to reading the neighbour's margin —
+both test harnesses, and any container that is not currently displayed), and *different visual rows*,
+where the horizontal distance between two siblings is meaningless. The wrapped case resolves to a
+flush left edge, which is what `.edit-buttons` was live-confirmed correct with. Note the asymmetry:
+a wrapped **right** margin stays at the full step rather than 0, because removing it could let the
+next button fit on this row after all and invalidate the very measurement it came from.
 
 **What is left is taste, not a defect.** The edit rows now sit at Stash's own 10px on every boundary,
 which live feedback calls "a bit too large" — but tightening it means our buttons no longer match the

@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.5';
+  var PLUGIN_VERSION      = '1.15.6';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2221,11 +2221,30 @@
   // it, live-reported at 1.15.4.
   //
   // The gap between two inline siblings is the first's right margin plus the second's
-  // left margin, so 1.15.5 takes the row's own step from the donor and fills whatever
-  // each *actual neighbour* is not already contributing. A neighbour already carrying
-  // the full step leaves nothing to add, which is why this changes nothing on the edit
-  // rows and un-sticks the navbars. Both neighbours come from one `childNodes`
-  // snapshot: a real `NodeList` is live.
+  // left margin, so 1.15.5 took the row's own step from the donor and filled whatever
+  // each *actual neighbour* was not already contributing. 1.15.6 measures that
+  // contribution rather than deriving it from the neighbour's margins: reading a margin
+  // answers "what does this element contribute" only when the element beside ours is the
+  // button the user sees, and on `PropagateTagsAndPerformers`' Group pages it is not -
+  // the gap there was already right, so topping it up doubled it. Whatever produces a
+  // gap (a wrapper element between us, container padding, a margin on something
+  // invisible) `getBoundingClientRect` already accounts for and no margin reading can.
+  // The margin path stays as the fallback for when there is no layout to measure - the
+  // test harnesses, and a container that is not currently displayed.
+  //
+  // Both neighbours come from one `childNodes` snapshot: a real `NodeList` is live.
+  var WRAPPED = 'wrapped';
+
+  function horizontalGap(before, after) {
+    if (!before || !after ||
+        typeof before.getBoundingClientRect !== 'function' ||
+        typeof after.getBoundingClientRect !== 'function') return null;
+    var a = before.getBoundingClientRect(), b = after.getBoundingClientRect();
+    if (!a || !b || !a.width || !b.width) return null;
+    if (Math.abs(a.top - b.top) > 1) return WRAPPED;
+    return b.left - a.right;
+  }
+
   function fillNeighbourGaps(container, button, m) {
     var step = Math.max(pxOf(m.left), pxOf(m.right));
     var kids = container.childNodes || [], idx = -1, prev = null, next = null, i;
@@ -2234,12 +2253,25 @@
       for (i = idx - 1; i >= 0; i--) { if (kids[i] && kids[i].tagName) { prev = kids[i]; break; } }
       for (i = idx + 1; i < kids.length; i++) { if (kids[i] && kids[i].tagName) { next = kids[i]; break; } }
     }
-    var prevCs = prev ? computedStyleOf(prev) : null;
-    var nextCs = next ? computedStyleOf(next) : null;
     // No previous element: our button starts the row, and a left margin would only push
     // it off the edge Stash's own first button sits on.
-    var left = prev ? Math.max(0, step - pxOf(prevCs && prevCs.marginRight)) : 0;
-    var right = next ? Math.max(0, step - pxOf(nextCs && nextCs.marginLeft)) : step;
+    var left = 0, right = step, gap, cs;
+    if (prev) {
+      gap = horizontalGap(prev, button);
+      // A wrapped row: our button starts a visual row and follows nothing.
+      if (gap === WRAPPED) left = 0;
+      else if (gap === null) { cs = computedStyleOf(prev); left = Math.max(0, step - pxOf(cs && cs.marginRight)); }
+      else left = Math.max(0, step - gap);
+    }
+    if (next) {
+      gap = horizontalGap(button, next);
+      // Deliberately not 0 here, unlike the left side: a right margin at the end of a
+      // visual row is invisible, while removing it could let the next button fit on this
+      // row after all - changing the wrap this measurement was taken from.
+      if (gap === WRAPPED) right = step;
+      else if (gap === null) { cs = computedStyleOf(next); right = Math.max(0, step - pxOf(cs && cs.marginLeft)); }
+      else right = Math.max(0, step - gap);
+    }
     return ['margin-left:' + left + 'px', 'margin-right:' + right + 'px'];
   }
 

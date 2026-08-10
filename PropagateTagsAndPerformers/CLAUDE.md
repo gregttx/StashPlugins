@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.1.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -27,7 +27,19 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — deterministic ordering against `MergePerformerTagsToScenes`' buttons (`coop().order`) | **0.10.0** |
 | | — target-side placement moved from before Save to between Save and Delete | **0.11.0** |
 | | — the anchor is Delete-or-Save now, so a Delete-less page no longer displaces Save | **0.12.0** |
+| | — Delete is also found by text: the `.delete` class does not exist on Scene's row | **0.12.1** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
+
+**0.9.0 through 0.12.0 are four versions of anchor churn over one unnoticed fact**, and 0.12.1 is
+the fix. Every one of them searched for Delete with `container.querySelector('button.delete')` and
+nothing else, on the strength of a repo CLAUDE.md note claiming Stash applies that class
+"throughout". It does not: the class is real on the detail-view navbar — where the claim was
+observed, and where `findDetailContainer`/`findManualButtonContainer` still depend on it — but
+Scene's edit row renders Delete as `btn btn-danger` with no `.delete` at all. Confirmed live
+2026-08-10 on a row reading `Save · Delete` where that selector returns null. So the class search
+never matched on the page being tested, the Save fallback caught every call, and each successive
+version's argument about *which* anchor to prefer changed nothing visible. **Check the current
+anchor is being found before moving it.**
 
 **Step 8 placement is now confirmed live on all four target pages.** Scene, Gallery and Image use
 `.edit-buttons` (`MergePerformerTagsToScenes`' own scene button already proved it for Scene; Gallery
@@ -938,6 +950,23 @@ exactly the page 0.11.0's version could not handle: Delete tried first, Save onl
 absent, a plain append if neither is found. This is not a reversion to 0.9.1's `insertBeforeSave` —
 that anchored on Save *unconditionally*, this only reaches Save when Delete is not there.
 
+**0.12.1: "Delete tried first" had never actually succeeded on Scene.** The class search was the
+only way any of 0.9.0–0.12.0 looked for Delete, and Scene's edit row does not carry `.delete` (see
+the note under the step table). So on the page the reports were coming from, every version above
+reached the Save fallback and put buttons before Save — including 0.11.0, which believed it had
+moved them between Save and Delete, and 0.12.0, which believed it had left that alone. The anchor
+search is now three steps: `.delete`, a text match on `'Delete'`, a text match on `'Save'`.
+`findButtonByLabel` becomes `findActionByLabel` and matches `<a>` as well as `<button>`, trimming
+before comparing — the live report established neither the tag nor the padding, and being wrong
+about either costs the same silent misplacement this whole section is about.
+
+The container finders are deliberately **not** changed to match. `findManualButtonContainer` and
+`findDetailContainer` use `button.delete` as a *discriminator* between a detail navbar and an edit
+form, not as an anchor, and on the navbar the class is confirmed present. Loosening those to a text
+match would change which container is chosen on pages where the navbar's Delete is styled
+differently — a much worse failure than a misplaced button, and one no live report has asked for.
+Worth re-checking on Performer and Group when there is an instance to check against.
+
 ## 6. Anchoring in Stash's markup
 
 Every foothold here is a guess until it runs against a real Stash, and a test written from the same
@@ -1046,6 +1075,10 @@ of it apply unchanged:
   last child, reversing what 0.11.0 asserted (landing after Save) - fails against a copy of
   `insertBeforeImportantAction` with the Save fallback removed, confirming the check exercises the
   fallback rather than passing on the strength of `insertOrdered`'s unrelated no-anchor branch.
+  Since 0.12.1: the row a live Stash actually renders - Save, then a Delete carrying `btn btn-danger`
+  and *no* `.delete`, with padded label text - with the button landing between the two. Both checks
+  fail against 0.12.0, where it lands before Save instead. The padding and the class-less Delete are
+  the fixture's whole point: a tidier one would pass against the unfixed source.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.** The

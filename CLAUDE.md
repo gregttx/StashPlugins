@@ -219,15 +219,27 @@ which is where a user expects to find it. If the last button is a *casual* secon
 (`btn-secondary`, no special role — "Auto Tag...", "Merge...") appending after it is fine and reads
 more naturally than forcing a new button in front of an arbitrary earlier one.
 
-**Delete is found reliably by its class; Save is not, and needs a fallback of its own.** Confirmed
-live: Stash gives Delete a dedicated `.delete` class throughout, but gives Save no distinguishing
-class at all on every page this has been checked against — so a plugin has to try Delete first
-(`container.querySelector('button.delete')`) and fall back to a text match on `'Save'`
-(`findButtonByLabel`, a plain recursive walk, since neither the shared test harness's fake DOM nor
-this concern needs `querySelectorAll`) only when Delete is absent. Anchoring on Delete alone happens
-to also land a button *between* Save and Delete whenever both exist, which is a consequence of the
-anchor choice, not a separate mechanism — there is only ever one anchor search, trying Delete then
-Save then giving up.
+**Neither Delete nor Save can be found by class. Both need a text fallback.** An earlier version of
+this note said, as confirmed fact, that "Stash gives Delete a dedicated `.delete` class throughout".
+It does not, and that sentence cost four versions of anchor churn in both plugins. The class is real
+on the **performer detail navbar** — which is where it was actually observed, and where both plugins
+still use it to tell a navbar from an edit form — but the **Scene edit row renders Delete as
+`btn btn-danger` with no `.delete` at all**. Confirmed live 2026-08-10, against a row reading
+`Save · Delete` where `container.querySelector('button.delete')` returns null.
+
+So the anchor search is three steps, in order: `button.delete`, then a text match on `'Delete'`,
+then a text match on `'Save'`. The text search (`findActionByLabel`, a plain recursive walk — neither
+the shared test harness's fake DOM nor this concern needs `querySelectorAll`) matches `<a>` as well
+as `<button>` and trims before comparing, because Stash styles some row actions as links and neither
+the tag nor the padding is something a plugin here should have to be right about. Anchoring on
+Delete lands a button *between* Save and Delete whenever both exist, which is a consequence of the
+anchor order rather than a separate mechanism — there is only ever one search, trying those three
+things and then giving up.
+
+**The general lesson, worth more than the specific fix: a class confirmed on one page is evidence
+about that page.** The churn happened because four successive versions reasoned about *which* anchor
+to prefer while the anchor search was silently failing on the very row being tested. Before moving an
+anchor again, check that the current one is being *found*.
 
 **Giving up is the safe default, not an error.** A row whose last button is neither Delete nor Save
 — unrecognised, or genuinely nothing — gets a plain append. Never invent a third detection tier for
@@ -238,8 +250,9 @@ sometimes appending after a button that would have preferred to stay last.
 `insertBeforeImportantAction`** (0.12.0 / 1.15.0), replacing an earlier `insertBeforeSave` /
 `insertBeforeDelete` split that anchored on exactly one of the two and never fell back to the
 other — which is what let a Delete-less page (Group's edit form) end up with a button appended
-*after* Save, displacing Stash's own primary action from being last. Read this note before adding a
-manual button to any future plugin in this repo, not only these two.
+*after* Save, displacing Stash's own primary action from being last. The Delete-by-text step, and
+`findButtonByLabel` becoming `findActionByLabel`, landed at 0.12.1 / 1.15.1. Read this note before
+adding a manual button to any future plugin in this repo, not only these two.
 
 ## Cross-plugin cooperation: the shared dialog chrome
 

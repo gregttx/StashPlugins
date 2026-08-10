@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.0';
+  var PLUGIN_VERSION = '0.12.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3257,18 +3257,26 @@
     container.insertBefore(button, ref);
   }
 
-  // A plain recursive walk over `childNodes`/`tagName`, matching on the button's own
+  // A plain recursive walk over `childNodes`/`tagName`, matching on the action's own
   // text - the same technique `foreignButtonAlreadyShows` already relies on for
   // dedup, and deliberately not `querySelectorAll`, which the shared test harness's
-  // fake DOM nodes do not implement (only `querySelector`). Needed because Save
-  // carries no distinguishing class the way Delete does - confirmed live by its
-  // absence, not assumed - so text is the only reliable way to find it at all.
-  function findButtonByLabel(root, label) {
+  // fake DOM nodes do not implement (only `querySelector`). Text is the only
+  // reliable way to find Save, which carries no distinguishing class, and - since
+  // 0.12.1 - the only reliable way to find Delete either, on the rows where it
+  // carries no `.delete`.
+  //
+  // Matches `<a>` as well as `<button>`, and trims before comparing. Stash styles
+  // some row actions as links rather than buttons, and neither the tag nor the
+  // surrounding whitespace is something this plugin should have to be right about:
+  // the cost of accepting both is nil, and the cost of guessing wrong is a button
+  // silently landing in the wrong place, which is exactly the bug 0.12.1 fixes.
+  function findActionByLabel(root, label) {
     var kids = root.childNodes || [];
     for (var i = 0; i < kids.length; i++) {
       var k = kids[i];
-      if (k.tagName === 'BUTTON' && (k.textContent || '') === label) return k;
-      var found = findButtonByLabel(k, label);
+      if ((k.tagName === 'BUTTON' || k.tagName === 'A') &&
+          (k.textContent || '').trim() === label) return k;
+      var found = findActionByLabel(k, label);
       if (found) return found;
     }
     return null;
@@ -3285,23 +3293,35 @@
   // what counts as important on some future page - a safe default in either
   // direction, since it never displaces a button this code did not recognise.
   //
-  // Delete is tried first: it carries a dedicated `.delete` class, so no
-  // text-matching walk is needed, and it is more reliably present - the source
-  // side's container is only ever found *because* it carries one (`findDetailContainer`).
-  // Save is the fallback, via `findButtonByLabel` above, for the one page confirmed
-  // to have no Delete at all: Group's edit-form state (§5b). Either one may be
-  // nested inside a wrapper element, so the walk-up to the container's own direct
-  // child happens after the search, not baked into either search itself.
+  // Three searches, in order: Delete by its `.delete` class, Delete by its text,
+  // then Save by its text. Any of them may be nested inside a wrapper element, so
+  // the walk-up to the container's own direct child happens after the search, not
+  // baked into any of them.
   //
-  // 0.11.0 first collapsed this to Delete-only, since "between Save and Delete" was
-  // what live feedback asked for and Delete alone produces that whenever both exist.
-  // 0.12.0 restored the Save fallback: on Group, with no Delete to anchor on, a
-  // plain append put a button *after* Save - displacing Stash's own primary action
-  // from being the last thing in the row, exactly the case the "important button"
-  // rule above exists to prevent.
+  // 0.12.1: the middle search is new, and it is the whole fix. Every version up to
+  // 0.12.0 looked for Delete *only* by `.delete`, on the strength of a note in the
+  // repo CLAUDE.md that said Stash gives Delete that class "throughout". It does
+  // not. It carries it on the detail-view navbar - which is where the claim was
+  // actually confirmed, and where `findDetailContainer` and `findManualButtonContainer`
+  // both still rely on it to tell a navbar from an edit form - but the Scene edit
+  // row renders Delete as `btn btn-danger` with no `.delete` at all. On that row the
+  // class search found nothing, the Save fallback caught it, and every button landed
+  // *before* Save instead of between Save and Delete.
+  //
+  // That one over-generalisation is worth naming, because it cost four versions of
+  // anchor churn (0.9.0-0.12.0) that all moved the anchor between Save and Delete
+  // without ever fixing the reason Delete could not be found:
+  //   0.11.0 collapsed to Delete-only, since "between Save and Delete" was what live
+  //          feedback asked for and Delete alone produces that whenever both exist.
+  //   0.12.0 restored the Save fallback, because Group's edit form has no Delete and
+  //          a plain append had put a button *after* Save.
+  // Both were reasoning about which anchor to prefer. Neither noticed the class
+  // search was failing on the very row being tested. A class confirmed on one page
+  // is evidence about that page.
   function insertBeforeImportantAction(container, button) {
-    var node = container.querySelector('button.delete');
-    if (!node) node = findButtonByLabel(container, 'Save');
+    var node = container.querySelector('button.delete')
+            || findActionByLabel(container, 'Delete')
+            || findActionByLabel(container, 'Save');
     while (node && node.parentNode !== container) node = node.parentNode;
     insertOrdered(container, button, node);
   }

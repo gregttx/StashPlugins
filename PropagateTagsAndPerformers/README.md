@@ -1,6 +1,6 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.12.0, every step but the last has landed
+> ## 🚧 Under construction — 0.12.1, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
@@ -47,6 +47,13 @@
 > the last thing in the row. Buttons now anchor on Delete, or Save if there is no Delete, and append
 > only when neither is present.
 >
+> **0.12.1 is the version where all of that actually started working on the Scene page.** 0.9.0
+> through 0.12.0 each changed which button to anchor on, and none of them changed anything you could
+> see there, because all four looked for Delete only by the CSS class Stash puts on it — and on
+> Scene's edit row there is no such class. Every version silently fell through to the Save fallback
+> and put the buttons to the *left* of Save. They are now found by label as well as by class. If
+> your buttons sit before Save, this is why; update and they will move between Save and Delete.
+>
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
 >
@@ -70,6 +77,7 @@
 > | Deterministic ordering against `MergePerformerTagsToScenes`' buttons in the same row | **done** (0.10.0) |
 > | Target-side anchor moved from before Save to between Save and Delete | **done** (0.11.0) |
 > | Anchor falls back to Save when a page has no Delete, instead of appending after it | **done** (0.12.0) |
+> | Delete also found by label — the CSS class it was found by does not exist on Scene | **done** (0.12.1) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -230,7 +238,7 @@ Both automatic modes share the rest of their behaviour:
   being accepted, and copying tags onto an entity because of an edit that never happened would be
   the worst kind of surprise.
 
-## Manual buttons and staging (0.8.0 – 0.12.0)
+## Manual buttons and staging (0.8.0 – 0.12.1)
 
 With **Show Manual Buttons** on, each enabled path adds a small button to the Edit tab of its
 target — a scene with the performer-tags and studio-tags paths both enabled shows two buttons, not
@@ -251,6 +259,10 @@ had landed it before Save instead, and further live feedback was that this was t
 actually wanted, not that one. Since 0.12.0, a page with no Delete at all (Group's edit form) lands
 its button **before Save** instead of after it, so Save — Stash's own primary action — always stays
 the last thing in the row rather than being displaced by ours.
+
+Since 0.12.1 this finally takes effect on Scene: up to 0.12.0 the plugin recognised Delete only
+by a CSS class that Stash does not put on that page's Delete, so every version silently used the
+Save fallback and placed buttons to the left of Save. Delete is now recognised by its label too.
 
 A button only appears when its source actually exists — a scene with no performers gets no
 performer-tags button, a group with no studio gets no studio-tags button — but it does **not**
@@ -322,7 +334,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.12.0 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.12.1 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

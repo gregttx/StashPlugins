@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -57,6 +57,22 @@ append after it otherwise. `insertBeforeDelete` is renamed `insertBeforeImportan
 Delete first, falls back to a re-added `findButtonByLabel`-based Save search only when Delete is
 absent, and appends when neither is found. Not a reversion to the pre-1.14.0 `insertBeforeSave`,
 which anchored on Save unconditionally rather than only when Delete is missing.
+
+**1.15.1: none of the four versions above ever found Delete on the Scene edit row at all.** Reported
+live against 1.15.0 — the row reads `Save · Delete`, and `container.querySelector('button.delete')`
+returns null on it. Stash renders that Delete as `btn btn-danger` with **no `.delete` class**. The
+class is real on the performer detail navbar, which is where the repo CLAUDE.md's "throughout" claim
+came from and where `findPerformerDetailContainer` still relies on it, but it does not generalise.
+So the class search found nothing, the Save fallback caught it, and the scene button landed *before*
+Save on every page — which is exactly what 1.12.2 had done deliberately, then 1.14.0 and 1.15.0 each
+believed they had changed. `insertBeforeImportantAction` now tries three things in order: `.delete`,
+a text match on `'Delete'`, a text match on `'Save'`. `findButtonByLabel` becomes `findActionByLabel`,
+matching `<a>` as well as `<button>` and trimming first, since the live report established neither.
+
+**The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
+argued about *which* anchor to prefer while the anchor search was failing on the row being tested.
+A class confirmed on one page is evidence about that page. Before moving an anchor again, check the
+current one is being found.
 
 ---
 
@@ -217,9 +233,10 @@ directly.
 **1.15.0: the design rule underneath this, stated in full.** A new button is inserted before
 whichever of the row's buttons is *important* — one that must stay the last thing in the row, Delete
 or Save being the two this plugin has ever shared a row with — and appended after everything
-otherwise. `insertBeforeDelete` (renamed `insertBeforeImportantAction`) tries Delete first (its own
-`.delete` class, reliable) and falls back to a re-added `findButtonByLabel`-based Save search only
-when Delete is absent, appending when neither is found. This plugin has no live page that reaches
+otherwise. `insertBeforeDelete` (renamed `insertBeforeImportantAction`) tries Delete first and falls back to a
+Save search only when Delete is absent, appending when neither is found. **Since 1.15.1 "tries
+Delete" means two searches, not one** — `.delete`, then a text match — because the class turned out
+not to exist on the Scene edit row at all, which is what made 1.12.0–1.15.0 look like churn. This plugin has no live page that reaches
 the Save fallback — Scene Edit always renders both — but the mechanism is shared with
 `PropagateTagsAndPerformers`' target-side buttons, which do (Group's edit form has no Delete), and
 `placement.test.js` proves this plugin's own copy of the fallback anyway, since a shared *design*
@@ -586,6 +603,14 @@ logic gets its own proof rather than relying on it never being exercised for rea
 before Save rather than appended after it, and Save stays the row's last child. Fails against a copy
 with the Save fallback removed from `insertBeforeImportantAction`, confirming the check exercises
 the fallback itself rather than passing on `insertOrdered`'s unrelated no-anchor branch.
+
+Since 1.15.1: `SCENE_EDIT_VIEW_UNCLASSED_DELETE`, the row a live Stash actually renders - Delete
+present, `.delete` absent. Two of its three checks fail against 1.15.0 (the button lands before Save
+instead of between Save and Delete); the third, that Delete stays the row's last child, passes
+against both and is there to catch the opposite regression rather than this one. The fixture's
+Delete is deliberately an `<a>` with padded text, because the live report established neither the
+tag nor the whitespace - an exact-match search restricted to `BUTTON` would pass a tidier fixture
+while still failing the real page.
 
 Since 1.13.0 it also covers deterministic ordering (`coop().order`): this plugin registers priority
 20 at load; a lower-priority foreign button (`PropagateTagsAndPerformers`, seeded at 10 via

@@ -321,6 +321,36 @@ function nodeListLikeContainer() {
       order.indexOf(save) === order.length - 1, order.map((n) => n.textContent).join(','));
   }
   {
+    // The real Scene edit row, reported live against 0.12.0: Delete is present and
+    // styled `btn-danger` but carries **no `.delete` class**. Up to 0.12.0 Delete was
+    // searched for by that class alone - a repo CLAUDE.md note claimed Stash applies
+    // it "throughout", which holds on the detail navbar where it was confirmed and
+    // not here - so the search found nothing, the Save fallback caught it, and every
+    // button landed before Save instead of between Save and Delete. 0.12.1 falls back
+    // to a text match on Delete first.
+    //
+    // Whitespace around the label is deliberate: the live report did not establish
+    // whether Stash renders it padded, and an exact-match search would pass a clean
+    // fixture while still failing the real page.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    const container = editButtonsContainer(env);
+    const save = h.makeElement('button');
+    save.textContent = 'Save';
+    container.appendChild(save);
+    const del = h.makeElement('button');
+    del.textContent = ' Delete ';
+    del.className = 'btn btn-danger';   // no `.delete`
+    container.appendChild(del);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    const order = container.childNodes;
+    h.check('finds Delete by text when it carries no .delete class',
+      !!btn && order.indexOf(btn) === order.indexOf(del) - 1, order.map((n) => n.textContent).join(','));
+    h.check('and still lands after Save, not before it',
+      !!btn && order.indexOf(btn) === order.indexOf(save) + 1, order.map((n) => n.textContent).join(','));
+  }
+  {
     // Two enabled paths into one page: both land between Save and Delete, in the
     // order they were added, rather than the second one reversing ahead of the first.
     const { env } = start({

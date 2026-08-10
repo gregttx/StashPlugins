@@ -58,6 +58,23 @@ const SCENE_EDIT_VIEW_NO_DELETE = `
     </div>
   </div>`;
 
+// The real Scene edit row, reported live against 1.15.0 and reproduced here: Delete
+// is present and styled `btn-danger`, but carries **no `.delete` class**. Every
+// version up to 1.15.0 searched for Delete by that class alone, on the strength of a
+// repo CLAUDE.md note claiming Stash applies it "throughout" - it does on the
+// performer detail navbar, where the claim was confirmed, and not here. The class
+// search found nothing, the Save fallback caught it, and the button landed before
+// Save instead of between Save and Delete. 1.15.1 falls back to a text match on
+// Delete before trying Save.
+//
+// The Delete here is deliberately an `<a>`, not a `<button>`: the live report did not
+// establish which it is, so the fixture pins the harder of the two. A text search
+// restricted to BUTTON would pass against a `<button>` fixture while still failing on
+// a real page that renders a link.
+const SCENE_EDIT_VIEW_UNCLASSED_DELETE = '<div id="scene-page"><div class="edit-buttons mb-3 pl-0">' +
+  '<button class="btn btn-primary" type="submit">Save</button>' +
+  '<a class="btn btn-danger" href="#"> Delete </a></div></div>';
+
 // Simulates PropagateTagsAndPerformers having already inserted its own button,
 // between Save and Delete, before this plugin's own tick runs - the
 // deterministic-ordering case (`coop().order`, repo-root CLAUDE.md) that used to be
@@ -266,6 +283,22 @@ function check(name, cond, extra) {
     'order: ' + noDelRow);
   check('so Save stays the last thing in the row',
     !!noDel && noDel.parentNode.lastElementChild.textContent.trim() === 'Save', 'order: ' + noDelRow);
+
+  // The bug 1.15.1 fixes: Delete present, `.delete` class absent, rendered as an <a>
+  // with surrounding whitespace. Anchoring must still find it by text and land
+  // between Save and Delete rather than falling through to the Save fallback.
+  root().innerHTML = SCENE_EDIT_VIEW_UNCLASSED_DELETE;
+  await sleep(1500);
+  const unc = sbtn();
+  const uncRow = sceneOrder();
+  check('finds Delete by text when it carries no .delete class',
+    !!unc && unc.nextElementSibling && unc.nextElementSibling.textContent.trim() === 'Delete',
+    'order: ' + uncRow);
+  check('and still lands after Save, not before it',
+    !!unc && unc.previousElementSibling && unc.previousElementSibling.textContent.trim() === 'Save',
+    'order: ' + uncRow);
+  check('so Delete stays the last thing in the row',
+    !!unc && unc.parentNode.lastElementChild.textContent.trim() === 'Delete', 'order: ' + uncRow);
 
   // Deterministic ordering against another plugin's button (coop().order): this
   // plugin registers priority 20, closer to Delete than PropagateTagsAndPerformers'

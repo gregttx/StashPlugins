@@ -328,3 +328,10 @@ performer button, and `PropagateTagsAndPerformers`' own buttons, already land. S
 with Save but no Delete lands its button before Save instead of appending after it, so Stash's own
 primary action always stays the last thing in the row.
 
+**1.15.1 is the version where that actually started working on the scene Edit tab.** Up to 1.15.0
+the plugin looked for Delete only by the CSS class Stash puts on it — and on the scene Edit row it
+does not put one there, so the button kept landing before Save no matter what the previous three
+versions changed. It now recognises Delete by its label as well. If you are on 1.15.0 or earlier and
+your buttons sit to the left of Save, this is why; update and they will move between Save and
+Delete.
+

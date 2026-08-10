@@ -1087,6 +1087,36 @@ step 9 plus a run against a real Stash, not step 9 alone.
    (Scene Edit always renders both), so its own test coverage for it is a synthetic Save-only
    fixture — proof that its *copy* of the shared design does not quietly drift from
    `PropagateTagsAndPerformers`' own, not proof of anything about a real page.
+
+   **0.12.1 / 1.15.1 — the round that explains why the four before it read as churn.** The user
+   reported, after 0.12.0, that placement was *still* unchanged, and supplied the row itself from
+   the console: `edit-buttons mb-3 pl-0` containing `Copy Tags from Studio · Copy all Tags from all
+   Performers · Save · Delete`, with `querySelector('button.delete')` returning **false**. That last
+   detail is the whole answer. Every version from 0.9.0 onward searched for Delete by the `.delete`
+   class and nothing else, on the strength of a line in the repo-root `CLAUDE.md` asserting as
+   *confirmed live* that Stash applies that class "throughout". It does not. The class is real on
+   the detail-view navbar — which is where it was actually observed, and which is why both plugins'
+   container finders still rely on it to tell a navbar from an edit form — and absent from Scene's
+   edit row, where Delete is a plain `btn btn-danger`. So on the page every one of these reports came
+   from, the class search never matched, the Save fallback caught every call, and each round's
+   argument about *which* anchor to prefer changed nothing the user could see. 0.11.0 believed it had
+   moved buttons between Save and Delete; 0.12.0 believed it had left that case alone and only fixed
+   Group. Both were reasoning about a branch that was never reached.
+
+   The fix is one extra search: `.delete`, then a text match on `'Delete'`, then a text match on
+   `'Save'`. `findButtonByLabel` becomes `findActionByLabel`, matching `<a>` as well as `<button>`
+   and trimming first, because the console output established neither the tag nor the padding and
+   being wrong about either reproduces the same silent misplacement. The container finders are
+   deliberately left on the class: there it is a *discriminator* between two states of the same
+   container, confirmed present on the navbar, and loosening it would change which container is
+   chosen — a worse failure than a misplaced button, and one nothing has reported.
+
+   **The generalisable lesson, now written into the repo-root `CLAUDE.md` in place of the false
+   claim: a class confirmed on one page is evidence about that page.** Four rounds of anchor churn
+   cost less than the note that caused them, which was recorded as fact and then trusted by every
+   subsequent round without being re-checked. Before moving an anchor again, confirm the current one
+   is being *found* — the console one-liner that settled this in a single reply is worth reaching for
+   first, ahead of any reasoning about which button ought to be preferred.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

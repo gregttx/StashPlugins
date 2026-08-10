@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -68,6 +68,12 @@ Save on every page — which is exactly what 1.12.2 had done deliberately, then 
 believed they had changed. `insertBeforeImportantAction` now tries three things in order: `.delete`,
 a text match on `'Delete'`, a text match on `'Save'`. `findButtonByLabel` becomes `findActionByLabel`,
 matching `<a>` as well as `<button>` and trimming first, since the live report established neither.
+
+**1.15.2 gives the scene button `mx-2` in place of `ml-2`.** A left-only margin was right while it
+was appended at the end of the row; since 1.14.0 it sits *between* Save and Delete, so it had
+nothing on its right and rendered flush against Delete — live-reported. The performer button already
+moved off `ml-2` for exactly this reason when it started sitting between two of Stash's own buttons;
+this is the same fix arriving one button later.
 
 **The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
 argued about *which* anchor to prefer while the anchor search was failing on the row being tested.

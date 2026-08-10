@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.1.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.2.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -28,6 +28,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — target-side placement moved from before Save to between Save and Delete | **0.11.0** |
 | | — the anchor is Delete-or-Save now, so a Delete-less page no longer displaces Save | **0.12.0** |
 | | — Delete is also found by text: the `.delete` class does not exist on Scene's row | **0.12.1** |
+| | — the source button's blink loop: it saw its own label as a foreign button's | **0.12.2** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **0.9.0 through 0.12.0 are four versions of anchor churn over one unnoticed fact**, and 0.12.1 is

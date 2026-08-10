@@ -335,3 +335,8 @@ versions changed. It now recognises Delete by its label as well. If you are on 1
 your buttons sit to the left of Save, this is why; update and they will move between Save and
 Delete.
 
+**1.15.2 gives the scene button room on its right.** It carried a left-only margin, which was right
+while it sat at the end of the row — but since 1.14.0 it sits between Save and Delete, so it
+rendered flush against Delete with nothing between them. The performer button already had margins on
+both sides for the same reason.
+

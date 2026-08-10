@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.1';
+  var PLUGIN_VERSION = '0.12.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3368,12 +3368,27 @@
   // class names or settings: `path.button` is the same string a user would
   // recognise as "this one" regardless of which plugin put it there, which is what
   // makes two plugins doing the identical path call it the same thing worth relying
-  // on. Only a match outside our own `MANUAL_BTN_CLASS` buttons counts, so this
-  // never mistakes our own button, added on an earlier tick, for someone else's.
+  // on. A match on any button of *ours* does not count, so this never mistakes one
+  // we added on an earlier tick for someone else's.
+  //
+  // 0.12.2: "ours" has to mean both classes. This helper is shared verbatim by
+  // `manualButtonsTick` and `manualSourceButtonsTick`, but it only ever excluded
+  // `MANUAL_BTN_CLASS` - the target side's. On the source side our own button
+  // therefore matched its own label, which made the plugin conclude a foreign button
+  // was showing and drop the path. That shrank `paths`, which changed `pathIdsKey`,
+  // which re-armed the existence probe, which cleared every source button while it
+  // was pending - and with the button gone the next tick saw no match, restored the
+  // path, and started the whole cycle again. The visible result was a source button
+  // blinking once a second, live-reported on a detail page. It bites only where
+  // another plugin declares the same path (`tags:performer>scene`, the one
+  // `MergePerformerTagsToScenes` declares) *and* that plugin is not currently showing
+  // its own button - if it were, the match would be genuine and the path would stay
+  // dropped, which is why this survived every test and the target side never showed it.
   function foreignButtonAlreadyShows(container, label) {
     var kids = Array.prototype.slice.call(container.childNodes || []);
     for (var i = 0; i < kids.length; i++) {
-      if (!hasClass(kids[i], MANUAL_BTN_CLASS) && kids[i].textContent === label) return true;
+      if (hasClass(kids[i], MANUAL_BTN_CLASS) || hasClass(kids[i], MANUAL_SRC_BTN_CLASS)) continue;
+      if (kids[i].textContent === label) return true;
     }
     return false;
   }

@@ -1117,6 +1117,32 @@ step 9 plus a run against a real Stash, not step 9 alone.
    subsequent round without being re-checked. Before moving an anchor again, confirm the current one
    is being *found* — the console one-liner that settled this in a single reply is worth reaching for
    first, ahead of any reasoning about which button ought to be preferred.
+
+   **0.12.2 / 1.15.2 — the blink, and the spacing question deliberately left open.** With placement
+   finally working, the same round reported a source button appearing and disappearing once a
+   second. `foreignButtonAlreadyShows` is shared verbatim by both tick functions but excluded only
+   `MANUAL_BTN_CLASS`, the target side's — so on the source side our own button matched its own
+   label, the plugin concluded a sibling's button was showing, and dropped the path. That shrank
+   `paths`, changed `pathIdsKey`, re-armed the existence probe and cleared every source button while
+   it was pending; with the button gone the next tick saw no match and restored it. A period-2
+   oscillation. It bites only where another plugin *declares* the path (`tags:performer>scene`, the
+   one `MergePerformerTagsToScenes` declares) **and** is not currently showing its own button — with
+   a genuine foreign button present the match is correct and the path stays dropped, which is why
+   the source side's only dedup test, which supplied one, passed throughout. The target side was
+   never affected: it excludes its own class. Also `ml-2` → `mx-2` on
+   `MergePerformerTagsToScenes`' scene button, which had nothing on its right since 1.14.0 moved it
+   between Save and Delete.
+
+   **The row/column spacing was reported in the same message and deliberately not fixed in the same
+   commit**, because the report contains a clue that says a guess would be wrong. Group Edit — the
+   one page on `.details-edit` — has "perfect" line spacing, while Scene, Gallery and Image Edit,
+   all on `.edit-buttons`, have wrapped rows that touch. Both containers get the same
+   `row-gap: .25rem` from `ensureRowGap`, so if both were flex containers they would look alike.
+   Corroborating: 0.9.1's `my-1` regression, which is a *flex* stretch mechanic, was only ever
+   reported on `.details-edit` pages. The working hypothesis is that `.edit-buttons` is not a flex
+   container at all, which would make `row-gap` inert on exactly the three pages that touch — and
+   would mean the fix differs per container. Awaiting a `getComputedStyle` dump rather than
+   shipping a fifth round of the same mistake this entry is about.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

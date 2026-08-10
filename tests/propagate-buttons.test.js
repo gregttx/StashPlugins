@@ -884,6 +884,37 @@ function nodeListLikeContainer() {
     h.check('a foreign button for the same path suppresses the source button too',
       sourceButtons(env).length === 0);
   }
+  {
+    // The mirror of the target side's "not removed by a later tick seeing itself",
+    // which the source side never had - and 0.12.1 shipped without it because
+    // `foreignButtonAlreadyShows` excluded only MANUAL_BTN_CLASS, the target class.
+    //
+    // No foreign button here: the path is *declared* by another plugin but that
+    // plugin is showing nothing, which is the case that bites. On 0.12.1 the source
+    // button matched its own label, the path was dropped, `pathIdsKey` changed, the
+    // existence probe re-armed and cleared every source button while pending - then
+    // the next tick saw no button, restored the path, and repeated. Live-reported as
+    // a button blinking once a second on a detail page.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+    });
+    detailsEditContainer(env, true);
+    env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
+    env.tick();
+    await h.flush(60);
+    h.check('a declared path with no foreign button still renders our source button',
+      sourceButtons(env).length === 1, 'count: ' + sourceButtons(env).length);
+    env.tick(); // the tick that used to see our own button and tear it down
+    await h.flush(60);
+    h.check('and it survives a later tick seeing itself (no blink loop)',
+      sourceButtons(env).length === 1, 'count: ' + sourceButtons(env).length);
+    env.tick();
+    await h.flush(60);
+    h.check('and a third tick leaves it alone too',
+      sourceButtons(env).length === 1, 'count: ' + sourceButtons(env).length);
+  }
 
   // ── Placement: before Delete, not appended after it ──────────────────────────
   //

@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.1';
+  var PLUGIN_VERSION      = '1.15.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2299,7 +2299,11 @@
     var button = document.createElement('button');
     button.type = 'button';
     button._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
-    button.className = 'btn btn-secondary ml-2 ' + SCENE_BTN_CLASS;
+    // mx-2, not ml-2: since 1.14.0 this button lands *between* Save and Delete rather
+    // than at the end of the row, so a left-only margin left it touching Delete -
+    // live-reported at 1.15.1. Matches the performer button, which moved off ml-2 for
+    // the same reason when it started sitting between two of Stash's own buttons.
+    button.className = 'btn btn-secondary mx-2 ' + SCENE_BTN_CLASS;
     // "Copy all Tags from all Performers", not the older "Add Perf Tags" - same
     // harmonization as the performer button above.
     button.textContent = 'Copy all Tags from all Performers';

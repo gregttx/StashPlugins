@@ -46,6 +46,18 @@ const SCENE_EDIT_VIEW_WRAPPED = `
     </div>
   </div>`;
 
+// No Delete at all - not a page this plugin's own scene button has ever actually
+// been seen on live (Scene Edit always carries both), but `insertBeforeImportantAction`
+// is a shared mechanism with the performer button and with PropagateTagsAndPerformers'
+// copy of the same logic, and the Save-fallback branch deserves its own proof rather
+// than relying on it never actually being exercised for this plugin's own call site.
+const SCENE_EDIT_VIEW_NO_DELETE = `
+  <div id="scene-page">
+    <div class="edit-buttons">
+      <button class="btn btn-secondary" type="button">Save</button>
+    </div>
+  </div>`;
+
 // Simulates PropagateTagsAndPerformers having already inserted its own button,
 // between Save and Delete, before this plugin's own tick runs - the
 // deterministic-ordering case (`coop().order`, repo-root CLAUDE.md) that used to be
@@ -241,6 +253,19 @@ function check(name, cond, extra) {
   check('handles a Delete button nested in a wrapper element',
     !!sw && sw.nextElementSibling && !!sw.nextElementSibling.querySelector('button.delete'),
     sw ? 'next sibling: ' + (sw.nextElementSibling && sw.nextElementSibling.outerHTML) : 'no button');
+
+  // No Delete at all - `insertBeforeImportantAction` falls back to finding Save
+  // instead of appending after it, so Stash's own primary action stays the last
+  // thing in the row (0.12.0/1.15.0's fix, alongside PropagateTagsAndPerformers').
+  root().innerHTML = SCENE_EDIT_VIEW_NO_DELETE;
+  await sleep(1500);
+  const noDel = sbtn();
+  const noDelRow = sceneOrder();
+  check('with no Delete in the container, the button lands before Save, not after it',
+    !!noDel && noDel.nextElementSibling && noDel.nextElementSibling.textContent.trim() === 'Save',
+    'order: ' + noDelRow);
+  check('so Save stays the last thing in the row',
+    !!noDel && noDel.parentNode.lastElementChild.textContent.trim() === 'Save', 'order: ' + noDelRow);
 
   // Deterministic ordering against another plugin's button (coop().order): this
   // plugin registers priority 20, closer to Delete than PropagateTagsAndPerformers'

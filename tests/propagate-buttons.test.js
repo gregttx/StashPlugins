@@ -300,9 +300,12 @@ function nodeListLikeContainer() {
       btn && [btn.previousSibling, btn.nextSibling].map((n) => n && n.className));
   }
   {
-    // Group's edit-form state carries no Delete at all (§5b/§5d) - the button lands
-    // after Save by simply landing last, the same fallback `insertBeforeDelete`
-    // already used on the source side for a Delete-less page.
+    // Group's edit-form state carries no Delete at all (§5b/§5d). Save is
+    // "important" - Stash's own primary action for the form - and must stay the
+    // last thing in the row, so `insertBeforeImportantAction` falls back to
+    // finding Save (0.12.0) rather than appending after it: a plain append had
+    // displaced Save from being last, exactly the case this fallback exists to
+    // prevent.
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     const container = editButtonsContainer(env);
     const save = h.makeElement('button');
@@ -312,9 +315,10 @@ function nodeListLikeContainer() {
     await h.flush(60);
     const btn = manualButtons(env)[0];
     const order = container.childNodes;
-    h.check('with no Delete in the container, the button lands after Save at the end',
-      !!btn && order.indexOf(btn) === order.indexOf(save) + 1 && order.indexOf(btn) === order.length - 1,
-      order.map((n) => n.textContent).join(','));
+    h.check('with no Delete in the container, the button lands before Save, not after it',
+      !!btn && order.indexOf(btn) === order.indexOf(save) - 1, order.map((n) => n.textContent).join(','));
+    h.check('so Save stays the last thing in the row',
+      order.indexOf(save) === order.length - 1, order.map((n) => n.textContent).join(','));
   }
   {
     // Two enabled paths into one page: both land between Save and Delete, in the

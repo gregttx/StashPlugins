@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.11.0';
+  var PLUGIN_VERSION = '0.12.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3232,16 +3232,16 @@
 
   // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,
   // "Cross-plugin cooperation: deterministic button ordering"). Both this plugin's
-  // and MergePerformerTagsToScenes' `insertBeforeDelete` used to always insert
-  // immediately before their anchor, so with both enabled, whichever plugin's async
-  // eligibility check happened to resolve last ended up closest to it - a race
+  // and MergePerformerTagsToScenes' `insertBeforeImportantAction` used to always
+  // insert immediately before their anchor, so with both enabled, whichever plugin's
+  // async eligibility check happened to resolve last ended up closest to it - a race
   // decided by network timing, not a rule, and it could flip on every reload.
   // `coop().order` fixes a priority per plugin id; a button already sitting there
   // and owned by a higher-priority plugin is skipped over rather than displaced, so
   // this plugin's own button always lands on the low-priority side of it regardless
-  // of which plugin inserted first. `anchor` may be null (no Delete found at all,
-  // Group's edit-form state - see `insertBeforeDelete` below), in which case there
-  // is nothing to order against.
+  // of which plugin inserted first. `anchor` may be null (neither Delete nor Save
+  // found - see `insertBeforeImportantAction` below), in which case there is
+  // nothing to order against.
   function insertOrdered(container, button, anchor) {
     if (!anchor) { container.appendChild(button); return; }
     var order = coop().order;
@@ -3257,23 +3257,51 @@
     container.insertBefore(button, ref);
   }
 
-  // Shared by both the target and source sides (0.11.0 unified them - see below).
-  // Delete carries a dedicated `.delete` class, so no text-matching walk is needed
-  // to find it, unlike Save. Delete may itself be nested inside a wrapper element,
-  // so walk up to whichever node is the container's own child - `insertBefore` only
-  // accepts a direct child as its reference node. Falls back to appending at the end
-  // when no Delete is found at all - Group's edit-form state, which carries no
-  // Delete button, so a target-side button there lands after Save by simply landing
-  // last; the source side falls back the same way for a page this plugin has never
-  // actually seen render without one.
+  // A plain recursive walk over `childNodes`/`tagName`, matching on the button's own
+  // text - the same technique `foreignButtonAlreadyShows` already relies on for
+  // dedup, and deliberately not `querySelectorAll`, which the shared test harness's
+  // fake DOM nodes do not implement (only `querySelector`). Needed because Save
+  // carries no distinguishing class the way Delete does - confirmed live by its
+  // absence, not assumed - so text is the only reliable way to find it at all.
+  function findButtonByLabel(root, label) {
+    var kids = root.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.tagName === 'BUTTON' && (k.textContent || '') === label) return k;
+      var found = findButtonByLabel(k, label);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // Shared by both the target and source sides (0.11.0 unified them). The design
+  // rule, stated plainly: a new button is inserted before whichever of the row's
+  // buttons is "important" - one that must stay the last thing in the row, because
+  // moving it would be a bigger surprise than where our own button lands - and
+  // appended after everything otherwise. Delete and Save are the two buttons this
+  // plugin has ever found itself sharing a row with that qualify; a page whose
+  // trailing button is neither (a plain secondary action, or nothing at all) gets a
+  // plain append, which is also what happens if this plugin is ever wrong about
+  // what counts as important on some future page - a safe default in either
+  // direction, since it never displaces a button this code did not recognise.
   //
-  // 0.11.0: the target side used to anchor on Save instead (`insertBeforeSave`,
-  // since retired), landing buttons before it. Live feedback was that "between Save
-  // and Delete" was the actually-wanted position, not "before Save" - and since
-  // Delete already sits right after Save on every page that has one, anchoring on
-  // Delete produces exactly that without needing to know where Save is at all.
-  function insertBeforeDelete(container, button) {
+  // Delete is tried first: it carries a dedicated `.delete` class, so no
+  // text-matching walk is needed, and it is more reliably present - the source
+  // side's container is only ever found *because* it carries one (`findDetailContainer`).
+  // Save is the fallback, via `findButtonByLabel` above, for the one page confirmed
+  // to have no Delete at all: Group's edit-form state (§5b). Either one may be
+  // nested inside a wrapper element, so the walk-up to the container's own direct
+  // child happens after the search, not baked into either search itself.
+  //
+  // 0.11.0 first collapsed this to Delete-only, since "between Save and Delete" was
+  // what live feedback asked for and Delete alone produces that whenever both exist.
+  // 0.12.0 restored the Save fallback: on Group, with no Delete to anchor on, a
+  // plain append put a button *after* Save - displacing Stash's own primary action
+  // from being the last thing in the row, exactly the case the "important button"
+  // rule above exists to prevent.
+  function insertBeforeImportantAction(container, button) {
     var node = container.querySelector('button.delete');
+    if (!node) node = findButtonByLabel(container, 'Save');
     while (node && node.parentNode !== container) node = node.parentNode;
     insertOrdered(container, button, node);
   }
@@ -3428,7 +3456,7 @@
         var existing = document.getElementById(manualButtonId(p));
         if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-        insertBeforeDelete(container, buildManualButton(p, label, rt.target, rt.id, !!s.a2SaveImmediately));
+        insertBeforeImportantAction(container, buildManualButton(p, label, rt.target, rt.id, !!s.a2SaveImmediately));
       });
     });
   }
@@ -3643,7 +3671,7 @@
         var existing = document.getElementById(manualSourceButtonId(p));
         if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-        insertBeforeDelete(container, buildManualSourceButton(p, label, rt.id));
+        insertBeforeImportantAction(container, buildManualSourceButton(p, label, rt.id));
       });
     });
   }

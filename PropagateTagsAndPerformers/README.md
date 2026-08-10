@@ -1,6 +1,6 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.11.0, every step but the last has landed
+> ## 🚧 Under construction — 0.12.0, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
@@ -25,7 +25,7 @@
 > Save/Delete/Submit buttons taller, since a flex row stretches every button on it to match the
 > tallest one sharing it. 0.9.2 moves that spacing onto the container as a `row-gap` instead, which
 > cannot leak into another button's height the way a margin can. If you installed anything before
-> 0.9.0, update — and update `MergePerformerTagsToScenes` to 1.14.0 or newer alongside it, or its
+> 0.9.0, update — and update `MergePerformerTagsToScenes` to 1.15.0 or newer alongside it, or its
 > Performer/Scene buttons and this plugin's will duplicate on the one path they share.
 >
 > 0.10.0 fixes something a live install with both plugins' manual buttons enabled found: on a page
@@ -40,6 +40,12 @@
 > right after Save on every page that has one, the buttons now anchor on Delete instead (the same
 > mechanism the source-side buttons already used), which produces that placement without needing to
 > know where Save is at all.
+>
+> 0.12.0 fixes the one page that fell through 0.11.0's fix: Group's edit form has Save but no
+> Delete, so anchoring on Delete alone left it with nothing to anchor on and fell back to appending
+> at the end - putting a button *after* Save and displacing Stash's own primary action from being
+> the last thing in the row. Buttons now anchor on Delete, or Save if there is no Delete, and append
+> only when neither is present.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -63,6 +69,7 @@
 > | Wrapped-row spacing redone as `row-gap`, fixing 0.9.1's button-growth regression | **done** (0.9.2) |
 > | Deterministic ordering against `MergePerformerTagsToScenes`' buttons in the same row | **done** (0.10.0) |
 > | Target-side anchor moved from before Save to between Save and Delete | **done** (0.11.0) |
+> | Anchor falls back to Save when a page has no Delete, instead of appending after it | **done** (0.12.0) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -223,7 +230,7 @@ Both automatic modes share the rest of their behaviour:
   being accepted, and copying tags onto an entity because of an edit that never happened would be
   the worst kind of surprise.
 
-## Manual buttons and staging (0.8.0 – 0.11.0)
+## Manual buttons and staging (0.8.0 – 0.12.0)
 
 With **Show Manual Buttons** on, each enabled path adds a small button to the Edit tab of its
 target — a scene with the performer-tags and studio-tags paths both enabled shows two buttons, not
@@ -241,7 +248,9 @@ grow Stash's own Save/Delete/Submit buttons taller too — a flex row stretches 
 it to match whichever one is tallest. 0.9.2 moves the gap onto the row itself instead, which does
 not have that effect. Since 0.11.0, "beside" specifically means **between Save and Delete** — 0.9.1
 had landed it before Save instead, and further live feedback was that this was the position
-actually wanted, not that one.
+actually wanted, not that one. Since 0.12.0, a page with no Delete at all (Group's edit form) lands
+its button **before Save** instead of after it, so Save — Stash's own primary action — always stays
+the last thing in the row rather than being displaced by ours.
 
 A button only appears when its source actually exists — a scene with no performers gets no
 performer-tags button, a group with no studio gets no studio-tags button — but it does **not**
@@ -313,7 +322,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.11.0 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.12.0 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 
@@ -342,8 +351,9 @@ or the Logs page — this is a UI plugin and cannot write there).
   task dialog names it in the log when both are covering `Tags: Performers → Scenes`. This works for
   any future plugin doing the same kind of copy too, not just this one by name. Where both plugins'
   manual buttons land in the same row (Scene, Performer), the two agree on a fixed relative order
-  (0.10.0), both landing between Save and Delete (0.11.0) rather than whichever one's eligibility
-  check happens to finish first.
+  (0.10.0), both anchored the same way: between Save and Delete where both exist, before Save where
+  only Save does (0.11.0, 0.12.0) — never displacing either from the row, rather than whichever
+  plugin's eligibility check happens to finish first.
 - **`NormalizeParentTags`** walks the *tag hierarchy* instead of entity relationships, so the two
   compose rather than overlap: propagate tags onto an entity, then prune or roll up the parents. Its
   automatic modes and this plugin's stand down for one another while either is writing in bulk. And

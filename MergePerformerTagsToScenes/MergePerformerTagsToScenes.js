@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.14.0';
+  var PLUGIN_VERSION      = '1.15.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2099,28 +2099,55 @@
     return null;
   }
 
-  // Places the button just ahead of Delete so it groups with the other non-destructive
-  // actions instead of trailing the red button. Delete may be nested inside a wrapper
-  // element, so walk up to whichever node is the container's own child — insertBefore
-  // only accepts a direct child as the reference node. Shared by both this plugin's
-  // buttons since 1.14.0 — see below.
-  function insertBeforeDelete(container, button) {
+  // A plain recursive walk over `childNodes`/`tagName`, matching on the button's own
+  // text - the same technique this file's dedup checks already rely on, and
+  // deliberately not `querySelectorAll`, which the shared test harness's fake DOM
+  // nodes do not implement (only `querySelector`). Needed because Save carries no
+  // distinguishing class the way Delete does - confirmed live by its absence, not
+  // assumed - so text is the only reliable way to find it at all.
+  function findButtonByLabel(root, label) {
+    var kids = root.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.tagName === 'BUTTON' && (k.textContent || '') === label) return k;
+      var found = findButtonByLabel(k, label);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  // Shared by both this plugin's buttons since 1.14.0. The design rule, stated
+  // plainly: a new button is inserted before whichever of the row's buttons is
+  // "important" - one that must stay the last thing in the row, because moving it
+  // would be a bigger surprise than where our own button lands - and appended after
+  // everything otherwise. Delete and Save are the two buttons this plugin has ever
+  // found itself sharing a row with that qualify.
+  //
+  // Delete is tried first: it carries a dedicated `.delete` class, so no
+  // text-matching walk is needed, and it is the more reliably present of the two -
+  // the performer button's own container is only ever found *because* it carries
+  // one. Save is the fallback, via `findButtonByLabel` above, for a page with Save
+  // but no Delete. Either one may be nested inside a wrapper element, so the walk-up
+  // to the container's own direct child happens after the search, not baked into
+  // either search itself.
+  function insertBeforeImportantAction(container, button) {
     var node = container.querySelector('button.delete');
+    if (!node) node = findButtonByLabel(container, 'Save');
     while (node && node.parentNode !== container) node = node.parentNode;
     insertOrdered(container, button, node);
   }
 
   // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,
   // "Cross-plugin cooperation: deterministic button ordering"). Both this plugin's
-  // and PropagateTagsAndPerformers' `insertBeforeDelete` used to always insert
-  // immediately before their anchor, so with both enabled, whichever plugin's async
-  // eligibility check happened to resolve last ended up closest to it - a race
+  // and PropagateTagsAndPerformers' `insertBeforeImportantAction` used to always
+  // insert immediately before their anchor, so with both enabled, whichever plugin's
+  // async eligibility check happened to resolve last ended up closest to it - a race
   // decided by network timing, not a rule, and it could flip on every reload.
   // `coop().order` fixes a priority per plugin id; a button already sitting there
   // and owned by a higher-priority plugin is skipped over rather than displaced, so
   // this plugin's own button always lands on the low-priority side of it regardless
-  // of which plugin inserted first. `anchor` may be null (no Delete found at all),
-  // in which case there is nothing to order against.
+  // of which plugin inserted first. `anchor` may be null (neither Delete nor Save
+  // found), in which case there is nothing to order against.
   function insertOrdered(container, button, anchor) {
     if (!anchor) { container.appendChild(button); return; }
     var order = coop().order;
@@ -2205,7 +2232,7 @@
           btn.textContent = orig;
         });
     });
-    insertBeforeDelete(container, button);
+    insertBeforeImportantAction(container, button);
   }
 
   // ── Scene page: "Copy all Tags from all Performers" ───────────────────────
@@ -2326,7 +2353,7 @@
         })
         .catch(fail);
     });
-    insertBeforeDelete(container, button);
+    insertBeforeImportantAction(container, button);
   }
 
   // ── Main loop ─────────────────────────────────────────────────────────────

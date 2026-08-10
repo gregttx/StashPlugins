@@ -204,6 +204,43 @@ plugin by id; it reads whatever `coop().order` and `_coopOwner` say, the same ge
 `declares`. A future third plugin needs only to pick an unused number and tag its own buttons — no
 edit to either existing plugin.
 
+## Placing a manual button near Stash's own actions: important vs. casual
+
+A rule for *any* plugin injecting a button into a row Stash already put buttons in — distinct from
+the ordering protocol above, which only decides relative order *between plugins*. This one decides
+where a plugin's own button lands relative to *Stash's* buttons in that row, and it applies even
+with only one plugin installed.
+
+**Default: insert before the last button, only when the last button is important.** "Important"
+means the row would look broken with anything landing after it — Stash's own destructive action
+(Delete, styled `btn-danger`) or its own primary action (Save, and anything else that plays the
+same role a row only has one of). Inserting before it keeps that button the last thing in the row,
+which is where a user expects to find it. If the last button is a *casual* secondary action instead
+(`btn-secondary`, no special role — "Auto Tag...", "Merge...") appending after it is fine and reads
+more naturally than forcing a new button in front of an arbitrary earlier one.
+
+**Delete is found reliably by its class; Save is not, and needs a fallback of its own.** Confirmed
+live: Stash gives Delete a dedicated `.delete` class throughout, but gives Save no distinguishing
+class at all on every page this has been checked against — so a plugin has to try Delete first
+(`container.querySelector('button.delete')`) and fall back to a text match on `'Save'`
+(`findButtonByLabel`, a plain recursive walk, since neither the shared test harness's fake DOM nor
+this concern needs `querySelectorAll`) only when Delete is absent. Anchoring on Delete alone happens
+to also land a button *between* Save and Delete whenever both exist, which is a consequence of the
+anchor choice, not a separate mechanism — there is only ever one anchor search, trying Delete then
+Save then giving up.
+
+**Giving up is the safe default, not an error.** A row whose last button is neither Delete nor Save
+— unrecognised, or genuinely nothing — gets a plain append. Never invent a third detection tier for
+a button this code cannot identify as important; a wrong guess about importance is worse than
+sometimes appending after a button that would have preferred to stay last.
+
+**Both `MergePerformerTagsToScenes` and `PropagateTagsAndPerformers` implement this as
+`insertBeforeImportantAction`** (0.12.0 / 1.15.0), replacing an earlier `insertBeforeSave` /
+`insertBeforeDelete` split that anchored on exactly one of the two and never fell back to the
+other — which is what let a Delete-less page (Group's edit form) end up with a button appended
+*after* Save, displacing Stash's own primary action from being last. Read this note before adding a
+manual button to any future plugin in this repo, not only these two.
+
 ## Cross-plugin cooperation: the shared dialog chrome
 
 Every plugin here puts up a full-screen review dialog, and they are one design: same head with a

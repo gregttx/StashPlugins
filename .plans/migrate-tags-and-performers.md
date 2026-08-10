@@ -1062,6 +1062,31 @@ step 9 plus a run against a real Stash, not step 9 alone.
    (an Initiator stack trace, or confirmation of whether it is now also on Gallery Edit rather than
    only tag-less performers) has come in yet to confirm or rule out the leading React-disruption
    theory from the previous round.
+
+   **A named design principle, surfacing what the previous round had gotten only half right.**
+   Restated directly: a new button is inserted before whichever of the row's own buttons is
+   *important* — one that must stay the last thing in the row — and appended after everything
+   otherwise. Delete and Save are the two Stash actions either plugin here has ever shared a row
+   with. 0.11.0 had only fixed the *between* case (both present); the same round's report that
+   Gallery Edit's button "was placed before Save" turned out, on the very next question, to be a
+   *second* complaint under the same words as the first — this time confirmed to mean the wanted
+   position was between Save and Delete, which 0.11.0 already covered for Gallery. What it had not
+   covered was Group, whose edit form has no Delete at all: `insertOrdered`'s no-anchor fallback
+   simply appended, landing the button *after* Save and displacing Stash's own primary action from
+   being last — exactly the failure the "important button" principle exists to prevent, on the one
+   page 0.11.0's Delete-only anchor could not reach. `insertBeforeDelete` is renamed
+   `insertBeforeImportantAction` in both plugins and regains a Save fallback (`findButtonByLabel`,
+   un-retired) for exactly that page — Delete tried first, Save only if Delete is absent, appending
+   only if neither is found. Documented as a general rule in the repo-root `CLAUDE.md` ("Placing a
+   manual button near Stash's own actions: important vs. casual") rather than folded quietly into
+   this plugin's own notes, since the user's framing was explicitly for every plugin in this repo,
+   not only these two — and because this is the second time in two rounds a placement assumption
+   here has needed correcting, a documented rule is worth more than a fix that only this plugin
+   remembers. Shipped as `PropagateTagsAndPerformers` 0.12.0 and `MergePerformerTagsToScenes` 1.15.0
+   together. `MergePerformerTagsToScenes` has no live page that reaches the Save fallback itself
+   (Scene Edit always renders both), so its own test coverage for it is a synthetic Save-only
+   fixture — proof that its *copy* of the shared design does not quietly drift from
+   `PropagateTagsAndPerformers`' own, not proof of anything about a real page.
 9. ~~Append §7 to the repo `CLAUDE.md`.~~ **Retired rather than done** — see the current §7: both
    halves of the draft turned out to already be where they needed to be by the time this step was
    reached, one shipped and documented live, the other never actually at risk of being lost. Nothing

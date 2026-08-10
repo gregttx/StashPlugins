@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.11.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -26,6 +26,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — wrapped-row spacing redone as `row-gap`: 0.9.1's `my-1` grew Stash's own buttons | **0.9.2** |
 | | — deterministic ordering against `MergePerformerTagsToScenes`' buttons (`coop().order`) | **0.10.0** |
 | | — target-side placement moved from before Save to between Save and Delete | **0.11.0** |
+| | — the anchor is Delete-or-Save now, so a Delete-less page no longer displaces Save | **0.12.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Step 8 placement is now confirmed live on all four target pages.** Scene, Gallery and Image use
@@ -888,8 +889,8 @@ does render to anchor on instead — a fallback container built from nothing wou
 unverified guess, and this repo's rule (§6) is not to ship one of those without a live screenshot to
 confirm it.
 
-## 5f. Deterministic ordering against `MergePerformerTagsToScenes` (0.10.0), and the anchor
-     itself moving from Save to Delete (0.11.0)
+## 5f. Deterministic ordering against `MergePerformerTagsToScenes` (0.10.0), the anchor moving
+     from Save to Delete (0.11.0), and Delete-or-Save (0.12.0)
 
 Reported from a live install with both plugins' manual buttons enabled: on a page where both add a
 button to the same row (Scene, Performer), each plugin's `insertBeforeSave`/`insertBeforeDelete`
@@ -924,6 +925,18 @@ page that has one, anchoring on Delete alone produces "between Save and Delete" 
 through the same `insertBeforeDelete` the source side already used. Group's edit-form state, the one
 page confirmed to render no Delete at all (§5b), falls back to `insertOrdered`'s no-anchor branch —
 `container.appendChild`, landing after Save simply because Save is the last thing there.
+
+**0.12.0: that fallback was itself wrong, reported the very next round.** Appending after Save on
+Group put a manual button *after* Stash's own primary action — displacing it from being the last
+thing in the row, which reads as broken regardless of whether "before Save" or "between Save and
+Delete" is the house style. The general rule, stated in full in the repo-root CLAUDE.md ("Placing a
+manual button near Stash's own actions: important vs. casual"): insert before the row's last button
+only when that button is *important* — Delete or Save, the two Stash actions a plugin here has ever
+found itself sharing a row with — and append after it otherwise. `insertBeforeDelete` is renamed
+`insertBeforeImportantAction` and gains back a Save fallback (`findButtonByLabel`, un-retired) for
+exactly the page 0.11.0's version could not handle: Delete tried first, Save only if Delete is
+absent, a plain append if neither is found. This is not a reversion to 0.9.1's `insertBeforeSave` —
+that anchored on Save *unconditionally*, this only reaches Save when Delete is not there.
 
 ## 6. Anchoring in Stash's markup
 
@@ -1028,11 +1041,15 @@ of it apply unchanged:
   where a plugin's own `insertBeforeDelete` would have already placed it. `nodeListLikeContainer`
   gained a minimal `querySelector('button.delete')` for the same reason - the regression it exists
   to pin now goes through `insertBeforeDelete` too, which needs it. All fail against a copy with the
-  target-side call site reverted to a Save-anchored walk.
+  target-side call site reverted to a Save-anchored walk. Since 0.12.0: the Group-shaped "no Delete
+  in the container" check now asserts the button lands *before* Save and that Save stays the row's
+  last child, reversing what 0.11.0 asserted (landing after Save) - fails against a copy of
+  `insertBeforeImportantAction` with the Save fallback removed, confirming the check exercises the
+  fallback rather than passing on the strength of `insertOrdered`'s unrelated no-anchor branch.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.** The
-0.9.0 through 0.11.0 additions were confirmed the coarser way, against the pre-fix source via `SRC=`,
+0.9.0 through 0.12.0 additions were confirmed the coarser way, against the pre-fix source via `SRC=`,
 rather than one hand-built mutant per check; the pre-existing suites below that line follow the
 finer-grained convention - sixty-four mutants so far, each failing exactly the check written for
 it - a suite that passes for the wrong reason is worse than no suite. Use

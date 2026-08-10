@@ -144,16 +144,14 @@ const DETAIL_VIEW_MARGINS = `
     </div>
   </div>`;
 
-// A row whose gap comes from something other than the neighbouring element's own
-// margin - `PropagateTagsAndPerformers`' Group pages, live, where 1.15.5's top-up
-// doubled a gap that was already right. Nothing here carries a `margin-right` for the
-// margin reading to find except Delete, which supplies the row's step; the gap our
-// button lands in is stated as layout instead (jsdom does no layout of its own, so the
-// checks that use this fixture stub `getBoundingClientRect` - see `withLayout`).
-const DETAIL_VIEW_LAID_OUT = `
+// A row whose neighbouring *sibling* is not the action the user sees: React wraps some
+// row actions, and the wrapper carries no margin while the button inside it does. Reading
+// the sibling reports "contributes nothing" and a full step gets added on top of a gap
+// that was already there - which is what `PropagateTagsAndPerformers` hit on Group.
+const DETAIL_VIEW_WRAPPED_NEIGHBOUR = `
   <div id="performer-page" class="row">
     <div class="details-edit">
-      <button class="btn btn-primary edit" id="laid-out-prev">Edit</button>
+      <div class="d-inline"><button class="btn btn-primary edit" style="margin-right:7px">Edit</button></div>
       <button class="btn btn-danger delete" style="margin-right:7px">Delete</button>
     </div>
   </div>`;
@@ -276,24 +274,18 @@ function check(name, cond, extra) {
   check('and fills the far side to the same step',
     !!navStyle && navStyle.marginRight === '7px', navStyle && navStyle.marginRight);
 
-  // 1.15.6: the gap is measured rather than derived from the neighbour's margins, which
-  // is the only thing that can be right about a gap produced by something else. jsdom
-  // does no layout, so `getBoundingClientRect` is stubbed for the length of this check:
-  // `Edit` ends at 50, everything else (our button included, since the plugin creates
-  // it) starts at 57, so the row's 7px step is already there and nothing is added.
-  const realRect = win.Element.prototype.getBoundingClientRect;
-  win.Element.prototype.getBoundingClientRect = function () {
-    return this._rect || { left: 57, right: 100, top: 0, width: 43, height: 20 };
-  };
-  root().innerHTML = DETAIL_VIEW_LAID_OUT;
-  win.document.getElementById('laid-out-prev')._rect =
-    { left: 0, right: 50, top: 0, width: 50, height: 20 };
+  // 1.15.7: the neighbour's margin is read *through* a wrapper to the action inside it.
+  // 1.15.6 measured the gap with `getBoundingClientRect` instead; that is gone, because a
+  // distance is a fact about one instant and the row it was measured in is not the row
+  // that settles - live, it left this button flush against Delete on this very navbar.
+  root().innerHTML = DETAIL_VIEW_WRAPPED_NEIGHBOUR;
   await sleep(1500);
-  const laidOut = btn();
-  const laidOutStyle = laidOut ? win.getComputedStyle(laidOut) : null;
-  win.Element.prototype.getBoundingClientRect = realRect;
-  check('a gap already at the row\'s step is measured, not topped up',
-    !!laidOutStyle && laidOutStyle.marginLeft === '0px', laidOutStyle && laidOutStyle.marginLeft);
+  const wrappedNeighbour = btn();
+  const wrappedStyle = wrappedNeighbour ? win.getComputedStyle(wrappedNeighbour) : null;
+  check('a wrapped neighbour is read through to the action inside it',
+    !!wrappedStyle && wrappedStyle.marginLeft === '0px', wrappedStyle && wrappedStyle.marginLeft);
+  check('and the far side still gets the row\'s step',
+    !!wrappedStyle && wrappedStyle.marginRight === '7px', wrappedStyle && wrappedStyle.marginRight);
 
   // Delete nested inside a wrapper: must still land before the wrapper, not at the end.
   root().innerHTML = DETAIL_VIEW_WRAPPED;

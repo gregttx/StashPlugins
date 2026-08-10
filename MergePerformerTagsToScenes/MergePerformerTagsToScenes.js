@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.6';
+  var PLUGIN_VERSION      = '1.15.7';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -2222,27 +2222,44 @@
   //
   // The gap between two inline siblings is the first's right margin plus the second's
   // left margin, so 1.15.5 took the row's own step from the donor and filled whatever
-  // each *actual neighbour* was not already contributing. 1.15.6 measures that
-  // contribution rather than deriving it from the neighbour's margins: reading a margin
-  // answers "what does this element contribute" only when the element beside ours is the
-  // button the user sees, and on `PropagateTagsAndPerformers`' Group pages it is not -
-  // the gap there was already right, so topping it up doubled it. Whatever produces a
-  // gap (a wrapper element between us, container padding, a margin on something
-  // invisible) `getBoundingClientRect` already accounts for and no margin reading can.
-  // The margin path stays as the fallback for when there is no layout to measure - the
-  // test harnesses, and a container that is not currently displayed.
+  // each *actual neighbour* was not already contributing. 1.15.6 measured that gap with
+  // `getBoundingClientRect` rather than deriving it, and 1.15.7 takes the measurement
+  // back out: a distance is a fact about one instant, and the row it was measured in is
+  // not the row that settles. Live, it put this plugin's button flush against Delete on
+  // the performer navbar - a gap that existed at insertion time and had closed by the
+  // time the page finished laying out.
+  //
+  // What survives is the structural half of that diagnosis: **the DOM sibling beside our
+  // button is not always the action the user sees**. React wraps some row actions (a
+  // file input beside its button, a dropdown beside its toggle), and a wrapper carries no
+  // margin of its own while the action inside it does - so reading the sibling reports
+  // "contributes nothing" for a neighbour that plainly contributes a gap.
+  // `marginContribution` resolves through the wrapper to the action facing us. No layout
+  // is consulted, so the answer is the same whenever it is asked.
   //
   // Both neighbours come from one `childNodes` snapshot: a real `NodeList` is live.
-  var WRAPPED = 'wrapped';
+  function borderingAction(node, fromEnd) {
+    if (!node) return null;
+    if (hasClass(node, 'btn')) return node;
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[fromEnd ? kids.length - 1 - i : i];
+      if (!k || !k.tagName) continue;
+      var found = borderingAction(k, fromEnd);
+      if (found) return found;
+    }
+    return null;
+  }
 
-  function horizontalGap(before, after) {
-    if (!before || !after ||
-        typeof before.getBoundingClientRect !== 'function' ||
-        typeof after.getBoundingClientRect !== 'function') return null;
-    var a = before.getBoundingClientRect(), b = after.getBoundingClientRect();
-    if (!a || !b || !a.width || !b.width) return null;
-    if (Math.abs(a.top - b.top) > 1) return WRAPPED;
-    return b.left - a.right;
+  function marginContribution(node, prop) {
+    var action = borderingAction(node, prop === 'marginRight');
+    var cs = computedStyleOf(node);
+    var total = pxOf(cs && cs[prop]);
+    if (action && action !== node) {
+      var acs = computedStyleOf(action);
+      total += pxOf(acs && acs[prop]);
+    }
+    return total;
   }
 
   function fillNeighbourGaps(container, button, m) {
@@ -2255,23 +2272,8 @@
     }
     // No previous element: our button starts the row, and a left margin would only push
     // it off the edge Stash's own first button sits on.
-    var left = 0, right = step, gap, cs;
-    if (prev) {
-      gap = horizontalGap(prev, button);
-      // A wrapped row: our button starts a visual row and follows nothing.
-      if (gap === WRAPPED) left = 0;
-      else if (gap === null) { cs = computedStyleOf(prev); left = Math.max(0, step - pxOf(cs && cs.marginRight)); }
-      else left = Math.max(0, step - gap);
-    }
-    if (next) {
-      gap = horizontalGap(button, next);
-      // Deliberately not 0 here, unlike the left side: a right margin at the end of a
-      // visual row is invisible, while removing it could let the next button fit on this
-      // row after all - changing the wrap this measurement was taken from.
-      if (gap === WRAPPED) right = step;
-      else if (gap === null) { cs = computedStyleOf(next); right = Math.max(0, step - pxOf(cs && cs.marginLeft)); }
-      else right = Math.max(0, step - gap);
-    }
+    var left = prev ? Math.max(0, step - marginContribution(prev, 'marginRight')) : 0;
+    var right = next ? Math.max(0, step - marginContribution(next, 'marginLeft')) : step;
     return ['margin-left:' + left + 'px', 'margin-right:' + right + 'px'];
   }
 

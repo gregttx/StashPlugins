@@ -34,17 +34,6 @@ function makeElement(tag) {
     parentNode: null,
     handlers: {},
     get firstChild() { return this.childNodes[0] || null; },
-    // Minimal layout, added when both button plugins started measuring the gap they
-    // already have to a neighbour rather than deriving it from that neighbour's
-    // margins. A node with no `_rect` and no parent offering a `_defaultChildRect`
-    // reports the all-zero rect a real browser gives an undisplayed element, which is
-    // the plugins' "cannot be measured" signal and keeps every other suite on the
-    // margin-reading fallback it was written against.
-    getBoundingClientRect() {
-      return this._rect ||
-        (this.parentNode && this.parentNode._defaultChildRect) ||
-        { left: 0, right: 0, top: 0, width: 0, height: 0 };
-    },
     get textContent() {
       if (this._text != null) return this._text;
       return this.childNodes.map((c) => c.textContent).join('');

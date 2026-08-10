@@ -1227,6 +1227,26 @@ step 9 plus a run against a real Stash, not step 9 alone.
    what the page would do with it. The class that was not there, the property the container did not
    honour, the margin that lost the cascade, and now the margin that was not what made the gap.
 
+   **0.12.7 / 1.15.7 — the measurement was worse in both directions, and its failure is the
+   diagnosis.** Live against 0.12.6: our button landed *touching* Delete on every `.details-edit`
+   page, while Group — the page the measurement was written for — did not change at all. Those two
+   facts together pin it. For the right-hand measurement to have run, our button must have had a
+   width; for the left to have fallen back to the margin path, the element *before* it must have had
+   none. So the thing beside our button on Group is not a button at all, and on the right a gap that
+   existed at insertion time had closed by the time the row settled.
+
+   Both halves are the same lesson from opposite ends: **a measured distance is true of one instant,
+   a margin is true whenever you ask** — do not derive a persistent style from a transient
+   measurement. `getBoundingClientRect` is gone; `marginContribution` resolves through a wrapper to
+   the action facing us (the last `.btn` inside the element before ours, the first inside the one
+   after) and sums the wrapper's own margin with it. React wraps some row actions and the wrapper
+   carries no margin while the button inside it does, which is exactly the "contributes nothing"
+   misreading that doubled Group's gap.
+
+   **Stated plainly: this is a hypothesis about Group, not a confirmed cause.** It is the one
+   structural explanation left that fits every report, and it costs nothing if wrong. If Group is
+   still doubled after this, the next move is a dump of that row's markup — not a seventh derivation.
+
    **What is left on this thread is taste, not a defect.** The edit rows sit at Stash's own 10px on
    every boundary and live feedback calls that "a bit too large" (the reported ideal is nearer 7px,
    `mx-2`). Tightening it means our buttons deliberately not matching the row they are in, which is

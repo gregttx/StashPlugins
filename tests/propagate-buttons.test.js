@@ -354,49 +354,47 @@ function nodeListLikeContainer() {
       !!btn && /margin-left\s*:\s*0px/.test(btn.style || ''), btn && btn.style);
   }
   {
-    // 0.12.6, and the case the margin reading above cannot get right: a row where the
-    // gap our button lands in is *already* the row's step, produced by something other
-    // than the neighbouring element's own `margin-right`. Live, that is Group - both its
-    // detail navbar and its edit form - where 0.12.4's `margin-left: 0` looked correct
-    // and 0.12.5's top-up doubled the gap, on those two pages and nowhere else. The
-    // measured gap answers this without needing to know what produces it: here `Edit`
-    // ends at 50 and our button starts at 57, so the 7px step is already there and we
-    // add nothing.
+    // 0.12.7, and the case the plain margin reading cannot get right: the DOM sibling
+    // beside our button is not the action the user sees. React wraps some row actions
+    // (a file input beside its button, a dropdown beside its toggle), and the wrapper
+    // carries no margin while the button inside it does - so reading the sibling reports
+    // "contributes nothing" and a full step is added on top of a gap that was already
+    // there. Live, that is Group: both its detail navbar and its edit form, where the
+    // space before our first button doubled at 0.12.5 and nowhere else did.
+    //
+    // 0.12.6 tried to settle this by measuring the gap with `getBoundingClientRect`
+    // instead. That was removed: a distance is a fact about one instant, and it went
+    // wrong in both directions live - our button landed touching Delete on every
+    // `.details-edit` page, while Group, the page it existed for, did not change.
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     const container = editButtonsContainer(env);
-    container._defaultChildRect = { left: 57, right: 100, top: 0, width: 43 };
-    // The neighbour itself carries no margin - the gap comes from somewhere this code
-    // cannot see - so the margin reading gets it wrong and only the measurement is
-    // right. Delete supplies the row's step instead, as its donor.
-    const edit = stashAction(h, 'Edit', { marginLeft: '0px', marginRight: '0px' });
-    edit._rect = { left: 0, right: 50, top: 0, width: 50 };
-    container.appendChild(edit);
+    const wrapper = h.makeElement('div');
+    wrapper._computed = { marginLeft: '0px', marginRight: '0px' };
+    wrapper.appendChild(stashAction(h, 'Edit', { marginLeft: '0px', marginRight: '7px' }));
+    container.appendChild(wrapper);
     container.appendChild(stashAction(h, 'Delete', { marginLeft: '0px', marginRight: '7px' }));
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
-    h.check('a gap already at the row\'s step is measured, not topped up',
+    h.check('a wrapped neighbour is read through to the action inside it',
       !!btn && /margin-left\s*:\s*0px/.test(btn.style || ''), btn && btn.style);
   }
   {
-    // The same measurement across a wrapped row: our button starts a visual row, so the
-    // horizontal distance to the element before it is meaningless (it is far to the
-    // right, on the row above) and must not be read as a gap to fill. Live-confirmed
-    // correct as flush-left on Scene, Gallery and Image Edit.
+    // The wrapper's own margin counts too, and is summed with the inset action's rather
+    // than one being picked over the other: both are usually zero, and summing is closer
+    // to what the gap actually is when they are not.
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     const container = editButtonsContainer(env);
-    container._defaultChildRect = { left: 0, right: 43, top: 40, width: 43 };
-    // Marginless again, for the same reason: it is what makes the wrap branch
-    // observable rather than agreeing with the margin fallback by coincidence.
-    const save = stashAction(h, 'Save', { marginLeft: '0px', marginRight: '0px' });
-    save._rect = { left: 500, right: 550, top: 0, width: 50 };
-    container.appendChild(save);
+    const wrapper = h.makeElement('div');
+    wrapper._computed = { marginLeft: '0px', marginRight: '3px' };
+    wrapper.appendChild(stashAction(h, 'Edit', { marginLeft: '0px', marginRight: '3px' }));
+    container.appendChild(wrapper);
     container.appendChild(stashAction(h, 'Delete', { marginLeft: '0px', marginRight: '7px' }));
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
-    h.check('a button starting a wrapped row is left flush, not indented',
-      !!btn && /margin-left\s*:\s*0px/.test(btn.style || ''), btn && btn.style);
+    h.check('a wrapper\'s own margin is counted alongside the action inside it',
+      !!btn && /margin-left\s*:\s*1px/.test(btn.style || ''), btn && btn.style);
   }
   {
     // Stash styles some row actions as links - established at 0.12.1, where Delete

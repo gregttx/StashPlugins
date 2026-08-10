@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.6.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.7.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -32,7 +32,8 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — row and column spacing measured off the row itself, per container kind | **0.12.3** |
 | | — the measured margins now win the cascade; `mx-1` is a fallback, not a default | **0.12.4** |
 | | — gaps filled against the real neighbours, for rows Stash spaces unevenly | **0.12.5** |
-| | — the gap measured off the page rather than derived from a margin | **0.12.6** |
+| | — the gap measured off the page rather than derived (reverted at 0.12.7) | **0.12.6** |
+| | — a wrapped neighbour read through to the action inside it | **0.12.7** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
@@ -106,6 +107,25 @@ where the horizontal distance between two siblings is meaningless. The wrapped c
 flush left edge, which is what `.edit-buttons` was live-confirmed correct with. Note the asymmetry:
 a wrapped **right** margin stays at the full step rather than 0, because removing it could let the
 next button fit on this row after all and invalidate the very measurement it came from.
+
+**0.12.7 removes 0.12.6's measurement, and the reason is a rule worth keeping.** A
+`getBoundingClientRect` gap is true of the instant it is taken, and these rows are still settling
+when a button is inserted into them — so a margin derived from one is a guess about a layout that no
+longer exists by the time the user sees it. Live, it went wrong in both directions at once: our
+button landed *touching* Delete on every `.details-edit` page (a gap that was there at insertion and
+had closed by the time the row settled) while Group, the page the measurement existed for, did not
+change at all. That second half is what pins the diagnosis: for the right-hand measurement to run,
+our button must have had a width; for the left to have fallen back to the margin path, the element
+*before* it must have had none. **The DOM sibling beside our button is not the action the user sees.**
+
+`marginContribution` resolves through that sibling to the action facing us — the last `.btn` inside
+the element before ours, the first inside the element after — and sums the wrapper's own margin with
+it. React wraps some row actions (a file input beside its button, a dropdown beside its toggle), and
+a wrapper carries no margin while the button inside it does, so reading the sibling reported
+"contributes nothing" for a neighbour plainly contributing a gap. No layout is consulted, so the
+answer is the same whenever it is asked. **This is a hypothesis about Group, not a confirmed cause**
+— it is the one remaining structural explanation consistent with every report, and if Group is still
+doubled after this, the next step is a dump of that row rather than a seventh derivation.
 
 **What is left is taste, not a defect.** The edit rows now sit at Stash's own 10px on every boundary,
 which live feedback calls "a bit too large" — but tightening it means our buttons no longer match the

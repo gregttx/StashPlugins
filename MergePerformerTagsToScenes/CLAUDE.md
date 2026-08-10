@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.6.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.7.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
@@ -133,6 +133,15 @@ in two copies and letting them drift is how the dialog CSS drifted for four mont
 separates three cases: a measurable gap, no layout at all (fall back to the margin reading — the test
 harnesses, and an undisplayed container), and two siblings on different visual rows, where the
 horizontal distance means nothing and the left edge should stay flush.
+
+**1.15.7 takes that measurement back out.** It put this plugin's button flush against Delete on the
+performer navbar: a `getBoundingClientRect` gap is true of the instant it is taken, and the row is
+still settling when a button is inserted into it, so a margin derived from one is a guess about a
+layout that no longer exists. What survives is the structural half — `marginContribution` resolves
+through a wrapper to the action facing us (the last `.btn` inside the element before ours, the first
+inside the element after) and sums the wrapper's own margin with it, since React wraps some row
+actions and a wrapper carries no margin while the button inside it does. No layout is consulted, so
+the answer is the same whenever it is asked.
 
 **The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
 argued about *which* anchor to prefer while the anchor search was failing on the row being tested.

@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.6';
+  var PLUGIN_VERSION = '0.12.7';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3448,21 +3448,43 @@
     return out;
   }
 
-  // The distance between two siblings' edges as the page has actually laid them out -
-  // the ground truth no reading of anyone's margins can be wrong about. Returns `null`
-  // when it cannot be measured (a fake DOM with no layout, a container that is not
-  // displayed) and `WRAPPED` when the two are on different visual rows, where the
-  // horizontal distance between them means nothing.
-  var WRAPPED = 'wrapped';
+  // The element whose margin actually borders ours. A row's DOM siblings are not all
+  // row actions: React wraps some of them (a file input beside its button, a dropdown
+  // beside its toggle), and a wrapper carries no margin of its own while the action
+  // inside it does. Reading the wrapper therefore reports "contributes nothing" for a
+  // neighbour that plainly contributes a gap - which is what made 0.12.5 double the
+  // space before our first button on Group's two pages and nowhere else.
+  //
+  // `fromEnd` picks which end of a wrapper faces us: the last action inside the element
+  // before ours, the first inside the element after. An element that is itself an action
+  // is returned as-is, and one holding no action at all falls back to itself, so a row
+  // of plain buttons behaves exactly as it did before this existed.
+  function borderingAction(node, fromEnd) {
+    if (!node) return null;
+    if (hasClass(node, 'btn')) return node;
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[fromEnd ? kids.length - 1 - i : i];
+      if (!k || !k.tagName) continue;
+      var found = borderingAction(k, fromEnd);
+      if (found) return found;
+    }
+    return null;
+  }
 
-  function horizontalGap(before, after) {
-    if (!before || !after ||
-        typeof before.getBoundingClientRect !== 'function' ||
-        typeof after.getBoundingClientRect !== 'function') return null;
-    var a = before.getBoundingClientRect(), b = after.getBoundingClientRect();
-    if (!a || !b || !a.width || !b.width) return null;
-    if (Math.abs(a.top - b.top) > 1) return WRAPPED;
-    return b.left - a.right;
+  // What a neighbour contributes to the gap on the side facing us: its own margin, plus
+  // the margin of the action nested inside it when the two differ. A wrapper with a
+  // margin *and* an inset button is rare, but summing is closer to the truth than
+  // picking one, and both are usually zero.
+  function marginContribution(node, prop) {
+    var action = borderingAction(node, prop === 'marginRight');
+    var cs = computedStyleOf(node);
+    var total = pxOf(cs && cs[prop]);
+    if (action && action !== node) {
+      var acs = computedStyleOf(action);
+      total += pxOf(acs && acs[prop]);
+    }
+    return total;
   }
 
   // 0.12.5. The gap between two inline siblings is the first's right margin plus the
@@ -3476,42 +3498,28 @@
   // Performer, and landing after one of the marginless ones left our button touching it
   // too, live-reported at 0.12.4.
   //
-  // 0.12.6 measures that contribution instead of deriving it. Reading the neighbour's
-  // own `margin-right` answers "what does this element contribute" only when the element
-  // beside ours is the button the user sees - and on Group (both its detail navbar and
-  // its edit form) it is not: the gap there was already correct at 0.12.4, so topping it
-  // up doubled it, live-reported as "very large" on exactly those two pages and nowhere
-  // else. Whatever produces that gap - a wrapper element between us, container padding,
-  // a margin on something invisible - `getBoundingClientRect` already accounts for it,
-  // and no amount of reasoning about which element to read the margins off can. So:
-  // take the row's own step from the donor, measure the gap that is already there, and
-  // add only the shortfall.
+  // 0.12.6 tried to *measure* that contribution with `getBoundingClientRect` instead of
+  // deriving it, on the reasoning that a gap is a distance and a margin is only one of
+  // the things that can produce one. 0.12.7 takes it back out, because a distance is
+  // also a fact about one instant: the row it was measured in is not the row the user
+  // ends up looking at. It went wrong in both directions at once, live - our button
+  // landed *touching* Delete on every `.details-edit` page (a gap measured at insertion
+  // time that the row had closed by the time it settled) while Group, the page the
+  // measurement existed for, did not change at all (the element before ours had no
+  // width, so there was nothing to measure and it fell back to the margin anyway).
   //
-  // The margin reading stays as the fallback for when there is no layout to measure -
-  // both test harnesses, and a container that is not currently displayed.
+  // That second half is the actual diagnosis, and it is structural rather than a matter
+  // of timing: **the DOM sibling beside our button is not always the action the user
+  // sees**. `marginContribution` resolves through a wrapper to the action inside it, so
+  // the margin read is the one that borders us. No layout is consulted; the answer is
+  // the same whenever it is asked.
   function fillNeighbourGaps(container, button, m) {
     var step = Math.max(pxOf(m.left), pxOf(m.right));
     var n = elementNeighbours(container, button);
     // No previous element: our button starts the row, and a left margin would only push
     // it off the edge Stash's own first button sits on.
-    var left = 0, right = step, gap, cs;
-    if (n.prev) {
-      gap = horizontalGap(n.prev, button);
-      // A wrapped row: our button starts a visual row and follows nothing, which is the
-      // flush-left placement `.edit-buttons` was live-confirmed correct with.
-      if (gap === WRAPPED) left = 0;
-      else if (gap === null) { cs = computedStyleOf(n.prev); left = Math.max(0, step - pxOf(cs && cs.marginRight)); }
-      else left = Math.max(0, step - gap);
-    }
-    if (n.next) {
-      gap = horizontalGap(button, n.next);
-      // Deliberately not 0 here, unlike the left side: a right margin at the end of a
-      // visual row is invisible, while removing it could let the next button fit on this
-      // row after all - changing the wrap this measurement was taken from.
-      if (gap === WRAPPED) right = step;
-      else if (gap === null) { cs = computedStyleOf(n.next); right = Math.max(0, step - pxOf(cs && cs.marginLeft)); }
-      else right = Math.max(0, step - gap);
-    }
+    var left = n.prev ? Math.max(0, step - marginContribution(n.prev, 'marginRight')) : 0;
+    var right = n.next ? Math.max(0, step - marginContribution(n.next, 'marginLeft')) : step;
     return ['margin-left:' + left + 'px', 'margin-right:' + right + 'px'];
   }
 

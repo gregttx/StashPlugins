@@ -286,18 +286,21 @@ than match it) gets nothing; a row with a donor gets the donor's margins; a row 
 class. A donor is any element carrying `btn` without a `_coopOwner` — not just `<button>`, since
 Stash styles some row actions as links, the same fact `findActionByLabel` already had to absorb.
 
-**Measure the gap, don't derive it from a margin.** The rule above still had to decide what each
-side of the button needs, and reading the *neighbour's* `margin-right` answers "what is that element
-set to", not "how far apart are these two". Those differ whenever the gap comes from something else —
-a wrapper element between them, container padding, a margin on something invisible — which is exactly
-what Group's two pages turned out to do: topping up a gap that was already correct doubled it there
-and nowhere else. `getBoundingClientRect` answers the real question and costs one reflow on a handful
-of buttons. Three cases to separate: a measurable gap (add the shortfall), no layout at all (fall
-back to reading the margin — both test harnesses, and any container not currently displayed), and two
-siblings on **different visual rows**, where the horizontal distance is meaningless and the answer is
-a flush left edge. Don't mirror that last case on the right: a right margin at a row's end is
-invisible, while dropping it could let the next button fit on the row after all and invalidate the
-measurement it came from.
+**A measured gap is true of one instant; a margin is true whenever you ask.** This was tried the
+other way round first, and it is the one lesson here that reverses an earlier one. Reading the
+*neighbour's* `margin-right` answers "what is that element set to", not "how far apart are these
+two" — so where a gap comes from something else, topping it up double-counts, which is what happened
+on Group. `getBoundingClientRect` answers the real question, and it was wrong anyway: these rows are
+still settling when a button is inserted into them, so the margin derived from one measurement
+described a layout that no longer existed by the time anyone looked. Live, buttons ended up flush
+against Delete on every `.details-edit` page. **Do not derive a persistent style from a transient
+measurement.**
+
+**The failure told us what the real problem was, though: the DOM sibling beside a button is not the
+action the user sees.** React wraps some row actions — a file input beside its button, a dropdown
+beside its toggle — and the wrapper carries no margin while the button inside it does. Resolve
+through it: the last `.btn` inside the element before yours, the first inside the element after,
+summed with the wrapper's own margin. Structural, no layout consulted, same answer every time.
 
 **Test the donor scan with a positive length check, not `!== '0px'`.** A style engine with no
 stylesheet loaded — jsdom, in the `placement` suite — reports `''` rather than `0px` for an unset

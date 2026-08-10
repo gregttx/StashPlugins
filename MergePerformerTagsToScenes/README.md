@@ -357,8 +357,10 @@ performer navbar unevenly — some of its own buttons touch each other there —
 exactly is not the same as looking right next to it. The button now fills in whatever gap its actual
 neighbours leave, which changes nothing on the scene Edit tab and un-sticks the detail page.
 
-**1.15.6 measures that gap instead of working it out.** Reading what the neighbouring button is set
-to only answers the question where that button is the one you can see beside ours; where a gap comes
-from something else, it double-counts — which is what `PropagateTagsAndPerformers` hit on Group.
-This plugin's own pages were unaffected, and the shared rule is kept identical in both.
+**1.15.6 measured that gap instead of working it out, and 1.15.7 takes the measurement back out.**
+It left this plugin's button flush against Delete on the performer detail page: a measurement is only
+true of the instant it is taken, and that row is still settling when a button is added to it. What
+1.15.7 keeps is the useful half — the margin read is now the *visible* button's, not that of whatever
+element happens to sit beside ours in the page's structure, since Stash wraps some of its buttons in
+an extra element that carries no spacing of its own.
 

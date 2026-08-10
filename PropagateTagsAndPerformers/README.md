@@ -1,6 +1,6 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.12.6, every step but the last has landed
+> ## 🚧 Under construction — 0.12.7, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
@@ -78,10 +78,16 @@
 > whatever gap its actual neighbours leave, which changes nothing on the edit pages and un-sticks the
 > detail pages.
 >
-> 0.12.6 fixes the two pages 0.12.5 made worse — Group's detail view and its edit form, where the gap
-> before the first button doubled. The space a button lands in is now measured directly rather than
-> worked out from what its neighbour is set to, so a gap that is already right is left alone no matter
-> what produces it.
+> 0.12.6 tried to fix the two pages 0.12.5 made worse — Group's detail view and its edit form, where
+> the gap before the first button doubled — by measuring the space on screen rather than working it
+> out. **0.12.7 removes that measurement**, because it made things worse again: buttons ended up
+> touching Delete on every detail page, and Group did not change. A measurement is only true of the
+> instant it is taken, and these rows are still settling when a button is added to them.
+>
+> What 0.12.7 does instead is read the margin of the button you can actually see, rather than of
+> whatever element happens to sit beside ours in the page's structure — Stash wraps some of its
+> buttons in an extra element, and that wrapper has no spacing of its own to read. This is the
+> remaining candidate for Group's doubled gap.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -111,7 +117,8 @@
 > | Button spacing measured off the row itself, so every gap in it matches | **done** (0.12.3) |
 > | The measured spacing wins the cascade — the utility class it lost to is now a fallback | **done** (0.12.4) |
 > | Gaps filled against the actual neighbours, for rows Stash spaces unevenly | **done** (0.12.5) |
-> | The gap measured off the page rather than derived, fixing Group's doubled one | **done** (0.12.6) |
+> | The gap measured off the page rather than derived | **reverted** (0.12.6, out at 0.12.7) |
+> | A wrapped neighbour read through to the button inside it | **done** (0.12.7) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -368,7 +375,7 @@ Then **Settings → Plugins → Reload plugins**, and reload the page in your br
 
 If the plugin appears in the settings list but nothing else happens, the browser is probably still
 running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.12.6 loaded`); if that number is behind the one in the
+(`[ptp2re] PropagateTagsAndPerformers.js 0.12.7 loaded`); if that number is behind the one in the
 settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
 are reloaded, so it proves nothing about the script.
 

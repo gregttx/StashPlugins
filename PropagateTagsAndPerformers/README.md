@@ -1,6 +1,6 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.12.9, every step but the last has landed
+> ## 🚧 Under construction — 0.12.10, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
@@ -284,6 +284,52 @@ since 0.9.1, landing before Delete rather than after it.
 target-side buttons went through three rounds of live fixes (0.8.1 – 0.8.3) before all four of
 their pages were confirmed; the source-side buttons are new at 0.9.0 and have not had that
 round yet. If one is missing on a page it should be on, that is most likely it.
+
+### Every button, by page
+
+All 24 of this plugin's buttons, plus the 2 from `MergePerformerTagsToScenes` that share these
+rows. Every one of them additionally needs **Show Manual Buttons** on (MPTTS's own setting is
+**Show Manual Merge Buttons**), and every one is hidden when the entity it would read from is
+empty — see the existence gating above.
+
+Within a row the order is fixed: `Save · …this plugin's buttons… · MPTTS's button · Delete`.
+Group's Edit tab has no Delete, so everything there appends after Save.
+
+| Page | View | Button | Plugin | Path / setting |
+|---|---|---|---|---|
+| `/scenes/<id>` | Edit tab | Copy all Perfs from all Galleries | this | `b5` |
+| `/scenes/<id>` | Edit tab | Copy all Tags from all Markers | this | `b3` |
+| `/scenes/<id>` | Edit tab | Copy all Tags from all Performers | this | `b1` — **hidden when MPTTS shows its own** |
+| `/scenes/<id>` | Edit tab | Copy Tags from Studio | this | `b2` |
+| `/scenes/<id>` | Edit tab | Copy all Tags from all Groups | this | `b4` |
+| `/scenes/<id>` | Edit tab | Copy all Tags from all Performers | MPTTS | its only scene button |
+| `/scenes/<id>` | Detail | Copy *all\|common* Tags to all Groups | this | `e1` |
+| `/galleries/<id>` | Edit tab | Copy all Perfs from all Images | this | `c2` |
+| `/galleries/<id>` | Edit tab | Copy all Tags from all Images | this | `c1` |
+| `/galleries/<id>` | Detail | Copy Perfs to all Scenes | this | `b5` |
+| `/galleries/<id>` | Detail | Copy Tags to all Images | this | `d1` |
+| `/images/<id>` | Edit tab | Copy all Tags from all Galleries | this | `d1` |
+| `/images/<id>` | Detail | Copy Perfs to all Galleries | this | `c2` |
+| `/images/<id>` | Detail | Copy Tags to all Galleries | this | `c1` |
+| `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Scenes | this | `e1` |
+| `/groups/<id>` | Edit tab | Copy Tags from Studio | this | `e3` |
+| `/groups/<id>` | Edit tab | Copy all Tags from all Performers | this | `e4` |
+| `/groups/<id>` | Edit tab | Copy all Tags from all Markers | this | `e5` |
+| `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Sub-groups | this | `e6` |
+| `/groups/<id>` | Detail | Copy Tags to all Scenes | this | `b4` |
+| `/groups/<id>` | Detail | Copy *all\|common* Tags to all Containing Groups | this | `e6` |
+| `/performers/<id>` | Detail | Copy Tags to all Scenes | this | `b1` — **hidden when MPTTS shows its own** |
+| `/performers/<id>` | Detail | Copy Tags to all Groups | this | `e4` |
+| `/performers/<id>` | Detail | Copy Tags to all Scenes | MPTTS | its only performer button |
+| `/studios/<id>` | Detail | Copy Tags to all Scenes | this | `b2` |
+| `/studios/<id>` | Detail | Copy Tags to all Groups | this | `e3` |
+
+*all\|common* is whichever the path's own "common tags only" setting says; the button's label
+changes with it.
+
+Nowhere else. There are no buttons on list pages, on tag pages, or on scene markers — a marker has
+no page of its own, which is why `tags:marker>scene` and `tags:marker>group` are the two paths with
+no source-side button. `NormalizeParentTags` adds no entity-page button at all.
 
 ## Installing
 

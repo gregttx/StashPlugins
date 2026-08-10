@@ -225,9 +225,70 @@ takes you to it — which is the direct way to reach one particular parent of a 
 where the **◆** badge walks them one at a time. **Load counts** adds how many scenes, images,
 galleries and performers carry each tag — a separate query, so it is only made if you ask.
 
-**Copy as DOT** and **Copy as Mermaid** put a diagram of the hierarchy on the clipboard for
-Graphviz or mermaid.live. With a tag selected they export just that tag's ancestors and
-descendants, which is usually the only part that reads well as a picture.
+### Copy as DOT and Copy as Mermaid
+
+The viewer draws a tree, not a graph — deliberately, because a real tag DAG is a hairball past a
+few hundred nodes and drawing one needs a layout engine this plugin has nowhere to put. These two
+buttons are the escape hatch for when you *do* want one drawn: they put a diagram of the hierarchy
+on the clipboard for a tool built for it. Clicking one confirms in the button label for a couple of
+seconds — **Copied whole hierarchy**, **Copied selection**, or **Copy failed** if the browser
+blocked the clipboard.
+
+**Selecting a tag scopes the export, and nothing else does.**
+
+| State | What you get |
+| --- | --- |
+| Nothing selected | Every tag in your library, and every parent → child edge |
+| A tag selected | That tag, **all its ancestors** and **all its descendants** |
+
+**Filter by name** narrows the *tree*, not the export. **Find tag and jump to it** does scope it,
+because jumping selects the tag it lands on. And there is **no way to deselect** — once you have
+clicked any row, the viewer stays scoped to it for as long as it is open, so getting the whole
+hierarchy back means closing the task and re-opening it without touching the tree.
+
+An edge is only exported when **both** its ends are in the exported set, so a selection is cut
+cleanly rather than left with arrows pointing at tags that are not there.
+
+**Mermaid** pastes into [mermaid.live](https://mermaid.live), or straight into a GitHub comment or
+a README inside a ` ```mermaid ` fence:
+
+```
+graph LR
+  t12["Blonde (12)"]
+  t45["Hair Colour (45)"]
+  t47["Platinum (47)"]
+  t45 --> t12
+  t12 --> t47
+```
+
+Node ids are `t` followed by the Stash tag id — the letter is there because Mermaid will not accept
+a bare number as an id — and the **label carries the id**, so a box in the picture leads back to
+`/tags/45`. Arrows run parent → child. `graph LR` lays it out left to right; change `LR` to `TD`
+for top-down if your tree is wider than it is deep.
+
+**DOT** pastes into [GraphvizOnline](https://dreampuf.github.io/GraphvizOnline), or save it as
+`tags.dot` and run `dot -Tsvg tags.dot -o tags.svg`:
+
+```
+digraph tags {
+  rankdir=LR;
+  node [shape=box];
+  "12" [label="Blonde"];
+  "45" [label="Hair Colour"];
+  "47" [label="Platinum"];
+  "45" -> "12";
+  "12" -> "47";
+}
+```
+
+Node ids are the raw Stash id, quoted. **The DOT label is the name only** — no id, unlike Mermaid.
+`rankdir=LR` is the same left-to-right choice; drop the line for Graphviz's default top-down.
+
+Use **Mermaid** for anything going into a document or an issue, and for a quick look — it renders
+in place with no toolchain, and its labels carry the ids. Use **Graphviz** once the graph gets big:
+its layout engine handles a few hundred nodes far better, and it renders to an SVG or PDF you can
+zoom into. A whole-library export is usually a Graphviz job, but **exporting a selection instead**
+is the better answer to most questions.
 
 ## Entity types
 

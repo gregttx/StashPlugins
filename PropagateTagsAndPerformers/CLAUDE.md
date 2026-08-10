@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.9.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.10.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -36,6 +36,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — a wrapped neighbour read through to the action inside it | **0.12.7** |
 | | — an *actionless* neighbour walked past entirely, to the button behind it | **0.12.8** |
 | | — the apply/undo batch driver written once; `findByClass` → `querySelector` | **0.12.9** |
+| | — README gains the per-page table of all 26 buttons, MPTTS's two included | **0.12.10** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with

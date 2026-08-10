@@ -421,6 +421,13 @@ function check(name, cond, extra) {
   check('and carries no utility spacing class, which would outrank them (!important)',
     !!spaced && !/\bmx-\d\b/.test(spaced.className), spaced && spaced.className);
 
+  // `.edit-buttons` is `display: block`, so the wrapped-row gap has to arrive as the
+  // bottom margin checked above and `row-gap` must be left off - it is a flex/grid
+  // property and would be inert anyway, but setting it would misrepresent what spaced
+  // the row.
+  check('and no row-gap on a block container, where it would be inert',
+    !!spaced && !spaced.parentNode.style.rowGap, spaced && spaced.parentNode.style.rowGap);
+
   root().innerHTML = SCENE_EDIT_VIEW_GAPPED;
   await sleep(1500);
   const gapped = sbtn();
@@ -429,6 +436,13 @@ function check(name, cond, extra) {
     gapped && gapped.getAttribute('style'));
   check('and no fallback class either - the gap already spaces our button',
     !!gapped && !/\bmx-\d\b/.test(gapped.className), gapped && gapped.className);
+  // The other half of `ensureRowSpacing`: a flex container wraps into flex lines, which
+  // `row-gap` does space. Until 1.15.9 this plugin set only the block-row margin, so a
+  // flex row of its buttons wrapped flush while `PropagateTagsAndPerformers`, running
+  // identical-looking code, spaced correctly. Fails against 1.15.8.
+  check('a flex container is given row-gap, which it does honour',
+    !!gapped && !!gapped.parentNode.style.rowGap,
+    gapped && gapped.parentNode.style.rowGap);
 
   root().innerHTML = SCENE_EDIT_VIEW_NO_MARGINS;
   await sleep(1500);

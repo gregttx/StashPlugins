@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.8';
+  var PLUGIN_VERSION = '0.12.9';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1917,6 +1917,46 @@
       });
   };
 
+  // Apply and Undo drive their batches identically, and the reasoning is the same for
+  // both - which is why it is written once here rather than twice.
+  //
+  // The lease is renewed per batch rather than taken once for the whole run, because a
+  // library-wide pass can outlast any sane fixed expiry, and it is released in every
+  // outcome - success, failure, Stop - so a reactive plugin is never left standing
+  // down. The expiry is the backstop for the one outcome neither can catch: the tab
+  // going away mid-run.
+  //
+  // guarded() is the other half of that, pointed inwards: every batch here is a
+  // bulk*Update, which is exactly what this plugin's own auto mode watches for, so
+  // without it a run with an auto mode enabled would re-plan each batch it had just
+  // written - and an Undo would have its reversal put straight back. The lease cannot
+  // do that job: it is advisory, and we honour our own leases no more than anyone
+  // else's.
+  Run.prototype.runBatches = function (batches, leaseLabel, step, verb, finish) {
+    var self = this;
+    var lease = acquireLease(leaseLabel);
+    var i = 0;
+
+    function nextBatch() {
+      if (self.stopped || i >= batches.length) return Promise.resolve();
+      lease.renew();
+      return step(batches[i++]).then(function () {
+        self.renderProgress();
+        return nextBatch();
+      });
+    }
+
+    guarded(nextBatch).then(function () {
+      lease.release();
+      finish.call(self);
+    }, function (e) {
+      lease.release();
+      self.log('ERROR', verb + ' aborted: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      finish.call(self);
+    });
+  };
+
   Run.prototype.proceed = function () {
     // `setState` already disables Proceed on an empty plan and on a stale script;
     // this is the second half of that, because a keyboard activation or a stale
@@ -1931,38 +1971,9 @@
     this.log('INFO', 'Applying ' + this.plan.length + ' entity change(s) - ' +
       new Date().toISOString());
 
-    var batches = buildBatches(this.plan);
-    var lease = acquireLease(this.taskName);
-    var i = 0;
-
-    function nextBatch() {
-      if (self.stopped || i >= batches.length) return Promise.resolve();
-      lease.renew();
-      return self.applyBatch(batches[i++]).then(function () {
-        self.renderProgress();
-        return nextBatch();
-      });
-    }
-
-    // The lease is released in every outcome - success, failure, or Stop - so a
-    // reactive plugin is never left standing down. It is renewed per batch rather
-    // than taken once for the whole run, because a library-wide pass can outlast any
-    // sane fixed expiry.
-    //
-    // guarded() is the other half of that, pointed inwards: every batch here is a
-    // bulk*Update, which is exactly what this plugin's own auto mode will watch for,
-    // so without it a run with an auto mode enabled would re-plan each batch it had
-    // just written. The lease cannot do that job - it is advisory, and we honour our
-    // own leases no more than anyone else's.
-    guarded(nextBatch).then(function () {
-      lease.release();
-      self.finishApply();
-    }, function (e) {
-      lease.release();
-      self.log('ERROR', 'Apply aborted: ' + (e && e.message ? e.message : e));
-      self.errors++;
-      self.finishApply();
-    });
+    this.runBatches(buildBatches(this.plan), this.taskName,
+      function (b) { return self.applyBatch(b); },
+      'Apply', Run.prototype.finishApply);
   };
 
   Run.prototype.finishApply = function () {
@@ -2048,33 +2059,14 @@
 
     // Newest first, because that is the order that composes: a rescan-and-apply cycle
     // can write to one entity twice, and taking the second write back before the
-    // first is the only sequence that lands where the run started.
-    var batches = this.undoable.slice().reverse();
-    // An undo is a bulk write like any other, so it announces itself the same way.
-    var lease = acquireLease(this.taskName + ' (undo)');
-    var i = 0;
-
-    function nextBatch() {
-      if (self.stopped || i >= batches.length) return Promise.resolve();
-      lease.renew();
-      return self.undoBatch(batches[i++]).then(function () {
-        self.renderProgress();
-        return nextBatch();
-      });
-    }
-
-    // Guarded for the same reason the apply is, and more sharply: an undo writes the
-    // inverse delta, so an auto mode reacting to it would put back exactly what the
-    // user just asked to have taken away.
-    guarded(nextBatch).then(function () {
-      lease.release();
-      self.finishUndo();
-    }, function (e) {
-      lease.release();
-      self.log('ERROR', 'Undo aborted: ' + (e && e.message ? e.message : e));
-      self.errors++;
-      self.finishUndo();
-    });
+    // first is the only sequence that lands where the run started. An undo is a bulk
+    // write like any other, so it announces itself the same way - see runBatches, and
+    // note that guarded() matters more sharply here: an undo writes the inverse delta,
+    // so an auto mode reacting to it would put back exactly what the user just asked
+    // to have taken away.
+    this.runBatches(this.undoable.slice().reverse(), this.taskName + ' (undo)',
+      function (b) { return self.undoBatch(b); },
+      'Undo', Run.prototype.finishUndo);
   };
 
   Run.prototype.finishUndo = function () {
@@ -2744,18 +2736,14 @@
     return t === PLUGIN_NAME;
   }
 
-  // Only the shape of the DOM API that the fake DOM in the tests also implements -
-  // no querySelector by class, no getElementsByClassName - so the suites drive the
-  // same code path a browser does.
-  function findByClass(root, name, depth) {
-    if (!root || depth > 6) return null;
-    var kids = root.childNodes || [];
-    for (var i = 0; i < kids.length; i++) {
-      if (hasClass(kids[i], name)) return kids[i];
-      var found = findByClass(kids[i], name, (depth || 0) + 1);
-      if (found) return found;
-    }
-    return null;
+  // The first descendant carrying a class, in document order. This was a hand-rolled
+  // depth-capped walk until the test harness grew a class selector; the walk existed
+  // only because the fake DOM could not answer `.foo`, not because a browser cannot.
+  // `querySelector` is the same search with the same ordering, and the depth cap it
+  // drops was arbitrary rather than load-bearing.
+  function byClass(root, name) {
+    if (!root || typeof root.querySelector !== 'function') return null;
+    try { return root.querySelector('.' + name) || null; } catch (e) { return null; }
   }
 
   // Under the description, which is inside the group header and therefore outside
@@ -2763,9 +2751,9 @@
   // are for a Stash that renders no sub-heading (an empty description) or no header
   // row at all.
   function readmeLinkSlot(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub.nextSibling };
-    var header = findByClass(group, 'setting', 0);
+    var header = byClass(group, 'setting');
     var box = header && header.childNodes && header.childNodes[0];
     if (box) return { parent: box, before: null };
     return { parent: group, before: null };
@@ -2781,7 +2769,7 @@
   // when it has to. It is idempotent: once the children are ours, there is no text
   // node left to split.
   function splitDescription(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
     if (kids.length && hasClass(kids[0], 'ptp2re-p')) return;   // already ours
@@ -2835,7 +2823,7 @@
     if (!node || node._ptpTipWired) return;
     node._ptpTipWired = true;
     var toggle = function (on) {
-      var sub = findByClass(row, 'sub-heading', 0);
+      var sub = byClass(row, 'sub-heading');
       if (sub) setTipOpen(sub, on);
     };
     node.addEventListener('mouseenter', function () { toggle(true); });
@@ -2847,7 +2835,7 @@
   function tipSetting(key) {
     var row = settingRow(key);
     if (!row) return;
-    var sub = findByClass(row, 'sub-heading', 0);
+    var sub = byClass(row, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
     if (kids.length && hasClass(kids[0], 'ptp2re-sum')) return;   // already ours
@@ -2910,7 +2898,7 @@
   }
 
   function collapseDescription(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
     var paras = 0;

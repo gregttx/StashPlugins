@@ -2,70 +2,51 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.9.2**
-(last checked 2026-08-08). All eight decisions are settled (§4) and every open question is closed
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.12.9**
+(last checked 2026-08-10). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
-plugin cooperates with both siblings (step 7), and manual buttons with staging now sit on and work
+plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
 correctly on **all four target pages, confirmed live** (step 8) — built best-effort, without a live
 Stash to check the DOM against, per the user's explicit go-ahead, and then corrected against one as
 the user tested it. Step 9 (a repo `CLAUDE.md` TODO/IDEAS section) turned out to have nothing left
-to append — see §7. 0.9.0 answered the four "Button Improvement" TODOs the same round of live
-testing raised, building three of them (button size, the naming convention plus new source-side
-buttons, and a narrower existence-gating cut of the fourth) and deferring the rest by explicit
-decision — see step 8's own entry for the detail and `CLAUDE.md` §5c for the code. 0.9.1 fixed two
-more live-tested problems with those same buttons (landing after Save/Delete instead of before, and
-a wrapped second row with no gap above it) and recorded two further TODOs the user split out for
-later rather than asking to be built now — a theme check, and a missing Scene-onto-Studio path. 0.9.2
-fixed a fifth, live-tested against the 0.9.1 build itself: the vertical margin 0.9.1 added for
-wrapped-row spacing grew Stash's own Save/Delete/Submit-to-stash-box buttons taller, and on some
-pages visibly jittered as it did — see step 8's entry below for the flex mechanics and the `row-gap`
-fix. The same round confirmed the Scene Edit placement fix works as designed, surfaced that Gallery
-Details apparently renders no buttons of its own to anchor a source button on (left unfixed pending a
-live look at that page — see step 8), and asked whether `MergePerformerTagsToScenes`' performer
-button gates on the performer having tags: it does (`hasTags && hasScenes`), a stricter check this
-plugin deliberately does not match — see `CLAUDE.md` §5c's Improvement-4 boundary.
+to append — see §7.
 
-**Four real-Stash findings on step 8 itself, no two the same kind, before the 0.9.0 round below.**
+0.9.0 answered the four "Button Improvement" TODOs the same round of live testing raised, building
+three of them (button size, the naming convention plus new source-side buttons, and a narrower
+existence-gating cut of the fourth) and deferring the rest by explicit decision — see step 8's own
+entry and `CLAUDE.md` §5c. It also recorded two TODOs the user split out for later rather than
+asking to be built now: a theme check, and a missing Scene-onto-Studio path.
 
-- **0.8.1: no buttons appeared anywhere, on any page.** Not the placement gap the caveat was
-  written for — `manualButtonsTick` called `.slice()` on `container.childNodes`, which throws in a
-  real browser (`NodeList`, not `Array`) and never got the chance to reach the placement logic at
-  all. The test suite could not have caught it: the shared harness's own `childNodes` is a real
-  array, by design, since other suites depend on `.filter()`/`.indexOf()` against it. Fixed, and
-  pinned by a container built specifically to reproduce a `NodeList`'s missing `Array.prototype`
-  methods.
-- **0.8.2: with 0.8.1 fixed, Group still showed nothing.** This *is* the placement gap, arriving
-  exactly as expected — Group's edit form uses `.details-edit`, not `.edit-buttons`, a container
-  `MergePerformerTagsToScenes`' own performer button already reads (for the swap's other state).
-- **0.8.3, from screenshots of all four pages side by side: a height inconsistency.** `.edit-buttons`
-  defaults to flex `align-items: stretch`, so a `btn-sm` button sharing a row with a taller sibling —
-  Stash's own Save/Delete, or MPTTS's button, which carries no `btn-sm` — stretches to match it, while
-  one that wraps to its own row does not. `align-self: flex-start` on every button opts out of the
-  inheritance regardless of neighbours.
-- **0.8.3, same screenshots: a real duplicate.** Scene showed this plugin's own "Add Perf Tags"
-  sitting beside `MergePerformerTagsToScenes`' identically-labelled button — the one path they share.
-  `declares` (step 7) already knew the two could collide here; nothing had asked it at button-render
-  time before. Fixed by combining `declares` (capability) with a DOM label match (fact) — see step
-  8's own entry for why both are required and neither alone is enough.
+**0.9.1 through 0.12.8 are one subject — where a manual button lands in Stash's own button row, and
+how it is spaced — settled over eleven releases against live screenshots rather than tests.** The
+per-release account has been retired from this file and from the plugin's `CLAUDE.md`; the step
+table in `CLAUDE.md` records which release did what, and the rules that came out of it are in the
+repo-root `CLAUDE.md` ("Placing a manual button near Stash's own actions" and "Cross-plugin
+cooperation: deterministic button ordering"). Two of those rules cost the most and are worth
+carrying forward into any future plugin here: **a class confirmed on one page is evidence about that
+page** (four releases argued about which anchor to prefer while the anchor search was silently
+failing on the very row being tested), and **a measured gap is true of one instant while a margin is
+true whenever you ask** (0.12.6 derived spacing from `getBoundingClientRect` in a row that had not
+finished settling, and was reverted).
 
-All four target pages are now confirmed live: Scene, Gallery and Image via `.edit-buttons`, Group via
-the `.details-edit` fallback. What is left unverified is what a screenshot cannot show: the actual
-`PerformerSelect` item shape staging relies on, and open product questions raised during this same
-round of live testing (source-side buttons via a selection menu; whether a button should exist at
-all when its path has nothing to add) — see the live-testing TODOs below, not yet designed.
+0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
+once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
+of this file, the plugin `CLAUDE.md`s and the READMEs. It also fixed a real divergence it exposed —
+`MergePerformerTagsToScenes` had never set `row-gap` on a flex container, so a wrapped row of its
+buttons sat flush while this plugin, running what looked like the same code, spaced correctly.
 
 Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.9.2, in all three places |
-| `PropagateTagsAndPerformers.js` | ~3,840 lines |
-| Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged; 0.9.0/0.9.1/0.9.2 changed labels, behaviour and placement, not the settings table |
+| Version | 0.12.9, in all three places |
+| `PropagateTagsAndPerformers.js` | ~4,150 lines |
+| Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 67 = **391** |
-| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**, plus 0.9.0's 16, 0.9.1's 9 and 0.9.2's 2 new button checks confirmed the coarser way (against the pre-fix source, not one hand-built mutant each) |
-| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.12.1 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup), `NormalizeParentTags` 1.7.5 → 1.7.6 |
-| Landed on `main` | through 0.8.3 (`399082d`); 0.9.0, 0.9.1 and 0.9.2 are uncommitted |
+| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 101 = **425** |
+| Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
+| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.15.9 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass), `NormalizeParentTags` 1.7.5 → 1.7.7 |
+| Landed on `main` | through 0.12.8 (`1ff1eb3`); 0.12.9 is uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's

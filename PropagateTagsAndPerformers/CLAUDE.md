@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.8.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.9.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -35,180 +35,40 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — the gap measured off the page rather than derived (reverted at 0.12.7) | **0.12.6** |
 | | — a wrapped neighbour read through to the action inside it | **0.12.7** |
 | | — an *actionless* neighbour walked past entirely, to the button behind it | **0.12.8** |
+| | — the apply/undo batch driver written once; `findByClass` → `querySelector` | **0.12.9** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
-**The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
-Stash, `.edit-buttons` computes to **`display: block`** — not a flex row — and its own buttons to
-**`margin: 0 10px 0 0`**, a right margin only, at a value no utility class in either plugin can name
-(that Stash's root is 14px, so `mx-1` is 3.5px and `mx-2` is 7px). Two consequences, both of which
-had been shipping wrong:
+**Placement and row spacing are one design in two copies**, shared with
+`MergePerformerTagsToScenes` and written up in full in the repo-root CLAUDE.md ("Placing a manual
+button near Stash's own actions" and "Cross-plugin cooperation: deterministic button ordering"). The
+step table above is the record of how many releases it took; the rules themselves live there, and
+§5b-§5d below map this plugin's own copy of the code. The four that cost the most:
 
-- **`row-gap` is inert there.** It is a flex/grid property, so `ensureRowGap` did nothing on Scene,
-  Gallery and Image Edit, whose wrapped rows sat flush — while Group's `.details-edit`, which *is*
-  flex, spaced correctly from the identical call. Same code, same value, opposite result, decided
-  entirely by the container. The container is now asked which it is: `row-gap` where it is honoured,
-  a bottom margin on our own buttons where it is not. The margin is safe in a block container for
-  exactly the reason it was a regression in a flex one (`PropagateTagsAndPerformers` 0.9.2) — a
-  block container has no flex line whose cross-size a margin box could inflate.
-- **A fixed margin class cannot match a row whose own convention is 10px.** `mx-1` produced 13.5px
-  after Save, 7px between two of ours and 3.5px before Delete. Rather than guess a fourth value,
-  both plugins now copy the computed margins off a button *Stash* put in the row — identified by
-  having no `_coopOwner`, so neither plugin's own buttons can be mistaken for Stash's. Every
-  boundary in the row then matches, and it self-calibrates to a container that has never been
-  measured from here, which is the point: `.details-edit`'s own convention is still unknown.
+- **`.edit-buttons` is `display: block`** (measured live), so `row-gap` is inert on it while the flex
+  `.details-edit` honours it - same call, opposite result, decided entirely by the container. The
+  block case gets a bottom margin on our own buttons instead.
+- **Stash's own buttons there carry `margin: 0 10px 0 0`**, a value no utility class in either plugin
+  can name (at a 14px root, `mx-1` is 3.5px and `mx-2` is 7px). So the row's step is read off a
+  button Stash put there rather than chosen.
+- **Bootstrap's spacing utilities are `!important`**, so a measured margin only reaches the page with
+  the class off the button. One declaration landing and its neighbour not is a specificity problem,
+  not a wrong value.
+- **A margin is true whenever you ask; a `getBoundingClientRect` gap is true of one instant.** These
+  rows are still settling when a button is inserted, and the DOM sibling beside a button is not
+  always the action the user sees - resolve through a wrapper, and walk past an element holding no
+  action at all rather than reading its absent margin as a zero gap.
 
-**0.12.4: the measurement was right and the page never saw it — Bootstrap's spacing utilities are
-`!important`.** `mx-1` on our own button outranked the inline `margin-left`/`margin-right` 0.12.3 set
-from the row, so every horizontal gap stayed exactly what it had been, on every page. What made it
-findable is that the *same* `cssText` assignment worked in the other axis: `margin-bottom`, which no
-utility class here sets, visibly fixed wrapped rows in that same release. **One declaration landing
-and its neighbour not is a specificity problem, not a wrong value.**
+**What is left there is taste, not a defect.** The edit rows sit at Stash's own 10px on every
+boundary, which live feedback calls "a bit too large" - but tightening it means our buttons no longer
+match the row they are in. That is a call for the user, not a bug to fix silently.
 
-So the class is off the button at build time and `applyButtonSpacing` adds it back, only on the
-branch with nothing to measure — the class and the measurement can never both be in play. Three
-cases, in order: a container spacing its own children with `column-gap` (ours inherits it, so a
-margin of ours would be *added* to the row's spacing rather than match it) gets nothing; a row with a
-donor gets the donor's margins; a row with neither gets `mx-1`. A donor is now any element carrying
-`btn` with no `_coopOwner`, not just a `<button>` — Stash styles some row actions as links, the same
-fact `findActionByLabel` already absorbed at 0.12.1, and a navbar whose actions are all links had no
-donor at all under the old scan.
-
-The donor test is a *positive* length check, not `!== '0px'`: a style engine with no stylesheet
-loaded reports `''` for an unset margin, which the inequality read as a margin worth copying and then
-applied as `margin-left:;` — nothing, with the class fallback already skipped. jsdom caught it in the
-`placement` suite; the same hazard exists live on any row whose buttons genuinely carry no margin.
-
-**0.12.5: matching a button exactly is not the same as looking right next to it.** The gap between
-two inline siblings is the first's right margin plus the second's left, and the donor's margins are a
-*right* margin only — so copying them gave every button of ours `margin-left: 0`. Correct on
-`.edit-buttons`, where every one of Stash's buttons carries the right margin, and where it is also
-what keeps a wrapped second row flush with the first (live-confirmed good). Wrong on the Performer
-and Studio detail navbars, which Stash spaces unevenly — its own `Auto tag...` and `Merge` touch each
-other on Performer — so a button of ours landing after one of the marginless ones touched it too.
-
-`fillNeighbourGaps` takes the row's *step* from the donor and adds only what each actual neighbour is
-not already contributing: a no-op on the edit rows, the fix on the navbars. Two deliberate edges — no
-previous element means no left margin (our button starting the row should sit on the same edge
-Stash's own first button does), and inserting a second button of ours next to the first needs no
-recomputation, since the first's right margin is exactly what the second then measures against.
-
-**0.12.6: the neighbour's margin answers the wrong question on Group.** 0.12.5 was live-reported as
-fixing Performer and Studio and *breaking* Group — both its detail navbar and its edit form, where
-the gap before our first button went to roughly double the row's step and nowhere else did. The gap
-there was already correct at 0.12.4 (`margin-left: 0`), which means it is produced by something other
-than the neighbouring element's own `margin-right`: a wrapper element between us, container padding,
-a margin on something invisible. Reading a margin cannot distinguish those; `getBoundingClientRect`
-does not have to. `horizontalGap` returned the distance the page had actually laid out between two
-siblings, and only the shortfall against the row's step was added. It is gone; see below.
-
-**0.12.7 removes 0.12.6's measurement, and the reason is a rule worth keeping.** A
-`getBoundingClientRect` gap is true of the instant it is taken, and these rows are still settling
-when a button is inserted into them — so a margin derived from one is a guess about a layout that no
-longer exists by the time the user sees it. Live, it went wrong in both directions at once: our
-button landed *touching* Delete on every `.details-edit` page (a gap that was there at insertion and
-had closed by the time the row settled) while Group, the page the measurement existed for, did not
-change at all. That second half is what pins the diagnosis: for the right-hand measurement to run,
-our button must have had a width; for the left to have fallen back to the margin path, the element
-*before* it must have had none. **The DOM sibling beside our button is not the action the user sees.**
-
-`borderingAction` resolves through that sibling to the action facing us — the last `.btn` inside the
-element before ours, the first inside the element after — and its margin is summed with the
-wrapper's own. React wraps some row actions (a file input beside its button, a dropdown beside its
-toggle), and a wrapper carries no margin while the button inside it does, so reading the sibling
-reported "contributes nothing" for a neighbour plainly contributing a gap. No layout is consulted,
-so the answer is the same whenever it is asked. Live, this fixed **Group's edit form** and left its
-detail row exactly as it was.
-
-**0.12.8: the same mistake has a second form, and it is the one Group's detail row had.** Resolving
-*through* an element only helps if there is an action inside it. The element before our first button
-on that page holds none — an empty slot React left where a conditional action would go — so its own
-absent margin was still being taken for the whole gap, three releases running, while the real gap
-came from the button *behind* it. **A zero read off something this code cannot identify as an action
-is not evidence of a zero gap; it is evidence that nothing was read.**
-
-`neighbourGap` therefore walks outward until it finds something recognisable, adding the skipped
-elements' own margins on the way and assuming they have no width (width is the one quantity here
-that cannot be had without a layout that has not settled — 0.12.6's whole mistake). It returns three
-distinguishable answers, and `sideMargin` treats them differently:
-
-| Answer | Meaning | Margin applied |
-|---|---|---|
-| `{ gap: n }` | an action found, `n` px of margin already between us | `step - n`, floored at 0 |
-| `{ gap: null }` | elements are there, nothing recognisable among them | **0** — guessing is what doubles a gap |
-| `null` | nothing at all on that side | the row's own end margin (`m.left` / `m.right`) |
-
-That third row is a small behaviour change of its own: a trailing button used to take the full step
-on its right, and now takes whatever Stash's own end button carries, which on the usual
-`margin: 0 10px 0 0` row is the same 10px and on a left-spaced row is correctly nothing.
-
-**The arithmetic pinned this before any DOM was inspected, and that is the transferable part.** Group
-was correct at 0.12.4 with `margin-left: 0` and doubled from 0.12.5 when a step started being added —
-so the gap exists without us, and whatever we measured reported zero. No dump needed to narrow the
-cause to "the thing measured is not the thing making the gap"; only to name the element.
-
-**What is left is taste, not a defect.** The edit rows now sit at Stash's own 10px on every boundary,
-which live feedback calls "a bit too large" — but tightening it means our buttons no longer match the
-row they are in. That is a call for the user, not a bug to fix silently.
-
-**0.9.0 through 0.12.0 are four versions of anchor churn over one unnoticed fact**, and 0.12.1 is
-the fix. Every one of them searched for Delete with `container.querySelector('button.delete')` and
-nothing else, on the strength of a repo CLAUDE.md note claiming Stash applies that class
-"throughout". It does not: the class is real on the detail-view navbar — where the claim was
-observed, and where `findDetailContainer`/`findManualButtonContainer` still depend on it — but
-Scene's edit row renders Delete as `btn btn-danger` with no `.delete` at all. Confirmed live
-2026-08-10 on a row reading `Save · Delete` where that selector returns null. So the class search
-never matched on the page being tested, the Save fallback caught every call, and each successive
-version's argument about *which* anchor to prefer changed nothing visible. **Check the current
-anchor is being found before moving it.**
-
-**Step 8 placement is now confirmed live on all four target pages.** Scene, Gallery and Image use
-`.edit-buttons` (`MergePerformerTagsToScenes`' own scene button already proved it for Scene; Gallery
-and Image confirmed at 0.8.2). Group does not — its edit form lives in `.details-edit`, a container
-Stash swaps between two states (a detail-view navbar carrying a Delete button, and the edit form
-itself carrying Cancel/Save in its place), the same container `MergePerformerTagsToScenes`' own
-performer button already depends on for the *other* state. `findManualButtonContainer` tries
-`.edit-buttons` first and falls back to whichever `.details-edit` does **not** carry a Delete button.
-What is still unverified is everything a screenshot cannot show: the actual `PerformerSelect` item
-shape staging relies on, and whether a button should exist at all when its path has nothing to add
-(see the 0.8.3 note below).
-
-**0.8.1 fixed the first thing a live Stash actually found: no buttons ever appeared, anywhere, on
-any page.** `manualButtonsTick` called `.slice()` directly on `container.childNodes`, which throws
-in a real browser — `childNodes` is a live `NodeList`, not an `Array`, and has no `.slice()`. The
-test suite never caught it because the harness's own fake `childNodes` *is* a real array (other
-suites depend on that: `.filter()`/`.indexOf()` against it, throughout `propagate-base`,
-`merge-task` and `normalize-auto`), so nothing in this repo's testing could have distinguished the
-two shapes without a container built specifically to reproduce a `NodeList`'s absence of
-`Array.prototype` methods — which `tests/propagate-buttons.test.js` now has
-(`nodeListLikeContainer`), pinning this exact error. The placement guess itself was fine; the bug
-was underneath it, in code this plugin's own dialog never needed and so never wrote - every other
-`.childNodes` read in this file uses index access or `.length`, never an `Array.prototype` method
-straight off the live collection.
-
-**0.8.2 added the `.details-edit` fallback** once 0.8.1 let the Group finding through: with the
-crash fixed, Group still showed nothing, because it does not use `.edit-buttons` at all.
-
-**0.8.3, from screenshots of all four pages at once: a height inconsistency and a real duplicate.**
-`.edit-buttons` defaults to flex `align-items: stretch`, so a `btn-sm` button sharing a row with a
-taller sibling — Stash's own Save/Delete, or `MergePerformerTagsToScenes`' button, which carries no
-`btn-sm` — stretches to match it, while one that wraps to its own row does not: the same button
-class rendering two different heights purely by which row it landed on. Every manual button now
-carries `align-self: flex-start` to opt out of that inheritance regardless of its neighbours.
-
-Separately, the screenshots showed Scene's `tags:performer>scene` button doubled — this plugin's own
-"Add Perf Tags" sitting right beside `MergePerformerTagsToScenes`' identically-labelled one.
-`declares` (step 7) already knew the two plugins could collide here; it just had never been asked
-before button-rendering time. `otherPluginDeclaresPath` answers "could another plugin be showing a
-button for this path", and `foreignButtonAlreadyShows` answers the question that actually matters -
-"is one, right now" - by matching the exact visible label rather than any plugin-specific class name,
-so a path only this plugin declares is never affected and the check needs no per-plugin knowledge to
-extend to a future third one. Both have to be true before a path drops out of what this plugin wants
-to show: `declares` alone is a capability, not a fact about what is on screen right now, since the
-other plugin's own manual-button setting could just as easily be off - suppressing on that signal
-alone would leave neither button up for a path the user explicitly asked to see. This is one-directional:
-`MergePerformerTagsToScenes` is not coop-aware of this plugin, so it does not defer in return.
-Deliberate, not a gap to close by symmetry alone - it is the newer plugin's role to yield to a UI
-element that was already there, not the other way round.
+**The `.details-edit` fallback and the 0.8.x live findings are still load-bearing**, and §5b carries
+them: `findManualButtonContainer` tries `.edit-buttons` first and falls back to whichever
+`.details-edit` does *not* carry a Delete button; `childNodes` is a live `NodeList` with no
+`Array.prototype` methods; every manual button carries `align-self: flex-start` to opt out of a flex
+row's `align-items: stretch`; and the two-signal duplicate check (`otherPluginDeclaresPath` +
+`foreignButtonAlreadyShows`) needs both to be true before a path drops out, because `declares` alone
+is a capability rather than a fact about what is on screen.
 
 **Steps 3 and 5 were re-cut during step 3.** The plan had two hops and the "common tags only" modes
 as a step of their own, on the assumption that reaching a group's performers through its scenes
@@ -931,161 +791,52 @@ oversight; §8's discussion flagged it and the user's decision did not ask it to
   to all Scenes" for it — an unrenamed sibling would have shown both, the exact duplicate the whole
   mechanism exists to prevent.
 
-## 5d. Placement, before Save/Delete, and wrapped-row spacing (0.9.1)
+## 5d. Where a manual button lands in the row
 
-Live-tested against 0.9.0's actual DOM, from screenshots of eight pages at once. Two complaints,
-both about where among Stash's own buttons ours land, plus a third about the gap between two rows
-of them.
+The mechanism is shared with `MergePerformerTagsToScenes` and documented in the repo-root CLAUDE.md;
+this section is the map of this plugin's copy, and of the two decisions that are this plugin's alone.
 
-**Both container kinds were using plain `appendChild`, which puts a new button after whatever is
-already there** — Save and Delete on the target side, Delete on the source side. That is a visible
-departure from `MergePerformerTagsToScenes`' own placement: its performer-page button already uses
-`insertBeforeDelete`, so on the one page both plugins put a button (Performer), theirs grouped with
-the other non-destructive actions and ours trailed the red button. `insertBeforeDelete` here is the
-same function, ported rather than shared (the two plugins carry no module between them, as
-elsewhere in this repo): find `button.delete`, walk up to whichever ancestor is the container's own
-direct child (`insertBefore` only accepts one), insert there, and fall back to `appendChild` if no
-Delete is found at all.
+**One anchor, both sides.** `insertBeforeImportantAction` searches `.delete`, then a text match on
+`'Delete'`, then a text match on `'Save'`, walks up to whichever node is the container's own direct
+child (`insertBefore` accepts only one), and appends when it finds none. Anchoring on Delete lands a
+button *between* Save and Delete wherever both exist, which is the position live feedback settled on;
+Group's edit form, the one page confirmed to render no Delete, reaches the Save fallback and so keeps
+Stash's own primary action last. Target- and source-side buttons go through the identical call.
 
-**The target side needed the equivalent for Save, and Stash gives Save no distinguishing class the
-way Delete carries one** — confirmed live by its absence, not assumed. `findButtonByLabel` is a
-plain recursive walk over `childNodes`/`tagName`, matching on the button's own text instead — the
-same technique `foreignButtonAlreadyShows` already relies on for dedup, and deliberately not
-`querySelectorAll`, which the shared test harness's fake DOM nodes do not implement (only
-`querySelector`, added for exactly what the plugins already asked a node for — see
-`tests/npt-harness.js`). `insertBeforeSave` walks up the same way `insertBeforeDelete` does. Insert
-order on a page with two enabled paths falls out for free: each new button is inserted immediately
-before Save, so the second insertion lands *after* the first one and *before* Save, preserving the
-paths' own left-to-right order rather than reversing it.
+**`findActionByLabel` matches `<a>` as well as `<button>` and trims before comparing.** Stash styles
+some row actions as links and pads their text, and being wrong about either costs a silent
+misplacement. It is a plain recursive walk rather than `querySelectorAll`, which the shared test
+harness's fake DOM does not implement.
 
-**Group's Edit tab has no Delete inside the edit form at all** (§5b already established this — the
-`.details-edit` swap only carries Delete in its detail-view state), which is exactly why the
-target-side fix had to anchor on Save rather than reuse `insertBeforeDelete` unchanged: Save is the
-one button every one of the four edit-form pages is confirmed to render.
-
-**The vertical-spacing complaint was the wrap case, not the single-row one.** Neither
-`.edit-buttons` nor `.details-edit` define a row gap of their own, so a page with two enabled paths
-— Scene Edit, Gallery Edit — wrapped its second button onto a new row sitting flush against the one
-above. `my-1` alongside the existing `mx-1` on both button builders supplies that gap unconditionally,
-the same amount whichever row a button lands on, rather than trying to detect a wrap and margin only
-that case.
-
-**One thing flagged during the same round of screenshots turned out not to be a bug.** A studio
-with no tags of its own still showed "Copy Tags to all Scenes," and that is correct: a source
-button's existence gate (`checkSourceButtonExistence`, §5c) asks whether any *target* exists —
-scenes, here — never whether the source carries what would be copied. That is consistent with
-target-side existence gating's own Improvement-4 boundary (a button that would report "No changes"
-on click still shows), just read from the other direction. No code changed for this one; a test
-(`propagate-buttons.test.js`) now names the scenario explicitly so it stays proven rather than
-merely unbroken by accident.
-
-## 5e. `my-1` was itself a regression: wrapped-row spacing via `row-gap` (0.9.2)
-
-Live-tested against 0.9.1's actual DOM: on Performer Details, Stash's own Edit/Submit-to-stash-box/
-Delete buttons grew visibly taller once the manual button was added beside them, and on a page that
-re-rendered its button row often, visibly jittered as they did. Studio Details showed the same
-growth without the jitter.
-
-**The cause is `my-1` itself, the very fix 0.9.1 added for wrapped-row spacing.** `.edit-buttons`
-and `.details-edit` are flex rows with the default `align-items: stretch`, and a flex line's own
-cross-size is the tallest *margin box* sharing that line — not the tallest content box, and not
-scoped to items that actually stretch. Our button opts itself out of stretching to match that size
-via `align-self: flex-start` (0.8.3), but that only stops *our* button from growing; it does nothing
-to shrink the line back down once something on it has a taller margin box. `my-1`'s vertical margin
-did exactly that: on the common case of one enabled path, our one button shares Save/Delete's own
-line, its margin-inflated outer size becomes that line's cross-size, and Save/Delete — still
-default `stretch` — grow to fill it. The "flicker" reading is the same effect made visible: on a
-page whose button row re-renders often enough for other reasons, each re-render's insert briefly
-re-triggers the same stretch recalculation.
-
-**`row-gap` is the fix, because it is a property of the container, not of any item on it.** CSS
-Flexbox defines `row-gap` as space inserted *between* flex lines, computed independently of either
-line's own cross-size — so it cannot feed back into what Save/Delete stretch to match, unlike a
-margin on an item sharing their line. `ensureRowGap` sets `container.style.rowGap = '.25rem'`
-wherever either tick function finds a container it is about to place a button into (or already has
-one), the same amount `my-1` supplied and only reached by the code path that already touches the
-container — never applied to a container we have not touched. `my-1` is gone from both button
-builders entirely; `align-self: flex-start` stays, since consistency across our own wrapped rows was
-never the part that broke.
-
-**One item flagged in the same round did not need a code change.** "Copy Tags from Studio" landing
-before Save on Scene Edit, matching `MergePerformerTagsToScenes`' own placement, is §5d's fix
-working as intended — confirmed, not a bug.
-
-**Gallery Details reportedly renders no buttons of its own at all**, which would mean
-`findDetailContainer()`'s `.details-edit`-with-`button.delete` search never matches there and the
-source button for `tags:gallery>image` cannot appear — a real gap, not a filtering bug, and a
-different situation from "unverified guess" in §5b: this is a first live signal that the guess is
-actually wrong for this one page. Left alone pending a look at what, if anything, Gallery Details
-does render to anchor on instead — a fallback container built from nothing would be its own
-unverified guess, and this repo's rule (§6) is not to ship one of those without a live screenshot to
-confirm it.
-
-## 5f. Deterministic ordering against `MergePerformerTagsToScenes` (0.10.0), the anchor moving
-     from Save to Delete (0.11.0), and Delete-or-Save (0.12.0)
-
-Reported from a live install with both plugins' manual buttons enabled: on a page where both add a
-button to the same row (Scene, Performer), each plugin's `insertBeforeSave`/`insertBeforeDelete`
-independently re-found the anchor's *current* position and inserted immediately before it. With one
-plugin that is exactly right; with two, whichever plugin's async eligibility check happened to
-resolve last ended up closest to the anchor — a race decided by network timing, and it could flip
-between page loads with nothing in either plugin's own code having changed.
-
-The fix is `coop().order` and `insertOrdered`, documented in full in the repo-root CLAUDE.md
-("Cross-plugin cooperation: deterministic button ordering") since it is a protocol between two
-plugins, not something this one owns alone. What is specific to this plugin: it registers priority
-**10**, lower than `MergePerformerTagsToScenes`' 20, so its own buttons land on the far side of that
-plugin's in the shared row rather than racing it for the position next to the anchor. Every button
-`buildManualButton`/`buildManualSourceButton` builds carries `_coopOwner = PLUGIN_ID`, read back by
-whichever plugin's `insertOrdered` scans past it.
-
-**Not the same problem the 0.8.3 dedup solves.** `otherPluginDeclaresPath`/`foreignButtonAlreadyShows`
-answer "is a button for this *exact path* already showing" and suppress one of the two entirely;
-ordering only applies once both plugins have already decided to show a button (necessarily for
-*different* paths, or the dedup check would have suppressed one) and only decides which one sits
-closer to the anchor. The two mechanisms run independently and neither depends on the other.
-
-**0.11.0: further live feedback was that the anchor itself was wrong, not just the ordering between
-two plugins' buttons on it.** "Before Save" (0.9.1's own fix, at the time a real improvement over
-appending after Save/Delete entirely) turned out not to be the position actually wanted — "between
-Save and Delete" was. `findManualButtonContainer`'s target-side buttons had anchored on Save via
-`insertBeforeSave`/`findButtonByLabel`, a text-matching walk built because Save carries no CSS class
-the way Delete does; the source side had always anchored on Delete via `insertBeforeDelete`, which
-needs no text match at all (`button.delete`). Since Delete already sits right after Save on every
-page that has one, anchoring on Delete alone produces "between Save and Delete" for free — so
-0.11.0 retires `insertBeforeSave`/`findButtonByLabel` entirely and routes the target-side buttons
-through the same `insertBeforeDelete` the source side already used. Group's edit-form state, the one
-page confirmed to render no Delete at all (§5b), falls back to `insertOrdered`'s no-anchor branch —
-`container.appendChild`, landing after Save simply because Save is the last thing there.
-
-**0.12.0: that fallback was itself wrong, reported the very next round.** Appending after Save on
-Group put a manual button *after* Stash's own primary action — displacing it from being the last
-thing in the row, which reads as broken regardless of whether "before Save" or "between Save and
-Delete" is the house style. The general rule, stated in full in the repo-root CLAUDE.md ("Placing a
-manual button near Stash's own actions: important vs. casual"): insert before the row's last button
-only when that button is *important* — Delete or Save, the two Stash actions a plugin here has ever
-found itself sharing a row with — and append after it otherwise. `insertBeforeDelete` is renamed
-`insertBeforeImportantAction` and gains back a Save fallback (`findButtonByLabel`, un-retired) for
-exactly the page 0.11.0's version could not handle: Delete tried first, Save only if Delete is
-absent, a plain append if neither is found. This is not a reversion to 0.9.1's `insertBeforeSave` —
-that anchored on Save *unconditionally*, this only reaches Save when Delete is not there.
-
-**0.12.1: "Delete tried first" had never actually succeeded on Scene.** The class search was the
-only way any of 0.9.0–0.12.0 looked for Delete, and Scene's edit row does not carry `.delete` (see
-the note under the step table). So on the page the reports were coming from, every version above
-reached the Save fallback and put buttons before Save — including 0.11.0, which believed it had
-moved them between Save and Delete, and 0.12.0, which believed it had left that alone. The anchor
-search is now three steps: `.delete`, a text match on `'Delete'`, a text match on `'Save'`.
-`findButtonByLabel` becomes `findActionByLabel` and matches `<a>` as well as `<button>`, trimming
-before comparing — the live report established neither the tag nor the padding, and being wrong
-about either costs the same silent misplacement this whole section is about.
-
-The container finders are deliberately **not** changed to match. `findManualButtonContainer` and
+**The container finders are deliberately *not* loosened to match.** `findManualButtonContainer` and
 `findDetailContainer` use `button.delete` as a *discriminator* between a detail navbar and an edit
-form, not as an anchor, and on the navbar the class is confirmed present. Loosening those to a text
-match would change which container is chosen on pages where the navbar's Delete is styled
-differently — a much worse failure than a misplaced button, and one no live report has asked for.
-Worth re-checking on Performer and Group when there is an instance to check against.
+form, not as an anchor, and on the navbar the class is confirmed present. A text match there would
+change which container is chosen — a much worse failure than a misplaced button.
+
+**Row spacing** is `ensureRowSpacing` (a container-level `row-gap` where the container is flex, a
+bottom margin on our own buttons where it is block) plus `applyButtonSpacing` (nothing where the
+container already spaces its children with `column-gap`; the row's own step, filled against the real
+neighbours, where a donor button exists; `mx-1` where neither). The four hard-won facts behind those
+branches are in the header of this file.
+
+**Ordering against the sibling: this plugin registers `coop().order` priority 10**, below
+`MergePerformerTagsToScenes`' 20, so its buttons land on the far side of that plugin's rather than
+racing it for the position next to the anchor. Every button carries `_coopOwner = PLUGIN_ID`.
+
+**Not the same problem as the duplicate check.** `otherPluginDeclaresPath`/`foreignButtonAlreadyShows`
+answer "is a button for this exact path already showing" and suppress one of two entirely; ordering
+applies only once both plugins have decided to show buttons, necessarily for different paths, and
+only decides which sits closer to the anchor. The two run independently.
+
+**Gallery Details reportedly renders no buttons of its own**, so `findDetailContainer()` never
+matches there and the source button for `tags:gallery>image` cannot appear — a real gap, left alone
+pending a look at what that page does render to anchor on. A fallback container built from nothing
+would be its own unverified guess, and §6's rule is not to ship one without a live screenshot.
+
+**A studio with no tags of its own still shows "Copy Tags to all Scenes", and that is correct.** A
+source button's existence gate asks whether any *target* exists, never whether the source carries
+anything to copy — the same Improvement-4 boundary §5c documents, read from the other direction.
+
 
 ## 6. Anchoring in Stash's markup
 
@@ -1149,56 +900,31 @@ of it apply unchanged:
   duplicating a button on an idle tick and replacing a stale one after navigating to a different
   entity; and the route matcher against all four page shapes plus an unrelated route. Since 0.8.1,
   a dedicated `nodeListLikeContainer` reproduces a real `NodeList`'s missing `Array.prototype`
-  methods to pin the `.slice()` bug a live Stash actually found - the shared harness's own container
-  cannot, since its `childNodes` is a genuine array. Since 0.8.2, the `.details-edit` fallback: it is
-  used when `.edit-buttons` is absent, the detail-view instance (carrying Delete) is skipped, the
-  edit-form instance is still chosen when both are present at once, and `.edit-buttons` wins outright
-  when both containers exist - the confirmed case must never lose to the fallback. Since 0.8.3: every
-  button carries `align-self: flex-start`; and the duplicate-button check in all four directions - a
-  foreign button for the same declared path suppresses ours, a declared-but-not-shown path does not,
-  a foreign button for a *different* path leaves an unrelated one alone, and our own already-rendered
-  button is never mistaken for a foreign one on a later, idle tick. Since 0.9.0: existence gating -
-  an absent source hides the button, a present source with nothing new to add still shows it (the
-  Improvement 4 / Improvement 2 distinction §5c documents), two paths on one page gated
-  independently, and a failed probe falling back to showing rather than hiding; the renamed labels,
-  including the two `{mode}`-dependent ones; and the whole source-side half - placement on the
+  methods, since the shared harness's own container cannot - its `childNodes` is a genuine array.
+  The `.details-edit` fallback in all four directions: used when `.edit-buttons` is absent, the
+  detail-view instance (carrying Delete) skipped, the edit-form instance still chosen when both are
+  present, and `.edit-buttons` winning outright when both containers exist. The duplicate-button
+  check in all four directions - a foreign button for the same declared path suppresses ours, a
+  declared-but-not-shown path does not, a foreign button for a different path leaves an unrelated one
+  alone, and our own already-rendered button is never mistaken for a foreign one on a later tick.
+  Existence gating: an absent source hides the button, a present source with nothing new to add still
+  shows it (the Improvement 4 / Improvement 2 distinction §5c documents), two paths on one page gated
+  independently, a failed probe falling back to showing rather than hiding, and the
+  studio-with-no-tags-but-scenes scenario named explicitly (§5d - already correct, not a fix). The
+  labels, including the two `{mode}`-dependent ones. The whole source-side half - placement on the
   performer and studio detail views, existence gating via `resolveSourceTargets`, a click resolving
-  and writing directly with no staging option, the dedup check extended to the source side, and both
-  new route matchers (`currentSourceRouteTarget`, including that a source button and a target button
-  share a route on the four entities that are both). Since 0.9.1: placement - the target-side button
-  lands before Save rather than after it (and a Save nested in a wrapper is still found), two
-  enabled paths land in their own order rather than the second reversing ahead of the first, and the
-  same three checks mirrored for the source-side button against Delete, plus Studio's two source
-  buttons both landing before Delete; `my-1` present on both button builders' class strings; and the
-  studio-with-no-tags-but-scenes scenario named explicitly (§5d - already correct, not a fix). Since
-  0.9.2: `my-1` asserted *absent* from both button builders' class strings instead, and the
-  container carrying `row-gap: .25rem` after either tick function touches it - the two checks that
-  flip a false pass into a true one now that the fix has landed (§5e). Since 0.10.0: `coop().order`
-  registered with the value §5f documents; a higher-priority foreign button (seeded via
-  `_coopOwner`, since `StashPluginCoop` is only ever one plugin's own script away from being real)
-  already in the row is not displaced from Save or Delete, and this plugin's own button lands on
-  the far side of it instead; and the mirror case, a lower-priority foreign button, which must stay
-  put while ours lands adjacent to the anchor - both directions, on both the target and source
-  sides. `tests/npt-harness.js` gained `previousSibling` for this (`nextSibling` already existed,
-  and the scan needs the other direction) - confirmed missing beforehand, since without it every
-  ordering check above passed for the wrong reason regardless of which plugin's priority actually
-  won. Since 0.11.0: the target-side placement checks re-anchored on Delete instead of Save
-  (between Save and Delete, not before Save or after Delete), a Delete nested in a wrapper element
-  (the target side never needed this before, since it never searched for Delete), Group's no-Delete
-  fallback landing after Save at the end of the container, and the two ordering checks' fixtures
-  rebuilt with the foreign button adjacent to Delete rather than adjacent to Save, since that is now
-  where a plugin's own `insertBeforeDelete` would have already placed it. `nodeListLikeContainer`
-  gained a minimal `querySelector('button.delete')` for the same reason - the regression it exists
-  to pin now goes through `insertBeforeDelete` too, which needs it. All fail against a copy with the
-  target-side call site reverted to a Save-anchored walk. Since 0.12.0: the Group-shaped "no Delete
-  in the container" check now asserts the button lands *before* Save and that Save stays the row's
-  last child, reversing what 0.11.0 asserted (landing after Save) - fails against a copy of
-  `insertBeforeImportantAction` with the Save fallback removed, confirming the check exercises the
-  fallback rather than passing on the strength of `insertOrdered`'s unrelated no-anchor branch.
-  Since 0.12.1: the row a live Stash actually renders - Save, then a Delete carrying `btn btn-danger`
-  and *no* `.delete`, with padded label text - with the button landing between the two. Both checks
-  fail against 0.12.0, where it lands before Save instead. The padding and the class-less Delete are
-  the fixture's whole point: a tidier one would pass against the unfixed source.
+  and writing directly with no staging option, the dedup check extended to it, and both route
+  matchers. And placement (§5d): the button landing between Save and Delete rather than before Save
+  or after Delete, a Delete nested in a wrapper still found, the Group-shaped no-Delete container
+  falling back to before Save with Save left last, two enabled paths landing in their own order,
+  `my-1` asserted *absent* from both button builders, the container carrying `row-gap: .25rem` after
+  either tick touches it, `coop().order` registered at 10, and both ordering directions - a
+  higher-priority foreign button not displaced with ours landing on its far side, and a
+  lower-priority one staying put while ours lands adjacent to the anchor - on both the target and
+  source sides. `tests/npt-harness.js` gained `previousSibling` for that last pair; without it every
+  ordering check passed for the wrong reason regardless of which priority actually won. The
+  placement fixtures are deliberately untidy - a class-less `<a>` Delete with padded label text -
+  because a tidier one would pass against the unfixed source.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.** The

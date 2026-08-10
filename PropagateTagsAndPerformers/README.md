@@ -1,100 +1,28 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.12.8, every step but the last has landed
+> ## 🚧 Under construction — 0.12.9, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with
-> the two sibling plugins, and manual buttons with staging are now confirmed working on **all four
-> target pages** — Scene, Gallery, Image and Group — with a second set of buttons, added at 0.9.0,
-> on the **source's own page** instead: a performer, a studio, or one of those same four entities
-> acting as a source for another.
+> the two sibling plugins, and manual buttons with staging are confirmed working on **all four
+> target pages** — Scene, Gallery, Image and Group — with a second set of buttons on the **source's
+> own page** instead: a performer, a studio, or one of those same four entities acting as a source.
 >
-> Three fixes landed after real-Stash testing found real problems: 0.8.1 fixed the buttons not
-> appearing **anywhere** (a real-browser `childNodes` bug, not a placement problem); 0.8.2 fixed
-> Group specifically (its edit form uses a different container than Scene's); 0.8.3 fixed a height
-> inconsistency between buttons and stopped this plugin duplicating `MergePerformerTagsToScenes`'
-> own button for the one path they share. 0.9.0 fixed the height fix's blind spot (it was still
-> `btn-sm`, smaller than every neighbouring button regardless of row), fixed a button showing even
-> when its source did not exist at all, renamed every button to a consistent
-> `"Copy [Tags|Perfs] [to|from] all <plural>"` convention (`MergePerformerTagsToScenes` 1.12.1
-> renamed its two to match), and added the source-side buttons above. 0.9.1 fixed two more
-> live-tested problems with those same buttons: both kinds were landing **after** Stash's own
-> Save/Delete rather than grouping with them, and a page with two enabled paths wrapped its second
-> button onto a row with no gap above it. 0.9.1's fix for that second problem was itself a bug,
-> caught by the next round of real-Stash testing: the vertical margin it added grew *Stash's own*
-> Save/Delete/Submit buttons taller, since a flex row stretches every button on it to match the
-> tallest one sharing it. 0.9.2 moves that spacing onto the container as a `row-gap` instead, which
-> cannot leak into another button's height the way a margin can. If you installed anything before
-> 0.9.0, update — and update `MergePerformerTagsToScenes` to 1.15.0 or newer alongside it, or its
-> Performer/Scene buttons and this plugin's will duplicate on the one path they share.
+> **If you are upgrading, two things are worth knowing.** Update `MergePerformerTagsToScenes` to
+> 1.15.0 or newer alongside anything from 0.9.0 on, or the two plugins' buttons will duplicate on
+> the one relationship they share. And if your buttons currently sit to the *left* of Save, you are
+> on 0.12.0 or older: every version from 0.9.0 to 0.12.0 looked for Stash's Delete button only by a
+> CSS class that does not exist on the Scene edit row, so all four silently placed buttons before
+> Save. 0.12.1 finds it by label as well; update and they move between Save and Delete, which is
+> where the placement work below was trying to put them all along.
 >
-> 0.10.0 fixes something a live install with both plugins' manual buttons enabled found: on a page
-> where both plugins add a button to the same row (Scene, Performer), each one independently placed
-> itself immediately before Save/Delete, so whichever plugin's button finished its own eligibility
-> check last ended up closest to it - a detail decided by network timing, not a rule, and it could
-> flip between page loads. The two plugins now agree on a fixed relative order regardless of which
-> one finishes first; see "Relationship to the other plugins in this repo" below.
->
-> 0.11.0 moves the target-side buttons' anchor itself: further live testing found "before Save" was
-> never actually the wanted position - "between Save and Delete" was. Since Delete already sits
-> right after Save on every page that has one, the buttons now anchor on Delete instead (the same
-> mechanism the source-side buttons already used), which produces that placement without needing to
-> know where Save is at all.
->
-> 0.12.0 fixes the one page that fell through 0.11.0's fix: Group's edit form has Save but no
-> Delete, so anchoring on Delete alone left it with nothing to anchor on and fell back to appending
-> at the end - putting a button *after* Save and displacing Stash's own primary action from being
-> the last thing in the row. Buttons now anchor on Delete, or Save if there is no Delete, and append
-> only when neither is present.
->
-> **0.12.1 is the version where all of that actually started working on the Scene page.** 0.9.0
-> through 0.12.0 each changed which button to anchor on, and none of them changed anything you could
-> see there, because all four looked for Delete only by the CSS class Stash puts on it — and on
-> Scene's edit row there is no such class. Every version silently fell through to the Save fallback
-> and put the buttons to the *left* of Save. They are now found by label as well as by class. If
-> your buttons sit before Save, this is why; update and they will move between Save and Delete.
->
-> 0.12.2 fixes a source-side button that appeared and disappeared once a second on a detail page.
-> It was recognising *its own* label as another plugin's, standing down, and then reappearing once
-> it was gone — a loop it could only get into where another plugin covers the same relationship
-> (only `tags:performer>scene`, shared with `MergePerformerTagsToScenes`) *and* that plugin is not
-> currently showing its own button for it.
->
-> 0.12.3 fixes the spacing. Buttons now take their horizontal margins from whatever Stash's own
-> buttons in the same row use, instead of a fixed amount that matched nothing — so every gap in the
-> row is the same. And wrapped rows are spaced correctly on the Scene, Gallery and Image edit pages,
-> where the previous mechanism silently did nothing: those rows are not laid out the way Group's is,
-> and the property being set only works on Group's kind.
->
-> 0.12.4 is what makes 0.12.3's spacing actually visible. The margins it measured were being
-> overridden by a styling class the buttons still carried, so the wrapped-row half of that release
-> worked and the horizontal half changed nothing at all. The class is now applied only when there is
-> nothing in the row to measure, and a row that spaces its own buttons by other means is left alone
-> entirely rather than given a margin on top of it.
->
-> 0.12.5 stops a button landing flush against the one before it on the Performer and Studio detail
-> pages. Stash spaces those rows unevenly — some of its own buttons touch each other there — so
-> matching one of them exactly is not the same as looking right next to it. Each button now fills in
-> whatever gap its actual neighbours leave, which changes nothing on the edit pages and un-sticks the
-> detail pages.
->
-> 0.12.6 tried to fix the two pages 0.12.5 made worse — Group's detail view and its edit form, where
-> the gap before the first button doubled — by measuring the space on screen rather than working it
-> out. **0.12.7 removes that measurement**, because it made things worse again: buttons ended up
-> touching Delete on every detail page, and Group did not change. A measurement is only true of the
-> instant it is taken, and these rows are still settling when a button is added to them.
->
-> What 0.12.7 does instead is read the margin of the button you can actually see, rather than of
-> whatever element happens to sit beside ours in the page's structure — Stash wraps some of its
-> buttons in an extra element, and that wrapper has no spacing of its own to read. That fixed
-> Group's edit form and left its detail page doubled exactly as before.
->
-> 0.12.8 finishes it. On Group's detail page the element beside the button is not a wrapper around
-> something — it is an empty slot with nothing in it at all, so there was still no margin to read and
-> a full gap was added on top of the one the button behind it was already making. The search now
-> walks past anything it cannot recognise as a button, to the nearest one it can; where it finds
-> nothing recognisable it adds no spacing rather than guessing, since guessing is what doubled the
-> gap in the first place.
+> Button placement and row spacing took 0.9.0 through 0.12.8 to settle, most of it against live
+> screenshots rather than tests. The step table records which release did what; the reasoning is in
+> `CLAUDE.md`. What it comes to now: a button anchors on Delete, or Save where there is no Delete,
+> and appends only when neither is there; the two plugins agree a fixed relative order rather than
+> racing each other for the spot next to the anchor; and both the row gap and each button's own
+> margins are read off whatever Stash already put in that row, so every gap in it matches, rather
+> than being set to a fixed value that matched nothing.
 >
 > The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
 > is what says so. Until then each of the steps below takes a minor bump as it lands.
@@ -114,19 +42,8 @@
 > | Cooperating with `MergePerformerTagsToScenes` and `NormalizeParentTags` | **done** (0.7.0) |
 > | Manual buttons and staging, target side | **done; confirmed on all four pages** (0.8.0 – 0.8.3) |
 > | Button fixes, renamed buttons, and manual buttons on the source side | **done** (0.9.0) |
-> | Button placement (before Save/Delete) and wrapped-row spacing | **done** (0.9.1) |
-> | Wrapped-row spacing redone as `row-gap`, fixing 0.9.1's button-growth regression | **done** (0.9.2) |
+> | Button placement and row spacing, settled against live screenshots | **done** (0.9.1 – 0.12.8) |
 > | Deterministic ordering against `MergePerformerTagsToScenes`' buttons in the same row | **done** (0.10.0) |
-> | Target-side anchor moved from before Save to between Save and Delete | **done** (0.11.0) |
-> | Anchor falls back to Save when a page has no Delete, instead of appending after it | **done** (0.12.0) |
-> | Delete also found by label — the CSS class it was found by does not exist on Scene | **done** (0.12.1) |
-> | Source button no longer blinks once a second on a page another plugin declares | **done** (0.12.2) |
-> | Button spacing measured off the row itself, so every gap in it matches | **done** (0.12.3) |
-> | The measured spacing wins the cascade — the utility class it lost to is now a fallback | **done** (0.12.4) |
-> | Gaps filled against the actual neighbours, for rows Stash spaces unevenly | **done** (0.12.5) |
-> | The gap measured off the page rather than derived | **reverted** (0.12.6, out at 0.12.7) |
-> | A wrapped neighbour read through to the button inside it | **done** (0.12.7) |
-> | A neighbour that is not a button at all walked past, to the one behind it | **done** (0.12.8) |
 
 > ## ⚠ Back up your database before the first library-wide run
 >

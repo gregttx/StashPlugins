@@ -5,161 +5,26 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.8.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.15.9.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
-**1.12.1 renamed both manual buttons** — "Add Tags to Scene(s)" → "Copy Tags to all Scenes",
-"Add Perf Tags" → "Copy all Tags from all Performers" — to match the naming convention
-`PropagateTagsAndPerformers` settled on ("Copy [all|common] [Tags|Perfs] [to|from] all
-<plural>") when it grew its own source-side buttons for the same path. Purely cosmetic on this
-side, but load-bearing on the other: that plugin's manual-button dedup (§7d here, `declares` on
-its side) matches on this exact label text to tell "another plugin's button is showing" from
-"it only could be" - unrenamed, the two plugins' buttons for `tags:performer>scene` would no
-longer text-match and both would show at once, the exact duplicate this protocol exists to
-prevent.
+**The button-label text is a cross-plugin contract, not cosmetics.** Both manual buttons read
+"Copy Tags to all Scenes" / "Copy all Tags from all Performers", matching the convention
+`PropagateTagsAndPerformers` uses ("Copy [all|common] [Tags|Perfs] [to|from] all <plural>"). That
+plugin's manual-button dedup matches on this exact visible text to tell "another plugin's button is
+showing" from "it only could be"; reword one side and the two plugins' buttons for
+`tags:performer>scene` stop matching and both appear, the exact duplicate the protocol prevents.
 
-**1.12.2 fixed the scene button's own placement.** Live-tested against
-`PropagateTagsAndPerformers` 0.9.2 with a second button sharing `.edit-buttons`: ours was
-consistently the one left dangling alone on a wrapped second line, because `addSceneButton`
-placed it with a plain `container.appendChild(button)` — landing after Save and Delete — while
-its sibling, the performer button, has always grouped itself with the other non-destructive
-actions via `insertBeforeDelete`. With only one button in the row this was invisible; DOM order
-decides wrap order, and a button appended last is the one that overflows first. Fixed by giving
-the scene button the same `insertBeforeSave` treatment `PropagateTagsAndPerformers` already uses
-for its own target-side buttons — see §5.
-
-**1.13.0 makes the relative order of the two plugins' buttons deterministic**, where 1.12.2 only
-made sure both landed on the same side of Save/Delete. Both plugins' insertion functions re-find
-the anchor's live position and insert immediately before it, so with two plugins doing that
-independently, whichever one's async eligibility check resolved last ended up closest to the
-anchor — a race decided by network timing that could flip between page loads. `coop().order` fixes
-a priority per plugin (this one registers 20, `PropagateTagsAndPerformers` registers 10) and
-`insertOrdered` reads it back off each button's `_coopOwner`, so the same relative order comes out
-regardless of which plugin's check finishes first. Full reasoning in the repo-root CLAUDE.md
-("Cross-plugin cooperation: deterministic button ordering"); see §5 below for what is specific to
-this plugin's own two buttons.
-
-**1.14.0 moves the scene button's anchor itself, from Save to Delete.** Further live feedback after
-1.13.0 shipped was that "before Save" was never actually the wanted position — "between Save and
-Delete" was. Since Delete already sits right after Save on every page that has one, anchoring on
-Delete alone produces that without needing to know where Save is at all — so `insertBeforeSave`/
-`findButtonByLabel` are retired, and the scene button now goes through the exact same
-`insertBeforeDelete` the performer button has used since 1.1.0. `PropagateTagsAndPerformers` 0.11.0
-ships the identical change to its own target-side buttons, for the same reported reason.
-
-**1.15.0: that fallback was itself wrong, reported the very next round.** Group is not a page this
-plugin touches, but the same shape of bug applies wherever a page has Save with no Delete at all —
-`insertOrdered`'s no-anchor branch simply appends, which put a manual button *after* Save,
-displacing Stash's own primary action from being the last thing in the row. The general rule, in
-full in the repo-root CLAUDE.md ("Placing a manual button near Stash's own actions: important vs.
-casual"): insert before the row's last button only when it is *important* — Delete or Save — and
-append after it otherwise. `insertBeforeDelete` is renamed `insertBeforeImportantAction` and tries
-Delete first, falls back to a re-added `findButtonByLabel`-based Save search only when Delete is
-absent, and appends when neither is found. Not a reversion to the pre-1.14.0 `insertBeforeSave`,
-which anchored on Save unconditionally rather than only when Delete is missing.
-
-**1.15.1: none of the four versions above ever found Delete on the Scene edit row at all.** Reported
-live against 1.15.0 — the row reads `Save · Delete`, and `container.querySelector('button.delete')`
-returns null on it. Stash renders that Delete as `btn btn-danger` with **no `.delete` class**. The
-class is real on the performer detail navbar, which is where the repo CLAUDE.md's "throughout" claim
-came from and where `findPerformerDetailContainer` still relies on it, but it does not generalise.
-So the class search found nothing, the Save fallback caught it, and the scene button landed *before*
-Save on every page — which is exactly what 1.12.2 had done deliberately, then 1.14.0 and 1.15.0 each
-believed they had changed. `insertBeforeImportantAction` now tries three things in order: `.delete`,
-a text match on `'Delete'`, a text match on `'Save'`. `findButtonByLabel` becomes `findActionByLabel`,
-matching `<a>` as well as `<button>` and trimming first, since the live report established neither.
-
-**1.15.2 gives the scene button `mx-2` in place of `ml-2`.** A left-only margin was right while it
-was appended at the end of the row; since 1.14.0 it sits *between* Save and Delete, so it had
-nothing on its right and rendered flush against Delete — live-reported. The performer button already
-moved off `ml-2` for exactly this reason when it started sitting between two of Stash's own buttons;
-this is the same fix arriving one button later.
-
-**The measurement that settled it, worth keeping because it retires a four-round guess.** On a live
-Stash, `.edit-buttons` computes to **`display: block`** — not a flex row — and its own buttons to
-**`margin: 0 10px 0 0`**, a right margin only, at a value no utility class in either plugin can name
-(that Stash's root is 14px, so `mx-1` is 3.5px and `mx-2` is 7px). Two consequences, both of which
-had been shipping wrong:
-
-- **`row-gap` is inert there.** It is a flex/grid property, so `ensureRowGap` did nothing on Scene,
-  Gallery and Image Edit, whose wrapped rows sat flush — while Group's `.details-edit`, which *is*
-  flex, spaced correctly from the identical call. Same code, same value, opposite result, decided
-  entirely by the container. The container is now asked which it is: `row-gap` where it is honoured,
-  a bottom margin on our own buttons where it is not. The margin is safe in a block container for
-  exactly the reason it was a regression in a flex one (`PropagateTagsAndPerformers` 0.9.2) — a
-  block container has no flex line whose cross-size a margin box could inflate.
-- **A fixed margin class cannot match a row whose own convention is 10px.** `mx-1` produced 13.5px
-  after Save, 7px between two of ours and 3.5px before Delete. Rather than guess a fourth value,
-  both plugins now copy the computed margins off a button *Stash* put in the row — identified by
-  having no `_coopOwner`, so neither plugin's own buttons can be mistaken for Stash's. Every
-  boundary in the row then matches, and it self-calibrates to a container that has never been
-  measured from here, which is the point: `.details-edit`'s own convention is still unknown.
-
-This plugin carries its own copy as `applyButtonSpacing` (1.15.3); the two share no module.
-
-**1.15.4: the measurement was right and the page never saw it — Bootstrap's spacing utilities are
-`!important`.** The `mx-2` both on-page buttons were built with outranked the inline
-`margin-left`/`margin-right` copied from the row, so every horizontal gap stayed exactly what it had
-been. The tell was the *same* `cssText` assignment working in the other axis: `margin-bottom`, which
-no utility class sets, visibly fixed wrapped rows in that same release. **One declaration landing and
-its neighbour not is a specificity problem, not a wrong value.** `SPACING_CLASS` is now off the
-button at build time and added back by `applyButtonSpacing`, only on the branch with nothing to
-measure — so the class and the measurement can never both be in play. Three cases, in order: a
-container spacing its children with `column-gap` (ours inherits it, so a margin would be *added* to
-the row's spacing rather than match it) gets nothing; a row with a donor gets the donor's margins; a
-row with neither gets `mx-2`. A donor is any element carrying `btn` with no `_coopOwner`, not just a
-`<button>` — Stash styles some row actions as links, as 1.15.1 already established for Delete — and
-the test for one is a *positive* length check, since a style engine with no stylesheet loaded reports
-`''` rather than `0px` and the old inequality read that as a margin worth copying.
-
-**1.15.5: matching a button exactly is not the same as looking right next to it.** The gap between
-two inline siblings is the first's right margin plus the second's left, and the donor's margins are a
-*right* margin only — so copying them gave our button `margin-left: 0`. Correct on `.edit-buttons`,
-where every one of Stash's buttons carries the right margin (and where it is what keeps a wrapped
-second row flush with the first). Wrong on the performer navbar, which Stash spaces unevenly — its
-own `Auto tag...` and `Merge` touch each other there — so our button landed flush against
-`Submit to Stash-Box`. `fillNeighbourGaps` takes the row's *step* from the donor and adds only what
-each actual neighbour is not already contributing, which is a no-op on the edit rows and the fix on
-the navbar. The no-previous-element case is deliberately 0: our button starting the row should sit
-on the same edge Stash's own first button does.
-
-**1.15.6 measures that contribution rather than deriving it.** Reading the neighbour's own
-`margin-right` answers "what does this element contribute to the gap" only where the element beside
-ours is the button the user sees. On `PropagateTagsAndPerformers`' Group pages it is not — the gap
-there was already right, so 1.15.5's top-up doubled it — and whatever produces such a gap (a wrapper
-element, container padding, a margin on something invisible) `getBoundingClientRect` already accounts
-for. This plugin's own two pages were not affected; the change is here because the rule is one design
-in two copies and letting them drift is how the dialog CSS drifted for four months. `horizontalGap`
-separates three cases: a measurable gap, no layout at all (fall back to the margin reading — the test
-harnesses, and an undisplayed container), and two siblings on different visual rows, where the
-horizontal distance means nothing and the left edge should stay flush.
-
-**1.15.7 takes that measurement back out.** It put this plugin's button flush against Delete on the
-performer navbar: a `getBoundingClientRect` gap is true of the instant it is taken, and the row is
-still settling when a button is inserted into it, so a margin derived from one is a guess about a
-layout that no longer exists. What survives is the structural half — `marginContribution` resolves
-through a wrapper to the action facing us (the last `.btn` inside the element before ours, the first
-inside the element after) and sums the wrapper's own margin with it, since React wraps some row
-actions and a wrapper carries no margin while the button inside it does. No layout is consulted, so
-the answer is the same whenever it is asked.
-
-**1.15.8 extends that one step: an element holding *no* action at all is walked past entirely.**
-Resolving *through* a sibling only helps when there is something inside it; where there is not, its
-own absent margin was still being read as the whole gap. That is what left `PropagateTagsAndPerformers`'
-Group detail row doubled for three releases after the wrapper fix sorted its edit row out. **A zero
-read off something this code cannot identify as an action is not evidence of a zero gap.**
-`neighbourGap` walks outward until it finds an action, adding skipped elements' own margins on the
-way and assuming they have no width — width being the one quantity that needs a layout, which is
-1.15.6's entire mistake. It returns three answers `sideMargin` treats differently: an action found
-(top up to the row's step), elements present but nothing recognisable (add **nothing** — guessing is
-what doubles a gap), and nothing at all on that side (take the row's own end margin, since our button
-is at that end of the row). Again this plugin's own two pages were not affected; it is here because
-the rule is one design in two copies.
-
-**The lesson is bigger than the fix, and it is why 1.12.0–1.15.0 read as churn.** Four versions
-argued about *which* anchor to prefer while the anchor search was failing on the row being tested.
-A class confirmed on one page is evidence about that page. Before moving an anchor again, check the
-current one is being found.
+**Button placement and row spacing are one design in two copies**, shared with
+`PropagateTagsAndPerformers` and written up in full in the repo-root CLAUDE.md ("Placing a manual
+button near Stash's own actions" and "Cross-plugin cooperation: deterministic button ordering"). The
+rules that cost the most to learn, in short: Delete carries no `.delete` class on the Scene edit row,
+so the anchor search is `.delete` then a text match on Delete then on Save; Bootstrap's spacing
+utilities are `!important`, so a measured margin only lands with the class off the button; and a
+margin is true whenever you ask while a `getBoundingClientRect` gap is true of one instant. **Before
+moving an anchor again, check the current one is being found** - four releases argued about which
+anchor to prefer while the search was silently failing on the row being tested. §5 below is this
+plugin's own map of that code.
 
 ---
 
@@ -676,38 +541,27 @@ so in three places because users keep looking there.
 covers.
 
 `placement.test.js` also covers the scene button's own placement, in its own Scene Edit tab section
-using an `.edit-buttons` fixture rather than the performer page's dual-container one: since 1.14.0,
-the button lands between Save and Delete rather than before Save or after both, including a Delete
-nested inside a wrapper element (the target side never needed this check before 1.14.0, since it
-never searched for Delete). Confirmed to fail against a copy of the pre-1.12.2 plain `appendChild`
-(landing after both), and separately against a copy with the 1.12.2-through-1.13.0 Save-anchored
-walk restored (landing before Save instead of between).
+using an `.edit-buttons` fixture rather than the performer page's dual-container one: the button
+lands between Save and Delete, a Delete nested in a wrapper element is still found, and a fixture
+with Save and no Delete at all falls back to before Save with Save left last. That last shape is not
+one Scene Edit is ever seen in, but `insertBeforeImportantAction` is shared with
+`PropagateTagsAndPerformers`, whose target-side buttons do meet it (Group), so this plugin's copy of
+the fallback gets its own proof rather than relying on never being exercised.
 
-Since 1.15.0: a fixture with Save and no Delete at all - not a shape Scene Edit is ever actually seen
-in, but `insertBeforeImportantAction` is a mechanism shared with `PropagateTagsAndPerformers`, whose
-own target-side buttons do meet this shape (Group), so this plugin's copy of the same Save-fallback
-logic gets its own proof rather than relying on it never being exercised for real. The button lands
-before Save rather than appended after it, and Save stays the row's last child. Fails against a copy
-with the Save fallback removed from `insertBeforeImportantAction`, confirming the check exercises
-the fallback itself rather than passing on `insertOrdered`'s unrelated no-anchor branch.
+`SCENE_EDIT_VIEW_UNCLASSED_DELETE` is the row a live Stash actually renders - Delete present,
+`.delete` absent, styled as an `<a>` with padded label text. The untidiness is the fixture's whole
+point: an exact-match search restricted to `BUTTON` would pass a tidier one while still failing the
+real page.
 
-Since 1.15.1: `SCENE_EDIT_VIEW_UNCLASSED_DELETE`, the row a live Stash actually renders - Delete
-present, `.delete` absent. Two of its three checks fail against 1.15.0 (the button lands before Save
-instead of between Save and Delete); the third, that Delete stays the row's last child, passes
-against both and is there to catch the opposite regression rather than this one. The fixture's
-Delete is deliberately an `<a>` with padded text, because the live report established neither the
-tag nor the whitespace - an exact-match search restricted to `BUTTON` would pass a tidier fixture
-while still failing the real page.
-
-Since 1.13.0 it also covers deterministic ordering (`coop().order`): this plugin registers priority
-20 at load; a lower-priority foreign button (`PropagateTagsAndPerformers`, seeded at 10 via
-`_coopOwner` on a fixture element, since the harness only ever runs this plugin's own script) is
-not displaced from Delete when this plugin's own scene button inserts; and, the direction that
-actually exercises `insertOrdered`'s skip branch rather than passing by coincidence, a *higher*-
-priority foreign button (a fictitious 30, since nothing in this repo currently outranks 20) is not
-displaced either - this plugin's own button yields and lands on the far side of it instead.
-Confirmed against a copy with `insertOrdered` reverted to a plain `container.insertBefore(button,
-anchor)`, which fails exactly those two checks and nothing else.
+It also covers row spacing (the row's own margins copied onto our button, a wrapped row spaced by
+`margin-bottom` since `.edit-buttons` is `display: block`, no utility class left to outrank the
+measurement, and a `column-gap` row getting nothing from us), and deterministic ordering
+(`coop().order`): this plugin registers priority 20 at load; a lower-priority foreign button
+(`PropagateTagsAndPerformers`, seeded at 10 via `_coopOwner`, since the harness only ever runs this
+plugin's own script) is not displaced from Delete; and - the direction that actually exercises
+`insertOrdered`'s skip branch rather than passing by coincidence - a *higher*-priority foreign button
+(a fictitious 30, since nothing here outranks 20) is not displaced either, this plugin's own button
+yielding and landing on its far side.
 
 `merge-task.test.js` runs on `npt-harness.js` rather than `harness.js`, because the task builds a
 dialog and `harness.js` fakes only enough DOM for a plugin that injects a button. That harness now

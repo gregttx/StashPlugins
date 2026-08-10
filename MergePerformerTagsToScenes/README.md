@@ -328,45 +328,19 @@ performer button, and `PropagateTagsAndPerformers`' own buttons, already land. S
 with Save but no Delete lands its button before Save instead of appending after it, so Stash's own
 primary action always stays the last thing in the row.
 
-**1.15.1 is the version where that actually started working on the scene Edit tab.** Up to 1.15.0
-the plugin looked for Delete only by the CSS class Stash puts on it — and on the scene Edit row it
-does not put one there, so the button kept landing before Save no matter what the previous three
-versions changed. It now recognises Delete by its label as well. If you are on 1.15.0 or earlier and
-your buttons sit to the left of Save, this is why; update and they will move between Save and
-Delete.
+**If your buttons sit to the left of Save, you are on 1.15.0 or earlier — update.** Up to that
+version the plugin looked for Delete only by the CSS class Stash puts on it, and on the scene Edit
+row it does not put one there, so the button kept landing before Save no matter what the three
+versions before it changed. 1.15.1 recognises Delete by its label as well, and the buttons move
+between Save and Delete.
 
-**1.15.2 gives the scene button room on its right.** It carried a left-only margin, which was right
-while it sat at the end of the row — but since 1.14.0 it sits between Save and Delete, so it
-rendered flush against Delete with nothing between them. The performer button already had margins on
-both sides for the same reason.
-
-**1.15.3 takes the spacing from the row instead of choosing it.** The button's margins now match
-whatever Stash's own buttons in the same row use, so every gap in the row is the same rather than
-ours being a different width from its neighbours'. On the scene Edit tab it also spaces a wrapped
-row properly, which the previous approach could not: that row is not laid out the way the performer
-page's is, and the spacing property being set only works on the latter.
-
-**1.15.4 is what makes 1.15.3's spacing visible.** The margins it measured were being overridden by
-a styling class the buttons still carried, so the wrapped-row half of that release worked and the
-horizontal half changed nothing at all. That class is now applied only when there is nothing in the
-row to measure, and a row that spaces its own buttons by other means is left alone entirely rather
-than given a margin on top of it.
-
-**1.15.5 stops the performer button landing flush against the one before it.** Stash spaces the
-performer navbar unevenly — some of its own buttons touch each other there — so matching one of them
-exactly is not the same as looking right next to it. The button now fills in whatever gap its actual
-neighbours leave, which changes nothing on the scene Edit tab and un-sticks the detail page.
-
-**1.15.6 measured that gap instead of working it out, and 1.15.7 takes the measurement back out.**
-It left this plugin's button flush against Delete on the performer detail page: a measurement is only
-true of the instant it is taken, and that row is still settling when a button is added to it. What
-1.15.7 keeps is the useful half — the margin read is now the *visible* button's, not that of whatever
-element happens to sit beside ours in the page's structure, since Stash wraps some of its buttons in
-an extra element that carries no spacing of its own.
-
-**1.15.8 extends that to an element with no button in it at all** — an empty slot, where reading
-through finds nothing and the absent margin was still being taken for the whole gap. The search now
-walks past anything it cannot recognise as a button, to the nearest one it can, and adds no spacing
-at all where it finds nothing recognisable. Neither of this plugin's own two pages was affected by
-either change; both are here because the placement code is one design kept in two copies.
+**Spacing settled over 1.15.2 to 1.15.9**, mostly against screenshots of a real Stash. What it comes
+to: a button's margins are read off whatever Stash already put in that row rather than set to a
+fixed amount, so every gap in the row matches; the gap is measured against the button you can
+actually *see*, since Stash wraps some of its buttons in an extra element that carries no spacing of
+its own, and leaves an empty slot where others would go; and a wrapped second row of buttons is
+spaced by whichever mechanism the row's layout actually honours. 1.15.9 is the last of those — the
+mechanism for one of the two kinds of row had never been applied here at all, so a wrapped row of
+this plugin's buttons sat flush while `PropagateTagsAndPerformers`, running what looked like the
+same code, spaced correctly.
 

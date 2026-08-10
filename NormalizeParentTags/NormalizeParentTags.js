@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.7.6';
+  var PLUGIN_VERSION = '1.7.7';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -564,11 +564,6 @@
     return out;
   }
 
-  function tagName(graph, id) {
-    var t = graph.byId[id];
-    return (t && t.name) || 'unknown';
-  }
-
   // What Stash orders a tag by: `COALESCE(tags.sort_name, tags.name)`. sort_name is
   // nullable and never shown in the UI - it exists purely to override the name for
   // sorting - so an empty one is no override at all.
@@ -1026,6 +1021,39 @@
     var b = el('button', 'btn btn-secondary btn-sm' + (className ? ' ' + className : ''), label);
     b.type = 'button';
     return b;
+  }
+
+  // Copy `text`, reporting on `btn` and restoring `label` after two seconds. Both
+  // copy buttons in this plugin - the log's and the viewer's two exports - go through
+  // here; they differ only in what they say when it works.
+  //
+  // Stash is commonly served over plain HTTP on a LAN, where the async clipboard API
+  // is not available at all, so the textarea + execCommand path is the fallback rather
+  // than a legacy branch.
+  function copyToClipboard(text, btn, label, okText) {
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        if (ta.select) ta.select();
+        var ok = document.execCommand ? document.execCommand('copy') : false;
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        return false;
+      }
+    }
+    function done(ok) {
+      btn.textContent = ok ? okText : 'Copy failed';
+      setTimeout(function () { btn.textContent = label; }, 2000);
+    }
+    var nav = window.navigator;
+    if (nav && nav.clipboard && nav.clipboard.writeText) {
+      nav.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallback()); });
+      return;
+    }
+    done(fallback());
   }
 
   // ── Is this script the one Stash has installed? ───────────────────────────
@@ -1513,6 +1541,45 @@
 
   // ── Phase 2: apply ────────────────────────────────────────────────────────
 
+  // Apply and Undo drive their batches identically, and the reasoning is the same for
+  // both - which is why it is written once here rather than twice.
+  //
+  // The lease is renewed per batch and released in every outcome - success, failure,
+  // Stop - so a reactive plugin is never left standing down. Undo passes a `(undo)`
+  // label; the expiry is the backstop for the one outcome neither can catch, the tab
+  // going away mid-run.
+  //
+  // guarded() is the other half of that, pointed inwards: every batch is a
+  // bulk*Update, which is exactly what this plugin's own auto mode watches for, so
+  // without it a Prune task with Auto Prune enabled would re-plan each batch it had
+  // just written - and an Undo would have its reversal put straight back. The lease
+  // cannot do this job: it is advisory, and we honour our own leases no more than
+  // anyone else's.
+  Run.prototype.runBatches = function (batches, leaseLabel, step, verb, finish) {
+    var self = this;
+    var lease = acquireLease(leaseLabel);
+    var i = 0;
+
+    function nextBatch() {
+      if (self.stopped || i >= batches.length) return Promise.resolve();
+      lease.renew();
+      return step(batches[i++]).then(function () {
+        self.renderProgress();
+        return nextBatch();
+      });
+    }
+
+    guarded(nextBatch).then(function () {
+      lease.release();
+      finish.call(self);
+    }, function (e) {
+      lease.release();
+      self.log('ERROR', verb + ' aborted: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      finish.call(self);
+    });
+  };
+
   Run.prototype.proceed = function () {
     if (this.state !== 'ready' || !this.plan.length) return;
     var self = this;
@@ -1522,36 +1589,9 @@
     this.failed = 0;
     this.log('INFO', 'Applying ' + this.plan.length + ' entity change(s) - ' + new Date().toISOString());
 
-    var batches = buildBatches(this.plan);
-    var lease = acquireLease(this.taskName);
-    var i = 0;
-
-    function nextBatch() {
-      if (self.stopped || i >= batches.length) return Promise.resolve();
-      lease.renew();
-      return applyBatch(batches[i++], self, self.graph).then(function () {
-        self.renderProgress();
-        return nextBatch();
-      });
-    }
-
-    // The lease is released in every outcome - success, failure, or Stop - so a
-    // reactive plugin is never left standing down.
-    //
-    // guarded() is the other half of that, pointed inwards: every batch here is a
-    // bulk*Update, which is exactly what this plugin's own auto mode watches for, so
-    // without it a Prune task with Auto Prune enabled would re-plan each batch it had
-    // just written. The lease cannot do this job - it is advisory and we honour our
-    // own leases no more than anyone else's.
-    guarded(nextBatch).then(function () {
-      lease.release();
-      self.finishApply();
-    }, function (e) {
-      lease.release();
-      self.log('ERROR', 'Apply aborted: ' + (e && e.message ? e.message : e));
-      self.errors++;
-      self.finishApply();
-    });
+    this.runBatches(buildBatches(this.plan), this.taskName,
+      function (b) { return applyBatch(b, self, self.graph); },
+      'Apply', Run.prototype.finishApply);
   };
 
   Run.prototype.finishApply = function () {
@@ -1605,32 +1645,15 @@
     this.undoTotal = undoableCount(this.undoable);
     this.log('INFO', 'Undoing ' + this.undoTotal + ' entity change(s) - ' + new Date().toISOString());
 
-    var batches = this.undoable.slice().reverse();
-    // An undo is a bulk write like any other, so it announces itself the same way.
-    var lease = acquireLease(this.taskName + ' (undo)');
-    var i = 0;
-
-    function nextBatch() {
-      if (self.stopped || i >= batches.length) return Promise.resolve();
-      lease.renew();
-      return undoBatch(batches[i++], self, self.graph).then(function () {
-        self.renderProgress();
-        return nextBatch();
-      });
-    }
-
-    // Guarded for the same reason the apply is, and more sharply: an undo writes the
-    // inverse delta, so an auto mode reacting to it would put back exactly what the
-    // user just asked to have taken away.
-    guarded(nextBatch).then(function () {
-      lease.release();
-      self.finishUndo();
-    }, function (e) {
-      lease.release();
-      self.log('ERROR', 'Undo aborted: ' + (e && e.message ? e.message : e));
-      self.errors++;
-      self.finishUndo();
-    });
+    // Newest batch first: a rescan-and-apply cycle can write to one entity twice, and
+    // taking the second write back before the first is the only order that lands where
+    // the run started. An undo is a bulk write like any other, so it announces itself
+    // the same way - see runBatches, and note that guarded() matters more sharply here:
+    // an undo writes the inverse delta, so an auto mode reacting to it would put back
+    // exactly what the user just asked to have taken away.
+    this.runBatches(this.undoable.slice().reverse(), this.taskName + ' (undo)',
+      function (b) { return undoBatch(b, self, self.graph); },
+      'Undo', Run.prototype.finishUndo);
   };
 
   Run.prototype.finishUndo = function () {
@@ -1684,34 +1707,7 @@
   };
 
   Run.prototype.copy = function () {
-    var text = this.lines.join('\n');
-    var self = this;
-    function done(ok) {
-      self.copyBtn.textContent = ok ? 'Copied' : 'Copy failed';
-      setTimeout(function () { self.copyBtn.textContent = 'Copy log'; }, 2000);
-    }
-    var nav = window.navigator;
-    if (nav && nav.clipboard && nav.clipboard.writeText) {
-      nav.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallback()); });
-      return;
-    }
-    done(fallback());
-
-    // Stash is commonly served over plain HTTP on a LAN, where the async clipboard
-    // API is not available at all.
-    function fallback() {
-      try {
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        if (ta.select) ta.select();
-        var ok = document.execCommand ? document.execCommand('copy') : false;
-        document.body.removeChild(ta);
-        return ok;
-      } catch (e) {
-        return false;
-      }
-    }
+    copyToClipboard(this.lines.join('\n'), this.copyBtn, 'Copy log', 'Copied');
   };
 
   Run.prototype.close = function () {
@@ -2384,36 +2380,11 @@
 
   TreeView.prototype.copyGraph = function (kind) {
     if (!this.ready()) return;
-    var text = this.graphText(kind);
-    var btn = kind === 'mermaid' ? this.mmdBtn : this.dotBtn;
-    var label = kind === 'mermaid' ? 'Copy as Mermaid' : 'Copy as DOT';
-    var scope = this.selected ? 'selection' : 'whole hierarchy';
-    function done(ok) {
-      btn.textContent = ok ? 'Copied ' + scope : 'Copy failed';
-      setTimeout(function () { btn.textContent = label; }, 2000);
-    }
-    var nav = window.navigator;
-    if (nav && nav.clipboard && nav.clipboard.writeText) {
-      nav.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallback()); });
-      return;
-    }
-    done(fallback());
-
-    // Stash is commonly served over plain HTTP on a LAN, where the async clipboard
-    // API is not available at all.
-    function fallback() {
-      try {
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        if (ta.select) ta.select();
-        var ok = document.execCommand ? document.execCommand('copy') : false;
-        document.body.removeChild(ta);
-        return ok;
-      } catch (e) {
-        return false;
-      }
-    }
+    copyToClipboard(
+      this.graphText(kind),
+      kind === 'mermaid' ? this.mmdBtn : this.dotBtn,
+      kind === 'mermaid' ? 'Copy as Mermaid' : 'Copy as DOT',
+      'Copied ' + (this.selected ? 'selection' : 'whole hierarchy'));
   };
 
   // ── Auto normalize on entity updates ──────────────────────────────────────
@@ -2908,18 +2879,14 @@
   var README_URL = 'https://github.com/gregttx/StashPlugins/blob/main/NormalizeParentTags/README.md';
   var README_LINK_ID = 'npt-readme-link';
 
-  // Only the shape of the DOM API that the fake DOM in the tests also implements -
-  // no querySelector by class, no getElementsByClassName - so the suites drive the
-  // same code path a browser does.
-  function findByClass(root, name, depth) {
-    if (!root || depth > 6) return null;
-    var kids = root.childNodes || [];
-    for (var i = 0; i < kids.length; i++) {
-      if (hasClass(kids[i], name)) return kids[i];
-      var found = findByClass(kids[i], name, (depth || 0) + 1);
-      if (found) return found;
-    }
-    return null;
+  // The first descendant carrying a class, in document order. This was a hand-rolled
+  // depth-capped walk until the test harness grew a class selector; the walk existed
+  // only because the fake DOM could not answer `.foo`, not because a browser cannot.
+  // `querySelector` is the same search with the same ordering, and the depth cap it
+  // drops was arbitrary rather than load-bearing.
+  function byClass(root, name) {
+    if (!root || typeof root.querySelector !== 'function') return null;
+    try { return root.querySelector('.' + name) || null; } catch (e) { return null; }
   }
 
   // Under the description, which is inside the group header and therefore outside
@@ -2927,9 +2894,9 @@
   // are for a Stash that renders no sub-heading (an empty description) or no header
   // row at all.
   function readmeLinkSlot(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub.nextSibling };
-    var header = findByClass(group, 'setting', 0);
+    var header = byClass(group, 'setting');
     var box = header && header.childNodes && header.childNodes[0];
     if (box) return { parent: box, before: null };
     return { parent: group, before: null };
@@ -2945,7 +2912,7 @@
   // when it has to. `splitParagraphs` is idempotent: once the children are ours,
   // there is no text node left to split.
   function splitDescription(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
     if (kids.length && hasClass(kids[0], 'npt-p')) return;   // already ours
@@ -3004,7 +2971,7 @@
     if (!node || node._nptTipWired) return;
     node._nptTipWired = true;
     var toggle = function (on) {
-      var sub = findByClass(row, 'sub-heading', 0);
+      var sub = byClass(row, 'sub-heading');
       if (sub) setTipOpen(sub, on);
     };
     node.addEventListener('mouseenter', function () { toggle(true); });
@@ -3016,7 +2983,7 @@
   function tipSetting(key) {
     var row = settingRow(key);
     if (!row) return;
-    var sub = findByClass(row, 'sub-heading', 0);
+    var sub = byClass(row, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
     if (kids.length && hasClass(kids[0], 'npt-sum')) return;    // already ours
@@ -3084,7 +3051,7 @@
   }
 
   function collapseDescription(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
     var paras = 0;

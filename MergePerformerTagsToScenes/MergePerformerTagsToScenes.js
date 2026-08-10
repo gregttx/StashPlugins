@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.8';
+  var PLUGIN_VERSION      = '1.15.9';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1555,6 +1555,46 @@
 
   // ── Phase 2: apply ────────────────────────────────────────────────────────
 
+  // Apply and Undo walk their units - plan entries one side, undo batches the other -
+  // identically, and the reasoning holds for both, which is why it is written once.
+  //
+  // The lease covers the writing phase only. Phase 1 writes nothing, so there is
+  // nothing to suppress, and holding one across a library-wide review would stand a
+  // reactive plugin down for the half of the run that cannot disturb it. It is renewed
+  // per unit and released in every outcome - success, failure, Stop - so a reactive
+  // plugin is never left standing down.
+  //
+  // One guard around the whole thing rather than one per unit: every scene written
+  // would otherwise look to our own fetch wrapper like a user edit and re-enter the
+  // merge - and `bulkSceneUpdate`, which the undo issues, is precisely what auto-merge
+  // on scene update watches for, so without this an undo would merge the tags straight
+  // back in. That is internal re-entrancy; the lease is about other plugins, and the
+  // two are not substitutes.
+  //
+  // Progress is rendered by `applyEntry`/`undoBatch` themselves, not from here.
+  TaskRun.prototype.runUnits = function (units, leaseLabel, step, verb, finish) {
+    var self = this;
+    var lease = acquireLease(leaseLabel);
+    var i = 0;
+
+    guarded(function () {
+      function next() {
+        if (self.stopped || i >= units.length) return Promise.resolve();
+        lease.renew();
+        return step(units[i++]).then(next);
+      }
+      return next();
+    }).then(function () {
+      lease.release();
+      finish.call(self);
+    }, function (e) {
+      lease.release();
+      self.log('ERROR', verb + ' aborted: ' + (e && e.message ? e.message : e));
+      self.errors++;
+      finish.call(self);
+    });
+  };
+
   TaskRun.prototype.proceed = function () {
     if (this.state !== 'ready' || !this.plan.length) return;
     var self = this;
@@ -1564,31 +1604,9 @@
     this.appliedTagCounts = {};
     this.log('INFO', 'Applying ' + this.plan.length + ' scene change(s) - ' + new Date().toISOString());
 
-    var i = 0;
-    // The lease covers phase 2 only. Phase 1 writes nothing, so there is nothing to
-    // suppress, and holding one across a library-wide review would stand a reactive
-    // plugin down for the half of the run that cannot disturb it.
-    var lease = acquireLease(this.taskName);
-    // One guard around the whole apply rather than one per scene: every scene we
-    // write would otherwise look to our own fetch wrapper like a user edit and
-    // re-enter the merge. That is internal re-entrancy; the lease above is about
-    // other plugins, and the two are not substitutes.
-    guarded(function () {
-      function nextEntry() {
-        if (self.stopped || i >= self.plan.length) return Promise.resolve();
-        lease.renew();
-        return self.applyEntry(self.plan[i++]).then(nextEntry);
-      }
-      return nextEntry();
-    }).then(function () {
-      lease.release();
-      self.finishApply();
-    }, function (e) {
-      lease.release();
-      self.log('ERROR', 'Apply aborted: ' + (e && e.message ? e.message : e));
-      self.errors++;
-      self.finishApply();
-    });
+    this.runUnits(this.plan.slice(), this.taskName,
+      function (entry) { return self.applyEntry(entry); },
+      'Apply', TaskRun.prototype.finishApply);
   };
 
   // The write is the scene's scan-time tags plus every tag the plan folded into it.
@@ -1706,32 +1724,11 @@
 
     // Newest first, the order that composes: a rescan-and-apply cycle can write to
     // one scene twice, and taking the second write back before the first is the only
-    // sequence that lands where the run started.
-    var batches = buildUndoBatches(this.undoable.slice().reverse());
-    // An undo is a bulk write like any other, so it announces itself the same way.
-    var lease = acquireLease(this.taskName + ' (undo)');
-    var i = 0;
-
-    // One guard around the whole undo, exactly as the apply has: every scene it
-    // writes would otherwise look to our own fetch wrapper like a user edit - and
-    // bulkSceneUpdate is precisely what auto-merge on scene update watches for, so
-    // without this the plugin would merge the tags straight back in.
-    guarded(function () {
-      function nextBatch() {
-        if (self.stopped || i >= batches.length) return Promise.resolve();
-        lease.renew();
-        return self.undoBatch(batches[i++]).then(nextBatch);
-      }
-      return nextBatch();
-    }).then(function () {
-      lease.release();
-      self.finishUndo();
-    }, function (e) {
-      lease.release();
-      self.log('ERROR', 'Undo aborted: ' + (e && e.message ? e.message : e));
-      self.errors++;
-      self.finishUndo();
-    });
+    // sequence that lands where the run started. An undo is a bulk write like any
+    // other, so it announces itself the same way - see runUnits.
+    this.runUnits(buildUndoBatches(this.undoable.slice().reverse()), this.taskName + ' (undo)',
+      function (batch) { return self.undoBatch(batch); },
+      'Undo', TaskRun.prototype.finishUndo);
   };
 
   TaskRun.prototype.undoBatch = function (batch) {
@@ -2158,6 +2155,7 @@
             || findActionByLabel(container, 'Delete')
             || findActionByLabel(container, 'Save');
     while (node && node.parentNode !== container) node = node.parentNode;
+    ensureRowSpacing(container);
     insertOrdered(container, button, node);
     applyButtonSpacing(container, button);
   }
@@ -2178,10 +2176,39 @@
   // it: a block container has no flex line whose cross-size a margin could inflate,
   // which is what made vertical margin a regression in a flex row (see
   // `PropagateTagsAndPerformers` 0.9.2 - this plugin's single buttons never hit it).
+  var ROW_GAP = '.25rem';
+
   function computedStyleOf(node) {
     var w = (typeof window !== 'undefined') ? window : null;
     if (!w || typeof w.getComputedStyle !== 'function' || !node) return null;
     try { return w.getComputedStyle(node) || null; } catch (e) { return null; }
+  }
+
+  // Wrapped-row spacing, by whichever mechanism the container honours. `row-gap` is a
+  // flex/grid property, so it is inert on `.edit-buttons` (`display: block`, measured
+  // live) while working on the flex `.details-edit` - same call, opposite result,
+  // decided entirely by the container. So the container is asked which it is, and the
+  // block case gets a bottom margin on our own button instead (`applyButtonSpacing`).
+  //
+  // Unknown display - no `getComputedStyle` at all, which is the test harness - keeps
+  // the flex treatment: an inert `row-gap` is the one outcome that cannot make a row
+  // worse.
+  //
+  // Byte-for-byte the same function as `PropagateTagsAndPerformers`' own, bar the
+  // marker property's prefix. Until 1.15.9 this plugin had no equivalent at all and
+  // set only the block-row margin, so a flex row of its buttons wrapped flush while
+  // the sibling's spaced correctly from identical-looking code.
+  function ensureRowSpacing(container) {
+    if (!container) return;
+    // A real element's `.style` is always a live CSSStyleDeclaration, never absent -
+    // this guard only ever fires in the test harness, whose fake elements have no
+    // `.style` until something sets one.
+    if (!container.style) container.style = {};
+    var cs = computedStyleOf(container);
+    var display = (cs && cs.display) || '';
+    var flexish = !display || display.indexOf('flex') !== -1 || display.indexOf('grid') !== -1;
+    container._cpt2sBlockRow = !flexish;
+    container.style.rowGap = flexish ? ROW_GAP : '';
   }
 
   // 1.15.4, mirroring `PropagateTagsAndPerformers` 0.12.4 - and the release that made
@@ -2310,34 +2337,43 @@
     ];
   }
 
-  function applyButtonSpacing(container, button) {
-    var kids = container.childNodes || [], m = null;
-    var cs = computedStyleOf(container);
-    var gapped = !!cs && nonZeroLength(cs.columnGap);
-    for (var i = 0; i < kids.length && !m && !gapped; i++) {
+  // The row's own spacing step, read off a button Stash put there - one carrying `btn`
+  // with no `_coopOwner`, so neither plugin's buttons can be mistaken for Stash's, and
+  // `<a>` included since Stash styles some row actions as links (1.15.1 established
+  // that for Delete).
+  //
+  // The length test is *positive*, not `!== '0px'`: a style engine with no stylesheet
+  // loaded reports the empty string rather than `0px`, which an inequality reads as a
+  // margin worth copying and then applies as `margin-left:;` - nothing at all, with the
+  // class fallback already skipped. jsdom catches it in the placement suite; the same
+  // hazard is live on any row whose buttons genuinely carry no margin.
+  //
+  // No `getComputedStyle` at all (the shared test harness's fake DOM) returns null, so
+  // the class fallback stands in - which is exactly what shipped before any of this was
+  // measured.
+  function stashButtonMargins(container) {
+    var kids = container.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
       var k = kids[i];
       if (k._coopOwner || !hasClass(k, 'btn')) continue;
-      var ks = computedStyleOf(k);
-      // No `getComputedStyle` at all (the shared test harness's fake DOM): nothing can
-      // be measured, so stop and let the class fallback below stand in - which is
-      // exactly what shipped before any of this was measured.
-      if (!ks) break;
-      // A *positive* test, not "not 0px": a style engine with no stylesheet loaded
-      // reports the empty string rather than `0px`, which the inequality read as a
-      // margin worth copying and then applied as `margin-left:;` - nothing at all, with
-      // the class fallback already skipped. Caught by jsdom in the placement suite; a
-      // live Stash always computes to a length.
-      if (nonZeroLength(ks.marginLeft) || nonZeroLength(ks.marginRight)) {
-        m = { left: ks.marginLeft || '0px', right: ks.marginRight || '0px' };
+      var cs = computedStyleOf(k);
+      if (!cs) return null;
+      if (nonZeroLength(cs.marginLeft) || nonZeroLength(cs.marginRight)) {
+        return { left: cs.marginLeft || '0px', right: cs.marginRight || '0px' };
       }
     }
-    var display = (cs && cs.display) || '';
-    var blockRow = !!display && display.indexOf('flex') === -1 && display.indexOf('grid') === -1;
-    if (!m && !gapped && !hasClass(button, SPACING_CLASS)) {
-      button.className += ' ' + SPACING_CLASS;
+    return null;
+  }
+
+  function applyButtonSpacing(container, button) {
+    var parts = [];
+    var cs = computedStyleOf(container);
+    if (!cs || !nonZeroLength(cs.columnGap)) {
+      var m = stashButtonMargins(container);
+      if (m) parts = parts.concat(fillNeighbourGaps(container, button, m));
+      else if (!hasClass(button, SPACING_CLASS)) button.className += ' ' + SPACING_CLASS;
     }
-    var parts = m ? fillNeighbourGaps(container, button, m) : [];
-    if (blockRow) parts.push('margin-bottom:.25rem');
+    if (container._cpt2sBlockRow) parts.push('margin-bottom:' + ROW_GAP);
     if (parts.length) button.style = parts.join(';') + ';';
   }
 
@@ -2639,21 +2675,14 @@
   var README_URL = 'https://github.com/gregttx/StashPlugins/blob/main/MergePerformerTagsToScenes/README.md';
   var README_LINK_ID = 'cpt2s-readme-link';
 
-  function settingsHasClass(node, name) {
-    return (' ' + String((node && node.className) || '') + ' ').indexOf(' ' + name + ' ') !== -1;
-  }
-
-  // Only the DOM API the fake DOM in the tests also implements, so the suites drive
-  // the same code path a browser does.
-  function findByClass(root, name, depth) {
-    if (!root || depth > 6) return null;
-    var kids = root.childNodes || [];
-    for (var i = 0; i < kids.length; i++) {
-      if (settingsHasClass(kids[i], name)) return kids[i];
-      var found = findByClass(kids[i], name, (depth || 0) + 1);
-      if (found) return found;
-    }
-    return null;
+  // The first descendant carrying a class, in document order. This was a hand-rolled
+  // depth-capped walk until the test harness grew a class selector; the walk existed
+  // only because the fake DOM could not answer `.foo`, not because a browser cannot.
+  // `querySelector` is the same search with the same ordering, and the depth cap it
+  // drops was arbitrary rather than load-bearing.
+  function byClass(root, name) {
+    if (!root || typeof root.querySelector !== 'function') return null;
+    try { return root.querySelector('.' + name) || null; } catch (e) { return null; }
   }
 
   // Stash gives every plugin setting an element id built from the plugin id and the
@@ -2666,7 +2695,7 @@
     var node = document.getElementById('plugin-' + PLUGIN_ID + '-a1ShowManualMergeButtons') ||
       document.getElementById('plugin-' + PLUGIN_ID + '-d1LogMergesToConsole');
     for (var d = 0; node && d < 10; d++, node = node.parentElement) {
-      if (settingsHasClass(node, 'setting-group')) return node;
+      if (hasClass(node, 'setting-group')) return node;
     }
     return null;
   }
@@ -2674,9 +2703,9 @@
   // Under the description, which is in the group header and therefore outside the
   // <Collapse> - so it shows whether or not the group is expanded.
   function readmeLinkSlot(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub.nextSibling };
-    var header = findByClass(group, 'setting', 0);
+    var header = byClass(group, 'setting');
     var box = header && header.childNodes && header.childNodes[0];
     if (box) return { parent: box, before: null };
     return { parent: group, before: null };
@@ -2692,10 +2721,10 @@
   // when it has to. `splitParagraphs` is idempotent: once the children are ours,
   // there is no text node left to split.
   function splitDescription(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
-    if (kids.length && settingsHasClass(kids[0], 'cpt2s-p')) return;   // already ours
+    if (kids.length && hasClass(kids[0], 'cpt2s-p')) return;   // already ours
     var text = sub.textContent || '';
     if (text.indexOf('\n') === -1) return;                   // nothing to split
     var paras = text.split(/\n{2,}/);
@@ -2744,7 +2773,7 @@
   function settingRow(key) {
     var node = settingElement(key);
     for (var d = 0; node && d < 10; d++, node = node.parentElement) {
-      if (settingsHasClass(node, 'setting')) return node;
+      if (hasClass(node, 'setting')) return node;
     }
     return null;
   }
@@ -2767,7 +2796,7 @@
     if (!node || node._cpt2sTipWired) return;
     node._cpt2sTipWired = true;
     var toggle = function (on) {
-      var sub = findByClass(row, 'sub-heading', 0);
+      var sub = byClass(row, 'sub-heading');
       if (sub) setTipOpen(sub, on);
     };
     node.addEventListener('mouseenter', function () { toggle(true); });
@@ -2779,10 +2808,10 @@
   function tipSetting(key) {
     var row = settingRow(key);
     if (!row) return;
-    var sub = findByClass(row, 'sub-heading', 0);
+    var sub = byClass(row, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
-    if (kids.length && settingsHasClass(kids[0], 'cpt2s-sum')) return;   // already ours
+    if (kids.length && hasClass(kids[0], 'cpt2s-sum')) return;   // already ours
     var text = sub.textContent || '';
     var cut = text.indexOf('\n\n');
     if (cut === -1) return;                                              // nothing to hide
@@ -2793,7 +2822,7 @@
       .filter(function (p) { return !!p; }).join('\n\n');
     if (!summary || !detail) return;
     sub.textContent = '';
-    if (!settingsHasClass(sub, 'cpt2s-tipped')) {
+    if (!hasClass(sub, 'cpt2s-tipped')) {
       sub.className = ((sub.className || '') + ' cpt2s-tipped').replace(/^\s+/, '');
     }
     var sum = taskEl('span', 'cpt2s-sum', summary);
@@ -2830,7 +2859,7 @@
   // nowhere else to be read.
   var DESC_TOGGLE_ID = 'cpt2s-desc-toggle';
 
-  function descCollapsed(sub) { return settingsHasClass(sub, 'cpt2s-desc-collapsed'); }
+  function descCollapsed(sub) { return hasClass(sub, 'cpt2s-desc-collapsed'); }
 
   function setDescCollapsed(sub, on) {
     var cls = String(sub.className || '').replace(/\s*cpt2s-desc-collapsed\b/, '');
@@ -2838,11 +2867,11 @@
   }
 
   function collapseDescription(group) {
-    var sub = findByClass(group, 'sub-heading', 0);
+    var sub = byClass(group, 'sub-heading');
     if (!sub) return;
     var kids = sub.childNodes || [];
     var paras = 0;
-    for (var i = 0; i < kids.length; i++) if (settingsHasClass(kids[i], 'cpt2s-p')) paras++;
+    for (var i = 0; i < kids.length; i++) if (hasClass(kids[i], 'cpt2s-p')) paras++;
     if (paras < 2) return;                        // one paragraph hides nothing
     if (document.getElementById(DESC_TOGGLE_ID)) return;
     // A re-render drops the button and the class together, so the description
@@ -2871,7 +2900,7 @@
     // re-renders this panel on any settings change, and the class is the only thing
     // making the description's paragraph breaks visible.
     taskInjectStyle();
-    if (!settingsHasClass(group, 'cpt2s-own-group')) {
+    if (!hasClass(group, 'cpt2s-own-group')) {
       group.className = ((group.className || '') + ' cpt2s-own-group').replace(/^\s+/, '');
     }
     splitDescription(group);

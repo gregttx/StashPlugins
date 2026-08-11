@@ -2,7 +2,7 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.13.2**
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.13.3**
 (last checked 2026-08-11). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
@@ -97,6 +97,22 @@ probe's callback and a probe runs once per entity — so turning the flag on whi
 produced neither. **A diagnostic that only speaks when a cache misses is silent exactly when it is
 wanted.** They come from the tick now, deduplicated, off the cached answer.
 
+0.13.3 is what the diagnostic then found, and it is the largest gap in step 8. A source-side button
+anchors to the row of actions a detail view puts up, and **only Performer and Group render one** -
+confirmed live on Scene and Gallery, whose detail views carry a tab strip and no button row at all.
+Image is untested and likely the same. So five of the eleven source buttons have never appeared, and
+nothing said so: the plan and this file recorded it as one page, second-hand ("Gallery Details
+reportedly renders no buttons of its own"), since 0.9.0. **A feature silently absent on most of its
+pages is not something reading the code finds** - it took a channel that says, per button, why it is
+not there. That is a better argument for §5e's diagnostic than the per-button reasons it was built
+for.
+
+Unfixed on purpose. The candidate anchor is the tab strip those pages do render, and §6's rule is no
+fallback container without a live look at the markup - the rule that exists because guessing at
+anchors cost four releases. Two non-technical decisions come first: it would be a second placement
+convention alongside the navbar one, and the tab strip is present while the Edit tab is open, so a
+source button there would stop being detail-view-only.
+
 0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
 once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
 of this file, the plugin `CLAUDE.md`s and the READMEs. It also fixed a real divergence it exposed —
@@ -107,14 +123,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.13.2, in all three places |
+| Version | 0.13.3, in all three places |
 | `PropagateTagsAndPerformers.js` | ~4,418 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
 | Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 139 = **463** |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
 | Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.2 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch), `NormalizeParentTags` 1.7.5 → 1.7.7 |
-| Landed on `main` | through 0.13.1 (`b0f2d47`); 0.13.2 is uncommitted |
+| Landed on `main` | through 0.13.3 (`c76a624`) |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's

@@ -313,7 +313,8 @@ the result into. Everything else works the same as the target-side buttons: the 
 dedup check against `MergePerformerTagsToScenes`, the same **Show Manual Buttons** toggle, and,
 since 0.9.1, landing before Delete rather than after it.
 
-**Placement beyond the performer and studio pages is unverified against a running Stash.** The
+**Placement beyond the performer and studio pages is unverified against a running Stash**, and on
+Scene and Gallery it is now confirmed *not* to work — see the note under the button table. The
 target-side buttons went through three rounds of live fixes (0.8.1 – 0.8.3) before all four of
 their pages were confirmed; the source-side buttons are new at 0.9.0 and have not had that
 round yet. If one is missing on a page it should be on, that is most likely it.
@@ -336,14 +337,14 @@ Group's Edit tab has no Delete, so everything there appends after Save.
 | `/scenes/<id>` | Edit tab | Copy Tags from Studio | this | `b2` |
 | `/scenes/<id>` | Edit tab | Copy all Tags from all Groups | this | `b4` |
 | `/scenes/<id>` | Edit tab | Copy all Tags from all Performers | MPTTS | its only scene button |
-| `/scenes/<id>` | Detail | Copy *all\|common* Tags to all Groups | this | `e1` |
+| `/scenes/<id>` | Detail | Copy *all\|common* Tags to all Groups | this | `e1` — **does not appear yet, see below** |
 | `/galleries/<id>` | Edit tab | Copy all Perfs from all Images | this | `c2` |
 | `/galleries/<id>` | Edit tab | Copy all Tags from all Images | this | `c1` |
-| `/galleries/<id>` | Detail | Copy Perfs to all Scenes | this | `b5` |
-| `/galleries/<id>` | Detail | Copy Tags to all Images | this | `d1` |
+| `/galleries/<id>` | Detail | Copy Perfs to all Scenes | this | `b5` — **does not appear yet, see below** |
+| `/galleries/<id>` | Detail | Copy Tags to all Images | this | `d1` — **does not appear yet, see below** |
 | `/images/<id>` | Edit tab | Copy all Tags from all Galleries | this | `d1` |
-| `/images/<id>` | Detail | Copy Perfs to all Galleries | this | `c2` |
-| `/images/<id>` | Detail | Copy Tags to all Galleries | this | `c1` |
+| `/images/<id>` | Detail | Copy Perfs to all Galleries | this | `c2` — **may not appear, see below** |
+| `/images/<id>` | Detail | Copy Tags to all Galleries | this | `c1` — **may not appear, see below** |
 | `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Scenes | this | `e1` |
 | `/groups/<id>` | Edit tab | Copy Tags from Studio | this | `e3` |
 | `/groups/<id>` | Edit tab | Copy all Tags from all Performers | this | `e4` |
@@ -359,6 +360,17 @@ Group's Edit tab has no Delete, so everything there appends after Save.
 
 *all\|common* is whichever the path's own "common tags only" setting says; the button's label
 changes with it.
+
+**Five of those Detail-view buttons do not appear, as of 0.13.3.** A source-side button anchors to
+the row of actions Stash puts on a detail view, and **only Performer and Group render one** —
+confirmed live on 2026-08-12 for Scene and Gallery, whose detail views show a tab strip (Details /
+File Info / Chapters / Edit) and no button row at all. Image is untested and likely the same. The
+paths themselves work: everything those buttons would do is reachable from the target's Edit tab, or
+from the library-wide task. It is the buttons that have nowhere to go.
+
+This was found by the gating diagnostics below, not by anyone noticing — the buttons had never
+appeared on those pages and nothing said why. A fix needs a second anchor for pages with no action
+row, which is not guessed at here.
 
 Nowhere else. There are no buttons on list pages, on tag pages, or on scene markers — a marker has
 no page of its own, which is why `tags:marker>scene` and `tags:marker>group` are the two paths with

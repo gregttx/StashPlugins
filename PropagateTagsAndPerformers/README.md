@@ -254,6 +254,21 @@ which is unbounded. So a source button can still report "No changes" on click.
 form instead — so if you remove a tag from the form without saving, the button that would put it
 back stays hidden until you press Save. Saving re-checks immediately; you never need to reload.
 
+### Why is a button missing?
+
+Since 0.13.0 a button hides itself whenever clicking it would add nothing, and most of the reasons
+are invisible from the page — the sources' tags, the target's own tags, the exclusion filters. To
+see the reasoning, open the browser console (F12), run:
+
+```js
+StashPluginCoop.debugButtons = true
+```
+
+and navigate to the page. Each button reports whether it is shown or hidden and why, prefixed
+`[ptp2re gate]`. It takes effect on the next tick — no reload, no setting to change — and one switch
+covers both this plugin and its sibling, since they draw buttons into the same rows. Set it to
+`false`, or just reload the page, to turn it off again.
+
 Clicking one does one of two things, depending on **Save Immediately**:
 
 - **Off (the default) — stages.** The tags or performers it would add are pushed straight into the

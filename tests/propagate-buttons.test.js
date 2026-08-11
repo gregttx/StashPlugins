@@ -1311,6 +1311,43 @@ function nodeListLikeContainer() {
       entityQueries(env.calls).length === before);
   }
 
+  // ── Gating diagnostics: off by default, on from the console ──────────────────
+  {
+    // The switch is `StashPluginCoop.debugButtons`, typed into a live browser console -
+    // no setting, no reload. Both halves matter: silence when it is off is what makes it
+    // safe to leave in, and the lines when it is on are the whole point.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      entity: Object.assign({}, SCENE, { performers: [] }),   // hidden, so there is a reason to state
+    });
+    const said = [];
+    env.ctx.console.info = (m) => said.push(String(m));
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('says nothing while the debug flag is unset', said.length === 0, said.join(' | '));
+
+    env.ctx.window.StashPluginCoop.debugButtons = true;
+    env.ctx.location.pathname = '/scenes/11';   // a different entity, so the probe re-arms
+    env.tick();
+    await h.flush(60);
+    const gate = said.filter((m) => m.indexOf('[ptp2re gate]') === 0);
+    h.check('and reports the gating outcome once switched on', gate.length > 0, said.join(' | '));
+    h.check('naming the path and why it is hidden',
+      gate.some((m) => /tags:performer>scene/.test(m) && /hidden: no performers/.test(m)),
+      gate.join(' | '));
+
+    // The tick-driven lines are deduplicated per channel, or a page nobody is touching
+    // would emit the same three lines every second for as long as it is open.
+    const afterFirst = said.length;
+    env.tick();
+    await h.flush(60);
+    env.tick();
+    await h.flush(60);
+    h.check('two idle ticks add nothing, since the outcome has not changed',
+      said.length === afterFirst, said.slice(afterFirst).join(' | '));
+  }
+
   // ── Reconciling stale buttons ─────────────────────────────────────────────────
   {
     // A second tick with nothing changed must not duplicate the button - the

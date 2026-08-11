@@ -192,6 +192,21 @@ The two buttons appear in different places, because each one sits where the cont
 
 **Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, an **"Copy Tags to all Scenes"** button appears in the button bar on the detail view, just before the Delete button. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped, and the button counts through the scenes as it goes.
 
+### Why is a button missing?
+
+Since 1.16.0 a button hides itself whenever clicking it would add nothing, and most of the reasons
+are invisible from the page — the sources' tags, the target's own tags, the exclusion filters. To
+see the reasoning, open the browser console (F12), run:
+
+```js
+StashPluginCoop.debugButtons = true
+```
+
+and navigate to the page. Each button reports whether it is shown or hidden and why, prefixed
+`[cpt2s gate]`. It takes effect on the next tick — no reload, no setting to change — and one switch
+covers both this plugin and its sibling, since they draw buttons into the same rows. Set it to
+`false`, or just reload the page, to turn it off again.
+
 **The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Copy all Tags from all Performers" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
 
 **Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it is missing at least one tag that one of its performers carries, an **"Copy all Tags from all Performers"** button appears in the button bar, just before the Save/Delete buttons of the edit form. Before 1.16.0 the button showed whenever the scene had any performer at all, so a scene already carrying every one of their tags offered a button that could only report "No changes"; it now asks the same question the click answers, including the Organized and exclusion-tag filters. Note that the check reads the server, while a staged click diffs against the open form — remove a tag from the form without saving and the button stays hidden until you press Save, which re-checks it at once. Click it to add all tags from all performers in that scene into the scene's tag list.

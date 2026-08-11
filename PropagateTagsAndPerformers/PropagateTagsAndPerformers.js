@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.13.0';
+  var PLUGIN_VERSION = '0.13.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -442,6 +442,38 @@
     if (!c.declares) c.declares = {};
     if (!c.order) c.order = {};
     return c;
+  }
+
+  // ── Button gating diagnostics ────────────────────────────────────────────
+  //
+  // Off unless `StashPluginCoop.debugButtons = true`, which is typed into the browser
+  // console: no setting, no reload, no file edit, and the flag is read at call time so
+  // it takes effect on the next tick. On the shared object rather than a global of our
+  // own because both plugins that draw buttons into these rows answer to it, and "why
+  // is this button missing" is rarely a question about only one of them.
+  //
+  // Two shapes, and the difference is what each is for:
+  //
+  //   `gateLog` fires every time. Its callers are the probe resolutions, which happen
+  //   once per entity and again after every save that invalidates them - seeing the
+  //   same answer twice there is the *point*, since it says the re-check ran.
+  //
+  //   `gateLogOnce` is deduplicated per channel, for the tick-driven states.
+  //   `manualButtonsTick` runs every second and on every DOM mutation burst, so an
+  //   undeduplicated line there would emit forever on a page nobody is touching. What
+  //   is worth seeing is the moment an outcome changes. Turning the flag off clears the
+  //   channels, so switching it back on restates the current position rather than
+  //   staying silent until something moves.
+  var _gateLast = {};
+  function gateLog(line) {
+    if (!coop().debugButtons) return;
+    console.info('[ptp2re gate] ' + line);
+  }
+  function gateLogOnce(channel, line) {
+    if (!coop().debugButtons) { _gateLast = {}; return; }
+    if (_gateLast[channel] === line) return;
+    _gateLast[channel] = line;
+    console.info('[ptp2re gate] ' + line);
   }
 
   function acquireLease(label, ttl) {
@@ -3762,16 +3794,35 @@
     var wantKey = pathIdsKey(paths);
     if (!_existenceCheck || _existenceCheck.target !== rt.target ||
         _existenceCheck.id !== rt.id || _existenceCheck.pathsKey !== wantKey) {
-      var check = _existenceCheck = { target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', adds: null };
+      var check = _existenceCheck = {
+        target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', adds: null, has: null,
+      };
       probeButtons(rt.target, paths, rt.id, s).then(function (r) {
-        if (_existenceCheck === check) { check.adds = r.adds; check.status = 'ready'; manualButtonsTick(); }
+        if (_existenceCheck !== check) return;
+        check.adds = r.adds; check.has = r.has; check.status = 'ready';
+        // `has` and `adds` are both kept precisely so this line can tell the two
+        // reasons for hiding apart - "there is no studio here" and "the studio's tags
+        // are already all on this scene" look identical from the button.
+        paths.forEach(function (p) {
+          gateLog(TARGETS[rt.target].label + ' ' + rt.id + ' - ' + p.id + ' - ' +
+            (r.adds[p.id] > 0 ? 'SHOWN: ' + r.adds[p.id] + ' to add'
+              : r.has[p.id] === false ? 'hidden: no ' + p.source.toLowerCase() + ' on this entity'
+              : r.has[p.id] ? 'hidden: source found, but nothing it carries is missing here'
+              // Neither hook fired: `planTarget` returned before both of them, which it
+              // does for an entity the f1/f2 entity-level filters exclude outright.
+              : 'hidden: entity excluded by a filter'));
+        });
+        manualButtonsTick();
       }, function (e) {
         // A failed probe must not silently hide every button on the page - the
         // recorded preference is a button that is sometimes unneeded over one that
         // is missing when it was needed, and a network hiccup is exactly that trade.
         // `adds: null` is read downstream as "show everything".
         console.error('[ptp2re] button probe failed:', e);
-        if (_existenceCheck === check) { check.status = 'ready'; check.adds = null; manualButtonsTick(); }
+        if (_existenceCheck !== check) return;
+        check.status = 'ready'; check.adds = null; check.has = null;
+        gateLog(TARGETS[rt.target].label + ' ' + rt.id + ' - probe failed, showing every button');
+        manualButtonsTick();
       });
     }
     return _existenceCheck.status === 'ready';
@@ -3784,9 +3835,20 @@
   function manualButtonsTick() {
     autoSettings().then(function (s) {
       var rt = s.a1ShowManualButtons ? currentRouteTarget() : null;
-      if (!rt) { clearManualButtons(); return; }
+      if (!rt) {
+        gateLogOnce('t:route', s.a1ShowManualButtons
+          ? 'no target buttons: this route is not one of the four target pages'
+          : 'no target buttons: Show Manual Buttons is off');
+        clearManualButtons(); return;
+      }
       var wanted = enabledPaths(s).filter(function (p) { return p.target === rt.target; });
-      if (!wanted.length) { clearManualButtons(); return; }
+      if (!wanted.length) {
+        gateLogOnce('t:route', 'no target buttons on ' + TARGETS[rt.target].label + ' ' + rt.id +
+          ': no enabled path writes into a ' + TARGETS[rt.target].label.toLowerCase());
+        clearManualButtons(); return;
+      }
+      gateLogOnce('t:route', TARGETS[rt.target].label + ' ' + rt.id + ' - ' + wanted.length +
+        ' enabled path(s) into this page: ' + wanted.map(function (p) { return p.id; }).join(', '));
       var container = findManualButtonContainer();
       if (!container) {
         // No row yet - on a Scene that means the Edit tab is not open. Probe anyway:
@@ -3795,17 +3857,23 @@
         // is *showing* a button for it, so in every other case the key is the one the
         // filtered call would have produced and the answer is already there when the
         // row appears.
+        gateLogOnce('t:container', 'no button row yet on ' + TARGETS[rt.target].label + ' ' + rt.id +
+          ' - probing anyway; on a Scene this means the Edit tab is not open');
         armExistenceCheck(rt, wanted, s);
         clearManualButtons();
         return;
       }
+      gateLogOnce('t:container', 'button row found on ' + TARGETS[rt.target].label + ' ' + rt.id);
       ensureRowSpacing(container);
       // A path another plugin also declares, whose button is already visible right
       // here, is dropped from what we want before either loop below ever sees it -
       // so the removal loop tears an earlier one of ours down the moment a sibling
       // plugin's appears, and the add loop never puts a second one up beside it.
       var paths = wanted.filter(function (p) {
-        return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, buttonLabel(p, s)));
+        var dropped = otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, buttonLabel(p, s));
+        if (dropped) gateLogOnce('t:dedup:' + p.id, p.id + ' - hidden: another plugin is already ' +
+          'showing "' + buttonLabel(p, s) + '" in this row');
+        return !dropped;
       });
       if (!paths.length) { clearManualButtons(); return; }
       // Eligibility gating (0.13.0, Improvement 4): a button whose path would add
@@ -4042,7 +4110,18 @@
     });
     return Promise.all(targets.concat([payload])).then(function () {
       var has = {};
-      paths.forEach(function (p) { has[p.id] = !!reaches[p.id] && !!carries[p.id]; });
+      paths.forEach(function (p) {
+        has[p.id] = !!reaches[p.id] && !!carries[p.id];
+        // The two halves are logged apart for the same reason they are computed apart:
+        // "this performer is in no scenes" and "this performer has no tags" are one
+        // absent button and two entirely different things to go and fix.
+        gateLog(SOURCES[p.sourceType].label + ' ' + id + ' - ' + p.id + ' - ' +
+          (has[p.id] ? 'SHOWN: reaches at least one ' + TARGETS[p.target].label.toLowerCase() +
+              ' and carries something to copy'
+            : !reaches[p.id] ? 'hidden: reaches no ' + TARGETS[p.target].label.toLowerCase()
+            : 'hidden: carries no ' + (p.kind === 'performers' ? 'performers' : 'tags') +
+              ' to copy (or the tag filter refuses all of them)'));
+      });
       return has;
     });
   }
@@ -4150,16 +4229,38 @@
   function manualSourceButtonsTick() {
     autoSettings().then(function (s) {
       var rt = s.a1ShowManualButtons ? currentSourceRouteTarget() : null;
-      if (!rt) { clearManualSourceButtons(); return; }
+      if (!rt) {
+        gateLogOnce('s:route', s.a1ShowManualButtons
+          ? 'no source buttons: this route is not one of the six source pages'
+          : 'no source buttons: Show Manual Buttons is off');
+        clearManualSourceButtons(); return;
+      }
       var container = findDetailContainer();
-      if (!container) { clearManualSourceButtons(); return; }
+      if (!container) {
+        // Reported rather than passed over: Gallery Details renders no button row of
+        // its own, so this is the expected answer there and a real gap elsewhere.
+        gateLogOnce('s:container', 'no detail button row on ' + SOURCES[rt.sourceType].label +
+          ' ' + rt.id + ' - nothing to anchor a source button to');
+        clearManualSourceButtons(); return;
+      }
+      gateLogOnce('s:container', 'detail button row found on ' + SOURCES[rt.sourceType].label + ' ' + rt.id);
       ensureRowSpacing(container);
       var paths = PATHS.filter(function (p) {
         return p.sourceType === rt.sourceType && !!s[p.setting] && hasOwn(SOURCE_BUTTON_LABELS, p.id);
       }).filter(function (p) {
-        return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, sourceButtonLabel(p, s)));
+        var dropped = otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, sourceButtonLabel(p, s));
+        if (dropped) gateLogOnce('s:dedup:' + p.id, p.id + ' - hidden: another plugin is already ' +
+          'showing "' + sourceButtonLabel(p, s) + '" in this row');
+        return !dropped;
       });
-      if (!paths.length) { clearManualSourceButtons(); return; }
+      if (!paths.length) {
+        gateLogOnce('s:paths', 'no source buttons on ' + SOURCES[rt.sourceType].label + ' ' + rt.id +
+          ': no enabled path reads from a ' + SOURCES[rt.sourceType].label.toLowerCase() +
+          ' (both marker paths have no detail page and never qualify)');
+        clearManualSourceButtons(); return;
+      }
+      gateLogOnce('s:paths', SOURCES[rt.sourceType].label + ' ' + rt.id + ' - ' + paths.length +
+        ' candidate path(s): ' + paths.map(function (p) { return p.id; }).join(', '));
       var wantKey = pathIdsKey(paths);
       if (!_existenceCheckSrc || _existenceCheckSrc.sourceType !== rt.sourceType ||
           _existenceCheckSrc.id !== rt.id || _existenceCheckSrc.pathsKey !== wantKey) {
@@ -4168,6 +4269,7 @@
           if (_existenceCheckSrc === check) { check.has = has; check.status = 'ready'; manualSourceButtonsTick(); }
         }, function (e) {
           console.error('[ptp2re] source button probe failed:', e);
+          gateLog(SOURCES[rt.sourceType].label + ' ' + rt.id + ' - probe failed, showing every button');
           if (_existenceCheckSrc === check) { check.status = 'ready'; check.has = null; manualSourceButtonsTick(); }
         });
       }

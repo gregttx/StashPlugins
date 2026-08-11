@@ -204,6 +204,35 @@ plugin by id; it reads whatever `coop().order` and `_coopOwner` say, the same ge
 `declares`. A future third plugin needs only to pick an unused number and tag its own buttons — no
 edit to either existing plugin.
 
+## Cross-plugin cooperation: the shared debug switch
+
+The smallest of the shared mechanisms, and the only one that changes no behaviour.
+`coop().debugButtons`, set from the browser console (`StashPluginCoop.debugButtons = true`), turns
+on a `[<prefix>] gate` channel in every plugin that draws a button into these rows, explaining for
+each button whether it is shown or hidden and why. Read at call time, so it takes effect on the
+next tick with no reload, no setting and no file edit.
+
+**One switch rather than one per plugin, for the same reason the ordering protocol is shared:** the
+buttons sit in one row, and "why is this button missing" is rarely a question about only one plugin.
+A user debugging a row wants both sides talking, not to discover a second flag afterwards.
+
+**On the shared object rather than a plugin setting.** A setting would need a manifest key, a
+storage slot, a settings-page row and a version bump in three files, to expose a diagnostic aimed at
+whoever is already in DevTools looking at the console. It would also persist, which is exactly wrong
+for a flag whose natural lifetime is one debugging session.
+
+**Two shapes, and the distinction is load-bearing.** The probe-resolution lines fire every time,
+because a probe runs once per entity and again after every save that invalidates it — seeing the
+same answer twice there is the point, since it says the re-check ran. The tick-driven lines are
+deduplicated per channel, because the ticks that draw buttons run every second and on every DOM
+mutation burst; undeduplicated, one open page would emit the same handful of lines forever. Turning
+the flag off clears the channels, so switching it back on restates the current position rather than
+staying silent until something moves.
+
+**It is not the plugins' user-facing logging.** Those settings (`g1LogToConsole`,
+`d1LogMergesToConsole`) narrate what a run *changed*, are meant to be left on, and go to a different
+prefix. This narrates what the UI *decided*, and nothing in it is about the library.
+
 ## Placing a manual button near Stash's own actions: important vs. casual
 
 A rule for *any* plugin injecting a button into a row Stash already put buttons in — distinct from

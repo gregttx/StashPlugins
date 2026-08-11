@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.13.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.13.1.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -42,6 +42,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — the delay, measured: the tag query was 766 ms of it, so cache it long and warm it | **0.12.13** |
 | | — and measured again: the probe starts from the route, not from the row appearing | **0.12.14** |
 | | — Improvement 4: a button hides when a click would add nothing, and re-checks on save | **0.13.0** |
+| | — `coop().debugButtons`: a console switch that says why each button is shown or hidden | **0.13.1** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -1020,6 +1021,20 @@ it would couple button visibility to the `TagSelect`/`PerformerSelect` capture m
 React re-renders on every keystroke, so the gate would re-evaluate constantly and flicker. Save is
 what reconciles the two, and Save is what the invalidation above hangs off.
 
+**And a switch to ask it why.** `coop().debugButtons` (0.13.1) turns on a `[ptp2re gate]` channel
+naming, per button, whether it is shown or hidden and on which of the reasons above. The mechanism
+is shared with `MergePerformerTagsToScenes` and documented in the repo-root CLAUDE.md; what is worth
+noting here is *why it was worth building for gating specifically*. Existence gating had one reason
+to hide and it was visible on the page — no performers listed, no studio shown. Eligibility has six,
+and four of them are invisible: the sources' tags, the target's own tags, the common-tags fold and
+the exclusion filters are not things a user can see by looking at the entity. An absent button went
+from self-explanatory to unexplainable, and this is the answer.
+
+The two hooks are what make the line specific: `has` and `adds` are both kept on `_existenceCheck`
+purely so it can tell "there is no studio here" from "the studio's tags are already all on this
+scene", and the source side keeps `reaches` and `carries` apart for the same reason. Both
+distinctions are invisible from the button and each points at a different thing to go and fix.
+
 ## 6. Anchoring in Stash's markup
 
 Every foothold here is a guess until it runs against a real Stash, and a test written from the same
@@ -1089,12 +1104,12 @@ of it apply unchanged:
   check in all four directions - a foreign button for the same declared path suppresses ours, a
   declared-but-not-shown path does not, a foreign button for a different path leaves an unrelated one
   alone, and our own already-rendered button is never mistaken for a foreign one on a later tick.
-  Existence gating: an absent source hides the button, a present source with nothing new to add still
-  shows it (the Improvement 4 / Improvement 2 distinction §5c documents), two paths on one page gated
-  independently, a failed probe falling back to showing rather than hiding, and the
-  studio-with-no-tags-but-scenes scenario named explicitly (§5d - already correct, not a fix). The
+  Eligibility gating (§5e): an absent source hides the button, a source with nothing *new* to add
+  hides it too, two paths that would each add the same tag both showing, an empty common-tags
+  intersection hiding one, two paths on one page gated independently, a failed probe falling back to
+  showing rather than hiding, and the studio-with-scenes-but-no-tags scenario named explicitly. The
   labels, including the two `{mode}`-dependent ones. The whole source-side half - placement on the
-  performer and studio detail views, existence gating via `resolveSourceTargets`, a click resolving
+  performer and studio detail views, gating via `resolveSourceTargets` and the payload query, a click resolving
   and writing directly with no staging option, the dedup check extended to it, and both route
   matchers. And placement (§5d): the button landing between Save and Delete rather than before Save
   or after Delete, a Delete nested in a wrapper still found, the Group-shaped no-Delete container

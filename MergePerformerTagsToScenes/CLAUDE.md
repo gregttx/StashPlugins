@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.16.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.16.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **The button-label text is a cross-plugin contract, not cosmetics.** Both manual buttons read
@@ -257,6 +257,19 @@ saving and the button that would restore it stays hidden until Save. Save is wha
 which is what the `sceneUpdate` branch in §3 is for. `PropagateTagsAndPerformers` §5e documents the
 same ceiling for the same reason — gating against the captured controls would re-evaluate on every
 keystroke.
+
+**A switch to ask a button why it is missing** (1.16.1). `coop().debugButtons`, set from the
+console, turns on a `[cpt2s gate]` channel naming for each button whether it is shown or hidden and
+why. Shared with `PropagateTagsAndPerformers` and documented in the repo-root CLAUDE.md. Two things
+about this plugin's copy:
+
+- **`scenePlanFrom` reports its own reasons**, from the branches that already exist inside it, and
+  takes a `who` label because the gate and the click now ask it the same question — two identical
+  lines with nothing to tell them apart would be worse than none. It also *recovers* one reason
+  `sceneMergePlan` folds away: an excluded scene and a complete one both come back `null`, and they
+  are one absent button and two different things to go and fix.
+- **The performer button's line names both halves** rather than the verdict, for the same reason:
+  "no tags of their own" and "in no scenes" are one absent button and two different fixes.
 
 **Caption flashing.** The scene button's messages are each shorter than "Copy all Tags from all Performers" so the
 button never changes width, and `_sceneFlashToken` makes a later click supersede a running

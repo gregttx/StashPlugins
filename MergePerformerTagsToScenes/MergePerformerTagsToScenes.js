@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.16.0';
+  var PLUGIN_VERSION      = '1.16.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -92,6 +92,32 @@
     if (!c.declares) c.declares = {};
     if (!c.order) c.order = {};
     return c;
+  }
+
+  // ── Button gating diagnostics ────────────────────────────────────────────
+  //
+  // Off unless `StashPluginCoop.debugButtons = true`, typed into the browser console:
+  // no setting, no reload, no file edit, and read at call time so it takes effect on the
+  // next tick. On the shared object rather than a global of our own, so the one switch
+  // also turns on `PropagateTagsAndPerformers`' - both plugins draw buttons into these
+  // same rows, and "why is this button missing" is rarely a question about only one.
+  //
+  // `gateLog` fires every time, and its callers are the eligibility probes, which run
+  // once per entity and again after each save that invalidates them - seeing the same
+  // answer twice is the point, since it says the re-check ran. `gateLogOnce` is for the
+  // tick-driven states: `tick()` runs every second and on every DOM mutation burst, so
+  // an undeduplicated line there would emit forever on an untouched page. Turning the
+  // flag off clears the channels, so switching it back on restates the current position.
+  var _gateLast = {};
+  function gateLog(line) {
+    if (!coop().debugButtons) return;
+    console.info('[cpt2s gate] ' + line);
+  }
+  function gateLogOnce(channel, line) {
+    if (!coop().debugButtons) { _gateLast = {}; return; }
+    if (_gateLast[channel] === line) return;
+    _gateLast[channel] = line;
+    console.info('[cpt2s gate] ' + line);
   }
 
   // Identical to NormalizeParentTags' acquireLease, deliberately: renew per unit of
@@ -429,10 +455,14 @@
   // button that hides while a click would have merged is the drift nobody would notice.
   // Returns `null` for a scene with nothing to do - no performers, no mergeable tags,
   // excluded, or already carrying everything.
-  function scenePlanFrom(scene, exclTagId) {
-    if (!scene) return null;
+  // `who` labels the diagnostic line, because the gate and the click now ask this the
+  // same question through this same function - two identical lines with nothing to tell
+  // them apart would be worse than none.
+  function scenePlanFrom(scene, exclTagId, who) {
+    function no(reason) { gateLog(who + ': no - ' + reason); return null; }
+    if (!scene) return no('scene not found');
     var performers = scene.performers || [];
-    if (!performers.length) return null;
+    if (!performers.length) return no('no performers on this scene');
     // Keyed by id to dedupe performers sharing a tag; the tag itself is kept as
     // the value so the log line can name what was merged.
     var perfTagById = {};
@@ -443,10 +473,20 @@
       });
     });
     var perfTagIds = Object.keys(perfTagById);
-    if (!perfTagIds.length) return null;
+    if (!perfTagIds.length) {
+      return no('the performers here carry no mergeable tags (all excluded, or they have none)');
+    }
     var plan = sceneMergePlan(scene, perfTagIds, exclTagId);
-    if (!plan) return null;
+    // `sceneMergePlan` folds two refusals into one `null`, so the reason is recovered
+    // rather than reported by it: an excluded scene and a complete one are one absent
+    // button and two entirely different things to go and fix.
+    if (!plan) {
+      return no(sceneIsExcluded(scene, exclTagId)
+        ? 'scene excluded by a filter (Organized, or the exclusion tag)'
+        : 'scene already carries all ' + perfTagIds.length + ' mergeable performer tag(s)');
+    }
     plan.tagById = perfTagById;
+    gateLog(who + ': YES - ' + plan.missing.length + ' tag(s) to add');
     return plan;
   }
 
@@ -467,7 +507,7 @@
         { id: sceneId }
       ).then(function (data) {
         var scene = data.findScene;
-        var plan = scenePlanFrom(scene, exclTagId);
+        var plan = scenePlanFrom(scene, exclTagId, 'merge into scene ' + sceneId);
         if (!plan) return false;
         return updateSceneTags(sceneId, plan.existingIds.concat(plan.missing)).then(function () {
           logMerges(plan.missing.map(function (id) { return plan.tagById[id]; }), scene, sceneId, 'saved');
@@ -2129,13 +2169,23 @@
       }
     )
       .then(function (data) {
+        var hasTags   = !!(data.findPerformer && (data.findPerformer.tags || []).length);
+        var hasScenes = !!(data.findScenes && data.findScenes.count > 0);
+        // Both halves named, not just the verdict: "this performer has no tags" and
+        // "this performer is in no scenes" are one absent button and two different
+        // things to go and fix.
+        gateLog('performer button, performer ' + performerId + ': ' +
+          (hasTags && hasScenes ? 'YES - has tags and scenes'
+            : 'no - ' + (!hasTags && !hasScenes ? 'no tags of their own, and in no scenes'
+              : !hasTags ? 'no tags of their own to copy'
+              : 'in no scenes to copy them to')));
         if (performerCheck && performerCheck.id === performerId) {
-          var hasTags   = !!(data.findPerformer && (data.findPerformer.tags || []).length);
-          var hasScenes = !!(data.findScenes && data.findScenes.count > 0);
           performerCheck.status = (hasTags && hasScenes) ? 'yes' : 'no';
         }
       })
-      .catch(function () {
+      .catch(function (e) {
+        gateLog('performer button, performer ' + performerId + ': no - the check itself failed: ' +
+          (e && e.message ? e.message : e));
         if (performerCheck && performerCheck.id === performerId) performerCheck.status = 'no';
       });
   }
@@ -2466,18 +2516,23 @@
 
   function addPerformerButton() {
     if (!settings.showManualMergeButtons) {
+      gateLogOnce('p:setting', 'performer button: Show Manual Merge Buttons is off');
       removePerformerButton();
       return;
     }
+    gateLogOnce('p:setting', 'performer button: Show Manual Merge Buttons is on');
     var performerId = getPerformerId();
     if (!performerId) return;
     var container = findPerformerDetailContainer();
     if (!container) {
       // Editing (or the navbar has not rendered yet) — drop a button left over from
       // the detail view rather than letting it ride along into the edit form.
+      gateLogOnce('p:container', 'performer button: no detail navbar - the edit form is ' +
+        'open, or the navbar has not rendered yet');
       removePerformerButton();
       return;
     }
+    gateLogOnce('p:container', 'performer button: detail navbar found on performer ' + performerId);
     var existing = document.querySelector('.' + PERFORMER_BTN_CLASS);
     if (existing) {
       if (existing.parentNode === container) return;
@@ -2563,25 +2618,35 @@
           { id: sceneId }
         ).then(function (data) {
           if (sceneCheck && sceneCheck.id === sceneId) {
-            sceneCheck.status = scenePlanFrom(data.findScene, exclTagId) ? 'yes' : 'no';
+            sceneCheck.status =
+              scenePlanFrom(data.findScene, exclTagId, 'scene button, scene ' + sceneId) ? 'yes' : 'no';
           }
         });
       })
-      .catch(function () {
+      .catch(function (e) {
+        gateLog('scene button, scene ' + sceneId + ': no - the check itself failed: ' +
+          (e && e.message ? e.message : e));
         if (sceneCheck && sceneCheck.id === sceneId) sceneCheck.status = 'no';
       });
   }
 
   function addSceneButton() {
     if (!settings.showManualMergeButtons) {
+      gateLogOnce('s:setting', 'scene button: Show Manual Merge Buttons is off');
       var existing = document.querySelector('.' + SCENE_BTN_CLASS);
       if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
       return;
     }
+    gateLogOnce('s:setting', 'scene button: Show Manual Merge Buttons is on');
     var sceneId = getSceneId();
     if (!sceneId) return;
     var container = document.querySelector('.edit-buttons');
-    if (!container) return;
+    if (!container) {
+      gateLogOnce('s:container', 'scene button: no .edit-buttons row on this page yet - ' +
+        'on a Scene that means the Edit tab is not open');
+      return;
+    }
+    gateLogOnce('s:container', 'scene button: row found on scene ' + sceneId);
 
     if (!sceneCheck || sceneCheck.id !== sceneId) {
       sceneCheck = { id: sceneId, status: 'pending' };

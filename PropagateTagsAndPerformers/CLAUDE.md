@@ -1,13 +1,21 @@
-# CLAUDE.md — Propagate Tags and Performers to Related Entities
+# CLAUDE.md — GTTx Propagate Tags and Performers to Related Entities
 
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build step,
 `gqlRequest`, the bulk-edit lease, the shared dialog chrome) are in `../CLAUDE.md` and still apply.
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.17.0.** The version is below 1.0.0 deliberately and stays there
-until the plugin is finished — the major digit is the claim that it is worth installing. Each
-implementation step takes a minor bump; fixes within a step take the patch.
+**Status: released, 1.0.0.** Every step in the table below has landed, so the version left the
+0.x range: the major digit was always the claim that the plugin is finished and worth installing,
+and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
+siblings.
+
+**1.0.0 is also a rename.** The display name is now `GTTx Propagate Tags and Performers to Related
+Entities`, in the `.yml`, the `manifest` and `PLUGIN_NAME`, and `PLUGIN_SHORT_NAME` with it —
+`GTTx Propagate Tags & Performers`, which is what the dialog heads wear. The folder, the plugin
+**id**, every setting key and every path id are unchanged, so an upgrade keeps its configuration
+and the `declares` registry still matches across versions. See "Cross-plugin cooperation: one name
+prefix" in the repo-root `CLAUDE.md`.
 
 | Step | | Version |
 | --- | --- | --- |
@@ -48,6 +56,10 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — a second anchor: our own row under the tab strip, for pages with no action row | **0.14.0** |
 | | — that row shown only on its targets' tab; Apollo evicted so counts redraw; labels | **0.15.0** |
 | | — parity with `MergePerformerTagsToScenes` on the one path both plugins run (§5f) | **0.16.0** |
+| | — amber for "a plugin wrote this": every button and four settings toggles (§5g) | **0.17.0** |
+| | — no unreviewed write: a saving button opens the dialog, scoped, and says so (§5h) | **0.18.0** |
+| | — a scoped title says which entity, in a name the user recognises (§5h) | **0.18.1** |
+| | — the `GTTx ` name prefix, and the version the whole table above was building to | **1.0.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -92,7 +104,7 @@ paths out of a *gallery's images*, which have no field to walk and need a revers
 step 5 now.
 
 The full design, including the decisions that were taken and the paths that were rejected, is in
-`.plans/migrate-tags-and-performers.md`, tracked in git alongside the rest of this plugin.
+`.plans/propagate-tags-and-performers.md`, tracked in git alongside the rest of this plugin.
 
 ---
 
@@ -631,8 +643,10 @@ exactly what one entity is — so a click reuses it verbatim: `autoSettings()` f
 settings, `autoContext(s)` for the tag hierarchy and filters, `new AutoRun(s, ...)`,
 `run.planEntities(target, paths, [id])`. The only new code is where the result goes.
 
-**Two destinations, one `s.a2SaveImmediately` switch away from each other.**
-"Save immediately" calls `run.apply(label)` unchanged — the exact function auto mode's target-side
+**Two destinations, one `s.a2SaveImmediately` switch away from each other.** *(0.18.0 replaced the
+first of them: it opened the review dialog instead of writing — see §5h. The paragraph stands as the
+record of what the switch used to select.)* "Save immediately" called `run.apply(label)` unchanged —
+the exact function auto mode's target-side
 reaction calls. Staging (the default) reads `run.plan` instead and pushes each entry's `add` ids
 into a captured form control. Names for staged items come free: `run.tagMap` (built for the
 exclusion filters anyway) for tags, `run.performerNames` (built by `AutoRun`'s own `addSource` while
@@ -881,9 +895,11 @@ oversight; §8's discussion flagged it and the user's decision did not ask it to
 
 - **No staging.** A target-side button stages into *one* captured form control; a source button can
   resolve to dozens of different targets across dozens of different pages, and there is no single
-  form to stage into. Every source button saves immediately regardless of `a2SaveImmediately` — that
-  setting is about which of the target buttons' two behaviours to use, and a button with only one
-  behaviour is not addressed by it.
+  form to stage into. Every source button therefore ignores `a2SaveImmediately` — that setting is
+  about which of the target buttons' two behaviours to use, and a button with only one behaviour is
+  not addressed by it. Until 0.18.0 that one behaviour was writing on the spot; it is now the review
+  dialog, scoped to the path and the source (§5h), which is the closest thing to staging a fan-out
+  can have.
 - **Reuses `SOURCE_REVERSE` (§4e) to resolve targets, not a new lookup.** `resolveSourceTargets(path,
   [id])` is the exact function a source-side *auto-mode* reaction already calls; a click plans and
   applies just `[path]` onto whatever it resolves, via `AutoRun.planEntities(path.target, [path],
@@ -1215,6 +1231,71 @@ a real fix at the same version — it now answers from the button's own `.settin
 where it used to climb past it into the panel holding every plugin's group and match whichever
 plugin was listed first. See §2 of `NormalizeParentTags`' CLAUDE.md for the full note; all three
 plugins carried it and all three were fixed together.
+
+## 5h. No unreviewed write: the buttons open the dialog, scoped (0.18.0)
+
+The repo-root CLAUDE.md states the rule; this is this plugin's half. Two of the three ways to write
+here already asked first (the task's dialog, staging into the form) and the remaining two did not: a
+target-side button with "save immediately" on, and *every* source-side button — the widest write in
+the plugin, one click on a studio rewriting every scene it owns.
+
+**`Run` gained a `scope`, and nothing else about it changed.** `{ pathId, target, ids }` for a
+target-side click, `{ pathId, sourceId }` for a source-side one. `begin()` reads `scopedPaths` in
+place of `enabledPaths` — one path, re-read from the settings so a path switched off between the
+tick and the click is refused — and calls `scanScoped` in place of `scan`. Everything downstream
+(the batches, Proceed, Undo, Rescan, the recap, the lease, `guarded()`) is what the task runs.
+
+**`scanScoped` plans through `planPass`, borrowed *back* from `AutoRun`.** That is the one structural
+addition: `AutoRun` has always borrowed the planner from `Run`, and now `Run` borrows the two methods
+that drive a *named* set of entities from `AutoRun` — assigned after their definitions, since
+`AutoRun`'s own borrow list runs before them. So a scoped dialog and an auto reaction plan through
+identical code, which is what makes "the dialog shows what the click would have written" true by
+construction rather than by inspection. `scan` was split into `prepare` (the tag map and the
+filters, which both need) and the library walk.
+
+**A source-side scope resolves its ids in the dialog, not before it.** `scopeIds` calls the same
+`resolveSourceTargets` the click used to call, so the review covers exactly the entities the write
+would have covered, and the user sees the dialog open immediately rather than after a lookup.
+
+**`runManualSource` no longer writes at all**, and `runManual` writes only through staging. Both
+return `{ mode: 'dialog' }`, which is the click handler's signal to restore the caption instead of
+flashing a count under a modal that covers it.
+
+**Re-probing moved to `Run.close`.** Both clicks used to invalidate the eligibility probes on the
+flash timer; a dialog's writes land long after that, and the buttons are unreachable while it is
+open, so the close is the first moment a re-probe is worth anything. On a page with no manual
+buttons the tick returns before it queries anything.
+
+**The captions.** `withEllipsis` appends "..." where the click opens the dialog: always on the
+source side, and on the target side per `savesImmediately(s)` — one expression now shared by the
+caption, the tooltip and `runManual`, so they cannot disagree. `sameButtonLabel` strips trailing dots
+before the cross-plugin dedup compares, because the sibling appends its own on its own conditions
+and one plugin staging while the other reviews must not read as two different buttons.
+
+**The title (0.18.1), which 0.18.0 shipped as a sentence made of three unhelpful parts.** It read
+`Propagate Tags and Performers to Related Entities - Copy Tags to all Scenes... - Group 57`. Three
+fixes, one per part:
+
+- **The "..." comes back off.** It is a promise a *caption* makes — "this click asks before it acts"
+  — and the caption is being quoted inside a sentence here, where trailing dots are just punctuation
+  in the middle of one. `stripEllipsis` is the shared half of `sameButtonLabel`, which was already
+  doing this for the dedup comparison.
+- **`PLUGIN_SHORT_NAME`, beside the manifest's `PLUGIN_NAME`.** The full name cannot change:
+  `ownSettingGroup` finds this plugin's block on the settings page by matching that heading against
+  the `.yml`. But as the first third of a title that goes on to name a task, a path and an entity, it
+  is the longest third and the least informative — the user knows which plugin they clicked. Every
+  other use of `PLUGIN_NAME` stays, including the console prefix, which is where a line detached from
+  a dialog needs the unabbreviated name.
+- **`scopeLabel(type, id)` names the entity**, in `entityLabel`'s shape — `Performer "Jane" (100)` —
+  keyed off `SOURCES` first so all seven types resolve without a branch. It costs one by-id query per
+  scoped click, made while a dialog opens on a scan about to make dozens, and falls back to the bare
+  label and id rather than rejecting: a dialog that cannot name its scope should still open.
+
+The two scoped call sites read `- from <entity>` on the source side and `- for <entity>` on the
+target side, which is the direction the copy runs in each case. **The title wraps rather than being
+clipped** when all of that exceeds a line: `.ptp2re-title` is a plain block and nothing in `CSS`
+makes it a flex child or sets `white-space`, so this is the default holding rather than a rule — but
+it is now a default worth not breaking.
 
 ## 6. Anchoring in Stash's markup
 

@@ -5,7 +5,7 @@
 'use strict';
 const h = require('./npt-harness');
 
-const TASK_TREE = 'Show Tag Hierarchy';
+const TASK_TREE = 'Show Tag Hierarchy...';
 
 //        Root (1)                Loose (7, no parents, no children)
 //        ├── Mid (2)

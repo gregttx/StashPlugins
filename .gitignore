@@ -6,5 +6,5 @@ package-lock.json
 # Written as `.plans/*` rather than `.plans/`, because git cannot re-include a file
 # whose parent directory is itself excluded.
 .plans/*
-!.plans/migrate-tags-and-performers.md
+!.plans/propagate-tags-and-performers.md
 .claude/

@@ -13,8 +13,15 @@
   'use strict';
 
   var PLUGIN_ID   = 'NormalizeParentTags';
-  var PLUGIN_NAME = 'Normalize Parent Tags';
-  var SIBLING_ID  = 'MergePerformerTagsToScenes';
+  var PLUGIN_NAME = 'GTTx Normalize Parent Tags';
+  // The name the dialogs wear. `PLUGIN_NAME` is the manifest's, and it has to stay
+  // byte-identical to the `.yml` because the settings group and the task rows are
+  // found by matching that heading. The same string here, because this one already
+  // fits in a title - the constant exists so both heads read from one expression,
+  // and so a future shortening is one edit rather than three call sites.
+  var PLUGIN_SHORT_NAME = PLUGIN_NAME;
+  var SIBLING_ID   = 'MergePerformerTagsToScenes';
+  var SIBLING_NAME = 'GTTx Merge Performer Tags To Scenes';
 
   // The one version that proves anything. Everything the settings page shows is read
   // from the manifest over GraphQL and updates the moment plugins are reloaded, while
@@ -23,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.8.0';
+  var PLUGIN_VERSION = '2.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -41,9 +48,9 @@
     'script own version - the settings page reads the manifest instead, which can be newer ' +
     'than the script your browser has cached.');
 
-  var TASK_PRUNE  = 'Prune Parent Tags from Entities';
-  var TASK_ROLLUP = 'Roll Up Parent Tags onto Entities';
-  var TASK_TREE   = 'Show Tag Hierarchy';
+  var TASK_PRUNE  = 'Prune Parent Tags from Entities...';
+  var TASK_ROLLUP = 'Roll Up Parent Tags onto Entities...';
+  var TASK_TREE   = 'Show Tag Hierarchy...';
   var TASKS = [TASK_PRUNE, TASK_ROLLUP, TASK_TREE];
 
   // Stash renders every plugin task with the same `btn-secondary`, so nothing on the
@@ -142,9 +149,29 @@
   // See "Cross-plugin cooperation: the bulk-edit lease" in the repo-root CLAUDE.md.
   // A lease asks reactive plugins in this tab to stand down while we write. It is
   // advisory and always expires, so a crash cannot disable anyone permanently.
+
+  // The one global this repo reserves: `window.__GTTx__`, holding every object these
+  // plugins share. `StashPluginCoop` on its own was a name any third-party plugin
+  // could have picked, and a collision would hand someone else's object our leases;
+  // nesting it under an owner prefix makes that a non-question.
+  //
+  // `window.StashPluginCoop` stays as an alias to the very same object, and an existing
+  // one is adopted rather than replaced. A user who updates one of these plugins and
+  // not the others has two releases of the protocol in one tab, and both halves have to
+  // keep seeing one set of leases - the alias costs a line, a missed lease costs a bulk
+  // run. Keep this function byte-identical across the three plugins, like the CSS.
+  function coopObject() {
+    var ns = window.__GTTx__;
+    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+    var c = ns.StashPluginCoop || window.StashPluginCoop;
+    if (!c || typeof c !== 'object') c = {};
+    ns.StashPluginCoop = c;
+    if (window.StashPluginCoop !== c) window.StashPluginCoop = c;
+    return c;
+  }
+
   function coop() {
-    var c = window.StashPluginCoop;
-    if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
+    var c = coopObject();
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
     if (!c.declares) c.declares = {};
@@ -1231,7 +1258,7 @@
     this.backdrop.appendChild(this.modal);
 
     var head = el('div', 'npt-head');
-    head.appendChild(el('div', 'npt-title', PLUGIN_NAME + ' - ' + this.taskName));
+    head.appendChild(el('div', 'npt-title', PLUGIN_SHORT_NAME + ' - ' + this.taskName));
     // The Undo button reverses this dialog's own writes while it is open. That is
     // not a restore and must never be allowed to read as one, so the backup
     // instruction keeps the position it has always had and the limits are stated
@@ -1430,7 +1457,7 @@
     // that says the run is still unsafe when it no longer is.
     this.noteEl.textContent = '';
     this.renderProgress();
-    this.log('INFO', PLUGIN_NAME + ' - ' + this.taskName + ' - reviewing, nothing will be written yet.');
+    this.log('INFO', PLUGIN_SHORT_NAME + ' - ' + this.taskName + ' - reviewing, nothing will be written yet.');
 
     // Someone else's lease, held right now. Ours is taken in proceed(), so nothing
     // here can be looking at its own. It is advisory and this is a manual action, so
@@ -1536,11 +1563,11 @@
     if (!on.length) return;
 
     if (siblingRespectsLeases()) {
-      this.log('INFO', 'Merge Performer Tags To Scenes has ' + on.join(' and ') +
+      this.log('INFO', SIBLING_NAME + ' has ' + on.join(' and ') +
         ' enabled; it will stand down while changes are applied.');
       return;
     }
-    this.note('Merge Performer Tags To Scenes has ' + on.join(' and ') + ' enabled, and this copy ' +
+    this.note(SIBLING_NAME + ' has ' + on.join(' and ') + ' enabled, and this copy ' +
       'is too old to stand down. It will merge performer tags back into entities this run changes. ' +
       'Turn it off for the duration, or press Rescan afterwards.');
   };
@@ -1793,7 +1820,7 @@
 
     var head = el('div', 'npt-head');
     this.headEl = head;
-    head.appendChild(el('div', 'npt-title', PLUGIN_NAME + ' - ' + this.taskName));
+    head.appendChild(el('div', 'npt-title', PLUGIN_SHORT_NAME + ' - ' + this.taskName));
     this.noteEl = el('div', 'npt-note',
       'Read-only. Nothing here writes anything. Badges reflect the exclusion filters ' +
       'currently set in the plugin settings.');
@@ -2840,7 +2867,7 @@
   // is why the notice never appeared at 1.2.0.
   //
   // Strip the suffix and compare exactly, rather than testing a prefix: a plugin
-  // called "Normalize Parent Tags Extra" must not be mistaken for ours.
+  // called "GTTx Normalize Parent Tags Extra" must not be mistaken for ours.
   function headingIsOurs(text) {
     var t = String(text == null ? '' : text).trim();
     if (t === PLUGIN_NAME) return true;

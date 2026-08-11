@@ -1,21 +1,21 @@
-name: Merge Performer Tags To Scenes
-description: "Copies each performer's tags onto their scenes.\n\nThree ways to run it: buttons on the performer and scene pages, automatically whenever a scene or performer is saved, or as one library-wide task in Settings - Tasks - Plugin Tasks. The buttons and the automatic modes are off until you enable them below.\n\nNothing is written behind your back: the scene button puts tags in the edit form for you to save, and the task lists every change before writing any of them - nothing lands until you press Proceed, and Undo takes the merge back while the dialog stays open.\n\nFilters can skip organized scenes, scenes carrying a tag you name, tags set to Ignore auto tag, and tags carrying a custom field you name.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - it rewrites tag assignments across the whole library and Stash has no undo. \n\nRequires Stash 0.31.0 or newer."
+name: GTTx Merge Performer Tags To Scenes
+description: "Copies each performer's tags onto their scenes.\n\nThree ways to run it: buttons on the performer and scene pages, automatically whenever a scene or performer is saved, or as one library-wide task in Settings - Tasks - Plugin Tasks. The buttons and the automatic modes are off until you enable them below.\n\nNothing is written behind your back: the scene button puts tags in the edit form for you to save, and every other way of running it - both buttons and the task - lists every change in a dialog first. Nothing lands until you press Proceed, and Undo takes the merge back while the dialog stays open.\n\nFilters can skip organized scenes, scenes carrying a tag you name, tags set to Ignore auto tag, and tags carrying a custom field you name.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - it rewrites tag assignments across the whole library and Stash has no undo. \n\nRequires Stash 0.31.0 or newer."
 url: "https://github.com/gregttx/StashPlugins/blob/main/MergePerformerTagsToScenes/README.md"
-version: 1.17.0
+version: 2.0.0
 ui:
   javascript:
     - MergePerformerTagsToScenes.js
 tasks:
-  - name: Merge Performer Tags into All Their Scenes
+  - name: Merge Performer Tags into All Their Scenes...
     description: Copy every performer's tags onto every scene they appear in, across the whole library. Opens a dialog that lists every change first; nothing is written until you press Proceed. The merge only ever adds tags, and an Undo button takes back what it added - but only while the dialog stays open, so back up your database before the first run. The exclusion filters below all apply.
 settings:
   a1ShowManualMergeButtons:
     displayName: Show Manual Merge Buttons
-    description: "Show \"Copy Tags to all Scenes\" on the performer detail view (not while editing) and \"Copy all Tags from all Performers\" on the scene Edit tab.\n\nButtons only appear when related content exists - the performer button also needs the performer to have at least one tag."
+    description: "Show \"Copy Tags to all Scenes...\" on the performer detail view (not while editing) and \"Copy all Tags from all Performers\" on the scene Edit tab.\n\nButtons only appear when related content exists - the performer button also needs the performer to have at least one tag.\n\nA caption ending in \"...\" opens a dialog listing every change first; nothing is written until you press Proceed."
     type: BOOLEAN
   a2SaveTagsImmediately:
     displayName: Save Tags Immediately
-    description: "Make \"Copy all Tags from all Performers\" merge and save in one step.\n\nLeave this off to stage the tags in the scene's tag box for review instead, so you can check them and press Save yourself. Only affects the scene button; the performer button and auto-merge always save."
+    description: "Make \"Copy all Tags from all Performers\" review in a dialog instead of staging in the form.\n\nLeave this off to stage the tags in the scene's tag box, so you can check them and press Save yourself. Turned on - or on a Stash that cannot stage - the button opens a dialog listing every change first, and nothing is written until you press Proceed. Only affects the scene button; the performer button always reviews in the dialog, and auto-merge always saves."
     type: BOOLEAN
   a3AutoMergeOnSceneUpdate:
     displayName: Auto Merge On Scene Updates

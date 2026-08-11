@@ -183,7 +183,7 @@ Promise.resolve()
       }),
     });
     // Stand in for a sibling new enough to register itself.
-    env.ctx.window.StashPluginCoop = { leases: [], respecters: { MergePerformerTagsToScenes: true } };
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = { leases: [], respecters: { MergePerformerTagsToScenes: true } };
     h.run(env.ctx);
     h.startTask(env.ctx, h.TASK_PRUNE);
     return h.flush().then(() => {
@@ -319,7 +319,8 @@ Promise.resolve()
   .then(() => scan({ entities: bigLibrary(), installed: { id: 'NormalizeParentTags', version: '9.9.9' } }))
     .then(({ d }) => {
       h.check('a version mismatch is named in the dialog head',
-        d().note.indexOf('9.9.9 is installed') !== -1 && /running Normalize Parent Tags \d/.test(d().note),
+        d().note.indexOf('9.9.9 is installed') !== -1 &&
+          /running GTTx Normalize Parent Tags \d/.test(d().note),
         d().note);
       h.check('and says how to fix it', d().note.indexOf('Ctrl+Shift+R') !== -1, d().note);
       // The one blocking warning in this dialog: every other one is about the library
@@ -483,7 +484,7 @@ Promise.resolve()
   // sibling's task raises about ours.
   .then(() => {
     const env = h.makeEnv({ quiet: true, respond: h.makeResponder({ entities: bigLibrary() }) });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [{
         owner: 'MergePerformerTagsToScenes',
         label: 'Merge Performer Tags into All Their Scenes',

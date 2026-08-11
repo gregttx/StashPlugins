@@ -12,7 +12,7 @@ const h = require('./npt-harness');
 const NAME = 'PropagateTagsAndPerformers';
 const SRC = process.env.SRC || path.join(__dirname, '..', NAME, NAME + '.js');
 const PREFIX = 'ptp2re';
-const TASK = 'Propagate Tags and Performers to All Related Entities';
+const TASK = 'Propagate Tags and Performers to All Related Entities...';
 
 // Hair Colour (1) / Blonde (2) / Outdoor (3) / Interview (4) / Locked (5) / Skip (6)
 const TAGS = [

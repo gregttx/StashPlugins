@@ -1,11 +1,21 @@
-# CLAUDE.md — Normalize Parent Tags
+# CLAUDE.md — GTTx Normalize Parent Tags
 
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.8.0.** This file is both the design and the map of the code — the
+**Status: implemented at 2.0.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.0.0 is a rename, not a rewrite.** The plugin is now `GTTx Normalize Parent Tags` everywhere
+its display name appears — `.yml`, `manifest`, `PLUGIN_NAME` — so the three plugins in this repo
+group together in Stash's plugin list and are recognisable as one author's. The major digit says
+so because the name is what the user searches the settings page for, and because every heading
+match in §2 and §5b now compares against a different string. Nothing else changed: the folder,
+the plugin **id**, every setting key and every storage slot are untouched, so an upgrade keeps its
+configuration. `PLUGIN_SHORT_NAME` arrived with it — the same string here, since this name already
+fits in a dialog title — so that all three plugins' dialog heads read from one expression. See
+"Cross-plugin cooperation: one name prefix" in the repo-root `CLAUDE.md`.
 
 Two things in here are deliberately *not* implemented, and should stay that way until there is
 a reason: the candidate-narrowing tag filter in §5 (plain paging is correct and simpler, and the
@@ -20,11 +30,11 @@ Stash tag hierarchies are implied downward: if `Blonde` has parent `Hair Colour`
 tagged `Blonde` is already understood to be `Hair Colour`. Storing both on the same entity is
 redundant. Two library-wide tasks make that explicit, in either direction:
 
-- **Prune Parent Tags from Entities** — remove every tag on an entity that is a strict ancestor
+- **Prune Parent Tags from Entities...** — remove every tag on an entity that is a strict ancestor
   of another tag on the *same* entity. What survives is the antichain of the entity's tag set:
   every tag with no descendant of its own present. That includes leaf tags and any intermediate
   tag whose children (direct or indirect) are all absent.
-- **Roll Up Parent Tags onto Entities** — add every strict ancestor, recursively, of every tag
+- **Roll Up Parent Tags onto Entities...** — add every strict ancestor, recursively, of every tag
   on the entity.
 
 The task names are deliberately long: the name is both the `SettingGroup` heading and the button
@@ -64,6 +74,13 @@ patchable component for that page (see the list in Stash's `UIPluginApi.md` — 
 `PluginTasks.tsx` lists every enabled plugin with `tasks.length > 0`, so declaring tasks is
 enough to get a native, correctly-styled collapsible group named after the plugin, with one
 button per task. No DOM construction, no CSS guessing, no breakage when Stash restyles the page.
+
+**All three task names end in "..." since 1.9.0**, because all three open a dialog rather than
+acting — the repo-wide convention, and `Show Tag Hierarchy...` earns it as much as the two that
+write. The name is the button's label, so it lives in **two** places that must agree: `tasks:` in
+the manifest, and `TASKS` in the JS, which is what `ownTaskName` matches a click against. Change
+one without the other and the click stops being caught, which means it reaches Stash's job queue
+and fails there.
 
 The catch: this plugin has no `exec`/`interface`, so the task cannot actually run server-side.
 Stash's loader does not mind (`Config.valid()` only checks `interface` and setting types, and
@@ -482,7 +499,7 @@ to concurrent changes — rather than leaving them to be discovered.
 
 ## 5a. The hierarchy viewer (0.7.0)
 
-A read-only third task, `Show Tag Hierarchy`, on the same entry-point machinery as the other two.
+A read-only third task, `Show Tag Hierarchy...`, on the same entry-point machinery as the other two.
 It answers the questions the other two raise — *which tags does Prune consider redundant, why was
 that one left alone, where are the diamonds* — against the same graph they run on.
 

@@ -1,4 +1,12 @@
-# Merge Performer Tags To Scenes
+# GTTx Merge Performer Tags To Scenes
+
+> ## 2.0.0 — the plugin is now called *GTTx Merge Performer Tags To Scenes*
+>
+> Only the display name changed. The folder, the plugin id and every setting keep their names, so
+> an update carries your configuration over; what moves is where the plugin sits in Stash's
+> alphabetical plugin list. The `GTTx ` prefix collects it with its two siblings —
+> `GTTx Normalize Parent Tags` and `GTTx Propagate Tags and Performers to Related Entities` — which
+> are developed together and are meant to be updated together.
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -26,19 +34,21 @@
 > **Upgrading to 1.1.1 from an earlier version resets the plugin's settings.** The settings were
 > renamed internally so that the settings page lists them in a sensible order instead of
 > alphabetically. Nothing else changed, but your previous choices are not carried over — open
-> **Settings → Plugins → Merge Performer Tags To Scenes** and set them again. Everything is off
+> **Settings → Plugins → GTTx Merge Performer Tags To Scenes** and set them again. Everything is off
 > until you do, so nothing merges by itself in the meantime.
 
 A front-end-only Stash plugin that adds two tag-merging buttons:
 
-- **"Copy Tags to all Scenes"** on each performer's detail view — copies that performer's tags onto every scene featuring them, regardless of any filter or selection in the scene list below.
-- **"Copy all Tags from all Performers"** on each scene's Edit tab — puts all tags from all of that scene's performers into the scene's tag box for you to review and save (or saves them directly, if you enable **Save Tags Immediately**).
+- **"Copy Tags to all Scenes..."** on each performer's detail view — copies that performer's tags onto every scene featuring them, regardless of any filter or selection in the scene list below.
+- **"Copy all Tags from all Performers"** on each scene's Edit tab — puts all tags from all of that scene's performers into the scene's tag box for you to review and save.
 
-Buttons are hidden by default and can be enabled in **Settings → Plugins → Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and — since 1.16.0 — the scene button needs the scene to be actually missing at least one of its performers' tags, rather than merely having a performer. Both re-check themselves when you save that scene or performer, so a button appears or disappears without a page reload. Tags are **added** (not replaced) — existing tags are always kept.
+**A button whose caption ends in "..." opens a dialog first** — the same review the library-wide task uses, listing every change before any of it is written, with Proceed, Stop, Copy log, Rescan and Undo. The performer button always does; the scene button does when **Save Tags Immediately** is on, or on a Stash where staging into the form is unavailable. Since 1.18.0 no button here writes anything without either staging it in the form or showing you the plan. The dialog's heading names what it is scoped to — *Copy Tags to all Scenes - from Performer "Ann" (7)* — so a dialog opened from a button says which entity it is about, by the name you know it by (1.18.1).
+
+Buttons are hidden by default and can be enabled in **Settings → Plugins → GTTx Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and — since 1.16.0 — the scene button needs the scene to be actually missing at least one of its performers' tags, rather than merely having a performer. Both re-check themselves when you save that scene or performer, so a button appears or disappears without a page reload. Tags are **added** (not replaced) — existing tags are always kept.
 
 There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks**:
 
-- **Merge Performer Tags into All Their Scenes** — does what the performer button does, for every
+- **Merge Performer Tags into All Their Scenes...** — does what the performer button does, for every
   performer in your library, in one run. It works in two phases, like Normalize Parent Tags:
 
   **Review.** Clicking the task opens a dialog and scans the library without writing anything. It
@@ -127,11 +137,11 @@ and none of them has an undo. Back up your database before a first library-wide 
 
 Because nothing is saved, there is also no refresh and no jump back to the Edit tab — the tags simply appear in the box you're already looking at. The button reports what it did without changing width: *"Added 2"* then *"Save pending"*, or *"No changes"*, or *"Scene excluded"*.
 
-Enable **Save Tags Immediately** in the plugin settings panel if you would rather it merge and save in one step, instead of the staging mode.
+Enable **Save Tags Immediately** in the plugin settings panel if you would rather review the merge in a dialog than stage it in the form. The caption gains a "..." to say so, and the click lists every change before writing any of it.
 
-This setting only affects the scene page button. The performer button and both auto-merge modes always save directly, since they act on scenes whose edit forms aren't open.
+This setting only affects the scene page button. The performer button always reviews in the dialog, and both auto-merge modes save directly, since they act on scenes whose edit forms aren't open.
 
-Additionally, if the staging mode fails, the button merges and saves instead and logs the reason to the browser console — there is nothing to review on a Stash that cannot show you the staged tags. This could happen in the event of a breaking change in the way Stash handles the tag edit control for example.
+Additionally, if the staging mode fails, the button opens that same dialog and logs the reason to the browser console — there is nothing to stage on a Stash that cannot show you the tags in its form. This could happen in the event of a breaking change in the way Stash handles the tag edit control for example.
 
 ## Exclusion filters
 
@@ -165,7 +175,7 @@ If you tick the setting and that line never appears, check in this order: you ar
 
 The action tells you where the tag went:
 
-- **saved** — the tag was written to the scene. This covers the performer-page button, both auto-merge modes, and the scene button when **Save Tags Immediately** is on.
+- **saved** — the tag was written to the scene. This covers both auto-merge modes, and either button once you press **Proceed** in its dialog.
 - **staged** — the tag was only put into the open edit form's tag box, and is not saved until you press Stash's **Save** button. The line is written the moment the tag lands in the box, so if you then remove it or press Cancel it has already been logged — "staged" means exactly that, and nothing more.
 
 Only tags that actually changed something are logged: a tag the scene already carried, a scene skipped by an exclusion filter, and a scene whose update failed all produce no line (failures are reported separately as errors). A merge that had nothing to do is therefore silent — which is why the banner above exists. Scenes without a title are named by their file name.
@@ -202,7 +212,7 @@ Four of the settings are colour-coded on the same principle. **Save Tags Immedia
 first — and the logging switch below is teal, for one that only talks to the console. Everything
 else stays Stash's blue.
 
-**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, an **"Copy Tags to all Scenes"** button appears in the button bar on the detail view, just before the Delete button. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped, and the button counts through the scenes as it goes.
+**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, a **"Copy Tags to all Scenes..."** button appears in the button bar on the detail view, just before the Delete button. Clicking it opens the review dialog scoped to that performer: it lists every tag it would add to every one of their scenes, and writes nothing until you press **Proceed**. Scenes already having all the tags are skipped, and **Undo** takes the merge back while the dialog stays open.
 
 ### Why is a button missing?
 
@@ -211,7 +221,7 @@ are invisible from the page — the sources' tags, the target's own tags, the ex
 see the reasoning, open the browser console (F12), run:
 
 ```js
-StashPluginCoop.debugButtons = true
+__GTTx__.StashPluginCoop.debugButtons = true
 ```
 
 Each button reports whether it is shown or hidden and why, prefixed `[cpt2s gate]`, on the next tick —
@@ -222,11 +232,11 @@ draw buttons into the same rows. Set it to `false`, or reload the page, to turn 
 
 **The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Copy all Tags from all Performers" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
 
-**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it is missing at least one tag that one of its performers carries, an **"Copy all Tags from all Performers"** button appears in the button bar, just before the Save/Delete buttons of the edit form. Before 1.16.0 the button showed whenever the scene had any performer at all, so a scene already carrying every one of their tags offered a button that could only report "No changes"; it now asks the same question the click answers, including the Organized and exclusion-tag filters. Note that the check reads the server, while a staged click diffs against the open form — remove a tag from the form without saving and the button stays hidden until you press Save, which re-checks it at once. Click it to add all tags from all performers in that scene into the scene's tag list.
+**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it is missing at least one tag that one of its performers carries, an **"Copy all Tags from all Performers"** button appears in the button bar, just before the Save/Delete buttons of the edit form. Before 1.16.0 the button showed whenever the scene had any performer at all, so a scene already carrying every one of their tags offered a button that could only report "No changes"; it now asks the same question the click answers, including the Organized and exclusion-tag filters. Note that the check reads the server, while a staged click diffs against the open form — remove a tag from the form without saving and the button stays hidden until you press Save, which re-checks it at once. Click it to add all tags from all performers in that scene into the scene's tag box — or, where the caption ends in "...", to open the review dialog for that one scene.
 
 ### The README link in settings
 
-**Settings → Plugins → Merge Performer Tags To Scenes** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
+**Settings → Plugins → GTTx Merge Performer Tags To Scenes** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
 
 ### Checking which version is actually running
 
@@ -304,7 +314,7 @@ duration and resumes as soon as the apply finishes**, including if it fails or i
 line is written to the browser console when it happens:
 
 ```
-[cpt2s] auto-merge is standing down while NormalizeParentTags applies bulk changes (Prune Parent Tags from Entities)
+[cpt2s] auto-merge is standing down while NormalizeParentTags applies bulk changes (Prune Parent Tags from Entities...)
 ```
 
 Nothing is changed in your settings, other browser tabs are unaffected, and **manual button

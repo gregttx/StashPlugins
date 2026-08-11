@@ -7,9 +7,17 @@
   'use strict';
 
   var PLUGIN_ID           = 'MergePerformerTagsToScenes';
-  var PLUGIN_NAME         = 'Merge Performer Tags To Scenes';
+  var PLUGIN_NAME         = 'GTTx Merge Performer Tags To Scenes';
+  // The name the dialog wears, declared beside the full one the way
+  // `PropagateTagsAndPerformers` declares its own - there, the manifest name is long
+  // enough to crowd out the task, the path and the entity that follow it in a scoped
+  // title. Here it already fits, so the two are the same string. The constant exists
+  // anyway, so the head reads identically in both plugins and a future rename has one
+  // place to happen; `PLUGIN_NAME` stays the manifest's, since `ownSettingGroup`
+  // matches the settings page's heading against it.
+  var PLUGIN_SHORT_NAME   = PLUGIN_NAME;
   var SIBLING_ID          = 'NormalizeParentTags';
-  var SIBLING_NAME        = 'Normalize Parent Tags';
+  var SIBLING_NAME        = 'GTTx Normalize Parent Tags';
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and updates as soon as plugins are reloaded, while the browser can still
@@ -17,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.17.0';
+  var PLUGIN_VERSION      = '2.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -40,6 +48,14 @@
   var SPACING_CLASS       = 'mx-2';
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
+  // The two captions. The base text is a cross-plugin contract - `PropagateTagsAndPerformers`
+  // matches on it to tell "the other plugin is already showing this button" from "it
+  // only could be" - and the trailing "..." is this repo's mark for a click that opens
+  // a dialog rather than acting. The performer button always does; the scene button
+  // does only where staging is unavailable, so it resolves its caption per tick and the
+  // sibling's dedup compares with the dots stripped.
+  var PERFORMER_BTN_LABEL = 'Copy Tags to all Scenes...';
+  var SCENE_BTN_LABEL     = 'Copy all Tags from all Performers';
 
   // Every button this plugin puts on a page, and the task button Stash renders for
   // it, in amber. Stash's own row actions are `btn-secondary`, so a button of ours
@@ -63,7 +79,7 @@
   // Declared in the manifest so Stash lists it under Settings - Tasks - Plugin
   // Tasks, but run in the browser: this plugin has no exec, so a queued job could
   // only fail. See the task section near the end of this file.
-  var TASK_MERGE_ALL   = 'Merge Performer Tags into All Their Scenes';
+  var TASK_MERGE_ALL   = 'Merge Performer Tags into All Their Scenes...';
   var TASKS            = [TASK_MERGE_ALL];
   var TASK_PAGE_SIZE   = 500;   // performers per page while walking the library
   var TASK_LOG_CAP     = 1000;  // log lines kept in the DOM; all of them stay in memory
@@ -103,9 +119,29 @@
   // writes. Nothing in this repo honours it yet - the sibling is not reactive - but
   // the protocol is not ours alone, and a bulk run that does not announce itself is
   // the case a third plugin could not defend against.
+
+  // The one global this repo reserves: `window.__GTTx__`, holding every object these
+  // plugins share. `StashPluginCoop` on its own was a name any third-party plugin
+  // could have picked, and a collision would hand someone else's object our leases;
+  // nesting it under an owner prefix makes that a non-question.
+  //
+  // `window.StashPluginCoop` stays as an alias to the very same object, and an existing
+  // one is adopted rather than replaced. A user who updates one of these plugins and
+  // not the others has two releases of the protocol in one tab, and both halves have to
+  // keep seeing one set of leases - the alias costs a line, a missed lease costs a bulk
+  // run. Keep this function byte-identical across the three plugins, like the CSS.
+  function coopObject() {
+    var ns = window.__GTTx__;
+    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+    var c = ns.StashPluginCoop || window.StashPluginCoop;
+    if (!c || typeof c !== 'object') c = {};
+    ns.StashPluginCoop = c;
+    if (window.StashPluginCoop !== c) window.StashPluginCoop = c;
+    return c;
+  }
+
   function coop() {
-    var c = window.StashPluginCoop;
-    if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
+    var c = coopObject();
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
     if (!c.declares) c.declares = {};
@@ -115,7 +151,7 @@
 
   // ── Button gating diagnostics ────────────────────────────────────────────
   //
-  // Off unless `StashPluginCoop.debugButtons = true`, typed into the browser console:
+  // Off unless `__GTTx__.StashPluginCoop.debugButtons = true`, typed into the browser console:
   // no setting, no reload, no file edit, and read at call time so it takes effect on the
   // next tick. On the shared object rather than a global of our own, so the one switch
   // also turns on `PropagateTagsAndPerformers`' - both plugins draw buttons into these
@@ -1115,6 +1151,36 @@
     return '"' + (p.name || 'unnamed') + '" (' + p.id + ')';
   }
 
+  // The "..." is a promise a *caption* makes - "this click asks before it acts". Inside
+  // a sentence it is trailing punctuation in the middle of one, so a scoped run's title
+  // takes it back off before naming the entity after it.
+  function stripEllipsis(label) {
+    return String(label).replace(/\.+$/, '');
+  }
+
+  // What a scoped run's title calls the entity the click was made on. Reuses the two
+  // label functions the log already writes, so a title and a log line can never
+  // disagree about how an entity is named.
+  //
+  // A query for a title, and it earns it: the dialog used to say "Performer 57", which
+  // names the one thing about that performer the user cannot recognise. It is one by-id
+  // read, made while a dialog opens on a review about to make several.
+  //
+  // Falls back to the bare kind and id rather than rejecting - a dialog that cannot
+  // name its scope should still open. It is a title.
+  function scopeLabel(kind, id) {
+    var performer = kind === 'Performer';
+    var query = performer
+      ? 'query CPT2S_ScopeName($id: ID!) { findPerformer(id: $id) { id name } }'
+      : 'query CPT2S_ScopeName($id: ID!) { findScene(id: $id) { id title files { basename } } }';
+    return gqlRequest(query, { id: String(id) }).then(function (data) {
+      var ent = (data && (performer ? data.findPerformer : data.findScene)) || { id: id };
+      return kind + ' ' + (performer ? performerLabel(ent) : sceneLogLabel(ent, id));
+    }, function () {
+      return kind + ' ' + id;
+    });
+  }
+
   // What Stash has installed, as opposed to what this file says it is. "Reload
   // plugins" re-reads the plugin folder on the server but cannot replace a script
   // this page already executed, so the manifest can say 1.8.4 while the browser runs
@@ -1141,14 +1207,20 @@
 
   var _activeTask = null;
 
-  function startTaskRun(taskName) {
+  // `scope` is what the two manual buttons add: `{ performerId }` for the performer
+  // page's button (that performer's scenes) or `{ sceneId }` for the scene page's (that
+  // one scene). Absent for the library-wide task, which walks every performer.
+  function startTaskRun(taskName, scope) {
     if (_activeTask) { _activeTask.focus(); return; }
-    _activeTask = new TaskRun(taskName || TASK_MERGE_ALL);
+    _activeTask = new TaskRun(taskName || TASK_MERGE_ALL, scope);
     _activeTask.build();
   }
 
-  function TaskRun(taskName) {
+  function TaskRun(taskName, scope) {
     this.taskName = taskName;
+    // Held on the run rather than passed to begin(), because Rescan calls begin()
+    // again and a rescan of a scoped run has to stay scoped.
+    this.scope = scope || null;
     this.reset();
   }
 
@@ -1181,6 +1253,11 @@
     this.scenesUpdated = 0;
     this.tagsAdded = 0;
     this.errors = 0;
+    // Scenes the server has accepted a write for this pass, so the dialog can drop
+    // exactly those from Apollo's cache when it finishes. The library-wide task barely
+    // needs it - it evicts the scene *list* - but a scoped run's user is looking at the
+    // one scene it wrote, and a stale `Scene:7` is what they would see.
+    this.wroteScenes = {};
     // What this dialog has written and can still take back: one entry per scene the
     // server accepted, holding only the tags this run put there. Session-scoped like
     // `lines` rather than pass-scoped - rescan() saves it across this call - so
@@ -1215,7 +1292,10 @@
     this.backdrop.appendChild(this.modal);
 
     var head = taskEl('div', 'cpt2s-head');
-    head.appendChild(taskEl('div', 'cpt2s-title', PLUGIN_NAME + ' - ' + this.taskName));
+    // A plain block, so a scoped title too long for one line wraps rather than being
+    // clipped. Nothing to set: it is the default, and it holds only because no rule in
+    // `TASK_CSS` makes this a flex child or sets `white-space`.
+    head.appendChild(taskEl('div', 'cpt2s-title', PLUGIN_SHORT_NAME + ' - ' + this.taskName));
     // The merge only ever adds tags. Undo is the single exception in this plugin -
     // it takes back what this dialog itself added - and it is not a restore, so the
     // backup instruction stays and its limits are stated beside it.
@@ -1446,7 +1526,7 @@
     this.checkVersion();
 
     resolveExclusionTagId().then(function (exclTagId) {
-      return self.walk(1, exclTagId);
+      return self.scope ? self.scanScope(exclTagId) : self.walk(1, exclTagId);
     }).then(function () {
       self.finishScan();
     }, function (e) {
@@ -1571,6 +1651,98 @@
         return self.walk(page + 1, exclTagId);
       }
       return nextPerformer();
+    });
+  };
+
+  // ── Phase 1, scoped: what a manual button reviews ─────────────────────────
+  //
+  // The same review pass, over one performer or one scene instead of the library. It
+  // goes through `reviewPerformer` / `sceneMergePlan` / `planScene` like the walk does,
+  // so the plan the dialog lists is the plan the walk would have listed - §3's "one
+  // filter, one implementation" extended to the review itself. What it replaces is a
+  // click that wrote with nothing in front of the user.
+  TaskRun.prototype.scanScope = function (exclTagId) {
+    return this.scope.performerId
+      ? this.scanPerformer(this.scope.performerId, exclTagId)
+      : this.scanScene(this.scope.sceneId, exclTagId);
+  };
+
+  // One performer's scenes. `reviewPerformer` does the whole of it once the performer's
+  // own mergeable tags are in hand, which is the same shape the walk uses per page.
+  TaskRun.prototype.scanPerformer = function (performerId, exclTagId) {
+    var self = this;
+    this.performersTotal = 1;
+    return gqlRequest(
+      'query CPT2S_TaskPerformer($id: ID!) {' +
+      '  findPerformer(id: $id) { id name tags { ' + taskTagFields() + ' } }' +
+      '}',
+      { id: String(performerId) }
+    ).then(function (data) {
+      var p = data && data.findPerformer;
+      self.performersSeen = 1;
+      if (!p) {
+        self.log('ERROR', 'Performer ' + performerId + ' was not found.');
+        self.errors++;
+        return null;
+      }
+      var perfTags = (p.tags || []).filter(function (t) {
+        return tagIsMergeable(t, exclTagId, (settings.excludeTagWithCustomFieldName || '').trim());
+      });
+      if (!perfTags.length) {
+        self.log('INFO', 'Performer ' + performerLabel(p) +
+          ' carries no mergeable tags - they have none, or every one is excluded.');
+        self.renderProgress();
+        return null;
+      }
+      return self.reviewPerformer(p, perfTags, exclTagId);
+    });
+  };
+
+  // One scene, from the other end: its performers are the sources, and each contributes
+  // to the same single plan entry - which is exactly what `planScene` is for, and why
+  // this does not need a plan shape of its own.
+  TaskRun.prototype.scanScene = function (sceneId, exclTagId) {
+    var self = this;
+    return gqlRequest(
+      'query CPT2S_TaskScene($id: ID!) {' +
+      '  findScene(id: $id) {' +
+      '    id organized title files { basename } tags { id }' +
+      '    performers { id name tags { ' + taskTagFields() + ' } }' +
+      '  }' +
+      '}',
+      { id: String(sceneId) }
+    ).then(function (data) {
+      var scene = data && data.findScene;
+      if (!scene) {
+        self.log('ERROR', 'Scene ' + sceneId + ' was not found.');
+        self.errors++;
+        return;
+      }
+      // Said out loud rather than left as an empty plan: an excluded scene and a scene
+      // that already has everything are one empty dialog and two different things to go
+      // and fix. `sceneMergePlan` folds both into `null`, so this asks first.
+      if (sceneIsExcluded(scene, exclTagId)) {
+        self.log('INFO', 'Scene ' + sceneLogLabel(scene, scene.id) +
+          ' is excluded by a filter (Organized, or the exclusion tag). Nothing to merge.');
+        self.renderProgress();
+        return;
+      }
+      var performers = scene.performers || [];
+      self.performersTotal = performers.length;
+      var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
+      performers.forEach(function (p) {
+        self.performersSeen++;
+        var perfTags = (p.tags || []).filter(function (t) {
+          return tagIsMergeable(t, exclTagId, cfName);
+        });
+        if (!perfTags.length) return;
+        var perfTagById = {};
+        perfTags.forEach(function (t) { perfTagById[t.id] = t; });
+        var need = sceneMergePlan(scene, Object.keys(perfTagById), exclTagId);
+        if (!need) return;
+        self.planScene(scene, need, perfTagById, p);
+      });
+      self.renderProgress();
     });
   };
 
@@ -1754,6 +1926,7 @@
       // a write that never landed. Only the tags this run added are kept: the scene's
       // own tags are none of Undo's business.
       self.undoable.push({ scene: entry.scene, tagIds: entry.tagIds.slice() });
+      self.wroteScenes[entry.scene.id] = true;
       self.scenesUpdated++;
       self.tagsAdded += entry.tagIds.length;
       entry.tagIds.forEach(function (id) {
@@ -1782,16 +1955,27 @@
     this.setState('done');
     this.flush();
 
-    // Evict the cached scene list so open views pick the new tags up - but never
-    // through refreshSceneList, whose fallback is location.reload(). Reloading here
-    // would tear down this dialog, and the log with it, at the moment the user wants
-    // to read or copy it. Without Apollo the worst case is a stale list until they
-    // navigate, which is the right way round.
+    this.evictWritten();
+  };
+
+  // Evict the cached scene list, and every scene this pass wrote, so open views pick
+  // the new tags up - but never through refreshSceneList, whose fallback is
+  // location.reload(). Reloading here would tear down this dialog, and the log with it,
+  // at the moment the user wants to read or copy it. Without Apollo the worst case is a
+  // stale view until the user navigates, which is the right way round.
+  //
+  // The named scenes matter for the manual buttons' scoped runs: their user is looking
+  // at the very scene the dialog just wrote, which is read from `Scene:<id>` rather
+  // than from the list.
+  TaskRun.prototype.evictWritten = function () {
     var client = window.__APOLLO_CLIENT__;
-    if (client && client.cache && client.cache.evict) {
-      client.cache.evict({ id: 'ROOT_QUERY', fieldName: 'findScenes' });
-      client.cache.gc();
+    if (!client || !client.cache || !client.cache.evict) return;
+    client.cache.evict({ id: 'ROOT_QUERY', fieldName: 'findScenes' });
+    for (var id in this.wroteScenes) {
+      if (hasOwn(this.wroteScenes, id)) client.cache.evict({ id: 'Scene:' + id });
     }
+    this.wroteScenes = {};
+    if (client.cache.gc) client.cache.gc();
   };
 
   // ── Undo ──────────────────────────────────────────────────────────────────
@@ -1874,6 +2058,7 @@
         // exactly the scenes that still carry what this run added.
         var at = self.undoable.indexOf(entry);
         if (at !== -1) self.undoable.splice(at, 1);
+        self.wroteScenes[entry.scene.id] = true;
         entry.tagIds.forEach(function (id) {
           self.undoneTagCounts[id] = (hasOwn(self.undoneTagCounts, id) ? self.undoneTagCounts[id] : 0) + 1;
         });
@@ -1902,14 +2087,8 @@
     this.setState('done');
     this.flush();
 
-    // Same reasoning as finishApply: evict the cached scene list directly rather
-    // than through refreshSceneList, whose fallback would reload the page and tear
-    // this dialog down along with its log.
-    var client = window.__APOLLO_CLIENT__;
-    if (client && client.cache && client.cache.evict) {
-      client.cache.evict({ id: 'ROOT_QUERY', fieldName: 'findScenes' });
-      client.cache.gc();
-    }
+    // Same reasoning as finishApply, through the same function.
+    this.evictWritten();
   };
 
   TaskRun.prototype.disarmUndo = function () {
@@ -1989,6 +2168,14 @@
       this.backdrop.parentNode.removeChild(this.backdrop);
     }
     if (_activeTask === this) _activeTask = null;
+    // Whatever this dialog wrote may have made a button on the page behind it eligible
+    // or not, and the buttons were unreachable while it was open - so this is the first
+    // moment a re-check is worth anything. The fetch wrapper's own invalidation cannot
+    // do it: every write in here runs inside `guarded()`, which returns before those
+    // branches. Clearing only arms the probe; the tick is what runs it.
+    sceneCheck = null;
+    performerCheck = null;
+    tick();
   };
 
   // Layer 1: capture-phase click. React attaches its handlers to the root
@@ -2660,32 +2847,26 @@
     // with PropagateTagsAndPerformers' naming convention, since that plugin's own
     // manual-button dedup (§7d's `declares`) matches on this exact label text to
     // decide whether its own identical-path button is already showing here.
-    button.textContent = 'Copy Tags to all Scenes';
+    // "..." because the click opens the review dialog rather than merging - the
+    // convention every button in these plugins that asks something first now follows.
+    button.textContent = PERFORMER_BTN_LABEL;
     // The scene set comes from a findScenes query keyed only on this performer, not
     // from the list below, so say so — an active filter looks like it ought to apply.
     button.title = "Add this performer's tags to every scene featuring them. " +
-      "Filters and selections in the scene list are ignored.";
+      "Opens a dialog listing every change first; nothing is written until you press " +
+      "Proceed. Filters and selections in the scene list are ignored.";
+    // Until 1.18.0 this merged straight into every scene the performer appears in - the
+    // widest unreviewed write in the plugin, and the only one with no staging and no
+    // plan. It now opens the task's own dialog scoped to this performer: same review,
+    // same Proceed, same Undo, over one performer's scenes instead of the library.
     button.addEventListener('click', function (event) {
       event.preventDefault();
       var perfId = getPerformerId();
       if (!perfId) return;
-      var btn = event.currentTarget;
-      var orig = btn.textContent;
-      btn.disabled = true;
-      mergeTagsIntoAllPerformerScenes(perfId, function (i, total) {
-        btn.textContent = 'Merging... (' + i + '/' + total + ')';
-      })
-        .then(function () {
-          btn.disabled = false;
-          btn.textContent = orig;
-          refreshSceneList();
-        })
-        .catch(function (err) {
-          console.error('[cpt2s]', err);
-          alert('Error merging tags: ' + err.message);
-          btn.disabled = false;
-          btn.textContent = orig;
-        });
+      scopeLabel('Performer', perfId).then(function (what) {
+        startTaskRun(stripEllipsis(PERFORMER_BTN_LABEL) + ' - from ' + what,
+          { performerId: perfId });
+      });
     });
     insertBeforeImportantAction(container, button);
   }
@@ -2734,6 +2915,12 @@
       });
   }
 
+  // "..." only where the click opens the dialog. With staging available it puts the
+  // tags in the box in front of you and asks nothing, which is not what the dots mean.
+  function sceneButtonLabel() {
+    return stagingActive() ? SCENE_BTN_LABEL : SCENE_BTN_LABEL + '...';
+  }
+
   function addSceneButton() {
     if (!settings.showManualMergeButtons) {
       gateLogOnce('s:setting', 'scene button: Show Manual Merge Buttons is off');
@@ -2772,7 +2959,17 @@
       if (showing && showing.parentNode) showing.parentNode.removeChild(showing);
       return;
     }
-    if (showing) return;
+    if (showing) {
+      // The caption depends on a setting, so a button already on the page is relabelled
+      // rather than left saying "..." after staging was switched back on. Only while it
+      // is showing its own label: mid-flash the text is "Added 3", and rewriting that
+      // would cut the flash short.
+      var want = sceneButtonLabel();
+      if (showing.textContent === showing._cpt2sLabel && showing._cpt2sLabel !== want) {
+        showing.textContent = showing._cpt2sLabel = want;
+      }
+      return;
+    }
 
     var button = document.createElement('button');
     button.type = 'button';
@@ -2783,12 +2980,15 @@
     // `applyButtonSpacing` only when the row has no margins of its own to copy.
     button.className = 'btn ' + PLUGIN_BTN_VARIANT + ' ' + SCENE_BTN_CLASS;
     // "Copy all Tags from all Performers", not the older "Add Perf Tags" - same
-    // harmonization as the performer button above.
-    button.textContent = 'Copy all Tags from all Performers';
+    // harmonization as the performer button above. `_cpt2sLabel` is what the caption
+    // is *supposed* to read, held apart from `textContent` because a click overwrites
+    // that with "Adding..."/"Added 3" while a flash is in flight.
+    button.textContent = button._cpt2sLabel = sceneButtonLabel();
     function updateSceneButtonTitle() {
       button.title = stagingActive()
         ? "Add all performer tags to the tag box for review — you still have to press Save"
-        : "Add all performer tags into this scene's tags";
+        : "Add all performer tags into this scene's tags. Opens a dialog listing every " +
+          "change first; nothing is written until you press Proceed.";
     }
     updateSceneButtonTitle();
     button.addEventListener('mouseenter', updateSceneButtonTitle);
@@ -2839,21 +3039,17 @@
         return;
       }
 
+      // No form to stage into, so the review happens in the dialog instead of not at
+      // all (1.18.0). It plans this one scene through the same pass the library-wide
+      // task uses and writes nothing until Proceed - which is what the "..." on the
+      // caption promises. The button itself goes straight back to its label: the dialog
+      // covers it, so a flash underneath would be a caption nobody can see.
       warnNoStagingOnce();
-      btn.textContent = 'Merging...';
-      mergeTagsIntoScene(sId)
-        .then(function (changed) {
-          btn.disabled = false;
-          if (!changed) {
-            // Scene was excluded by a filter or already had every tag. Say so, since
-            // refreshSceneData() would otherwise leave the button looking mid-merge.
-            flash('No changes');
-            return;
-          }
-          btn.textContent = orig;
-          refreshSceneData(sId);
-        })
-        .catch(fail);
+      btn.disabled = false;
+      btn.textContent = orig;
+      scopeLabel('Scene', sId).then(function (what) {
+        startTaskRun(stripEllipsis(SCENE_BTN_LABEL) + ' - for ' + what, { sceneId: sId });
+      });
     });
     insertBeforeImportantAction(container, button);
   }

@@ -86,6 +86,17 @@ function responder(opts) {
       data[msp[1]] = opts.sourcePayload !== undefined ? opts.sourcePayload : { tags: [{ id: '1' }] };
       return { data };
     }
+    // 0.18.1: the one by-id read a scoped click makes purely to name the entity in the
+    // dialog's title. Defaults to a named entity, since "Group 57" is the thing it
+    // exists to replace; `scopeName: null` is how a test says the lookup came back
+    // empty, and returning nothing at all here is how it says the query failed.
+    const msn = /query PTP_scopename\b/.test(q) && /\{ (\w+)\(id/.exec(q);
+    if (msn) {
+      if (opts.failScopeName) return { errors: [{ message: 'scope name boom' }] };
+      const data = {};
+      data[msn[1]] = opts.scopeName !== undefined ? opts.scopeName : { id: '100', name: 'Jane' };
+      return { data };
+    }
     // A source button's `field`-kind lookup: one entity by id, drilling to the
     // back-reference (`resolveFieldReverse`).
     const msf = /query PTP_sfield_(\w+)\(/.exec(q);
@@ -246,6 +257,20 @@ const sourceButtons = (env) => (env.body.descendants() || [])
   .filter((n) => h.hasClass(n, 'ptp2re-manual-src-btn'));
 
 const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query || ''));
+
+// Since 0.18.0 every non-staging click opens the review dialog instead of writing, so
+// a check about what a button *writes* has two halves: nothing before Proceed, and the
+// plan afterwards. `review` returns the dialog a click just opened; `proceed` presses
+// its Proceed button and waits for the writes to land.
+const review = (env) => h.dialog(env.body, 'ptp2re');
+async function proceed(env) {
+  const btn = review(env).button('Proceed');
+  if (btn) btn.click();
+  await h.flush(140);
+  // A fresh read: `dialog()` is a snapshot, so the one taken to find the button still
+  // holds the log as it was before the writes.
+  return review(env);
+}
 
 // A real browser's `.childNodes` is a live `NodeList` - it has `.length` and index
 // access, but no `Array.prototype` methods at all, `.slice()` included. The shared
@@ -1205,15 +1230,25 @@ function nodeListLikeContainer() {
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
+    h.check('the caption says the click opens a dialog', /\.\.\.$/.test(btn.textContent),
+      btn.textContent);
     btn.click();
     await h.flush(80);
+    const d = review(env);
+    h.check('a click with nowhere to stage opens the review dialog instead', d.open);
+    h.check('and writes nothing before Proceed', writes(env.calls).length === 0,
+      writes(env.calls).length + ' write(s)');
+    h.check('the plan lists the one change', d.lines.some((l) => /^\[TAG\].*Blonde/.test(l)),
+      d.lines.join(' | '));
+    await proceed(env);
     const w = writes(env.calls);
-    h.check('save-immediately issues a bulk mutation', w.length === 1);
+    h.check('Proceed issues a bulk mutation', w.length === 1);
     h.check('as an ADD delta onto the one entity',
       w.length && w[0].variables.input.ids.join() === '10' &&
       w[0].variables.input.tag_ids.mode === 'ADD' &&
       w[0].variables.input.tag_ids.ids.join() === '1');
-    h.check('the button reports what was written', /Added 1/.test(btn.textContent), btn.textContent);
+    h.check('and the button is back to its caption, the dialog having done the reporting',
+      /^Copy all Tags from all Performers/.test(btn.textContent), btn.textContent);
   }
 
   // ── A button copies its own path and nothing else (0.15.1) ──────────────────
@@ -1245,11 +1280,14 @@ function nodeListLikeContainer() {
     const perf = btns.filter((b) => /from all Performers/.test(b.textContent))[0];
     perf.click();
     await h.flush(80);
+    const d = review(env);
+    h.check('the dialog reviews only the clicked path',
+      d.lines.some((l) => /Reviewing one path: Tags: Performers/.test(l)), d.lines.join(' | '));
+    await proceed(env);
     const w = writes(env.calls);
     h.check('the performer button writes only the performer tag',
       w.length === 1 && w[0].variables.input.tag_ids.ids.join() === '1',
       w.map((c) => JSON.stringify(c.variables.input.tag_ids)).join(' | '));
-    h.check('and says so on the caption', /Added 1/.test(perf.textContent), perf.textContent);
   }
 
   // ── Staging falls back to saving where PluginApi cannot be patched ──────────
@@ -1267,13 +1305,15 @@ function nodeListLikeContainer() {
     env.tick();
     await h.flush(60);
     const btn = manualButtons(env)[0];
-    h.check('the tooltip promises a save, not a review',
-      /saves immediately/.test(btn.title || ''), btn.title);
+    h.check('the tooltip promises a dialog, not a staged form',
+      /listing every change first/.test(btn.title || ''), btn.title);
     btn.click();
     await h.flush(80);
-    h.check('the click saves instead of staging', writes(env.calls).length === 1,
-      writes(env.calls).length + ' write(s)');
+    h.check('the click reviews instead of staging', review(env).open);
     h.check('and raises no alert about a form control', !env.ctx._alert, env.ctx._alert);
+    await proceed(env);
+    h.check('and writes once the plan is approved', writes(env.calls).length === 1,
+      writes(env.calls).length + ' write(s)');
   }
   {
     const { env } = start({
@@ -1603,6 +1643,7 @@ function nodeListLikeContainer() {
     await h.flush(60);
     sourceButtons(env)[0].click();
     await h.flush(120);
+    await proceed(env);
     h.check('the groups it wrote are evicted by Apollo id, so their tag counts redraw',
       evicted.indexOf('Group:400') !== -1 && evicted.indexOf('Group:401') !== -1,
       evicted.join(','));
@@ -1627,6 +1668,9 @@ function nodeListLikeContainer() {
     await h.flush(60);
     sourceButtons(env)[0].click();
     await h.flush(120);
+    // Proceed is disabled on an empty plan, so this presses nothing - which is the
+    // point: an empty review cannot write, and a click that cannot write cannot evict.
+    await proceed(env);
     h.check('a no-op click evicts nothing', evicted.length === 0, evicted.join(','));
   }
   {
@@ -1653,6 +1697,7 @@ function nodeListLikeContainer() {
     await h.flush(60);
     sourceButtons(env)[0].click();
     await h.flush(120);
+    await proceed(env);
     h.check('only the group that was actually written is evicted',
       evicted.indexOf('Group:400') !== -1 && evicted.indexOf('Group:401') === -1,
       evicted.join(','));
@@ -1676,8 +1721,10 @@ function nodeListLikeContainer() {
     const btn = sourceButtons(env)[0];
     btn.click();
     await h.flush(120);
+    const d = await proceed(env);
     h.check('without Apollo the write still reports, and nothing reloads the page',
-      /Added/.test(btn.textContent) && !reloaded, btn.textContent + ' reloaded=' + reloaded);
+      d.lines.some((l) => /^\[INFO\] Finished\. 1 entity change\(s\) applied/.test(l)) && !reloaded,
+      d.lines.join(' | ') + ' reloaded=' + reloaded);
   }
 
   // ── Gating diagnostics: off by default, on from the console ──────────────────
@@ -1781,7 +1828,7 @@ function nodeListLikeContainer() {
     h.check('a source button appears on the performer detail view', btns.length === 1,
       btns.map((b) => b.textContent).join(','));
     h.check('labelled for the push direction, not the target-side pull label',
-      btns.length && btns[0].textContent === 'Copy Tags to all Scenes', btns[0] && btns[0].textContent);
+      btns.length && btns[0].textContent === 'Copy Tags to all Scenes...', btns[0] && btns[0].textContent);
   }
   {
     // No scenes at all for this performer - the same existence-gating philosophy as
@@ -1887,7 +1934,7 @@ function nodeListLikeContainer() {
     await h.flush(60);
     const labels = sourceButtons(env).map((b) => b.textContent).sort();
     h.check('two source paths on one page are probed and gated independently',
-      labels.length === 2 && labels.join('|') === 'Copy Tags to all Groups|Copy Tags to all Scenes',
+      labels.length === 2 && labels.join('|') === 'Copy Tags to all Groups...|Copy Tags to all Scenes...',
       labels.join(','));
   }
   {
@@ -1944,10 +1991,23 @@ function nodeListLikeContainer() {
     const btn = sourceButtons(env)[0];
     if (btn) btn.click();
     await h.flush(80);
+    h.check('the source button reviews rather than writing - there is no staging here, ' +
+      'so the dialog is the only place a plan can be read', review(env).open &&
+      writes(env.calls).length === 0, writes(env.calls).length + ' write(s)');
+    // 0.18.1: the short plugin name, the caption with its "..." taken back off - it
+    // promises a dialog on a button and is punctuation in the middle of a sentence
+    // here - and the entity named rather than numbered.
+    const title = (env.body.descendants().filter((n) => h.hasClass(n, 'ptp2re-title'))[0] || {}).textContent || '';
+    h.check('the title names the scope by name, not by id alone',
+      title === 'GTTx Propagate Tags & Performers - Copy Tags to all Scenes - from Performer "Jane" (100)',
+      title);
+    const d = await proceed(env);
     const w = writes(env.calls);
-    h.check('the source button writes directly, with no staging option to fall into', w.length === 1);
-    h.check('onto the resolved scene', w.length > 0 && w[0].variables.input.ids.join() === '10');
-    h.check('reports what was written', !!btn && /Added 1/.test(btn.textContent), btn && btn.textContent);
+    h.check('onto the resolved scene', w.length === 1 && w[0].variables.input.ids.join() === '10',
+      JSON.stringify(w.map((c) => c.variables.input)));
+    h.check('and the dialog reports what was written',
+      d.lines.some((l) => /^\[INFO\] Finished\. 1 entity change\(s\) applied/.test(l)),
+      d.lines.join(' | '));
   }
   {
     // Dedup applies here too: a foreign plugin's identical-path button on the same

@@ -57,16 +57,42 @@ plugin takes a **lease** for the duration of its writes; a reactive plugin check
 before acting, and stands down while one is held.
 
 ```js
+// The one global this repo reserves. Byte-identical in all three plugins.
+function coopObject() {
+  var ns = window.__GTTx__;
+  if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+  var c = ns.StashPluginCoop || window.StashPluginCoop;   // adopt an older sibling's
+  if (!c || typeof c !== 'object') c = {};
+  ns.StashPluginCoop = c;
+  if (window.StashPluginCoop !== c) window.StashPluginCoop = c;   // alias, same object
+  return c;
+}
+
 // Shared object, created by whichever plugin loads first. Both roles call this.
 function coop() {
-  var c = window.StashPluginCoop;
-  if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
+  var c = coopObject();
   if (!c.leases) c.leases = [];          // [{ owner, label, until }]
   if (!c.respecters) c.respecters = {};  // { pluginId: true }
   if (!c.declares) c.declares = {};      // { pluginId: [pathId, ...] }
   return c;
 }
 ```
+
+**`window.__GTTx__` is the only global this repo takes, and everything shared hangs off it.**
+`StashPluginCoop` on its own was a name any third-party plugin could have picked, and a collision
+would hand someone else's object our leases. Nothing else here needs a global: every CSS class is
+already prefixed (`npt-` / `cpt2s-` / `ptp2re-`), every element id is `plugin-<id>-<key>` or a
+plugin-prefixed one of ours, and per-plugin state stays inside the IIFE. A new shared object goes
+*beside* `StashPluginCoop` under `__GTTx__`, never on `window`.
+
+**`setting-group` is not ours and must not be renamed.** It is Stash's own class on the settings
+page, and these plugins only ever *read* it — `ownSettingGroup`, `ownTaskName`, `settingRow`. The
+same goes for `.setting`, `.details-edit`, `.edit-buttons`, `.nav-tabs` and `.sub-heading`. Prefixing
+a class we do not own would simply stop finding the element.
+
+**The bare `window.StashPluginCoop` stays as an alias to the same object**, and an existing one is
+adopted rather than replaced. A user who updates one plugin and not the others has two releases of
+the protocol in one tab; the alias costs a line, and a missed lease costs a bulk run.
 
 **Bulk side** — `acquire(owner, label, ttlMs)` pushes a lease and returns a handle with `renew()`
 and `release()`. Renew per batch rather than taking one long lease; release in a `finally` so an
@@ -207,7 +233,7 @@ edit to either existing plugin.
 ## Cross-plugin cooperation: the shared debug switch
 
 The smallest of the shared mechanisms, and the only one that changes no behaviour.
-`coop().debugButtons`, set from the browser console (`StashPluginCoop.debugButtons = true`), turns
+`coop().debugButtons`, set from the browser console (`__GTTx__.StashPluginCoop.debugButtons = true`), turns
 on a `[<prefix>] gate` channel in every plugin that draws a button into these rows, explaining for
 each button whether it is shown or hidden and why. Read at call time, so it takes effect on the
 next tick with no reload, no setting and no file edit.
@@ -300,6 +326,109 @@ pinning the list would make every new setting an edit in two files for no gain.
 **Marking everything would mark nothing.** Only the settings that write on their own are amber. The
 entity toggles, the path toggles and the exclusion filters all stay Stash's blue, because they
 choose what a run covers rather than starting one.
+
+## Cross-plugin cooperation: one name prefix
+
+A sixth shared convention, and the only one the user reads before installing anything. Every
+plugin in this repo is named **`GTTx <name>`** — `GTTx Normalize Parent Tags`,
+`GTTx Merge Performer Tags To Scenes`, `GTTx Propagate Tags and Performers to Related Entities` —
+since `NormalizeParentTags` 2.0.0 / `MergePerformerTagsToScenes` 2.0.0 /
+`PropagateTagsAndPerformers` 1.0.0. Stash's plugin list is one flat alphabetical column of every
+plugin installed, from every source; the prefix is what collects these three in it and says they
+are one author's, which matters here because they cooperate through the mechanisms above and are
+meant to be installed together.
+
+**The name is a display string; the id is the contract.** `PLUGIN_ID`, the folder, every setting
+key, every `plugin-<id>-<key>` element id, every `coop()` key and every path id in `declares` are
+untouched by the prefix, which is why the rename costs a user nothing: settings survive it, and a
+prefixed plugin still cooperates with an unprefixed sibling. What *does* move with the name is
+every place a plugin matches Stash's own markup by heading text — `ownSettingGroup`, `ownTaskName`,
+`headingIsOurs` — so all three files change together or a plugin stops finding its own settings
+group. That is what earns the major version bump: nothing behaves differently, and everything that
+matched on the old string has to be re-pointed.
+
+**`PLUGIN_SHORT_NAME` carries the prefix too**, since its whole job is to be the name a dialog head
+wears and a head that dropped the prefix would read as a different plugin from the settings page
+that configures it. `GTTx ` is five characters and buys the recognition; shortening happens in the
+*rest* of the name, which is why `PropagateTagsAndPerformers` is the only one whose two constants
+differ.
+
+**A sibling named in prose is named as the user will see it.** `SIBLING_NAME` / `NPT_NAME` — the
+strings the cross-plugin warnings print — carry the prefix, because their entire purpose is to send
+the user to a settings group they then have to find. The *id* those checks look the sibling up by
+is unchanged, so a warning about an older, unprefixed sibling still fires; it names the plugin by
+its current name, which is the one worth going to look for.
+
+## No write without a plan in front of it, and "..." says which
+
+Two rules that arrived together at `NormalizeParentTags` 1.9.0 / `MergePerformerTagsToScenes` 1.18.0
+/ `PropagateTagsAndPerformers` 0.18.0, because the second is only useful once the first is true.
+
+**Every deliberate write a user starts is either staged or reviewed.** The tasks always had the
+review dialog; the manual buttons did not. `MergePerformerTagsToScenes`' performer button merged
+into every scene a performer appears in, and its scene button merged the scene outright whenever
+staging was unavailable; `PropagateTagsAndPerformers`' target buttons wrote on "save immediately",
+and its source buttons — the widest write here, one click on a studio rewriting every scene it owns
+— always did. So the same dialogs now open **scoped**: one performer, one scene, one entity, or
+whatever one source reaches, with the same Proceed / Stop / Copy log / Rescan / Undo footer.
+
+**Scoped means the same planner over a named set, never a second one.** `Run`/`TaskRun` gained a
+`scope`, and each plugin routes it into the code the library walk already used —
+`reviewPerformer`/`planScene` in `MergePerformerTagsToScenes`, `planPass` (borrowed back from
+`AutoRun`) in `PropagateTagsAndPerformers`. What a button shows is by construction what the task
+would have shown for the same entity, and what the click used to write blind. The scope lives on the
+run rather than in the call that started it, because **Rescan re-enters `begin()`** and a rescan of a
+scoped run has to stay scoped.
+
+**The automatic modes are untouched.** They write without a dialog by design, are opt-in per mode,
+and say so in their own settings descriptions. This rule is about what a *click* does.
+
+**"..." on a caption means the click asks before it acts.** The five task buttons Stash renders from
+`tasks:` carry it, and so does every manual button that opens a dialog. A staging button does not:
+it puts the additions in the form in front of you and Stash's own Save is the next step. Two
+consequences worth knowing:
+
+- **The caption is resolved per tick, not at build time**, wherever the behaviour depends on a
+  setting (`stagingActive()` here, `savesImmediately(s)` there) — otherwise flipping the setting
+  leaves a button promising a dialog it no longer opens. Both plugins hold the intended caption on
+  the element (`_cpt2sLabel` / `_ptp2reLabel`) rather than reading `textContent`, which a click
+  overwrites while a flash is in flight.
+- **The cross-plugin dedup compares with the dots stripped.** Two plugins' buttons for one path
+  match on visible text, and each side appends "..." on its own conditions, so a sibling staging
+  where we review would otherwise read as a different button and both would appear.
+
+**A dialog is its own feedback, so the button does not flash under it.** Where a click used to end
+in "Added 3", it now restores its caption immediately: the modal covers the row, and a caption
+restored two seconds into a review nobody can see is worse than none.
+
+**And the dots come straight back off in the title** (`MergePerformerTagsToScenes` 1.18.1 /
+`PropagateTagsAndPerformers` 0.18.1), which is not a contradiction: "..." is what a *caption*
+promises, and a title quotes the caption inside a sentence, where trailing dots are just punctuation
+in the middle of one. Both plugins strip them with the same one-line `stripEllipsis` that the
+cross-plugin dedup was already using for its comparison.
+
+**A scoped title names the entity, and a dialog gets a name short enough to leave room for it.**
+Both shipped as `<plugin> - <caption>... - Group 57` and every part of that was working against the
+next: the manifest name is the longest and least informative third, and the id is the one thing
+about the entity the user cannot recognise. So:
+
+- **`PLUGIN_SHORT_NAME`, declared beside `PLUGIN_NAME` in every plugin that puts up a dialog.** The
+  manifest name cannot be shortened in place — `ownSettingGroup` finds a plugin's block on the
+  settings page by matching that heading — so the short one is a second constant, and it is
+  perfectly fine for it to be the *same string* where the name already fits (it is, in both
+  `MergePerformerTagsToScenes` and `NormalizeParentTags`). The constant is what makes every head
+  read from one expression — including `NormalizeParentTags`' two, the run dialog's and the
+  hierarchy viewer's, which is reason enough to declare it in a plugin that never shortens.
+- **A `scopeLabel` that reuses whatever the plugin's log already calls an entity**, never a second
+  naming convention. One by-id query per scoped click, made while a dialog opens on a scan about to
+  make dozens, falling back to the bare label and id rather than rejecting — a dialog that cannot
+  name its scope should still open.
+- **The direction word is the copy's**: `from` where the click pushes out of the named entity,
+  `for` where it pulls into it.
+
+**The title is a plain block in all three plugins, so it wraps rather than clipping.** That is the
+default holding rather than a rule, and it only holds while nothing in a plugin's CSS makes
+`.<prefix>-title` a flex child or sets `white-space` on it. It is now a default worth not breaking.
 
 ## Placing a manual button near Stash's own actions: important vs. casual
 

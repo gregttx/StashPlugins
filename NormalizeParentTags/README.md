@@ -1,4 +1,13 @@
-# Normalize Parent Tags
+# GTTx Normalize Parent Tags
+
+> ## 2.0.0 — the plugin is now called *GTTx Normalize Parent Tags*
+>
+> Only the display name changed. The folder, the plugin id and every setting keep their names, so
+> an update carries your configuration over; what moves is where the plugin sits in Stash's
+> alphabetical plugin list. The `GTTx ` prefix collects it with its two siblings —
+> `GTTx Merge Performer Tags To Scenes` and
+> `GTTx Propagate Tags and Performers to Related Entities` — which are developed together and are
+> meant to be updated together.
 
 > ## ⚠ Back up your database before the first run
 >
@@ -22,17 +31,17 @@
 A front-end-only Stash plugin that adds three tasks to **Settings → Tasks → Plugin Tasks** — two
 that change tag assignments, and one that only looks:
 
-- **Prune Parent Tags from Entities** — removes every tag on an entity that another tag on the
+- **Prune Parent Tags from Entities...** — removes every tag on an entity that another tag on the
   *same* entity already implies.
-- **Roll Up Parent Tags onto Entities** — adds every parent tag, recursively, of the tags already
+- **Roll Up Parent Tags onto Entities...** — adds every parent tag, recursively, of the tags already
   on the entity.
-- **Show Tag Hierarchy** — a read-only browser of your tag tree. Writes nothing.
+- **Show Tag Hierarchy...** — a read-only browser of your tag tree. Writes nothing.
 
 The first two open a dialog that lists every change *before* anything is written. Nothing is
 saved until you press **Proceed**. The third never writes at all.
 
 The colours on that page say which is which: the two writing tasks are **amber**, and
-**Show Tag Hierarchy** is **teal**, the plugin's colour for something that only reads. Two of the
+**Show Tag Hierarchy...** is **teal**, the plugin's colour for something that only reads. Two of the
 settings below are amber for the same reason — see [Automatic mode](#automatic-mode).
 
 Either direction can also be kept up **automatically**, applying to each entity as Stash saves it
@@ -163,7 +172,7 @@ back for the rest.
 
 ## Browsing the tag hierarchy
 
-A third task, **Show Tag Hierarchy**, opens a read-only browser of your whole tag tree. It writes
+A third task, **Show Tag Hierarchy...**, opens a read-only browser of your whole tag tree. It writes
 nothing, so it is safe to open at any time — and it is the quickest way to understand what the
 other two tasks would do before running either.
 
@@ -296,7 +305,7 @@ is the better answer to most questions.
 
 ## Entity types
 
-Every type is **off** until you enable it in **Settings → Plugins → Normalize Parent Tags**.
+Every type is **off** until you enable it in **Settings → Plugins → GTTx Normalize Parent Tags**.
 Stash has no default value for a plugin setting, and since Prune deletes tag assignments, opting
 in per type is deliberate.
 
@@ -423,11 +432,11 @@ Two things worth knowing about the tag-level filters:
    ```
 3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
 4. Refresh your browser (F5) so the plugin's JavaScript is loaded.
-5. Enable the entity types you want in **Settings → Plugins → Normalize Parent Tags**.
+5. Enable the entity types you want in **Settings → Plugins → GTTx Normalize Parent Tags**.
 
 ### The README link in settings
 
-**Settings → Plugins → Normalize Parent Tags** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled
+**Settings → Plugins → GTTx Normalize Parent Tags** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled
 `NormalizeParentTags/README.md` link the plugin adds underneath the description — the icon alone is
 easy to miss. Both open the same page.
 
@@ -466,7 +475,7 @@ Stash, a failed request); only a definite mismatch holds a run back.
 It cannot catch an edit made without changing the version — both numbers stay equal and there is
 nothing to compare.
 
-**Show Tag Hierarchy** runs the same check but only says so — it writes nothing, so nothing is
+**Show Tag Hierarchy...** runs the same check but only says so — it writes nothing, so nothing is
 blocked. The warning is worth reading anyway: the badges and the "what the tasks would do" answers
 come from the rules in the script that is running, so a tab left open from before an update
 describes the old ones.

@@ -1,16 +1,16 @@
-name: Normalize Parent Tags
+name: GTTx Normalize Parent Tags
 description: "Makes tag hierarchies explicit on your entities, in either direction.\n\nPrune removes any tag that another tag on the same entity already implies. Roll Up adds every ancestor, recursively, of the tags already there. A third task browses the hierarchy read-only and exports it as a Graphviz or Mermaid diagram.\n\nAll three run from Settings - Tasks - Plugin Tasks. The two that write list every change first: nothing lands until you press Proceed, and Undo reverses the run while the dialog stays open.\n\nEither direction can also run automatically as Stash saves each entity. Those two settings write silently - no dialog, no review, no undo.\n\nEntity types are opt-in and all off until you enable them below.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. \n\nRequires Stash 0.31.0 or newer."
 url: "https://github.com/gregttx/StashPlugins/blob/main/NormalizeParentTags/README.md"
-version: 1.8.0
+version: 2.0.0
 ui:
   javascript:
     - NormalizeParentTags.js
 tasks:
-  - name: Prune Parent Tags from Entities
+  - name: Prune Parent Tags from Entities...
     description: Remove tags that another tag on the same entity already implies. Opens a dialog listing every removal for review before anything is written, and an Undo button that takes the run back while the dialog stays open. Back up your database before the first run.
-  - name: Roll Up Parent Tags onto Entities
+  - name: Roll Up Parent Tags onto Entities...
     description: Add every parent tag, recursively, of the tags already on the entity. Opens a dialog listing every addition for review before anything is written, and an Undo button that takes the run back while the dialog stays open. Back up your database before the first run.
-  - name: Show Tag Hierarchy
+  - name: Show Tag Hierarchy...
     description: Read-only. Opens a browsable tree of the whole tag hierarchy, marking tags with more than one parent, tags protected by the exclusion filters below, and any cycle. Select a tag to see what Prune and Roll Up would do with it, and jump from a multi-parent tag to each of its parents. Writes nothing, and can be exported as a Graphviz or Mermaid diagram.
 settings:
   a1EnablePerformers:

@@ -216,7 +216,7 @@ const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query |
   // ── The lease ───────────────────────────────────────────────────────────
   {
     const env = start({ settings: ON });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [{ owner: 'SomeoneElse', label: 'bulk thing', until: Date.now() + 60000 }],
       respecters: {},
     };
@@ -227,7 +227,7 @@ const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query |
   }
   {
     const env = start({ settings: ON });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [{ owner: 'SomeoneElse', label: 'stale', until: Date.now() - 1 }],
       respecters: {},
     };

@@ -16,7 +16,13 @@
   'use strict';
 
   var PLUGIN_ID   = 'PropagateTagsAndPerformers';
-  var PLUGIN_NAME = 'Propagate Tags and Performers to Related Entities';
+  var PLUGIN_NAME = 'GTTx Propagate Tags and Performers to Related Entities';
+  // The name the dialog wears. `PLUGIN_NAME` is the manifest's, and it has to stay
+  // byte-identical to the `.yml` because `ownSettingGroup` finds this plugin's block
+  // on the settings page by matching that heading - but as the first third of a
+  // dialog title that also names a task, a path and an entity, it is the least
+  // informative third and the longest. Two names, one of them free to be short.
+  var PLUGIN_SHORT_NAME = 'GTTx Propagate Tags & Performers';
 
   // NormalizeParentTags is the one sibling this plugin reads settings from by name
   // - see `checkHierarchySibling` below. MergePerformerTagsToScenes needs no such
@@ -24,7 +30,7 @@
   // rather than a name lookup, because it is the same kind of collision a future
   // relationship-copying plugin could have too (see the repo-root CLAUDE.md).
   var NPT_ID   = 'NormalizeParentTags';
-  var NPT_NAME = 'Normalize Parent Tags';
+  var NPT_NAME = 'GTTx Normalize Parent Tags';
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and goes current the moment plugins are reloaded, while the browser can
@@ -37,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.17.0';
+  var PLUGIN_VERSION = '1.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -78,7 +84,7 @@
   // Declared in the manifest so Stash lists it under Settings - Tasks - Plugin
   // Tasks, but run in the browser: this plugin has no exec, so a queued job could
   // only fail.
-  var TASK_PROPAGATE_ALL = 'Propagate Tags and Performers to All Related Entities';
+  var TASK_PROPAGATE_ALL = 'Propagate Tags and Performers to All Related Entities...';
   var TASKS = [TASK_PROPAGATE_ALL];
 
   var PAGE_SIZE      = 500;    // targets per page while walking the library
@@ -372,6 +378,35 @@
     return path.button.replace('{mode}', (s && s[path.mode]) ? 'common' : 'all');
   }
 
+  // Whether a target-side click has a form to stage into. Both the caption, the tooltip
+  // and the click itself read this one expression, so a button cannot promise a review
+  // this Stash - or this setting - is not going to give.
+  function savesImmediately(s) {
+    return !!(s && s.a2SaveImmediately) || !_selectPatchesInstalled;
+  }
+
+  // "..." marks a button that asks before it acts: the click opens the review dialog
+  // rather than writing. A staging button gets none - it puts the additions in the form
+  // in front of you and Stash's own Save is the next step.
+  function withEllipsis(label, opensDialog) {
+    return opensDialog ? label + '...' : label;
+  }
+
+  // Two plugins' buttons for one path have to match on text for the dedup below to see
+  // them as the same button, and each side appends "..." on its own conditions - a
+  // sibling staging where we save writes the same button with a different caption.
+  // Comparing without it keeps the dedup answering the question it is actually asking.
+  function sameButtonLabel(a, b) {
+    return stripEllipsis(a) === stripEllipsis(b);
+  }
+
+  // The "..." is a promise a *caption* makes - "this click asks before it acts". Inside
+  // a sentence it is only trailing punctuation in the middle of one, so a scoped run's
+  // title takes the caption back off before naming the entity after it.
+  function stripEllipsis(label) {
+    return String(label).replace(/\.+$/, '');
+  }
+
   // ── Settings ──────────────────────────────────────────────────────────────
   //
   // The manifest keys carry ordering prefixes because `settings:` is a YAML map:
@@ -449,9 +484,29 @@
   // This plugin is on both sides of the protocol, like both of its siblings and for
   // the same reason: the roles are per *run*, not per plugin. The library-wide task
   // is bulk; the two automatic modes are reactive.
+
+  // The one global this repo reserves: `window.__GTTx__`, holding every object these
+  // plugins share. `StashPluginCoop` on its own was a name any third-party plugin
+  // could have picked, and a collision would hand someone else's object our leases;
+  // nesting it under an owner prefix makes that a non-question.
+  //
+  // `window.StashPluginCoop` stays as an alias to the very same object, and an existing
+  // one is adopted rather than replaced. A user who updates one of these plugins and
+  // not the others has two releases of the protocol in one tab, and both halves have to
+  // keep seeing one set of leases - the alias costs a line, a missed lease costs a bulk
+  // run. Keep this function byte-identical across the three plugins, like the CSS.
+  function coopObject() {
+    var ns = window.__GTTx__;
+    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+    var c = ns.StashPluginCoop || window.StashPluginCoop;
+    if (!c || typeof c !== 'object') c = {};
+    ns.StashPluginCoop = c;
+    if (window.StashPluginCoop !== c) window.StashPluginCoop = c;
+    return c;
+  }
+
   function coop() {
-    var c = window.StashPluginCoop;
-    if (!c || typeof c !== 'object') c = window.StashPluginCoop = {};
+    var c = coopObject();
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
     if (!c.declares) c.declares = {};
@@ -461,7 +516,7 @@
 
   // ── Button gating diagnostics ────────────────────────────────────────────
   //
-  // Off unless `StashPluginCoop.debugButtons = true`, which is typed into the browser
+  // Off unless `__GTTx__.StashPluginCoop.debugButtons = true`, which is typed into the browser
   // console: no setting, no reload, no file edit, and the flag is read at call time so
   // it takes effect on the next tick. On the shared object rather than a global of our
   // own because both plugins that draw buttons into these rows answer to it, and "why
@@ -873,6 +928,31 @@
     return (s ? s.label : 'Source') + ' "' + (name || 'untitled') + '" (' + src.id + ')';
   }
 
+  // What a scoped run's title calls the entity the click was made on. `entityLabel`'s
+  // shape, keyed off whichever table knows the type - three source types are not
+  // targets, and the four that are share one entry, so `SOURCES` first covers all
+  // seven without a branch.
+  //
+  // A query for a title, and it earns it: the dialog used to say "Group 57", which
+  // names the one thing about that group the user cannot recognise and would have to
+  // navigate away to look up. It is the same by-id lookup the source probe already
+  // makes, and it is asked while a dialog opens on a scan that will make dozens.
+  //
+  // Falls back to the bare label and id on a failure, rather than rejecting: a dialog
+  // that cannot name its scope should still open. It is a title.
+  function scopeLabel(type, id) {
+    var d = SOURCES[type] || TARGETS[type];
+    if (!d) return Promise.resolve(type + ' ' + id);
+    return gqlRequest('query PTP_scopename($id: ID!) { ' + d.one + '(id: $id) { ' + d.fields + ' } }',
+      { id: String(id) }
+    ).then(function (data) {
+      var ent = data && data[d.one];
+      return d.label + ' "' + ((ent && displayName(ent)) || 'untitled') + '" (' + id + ')';
+    }, function () {
+      return d.label + ' ' + id;
+    });
+  }
+
   // How many entities beyond the named one carried the same thing. The count is over
   // the sources of the path that supplied it first, not over every path: a tag on a
   // scene from both its studio and a performer is one addition, attributed to whichever
@@ -1277,14 +1357,21 @@
 
   var _active = null;
 
-  function startRun(taskName) {
+  // `scope` is what a manual button's dialog adds: `{ pathId, target, ids }` for a
+  // target-side button (this one entity) or `{ pathId, sourceId }` for a source-side
+  // one (whatever that source reaches, resolved once the settings are in). Absent for
+  // the library-wide task, which is every enabled path over everything.
+  function startRun(taskName, scope) {
     if (_active) { _active.focus(); return; }
-    _active = new Run(taskName);
+    _active = new Run(taskName, scope);
     _active.begin();
   }
 
-  function Run(taskName) {
+  function Run(taskName, scope) {
     this.taskName = taskName;
+    // Held on the run rather than passed to begin(), because Rescan calls begin()
+    // again and a rescan of a scoped run has to stay scoped.
+    this.scope = scope || null;
     this.reset();
     this.build();
   }
@@ -1348,7 +1435,11 @@
     this.backdrop.appendChild(this.modal);
 
     var head = el('div', 'ptp2re-head');
-    head.appendChild(el('div', 'ptp2re-title', PLUGIN_NAME + ' - ' + this.taskName));
+    // A plain block, so a title too long for one line wraps rather than being clipped
+    // - which a scoped run's does, naming a plugin, a path and an entity. Nothing to
+    // set: it is the default, and the only reason it holds is that no rule in `CSS`
+    // makes this a flex child or sets `white-space`.
+    head.appendChild(el('div', 'ptp2re-title', PLUGIN_SHORT_NAME + ' - ' + this.taskName));
     // The Undo button reverses this dialog's own writes while it is open. That is
     // not a restore and must never be allowed to read as one, so the backup
     // instruction leads and the limits are stated beside it rather than left to be
@@ -1544,7 +1635,7 @@
     // not still be up after they have done exactly that.
     this.noteEl.textContent = '';
     this.renderProgress();
-    this.log('INFO', PLUGIN_NAME + ' - ' + this.taskName + ' - reviewing, nothing will be ' +
+    this.log('INFO', PLUGIN_SHORT_NAME + ' - ' + this.taskName + ' - reviewing, nothing will be ' +
       'written yet.');
 
     // Someone else's lease, held right now. Ours is taken in proceed(), so nothing
@@ -1565,14 +1656,20 @@
     loadSettings().then(function (loaded) {
       self.settings = loaded.settings;
 
-      var paths = enabledPaths(self.settings);
+      // A scoped run reviews the one path its button names, and re-reads the setting
+      // rather than trusting the tick that drew the button: a path can be switched off
+      // between the two.
+      var paths = self.scope ? scopedPaths(self.scope, self.settings) : enabledPaths(self.settings);
       // Published whether or not there is anything to scan: another plugin's own
       // overlap check must see "nothing enabled" as promptly as it sees anything
       // else, and the early return below must not skip it.
       publishDeclares(self.settings);
       if (!paths.length) {
-        self.log('WARN', 'No paths are enabled. Turn on at least one in Settings - Plugins - ' +
-          PLUGIN_NAME + ', then run the task again.');
+        self.log('WARN', self.scope
+          ? 'That path is no longer enabled. Turn it back on in Settings - Plugins - ' +
+            PLUGIN_NAME + ', then press the button again.'
+          : 'No paths are enabled. Turn on at least one in Settings - Plugins - ' +
+            PLUGIN_NAME + ', then run the task again.');
         self.finishScan();
         return;
       }
@@ -1580,8 +1677,12 @@
       // Stated because it is not a presentation choice: the paths cascade, so the
       // order decides what a single run reaches. A user who expects marker tags to
       // arrive on a group in one pass needs to see that markers run before groups.
-      self.log('INFO', 'Enabled, in the order they run: ' +
-        paths.map(function (p) { return pathLabel(p); }).join('; ') + '.');
+      // A scoped run has exactly one path and no order to explain, so it names the
+      // path instead.
+      self.log('INFO', self.scope
+        ? 'Reviewing one path: ' + pathLabel(paths[0]) + '.'
+        : 'Enabled, in the order they run: ' +
+          paths.map(function (p) { return pathLabel(p); }).join('; ') + '.');
 
       var both = pairedBoth(paths);
       both.forEach(function (p) {
@@ -1599,7 +1700,7 @@
         ? 'Exclusion filters in force: ' + filters.join('; ') + '.'
         : 'No exclusion filters are configured; nothing is skipped.');
 
-      return self.scan(paths);
+      return self.scope ? self.scanScoped(paths) : self.scan(paths);
     }).then(function () {
       self.finishScan();
     }, function (e) {
@@ -1643,9 +1744,11 @@
     return entry ? entry.add : null;
   };
 
-  Run.prototype.scan = function (paths) {
+  // The tag hierarchy and the filters, which every pass reads and neither kind of run
+  // can start without. Held apart from `scan` so the scoped run below reaches it
+  // without reaching the library walk it sits in front of.
+  Run.prototype.prepare = function () {
     var self = this;
-    this.passes = buildPasses(paths);
     return gqlRequest(tagQuery(this.settings), null).then(function (data) {
       self.tagMap = buildTagMap(((data.findTags || {}).tags) || []);
 
@@ -1654,7 +1757,13 @@
         self.log('INFO', 'Exclusion tag resolved: ' + tagLabel(self.tagMap, excludeTagId) + '.');
       }
       self.filters = makeFilters(self.settings, self.tagMap, excludeTagId);
+    });
+  };
 
+  Run.prototype.scan = function (paths) {
+    var self = this;
+    this.passes = buildPasses(paths);
+    return this.prepare().then(function () {
       // Passes run one after another rather than in parallel, because a later stage
       // reads what an earlier one planned.
       var chain = Promise.resolve();
@@ -1662,6 +1771,60 @@
         chain = chain.then(function () {
           if (self.cancelled) return null;
           return self.scanPass(pass);
+        });
+      });
+      return chain;
+    });
+  };
+
+  // Which path a scoped run reviews, or nothing if its setting has since been turned
+  // off. One path, never "everything enabled into this entity": the button names one
+  // source, and `runManual` learned at 0.16.0 that widening it does more than the
+  // button promised.
+  function scopedPaths(scope, s) {
+    var p = pathById(scope.pathId);
+    return p && s[p.setting] ? [p] : [];
+  }
+
+  // The entities a scoped run plans over: the one the target-side button is sitting on,
+  // or - for a source-side button - whatever that source reaches, resolved through the
+  // very lookup the click used to perform.
+  Run.prototype.scopeIds = function (path) {
+    if (this.scope.ids) {
+      return Promise.resolve(this.scope.ids.map(function (id) { return String(id); }));
+    }
+    return resolveSourceTargets(path, [String(this.scope.sourceId)]);
+  };
+
+  // A manual button's review. Same planner as everything else - `planPass` is the one
+  // auto mode uses, borrowed back below - so what this dialog lists is by construction
+  // what the click used to write without asking. The only difference from `scan` is
+  // where the entities come from: named, rather than paged out of the library.
+  Run.prototype.scanScoped = function (paths) {
+    var self = this;
+    var path = paths[0];
+    return this.prepare().then(function () {
+      return self.scopeIds(path);
+    }).then(function (ids) {
+      self.passes = buildPasses(paths);
+      var t = TARGETS[path.target];
+      self.log('INFO', ids.length === 1
+        ? 'Reviewing one ' + t.label.toLowerCase() + '.'
+        : 'Reviewing ' + ids.length + ' ' + t.plural.toLowerCase() + ' this ' +
+          path.source.toLowerCase() + ' reaches.');
+      if (!ids.length) return null;
+      var chain = Promise.resolve();
+      self.passes.forEach(function (pass) {
+        chain = chain.then(function () {
+          if (self.cancelled) return null;
+          // Set here rather than counted per entity: `planPass` fetches them one at a
+          // time and the progress line wants the whole scope, not the last id read.
+          pass.started = true;
+          pass.total = ids.length;
+          return self.planPass(pass, ids).then(function () {
+            pass.scanned = ids.length;
+            self.flush();
+          });
         });
       });
       return chain;
@@ -2402,6 +2565,11 @@
       this.backdrop.parentNode.removeChild(this.backdrop);
     }
     if (_active === this) _active = null;
+    // Whatever this dialog wrote may have made a manual button on the page behind it
+    // eligible or not, and the buttons were unreachable while it was open, so this is
+    // the first moment a re-probe is worth anything. On a page with no manual buttons
+    // the tick returns before it queries anything.
+    invalidateButtonProbes();
   };
 
   // ── The settings page ─────────────────────────────────────────────────────
@@ -2801,6 +2969,14 @@
     });
     return chain;
   };
+
+  // Borrowed back the other way, for the same reason `AutoRun` borrows the planner:
+  // a manual button's dialog plans a named set of entities, which is exactly what a
+  // reaction does. Assigned after the definitions above rather than in `AutoRun`'s own
+  // borrow list, which runs before them.
+  ['reverseSources', 'planPass'].forEach(function (m) {
+    Run.prototype[m] = AutoRun.prototype[m];
+  });
 
   // Writes the plan. One lease for the whole reaction, renewed per batch, released
   // whatever happens - an error here must not latch a sibling into standing down.
@@ -3478,7 +3654,7 @@
     return total;
   }
 
-  // ── The click: plan one entity, then save or stage it ───────────────────────
+  // ── The click: stage one entity, or open the review dialog on it ────────────
   //
   // **Just the path whose button was clicked**, never every enabled path into this
   // target. That is what the button says it does - `manualButtonTitle` names one path,
@@ -3489,29 +3665,41 @@
   // this plugin's button silently wider than `MergePerformerTagsToScenes`' identically
   // labelled one, which copies performer tags and nothing else.
   //
-  // `guarded()` around the whole thing for the same reason auto mode needs it: with
-  // "save immediately" on, `run.apply()` issues the very bulk mutation the fetch
-  // wrapper watches for, and without the guard a click would react to its own write.
-  function runManual(path, target, id) {
+  // **Nothing here writes any more.** Until 0.18.0 the "save immediately" branch called
+  // `run.apply()` on the spot, which is the one thing in this plugin a user could
+  // trigger with no plan in front of them - the task has a dialog, the auto modes are
+  // opted into per path, and this had neither. It now opens the same dialog the task
+  // does, scoped to the one entity and the one path (`Run`'s `scope`), so every write
+  // this plugin makes on purpose is either reviewed or staged.
+  function runManual(path, target, id, label) {
     return autoSettings().then(function (s) {
       // Re-read rather than trusted: a path can be switched off between the tick that
       // drew the button and the click on it.
       if (!s[path.setting]) throw new Error('that path is no longer enabled');
       // Staging needs PluginApi's component patching. Where that is missing the click
-      // saves instead, because the user never opted into review - they opted into the
-      // button, and this is the behaviour their Stash can support. The sibling has made
-      // the same trade since it grew staging; without it the click ends in an alert
-      // about a form control on a Stash that was never going to have one.
-      var immediate = s.a2SaveImmediately || !_selectPatchesInstalled;
+      // reviews instead, because the user never opted into a blind write - they opted
+      // into the button, and this is the closest thing their Stash can support. The
+      // sibling has made the same trade since it grew staging; without it the click
+      // ends in an alert about a form control on a Stash that was never going to have
+      // one.
       warnNoStagingOnce(s);
+      if (savesImmediately(s)) {
+        // Nothing to stage into, so the review moves into the dialog: it plans this one
+        // entity along this one path, lists every change, and writes nothing until
+        // Proceed - with Copy log, Rescan and Undo where the task has them. This is
+        // what the "..." on the caption promises.
+        return scopeLabel(target, id).then(function (what) {
+          startRun(stripEllipsis(label) + ' - for ' + what,
+            { pathId: path.id, target: target, ids: [String(id)] });
+          return { mode: 'dialog', count: 0 };
+        });
+      }
+      // `guarded()` around the staging path for the same reason auto mode needs it -
+      // it is only the writing branch that matters, and the dialog guards its own.
       return guarded(function () {
         return autoContext(s).then(function (ctx) {
           var run = new AutoRun(s, ctx.tagMap, ctx.filters);
           return run.planEntities(target, [path], [String(id)]).then(function () {
-            if (immediate) {
-              return run.apply('manual: ' + path.id + ' ' + TARGETS[target].label + ' ' + id)
-                .then(function (n) { return { mode: 'saved', count: n }; });
-            }
             var count = applyPlanToForm(target, String(id), run.plan, run.tagMap, run.performerNames);
             return { mode: 'staged', count: count };
           });
@@ -3537,7 +3725,7 @@
 
   function manualButtonTitle(path, immediate) {
     return pathLabel(path) + (immediate
-      ? ' - copies and saves immediately.'
+      ? ' - opens a dialog listing every change first; nothing is written until you press Proceed.'
       : ' - stages into the form for review; you still press Save.');
   }
 
@@ -3576,17 +3764,18 @@
       var orig = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Working...';
-      runManual(path, target, id).then(function (result) {
+      runManual(path, target, id, label).then(function (result) {
         btn.disabled = false;
+        // The dialog is now the feedback, and it is on top of this button - a flash
+        // underneath it would be a caption nobody can see, restored two seconds into a
+        // review that may take minutes.
+        if (result.mode === 'dialog') { btn.textContent = orig; return; }
         btn.textContent = result.count ? ('Added ' + result.count) : 'No changes';
-        // Re-probe when the flash is over rather than now: a saving click has just made
-        // this button ineligible, and invalidating at once would have the next tick
-        // remove it mid-"Added 3". A staging click changes nothing on the server, so the
-        // re-probe is a no-op there beyond one query.
-        setTimeout(function () {
-          btn.textContent = orig;
-          if (result.mode === 'saved' && result.count) invalidateButtonProbes();
-        }, FLASH_MS);
+        // Only the staging branch reaches here since 0.18.0, and it changes nothing on
+        // the server - so the caption is restored and nothing is re-probed. A dialog's
+        // writes invalidate from `Run.close`, where the eligibility they changed is
+        // finally settled.
+        setTimeout(function () { btn.textContent = orig; }, FLASH_MS);
       }, function (err) {
         btn.disabled = false;
         btn.textContent = orig;
@@ -4015,7 +4204,7 @@
     var kids = Array.prototype.slice.call(container.childNodes || []);
     for (var i = 0; i < kids.length; i++) {
       if (hasClass(kids[i], MANUAL_BTN_CLASS) || hasClass(kids[i], MANUAL_SRC_BTN_CLASS)) continue;
-      if (kids[i].textContent === label) return true;
+      if (sameButtonLabel(kids[i].textContent, label)) return true;
     }
     return false;
   }
@@ -4142,6 +4331,10 @@
           'showing "' + buttonLabel(p, s) + '" in this row');
         return !dropped;
       });
+      // Read once per tick and used for the caption, the tooltip and (through
+      // `runManual`) the click, so the "..." cannot say one thing and the click do
+      // another.
+      var immediate = savesImmediately(s);
       if (!paths.length) { clearManualButtons(); return; }
       // Eligibility gating (0.13.0, Improvement 4): a button whose path would add
       // nothing to this entity stays off rather than sitting there to report "No
@@ -4201,14 +4394,11 @@
         if (!stillWanted && node.parentNode) node.parentNode.removeChild(node);
       });
       paths.forEach(function (p) {
-        var label = buttonLabel(p, s);
+        var label = withEllipsis(buttonLabel(p, s), immediate);
         var existing = document.getElementById(manualButtonId(p));
         if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-        // Same expression the click uses, so the tooltip never promises a review this
-        // Stash cannot give.
-        insertBeforeImportantAction(container, buildManualButton(p, label, rt.target, rt.id,
-          !!s.a2SaveImmediately || !_selectPatchesInstalled));
+        insertBeforeImportantAction(container, buildManualButton(p, label, rt.target, rt.id, immediate));
       });
     });
   }
@@ -4561,16 +4751,11 @@
       (common
         ? ', and only tags that every one of them carries are copied - so this can add nothing.'
         : '.') +
-      ' Saves immediately: the write fans out to many entities at once, and there is no ' +
-      'single form to stage it into.';
+      ' Opens a dialog listing every change first; nothing is written until you press ' +
+      'Proceed. There is no staging here - the write fans out to many entities at once, ' +
+      'and there is no single form to stage it into.';
   }
 
-  // The click: resolve which targets this source reaches, then plan and apply just
-  // this one path onto them - not `runAutoTargets`' "replan everything enabled for
-  // this target", which would pull in *other* sources' paths too and do more than
-  // the button that was clicked promised. `guarded()` around the whole thing, same
-  // reason as `runManual`: `run.apply()` issues the bulk mutation the fetch wrapper
-  // watches for, and without it a click would react to its own write.
   // Drops what we just wrote out of Apollo's cache, so the panel listing those entities
   // redraws with the new tags instead of the ones it read before the click. The tag
   // *counts* on a Scene's Groups tab are the visible case: they are rendered from the
@@ -4609,22 +4794,22 @@
     }
   }
 
-  function runManualSource(path, id) {
-    return autoSettings().then(function (s) {
-      return guarded(function () {
-        return resolveSourceTargets(path, [String(id)]).then(function (targetIds) {
-          if (!targetIds.length) return 0;
-          return autoContext(s).then(function (ctx) {
-            var run = new AutoRun(s, ctx.tagMap, ctx.filters);
-            return run.planEntities(path.target, [path], targetIds).then(function () {
-              // Eviction is `run.apply`'s, over the entities it actually wrote rather
-              // than every target this source reaches.
-              return run.apply('manual source: ' + path.id + ' ' + id);
-            });
-          });
-        });
-      });
-    }).then(function (n) { return { count: n }; });
+  // The click. Just this one path onto whatever the source reaches - not
+  // `runAutoTargets`' "replan everything enabled for this target", which would pull in
+  // *other* sources' paths too and do more than the button that was clicked promised.
+  //
+  // Since 0.18.0 it writes nothing itself: it opens the review dialog scoped to this
+  // path and this source, and the dialog resolves the targets, lists every change and
+  // waits for Proceed. This was the widest unreviewed write in the plugin - one click
+  // on a studio's page rewriting every scene it owns - and it is now the one with the
+  // most to read before it happens. The lookup, the planner and the writes are the
+  // same code as before; only what drives them moved.
+  function runManualSource(path, id, label) {
+    return scopeLabel(path.sourceType, id).then(function (what) {
+      startRun(stripEllipsis(label) + ' - from ' + what,
+        { pathId: path.id, sourceId: String(id) });
+      return { mode: 'dialog', count: 0 };
+    });
   }
 
   function buildManualSourceButton(path, label, id, s) {
@@ -4644,19 +4829,13 @@
       var orig = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Working...';
-      runManualSource(path, id).then(function (result) {
+      runManualSource(path, id, label).then(function (result) {
         btn.disabled = false;
-        btn.textContent = result.count ? ('Added ' + result.count) : 'No changes';
-        // Same flash-then-invalidate as the target side. A source click always saves,
-        // and what it changes is the *targets* rather than this page's own entity - so
-        // this re-probe is only worth anything for the payload half of the gate, which
-        // a click cannot change. It runs anyway: this is the one entity whose buttons
-        // are on screen, and a rule that re-probes after every saving click is easier to
-        // hold true than one that reasons about which halves a click could have moved.
-        setTimeout(function () {
-          btn.textContent = orig;
-          if (result.count) invalidateButtonProbes();
-        }, FLASH_MS);
+        // Always the dialog on this side - there is no staging here - so the caption
+        // goes straight back rather than flashing a count under a modal that covers it.
+        // The re-probe is `Run.close`'s now, once whatever was approved has been written.
+        btn.textContent = orig;
+        if (result.mode !== 'dialog' && result.count) invalidateButtonProbes();
       }, function (err) {
         btn.disabled = false;
         btn.textContent = orig;
@@ -4785,7 +4964,8 @@
         if (!stillWanted && node.parentNode) node.parentNode.removeChild(node);
       });
       paths.forEach(function (p) {
-        var label = sourceButtonLabel(p, s);
+        // Always "..." here: a source button has no staging branch to be without one.
+        var label = withEllipsis(sourceButtonLabel(p, s), true);
         var existing = document.getElementById(manualSourceButtonId(p));
         if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);

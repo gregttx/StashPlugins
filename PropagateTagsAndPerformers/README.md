@@ -1,49 +1,21 @@
-# Propagate Tags and Performers to Related Entities
+# GTTx Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.12.14, every step but the last has landed
+> ## 1.0.0 — everything described below is built
 >
-> The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
-> up your database before running it** — see below. Both automatic modes work, both cooperate with
-> the two sibling plugins, and manual buttons with staging are confirmed working on **all four
-> target pages** — Scene, Gallery, Image and Group — with a second set of buttons on the **source's
-> own page** instead: a performer, a studio, or one of those same four entities acting as a source.
+> The library-wide task covers every path: it reviews, applies and undoes. **Back up your database
+> before running it** — see below. Both automatic modes work, both cooperate with the two sibling
+> plugins, and manual buttons sit on **all four target pages** — Scene, Gallery, Image and Group —
+> with a second set on the **source's own page**: a performer, a studio, or one of those same four
+> entities acting as a source. The version was held below 1.0.0 while any of that was outstanding;
+> none of it is.
 >
-> **If you are upgrading, two things are worth knowing.** Update `MergePerformerTagsToScenes` to
-> 1.15.0 or newer alongside anything from 0.9.0 on, or the two plugins' buttons will duplicate on
-> the one relationship they share. And if your buttons currently sit to the *left* of Save, you are
-> on 0.12.0 or older: every version from 0.9.0 to 0.12.0 looked for Stash's Delete button only by a
-> CSS class that does not exist on the Scene edit row, so all four silently placed buttons before
-> Save. 0.12.1 finds it by label as well; update and they move between Save and Delete, which is
-> where the placement work below was trying to put them all along.
->
-> Button placement and row spacing took 0.9.0 through 0.12.8 to settle, most of it against live
-> screenshots rather than tests. The step table records which release did what; the reasoning is in
-> `CLAUDE.md`. What it comes to now: a button anchors on Delete, or Save where there is no Delete,
-> and appends only when neither is there; the two plugins agree a fixed relative order rather than
-> racing each other for the spot next to the anchor; and both the row gap and each button's own
-> margins are read off whatever Stash already put in that row, so every gap in it matches, rather
-> than being set to a fixed value that matched nothing.
->
-> The version stays below **1.0.0** until the plugin is finished and worth using; the major digit
-> is what says so. Until then each of the steps below takes a minor bump as it lands.
->
-> This README describes the plugin as designed. Each section is marked with the step that
-> delivers it, and the list is kept honest as they land:
->
-> | | Status |
-> | --- | --- |
-> | Settings, path table, stylesheet | **done** (0.0.1) |
-> | Task entry point, review dialog, settings page | **done** (0.1.0) |
-> | The library scan, for the eleven paths reached by traversal | **done** (0.2.0) |
-> | Applying the plan, and Undo | **done** (0.3.0) |
-> | The two paths out of a gallery's images | **done** (0.4.0) |
-> | Automatic mode when the **target** is saved, with the per-entity cooldown | **done** (0.5.0) |
-> | Automatic mode when the **source** is saved, fanning out to its targets | **done** (0.6.0) |
-> | Cooperating with `MergePerformerTagsToScenes` and `NormalizeParentTags` | **done** (0.7.0) |
-> | Manual buttons and staging, target side | **done; confirmed on all four pages** (0.8.0 – 0.8.3) |
-> | Button fixes, renamed buttons, and manual buttons on the source side | **done** (0.9.0) |
-> | Button placement and row spacing, settled against live screenshots | **done** (0.9.1 – 0.12.8) |
-> | Deterministic ordering against `MergePerformerTagsToScenes`' buttons in the same row | **done** (0.10.0) |
+> **If you are upgrading, three things are worth knowing.** The plugin is now called **GTTx
+> Propagate Tags and Performers to Related Entities** in Stash's plugin list — the folder and the
+> plugin id are unchanged, so your settings survive the update, but the name you look for on the
+> settings page has moved down the alphabet. Update `MergePerformerTagsToScenes` to 2.0.0 alongside
+> it: the two plugins share a row of buttons and a set of cooperation protocols, and they are
+> developed together. And if your buttons currently sit to the *left* of Save, you are on 0.12.0 or
+> older — 0.12.1 fixed the anchor and they move to between Save and Delete.
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -273,7 +245,7 @@ are invisible from the page — the sources' tags, the target's own tags, the ex
 see the reasoning, open the browser console (F12), run:
 
 ```js
-StashPluginCoop.debugButtons = true
+__GTTx__.StashPluginCoop.debugButtons = true
 ```
 
 Each button reports whether it is shown or hidden and why, prefixed `[ptp2re gate]`, on the next tick —
@@ -297,15 +269,21 @@ Clicking one does one of two things, depending on **Save Immediately**:
   remove any of them first. Clicking the same button again only adds what is still missing — tags
   you have since removed by hand are not put back, and a click that finds nothing reports "No
   changes" instead of restaging the same tags.
-- **On — saves immediately.** The button copies and saves in one step, the same write the automatic
-  modes and the library-wide task make. There is no staging, no review and no per-click undo — the
-  library-wide task's Undo only ever reaches what that task's own dialog wrote.
+- **On — reviews in a dialog.** The caption gains a trailing **"..."** to say so. The click opens
+  the same dialog the library-wide task uses, scoped to this one entity and this one path: it lists
+  every change, writes nothing until you press **Proceed**, and offers **Undo**, **Rescan** and
+  **Copy log** afterwards. Up to 0.17.0 it copied and saved on the spot, with no plan and no undo;
+  since 0.18.0 nothing in this plugin writes from a click without either staging it or showing it
+  to you first. The dialog's heading names what it is scoped to — *Copy Tags to all Scenes - from
+  Performer "Jane" (100)* — so a dialog opened from a button says which entity it is about, by the
+  name you know it by (0.18.1).
 
 A button that cannot find the tag or performer box — the Edit tab was never opened, or a fresh
 Stash version has changed markup this plugin has not seen yet — reports the problem in an alert
 rather than silently doing nothing. On a Stash too old to let a plugin observe those boxes at all,
-staging is impossible rather than merely failing, so since 0.16.0 the buttons **save** there
-instead, say so in their tooltip, and warn once in the browser console.
+staging is impossible rather than merely failing, so the buttons **review in the dialog** there
+instead (they saved outright between 0.16.0 and 0.17.0), say so in their tooltip, and warn once in
+the browser console.
 
 **If `MergePerformerTagsToScenes` is also installed and showing its own button for the same path**
 ("Copy Tags to all Scenes" on the performer page, "Copy all Tags from all Performers" on the scene
@@ -328,9 +306,11 @@ whichever of its own outgoing paths are enabled.
 Two paths have no source button: a scene marker has no page of its own to put one on, being
 something you view inside a scene's Markers tab rather than a page you navigate to directly.
 
-Source-side buttons always save immediately, with no staging option — one click can resolve to
-many different entities across many different pages at once, and there is no single form to stage
-the result into. Everything else works the same as the target-side buttons: the gating above, the
+Source-side buttons have no staging option — one click can resolve to many different entities
+across many different pages at once, and there is no single form to stage the result into. They
+therefore always end in **"..."** and always open the review dialog, which lists every change across
+every entity the source reaches before a single one is written. This is the widest write the plugin
+offers from one click, and up to 0.17.0 it was the only one with nothing to read first. Everything else works the same as the target-side buttons: the gating above, the
 dedup check against `MergePerformerTagsToScenes`, the same **Show Manual Buttons** toggle, and,
 since 0.9.1, landing before Delete rather than after it.
 
@@ -381,7 +361,9 @@ Group's Edit tab has no Delete, so everything there appends after Save.
 | `/studios/<id>` | Detail | Copy Tags to all Groups | this | `e3` |
 
 *all\|common* is whichever the path's own "common tags only" setting says; the button's label
-changes with it.
+changes with it. The captions above are the base text: a button whose click opens the review dialog
+also shows a trailing **"..."** — every Detail-view (source-side) button always, and every Edit-tab
+button while **Save Immediately** is on or staging is unavailable.
 
 **Source buttons sit in one of two places, and the page decides which.** Performer and Group show a
 row of actions on their detail view (beside Delete), and the button joins it. Scene and Gallery show
@@ -447,7 +429,7 @@ are reloaded, so it proves nothing about the script.
 
 ## Settings
 
-All under **Settings → Plugins → Propagate Tags and Performers to Related Entities**. Each
+All under **Settings → Plugins → GTTx Propagate Tags and Performers to Related Entities**. Each
 description shows one line on the page; hover it, or the setting's name, for the rest.
 
 **Running it** — whether the manual buttons appear, whether they save or stage for review, and the

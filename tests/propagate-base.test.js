@@ -14,7 +14,7 @@ const h = require('./npt-harness');
 const NAME = 'PropagateTagsAndPerformers';
 const SRC = process.env.SRC || path.join(__dirname, '..', NAME, NAME + '.js');
 const PREFIX = 'ptp2re';
-const TASK = 'Propagate Tags and Performers to All Related Entities';
+const TASK = 'Propagate Tags and Performers to All Related Entities...';
 
 // Answers the three queries the dialog makes at 0.1.0: the settings, the installed
 // version, and nothing else. `installed` absent means Stash reported no version,
@@ -73,7 +73,7 @@ Promise.resolve()
   .then(() => {
     // A registry another plugin created first must survive us loading second.
     const env = h.makeEnv({ quiet: true, respond: responder() });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [{ owner: 'SomeoneElse', label: 'a task', until: Date.now() + 60000 }],
       respecters: { SomeoneElse: true },
     };
@@ -92,7 +92,7 @@ Promise.resolve()
     const group = h.makeElement('div');
     const heading = h.makeElement('h3');
     heading.textContent = NAME === 'PropagateTagsAndPerformers'
-      ? 'Propagate Tags and Performers to Related Entities' : NAME;
+      ? 'GTTx Propagate Tags and Performers to Related Entities' : NAME;
     group.appendChild(heading);
     const btn = h.makeElement('button');
     btn.textContent = TASK;
@@ -146,7 +146,7 @@ Promise.resolve()
     // strips it rather than comparing the raw text.
     const group = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'Propagate Tags and Performers to Related Entities (0.1.0)';
+    heading.textContent = 'GTTx Propagate Tags and Performers to Related Entities (0.1.0)';
     group.appendChild(heading);
     const btn = h.makeElement('button');
     btn.textContent = TASK;
@@ -188,8 +188,10 @@ Promise.resolve()
     const nodes = env.ctx.document.body.descendants();
     const title = (nodes.filter((n) => h.hasClass(n, PREFIX + '-title'))[0] || {}).textContent || '';
     const warn = (nodes.filter((n) => h.hasClass(n, PREFIX + '-warn'))[0] || {}).textContent || '';
+    // The *short* name since 0.18.1: the manifest's full one is the least informative
+    // third of a title that also names a task, a path and an entity.
     h.check('the head names the plugin and the task',
-      /Propagate Tags and Performers to Related Entities/.test(title) && title.indexOf(TASK) !== -1,
+      /GTTx Propagate Tags & Performers/.test(title) && title.indexOf(TASK) !== -1,
       title);
     // Undo reaches its own writes and only while the dialog is open. It must never
     // be allowed to read as a substitute for the backup, so the instruction leads
@@ -283,7 +285,7 @@ Promise.resolve()
 
   .then(() => {
     const env = h.makeEnv({ quiet: true, respond: responder({ settings: { b1TagsPerformersToScenes: true } }) });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [], respecters: {},
       declares: { MergePerformerTagsToScenes: ['tags:performer>scene'] },
     };
@@ -300,7 +302,7 @@ Promise.resolve()
 
   .then(() => {
     const env = h.makeEnv({ quiet: true, respond: responder({ settings: { b2TagsStudioToScenes: true } }) });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [], respecters: {},
       declares: { MergePerformerTagsToScenes: ['tags:performer>scene'] },
     };
@@ -334,7 +336,7 @@ Promise.resolve()
       settings: { b1TagsPerformersToScenes: true },
       otherPlugins: { NormalizeParentTags: { a9AutoRollUpOnUpdate: true } },
     }) });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [], respecters: { NormalizeParentTags: true }, declares: {},
     };
     h.run(env.ctx, SRC);
@@ -415,7 +417,7 @@ Promise.resolve()
   // ── Someone else's lease ──────────────────────────────────────────────────
   .then(() => {
     const env = h.makeEnv({ quiet: true, respond: responder({ settings: { b1TagsPerformersToScenes: true } }) });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [{ owner: 'NormalizeParentTags', label: 'Prune Parent Tags', until: Date.now() + 60000 }],
       respecters: {},
     };
@@ -434,7 +436,7 @@ Promise.resolve()
     // An expired lease is not a lease. A tab that crashed mid-run must not warn
     // every dialog opened afterwards.
     const env = h.makeEnv({ quiet: true, respond: responder({ settings: { b1TagsPerformersToScenes: true } }) });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [{ owner: 'NormalizeParentTags', label: 'Prune', until: Date.now() - 1000 }],
       respecters: {},
     };
@@ -513,7 +515,7 @@ Promise.resolve()
     header.className = 'setting';
     const headBox = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'Propagate Tags and Performers to Related Entities (0.1.0)';
+    heading.textContent = 'GTTx Propagate Tags and Performers to Related Entities (0.1.0)';
     headBox.appendChild(heading);
     const sub = h.makeElement('div');
     sub.className = 'sub-heading';

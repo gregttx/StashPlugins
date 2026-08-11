@@ -1,9 +1,10 @@
 # Plan: `PropagateTagsAndPerformers`
 
-*Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
+*GTTx Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.17.0**
-(last checked 2026-08-13). All eight decisions are settled (§4) and every open question is closed
+**Status: DONE — all nine steps resolved (eight built, one retired), and the plugin is at 1.0.0**
+(last checked 2026-08-16). The version left the 0.x range because every step in this plan has
+landed: the major digit was always the claim that the plugin is finished and worth installing. All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
 correctly on **all four target pages, confirmed live** (step 8) — built best-effort, without a live
@@ -177,8 +178,11 @@ network fault, and a typo is the likelier of the two. **A note asserting what a 
 worth no more than the last time someone checked.**
 
 One gap left open on request: the sibling shows `Merging... (12/340)` on its performer button where
-this plugin's source button shows `Working...`. Its per-scene writes against this plugin's bulk
-batching are *not* a gap to close — the batches are what make a library-wide run affordable.
+this plugin's source button shows `Working...`. **Closed at 0.18.0, by both buttons losing the
+caption rather than by this one gaining it** — each now opens a review dialog whose own progress line
+says more than a caption could, and a caption flashing underneath a modal is one nobody can read. Its
+per-scene writes against this plugin's bulk batching were never a gap to close — the batches are what
+make a library-wide run affordable.
 
 0.17.0 is colour, asked for directly after a question about what Bootstrap variants Stash's theme
 offers. Every button this plugin draws, and its task button on the Plugin Tasks page, is now
@@ -203,6 +207,52 @@ shipped. A cosmetic change is a strange place to find that; the reason it turned
 the buttons meant *drawing* the same identification the click path had only ever run on a click, and
 the fixture that made the negative case explicit is the one that failed.
 
+0.18.0 closes the last gap between what this plugin can do from a click and what it will show you
+first: **no write without a plan in front of it.** The library-wide task always had the review
+dialog and staging always had the form, but a target-side button with "save immediately" on wrote
+outright, and every *source-side* button always did — one click on a studio's page rewriting every
+scene it owns, which was the widest write here and the only one with nothing to read beforehand.
+Both now open the same dialog, **scoped**: `Run` took a `scope` (`{pathId, target, ids}` for one
+entity, `{pathId, sourceId}` for a fan-out, resolved through the very `resolveSourceTargets` the
+click used to call), and `scanScoped` plans it with `planPass` — borrowed *back* from `AutoRun`,
+which has always borrowed the planner from `Run`. So a button's dialog and an auto reaction plan
+through identical code, and "the dialog lists what the click would have written" is true by
+construction rather than by inspection. The scope lives on the run because **Rescan re-enters
+`begin()`**.
+
+Two conventions came out of it, both repo-wide and both in the root `CLAUDE.md`. A caption ending
+in **"..."** means the click asks before it acts — the five task buttons across the three plugins,
+and every manual button that opens a dialog, but never a staging button, which puts its additions in
+the form in front of you. And `window.__GTTx__` is now the one global this repo reserves, with
+`StashPluginCoop` nested under it and the bare name kept as an alias that *adopts* an older
+sibling's object rather than replacing it — a half-updated install must not end up running two coop
+objects and missing each other's leases. `setting-group` and the other Stash classes these plugins
+read were considered for the same treatment and deliberately left alone: they are Stash's, and
+prefixing a class we do not own just stops finding the element.
+
+0.18.1 is that dialog's heading, which 0.18.0 shipped as three unhelpful parts —
+`Propagate Tags and Performers to Related Entities - Copy Tags to all Scenes... - Group 57`. The
+manifest name cannot change (`ownSettingGroup` matches the settings page's heading against the
+`.yml`), so the plugin now carries a short name beside it and the dialog wears that one. The
+caption's "..." is stripped back off, since it promises a dialog on a *button* and is only
+punctuation in the middle of a sentence here. And `scopeLabel` names the entity the way the log
+already names every other one — `from Performer "Jane" (100)` — at the cost of one by-id query per
+scoped click, made while a dialog opens on a scan about to make dozens. The title is a plain block,
+so the result wraps rather than clipping. `MergePerformerTagsToScenes` took the same pass at
+1.18.1 — its manifest name already fits, so its short constant is the same string, which is the
+point of declaring one at all: both heads now read from one expression.
+
+1.0.0 is the version this whole table was building to, and it arrives carrying a rename: every
+plugin in the repo is now `GTTx <name>`, this one shortening to `GTTx Propagate Tags & Performers`
+in its dialog heads. The prefix collects the three in Stash's one flat alphabetical plugin list and
+says they are one author's, which matters for three plugins meant to be installed together. It
+costs an installed user nothing — the folder, the plugin id, every setting key and every path id
+are untouched, so settings survive and the `declares` registry still matches across versions — and
+it costs the code every heading match against Stash's markup, which is what the major digit is for.
+`NormalizeParentTags` went to 2.0.0 and `MergePerformerTagsToScenes` to 2.0.0 in the same pass;
+`NormalizeParentTags` picked up a `PLUGIN_SHORT_NAME` of its own there, the same string as its full
+name, so all three plugins' dialog heads read from one expression.
+
 0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
 once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
 of this file, the plugin `CLAUDE.md`s and the READMEs. It also fixed a real divergence it exposed —
@@ -213,14 +263,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.17.0, in all three places |
-| `PropagateTagsAndPerformers.js` | ~5,041 lines |
+| Version | 1.0.0, in all three places |
+| `PropagateTagsAndPerformers.js` | ~5,221 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 59, apply 43, sweep 30, auto 41, auto-source 28, buttons 163 = **499** (0.17.0's own checks went into the repo-level `style` and `placement` suites instead) |
+| Checks in the eight | paths 60, base 75, plan 59, apply 43, sweep 30, auto 41, auto-source 28, buttons 169 = **505** (0.17.0's own checks went into the repo-level `style` and `placement` suites instead) |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
-| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.2 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch, 1.16.3 its half of the 0.16.0 parity pass, 1.17.0 its half of 0.17.0's colour pass and the `ownTaskName` fix that came out of it), `NormalizeParentTags` 1.7.5 → 1.8.0 |
-| Landed on `main` | through 0.16.0 (`2b1332c`, pushed); 0.17.0 is uncommitted |
+| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 2.0.0 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch, 1.16.3 its half of the 0.16.0 parity pass, 1.17.0 its half of 0.17.0's colour pass and the `ownTaskName` fix that came out of it, 1.18.0 its half of 0.18.0's review-dialog pass, 1.18.1 its half of 0.18.1's scoped titles, 2.0.0 the `GTTx ` name prefix), `NormalizeParentTags` 1.7.5 → 2.0.0 (1.9.0 for the shared global and the task-name convention, neither of which it needed for itself; 2.0.0 the name prefix and a short-name constant it does not shorten) |
+| Landed on `main` | through 1.0.0 |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's
@@ -233,7 +283,7 @@ order (stage 1 was wrong), and §4 D3's guess that staging would not generalise 
 Where this file and the plugin's own `CLAUDE.md` differ, the plugin's is current — it documents
 what the code does, this documents why it was asked for.
 
-Lives at `.plans/migrate-tags-and-performers.md`, tracked in git since "Track the working plan"
+Lives at `.plans/propagate-tags-and-performers.md`, tracked in git since "Track the working plan"
 (before that, `.plans/*` was excluded wholesale; the repo `.gitignore` now carves this one file back
 in). Everything else under `.plans/` — scratch notes, `.plans/memory/` — stays untracked.
 
@@ -256,8 +306,11 @@ Terminology note carried through: this is a **copy**, not a move. Nothing is rem
 source. "Migrate" in the request is read as "propagate". This matches MPTTS §1 ("merging only ever
 adds tags"), and the alternative is plainly wrong — stripping tags off a performer because they
 were copied to a scene would destroy the source data. The name confirms it: D6 chose
-`PropagateTagsAndPerformers`, and this file keeps its `migrate-` filename only because renaming it
-would break nothing and gain nothing.
+`PropagateTagsAndPerformers`, and this file was renamed to match at 0.18.1 — it had kept its
+`migrate-` filename on the argument that renaming it would gain nothing, which was wrong in the one
+way that matters for a document nobody reads twice: the filename was the first thing anyone saw, and
+it said the opposite of the word the whole plan turns on. The only thing tied to it is the
+`!.plans/…` whitelist in `.gitignore`, which moved with it.
 
 ---
 
@@ -410,8 +463,8 @@ Reading, since confirmed and being built to:
   **N-way declaration registry** so this works for future plugins too:
 
   ```js
-  window.StashPluginCoop = {
-    leases:     [],   // [{owner, label, until}]   — existing
+  window.StashPluginCoop = {                    // 0.18.0: window.__GTTx__.StashPluginCoop,
+    leases:     [],   // [{owner, label, until}]   — existing      with this name kept as an alias
     respecters: {},   // {pluginId: true}          — existing
     declares:   {},   // {pluginId: ["tags:performer>scene", ...]}  — NEW
   };
@@ -440,8 +493,10 @@ than the one clicked, Apollo eviction sitting in one of four write paths, and st
 than degrading where `PluginApi` cannot be patched — plus the recap's tag tooltips, which the sibling
 had and this did not. See 0.16.0's entry in §1 for each, and for the sibling's own half of it
 (1.16.3, an exclusion-tag name matching no tag). **Parity is a claim about behaviour, and a claim
-about behaviour is worth what its last check was worth.** One difference is left open by decision:
-MPTTS's performer button reports `Merging... (12/340)`, this plugin's source button `Working...`.
+about behaviour is worth what its last check was worth.** One difference was left open by decision —
+MPTTS's performer button reporting `Merging... (12/340)` against this plugin's `Working...` — and
+0.18.0 removed it from both sides at once: both buttons open a dialog, and the dialog does the
+reporting.
 
 ### D4 — Not unifying with NormalizeParentTags ✅ *(recommendation, user did not object)*
 
@@ -742,7 +797,7 @@ finished. It had two parts, and both turned out unnecessary to move anywhere:
   stale the moment the other shipped.
 - **The schema findings and rejected-path reasoning** (§2, §5 above) were assumed to need rescuing
   into the repo `CLAUDE.md` before they were lost, on the belief that this file was git-ignored
-  scratch space. It was not: `.plans/migrate-tags-and-performers.md` has been tracked since "Track
+  scratch space. It was not: `.plans/propagate-tags-and-performers.md` has been tracked since "Track
   the working plan", and the repo `CLAUDE.md`'s own convention already covers this — a plugin's
   `CLAUDE.md` points here for "the decisions that were taken and the paths that were rejected"
   rather than duplicating them (see `PropagateTagsAndPerformers/CLAUDE.md`'s opening). Nothing here
@@ -918,7 +973,8 @@ step 9 plus a run against a real Stash, not step 9 alone.
 
    No second planner: a click reuses `AutoRun` exactly as the target-side auto reaction does,
    `planEntities(target, paths, [id])` against one named id rather than a page. What is new is only
-   where the result goes — `run.apply()` unchanged for "save immediately", or the plan pushed into a
+   where the result goes — `run.apply()` unchanged for "save immediately" (**SUPERSEDED at 0.18.0:**
+   that branch opens the review dialog scoped to the entity and the path instead of writing), or the plan pushed into a
    captured `TagSelect`/`PerformerSelect` for staging, diffed against the form the way
    `MergePerformerTagsToScenes`' own capture already does, generalised from one component and one
    scene id to two components keyed by route. Names for staged items ride along free: `run.tagMap`

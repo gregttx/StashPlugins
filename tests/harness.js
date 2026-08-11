@@ -57,6 +57,10 @@ function makeEnv(opts) {
     },
   };
   ctx.window = ctx;
+  // The plugins hang their shared object off one reserved global, `window.__GTTx__`,
+  // with the bare `StashPluginCoop` kept as an alias. Seeded here so a test can replace
+  // the coop object wholesale (writing both names) before the plugin has created it.
+  ctx.__GTTx__ = {};
   ctx.globalThis = ctx;
   ctx.location = { pathname: opts.pathname || '/scenes/1', reload() { calls.push({ reload: true }); } };
   ctx.window.location = ctx.location;

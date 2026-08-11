@@ -58,7 +58,7 @@ Promise.resolve()
   // ── Layer 1: the click ───────────────────────────────────────────────────
   .then(() => {
     const env = makeEnv();
-    const btn = taskButton(env, 'Normalize Parent Tags', h.TASK_PRUNE);
+    const btn = taskButton(env, 'GTTx Normalize Parent Tags', h.TASK_PRUNE);
     const ev = clickCapture(env, btn);
     return h.flush().then(() => {
       h.check('a task click is stopped before React sees it',
@@ -84,7 +84,7 @@ Promise.resolve()
 
   .then(() => {
     const env = makeEnv();
-    const btn = taskButton(env, 'Normalize Parent Tags', 'Scan');
+    const btn = taskButton(env, 'GTTx Normalize Parent Tags', 'Scan');
     const ev = clickCapture(env, btn);
     return h.flush().then(() => {
       h.check('an unrelated button in our own group is left alone',
@@ -94,7 +94,7 @@ Promise.resolve()
 
   .then(() => {
     const env = makeEnv();
-    const btn = taskButton(env, 'Normalize Parent Tags', h.TASK_ROLLUP);
+    const btn = taskButton(env, 'GTTx Normalize Parent Tags', h.TASK_ROLLUP);
     clickCapture(env, btn);
     return h.flush().then(() => {
       const d = h.dialog(env.body);

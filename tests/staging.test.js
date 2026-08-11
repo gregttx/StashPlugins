@@ -92,6 +92,9 @@ function setup(opts) {
   ctx.document.createElement = () => ({
     type: '', className: '', textContent: '', title: '', disabled: false,
     addEventListener: (evt, fn) => { if (evt === 'click') clicks.push(fn); },
+    // Enough of an element for the review dialog a non-staging click now builds.
+    appendChild() {}, insertBefore() {}, removeChild() {}, querySelector: () => null,
+    style: {}, scrollIntoView() {},
   });
   ctx.document.querySelector = (s) => {
     if (s === '.edit-buttons') return { appendChild() {}, insertBefore() {}, querySelector: () => null };
@@ -263,6 +266,9 @@ function click(env) {
     ctx.document.createElement = () => ({
       type: '', className: '', textContent: '', title: '', disabled: false,
       addEventListener: (evt, fn) => { if (evt === 'click') clicks.push(fn); },
+      // Enough of an element for the review dialog a non-staging click now builds.
+      appendChild() {}, insertBefore() {}, removeChild() {}, querySelector: () => null,
+      style: {}, scrollIntoView() {},
     });
     ctx.document.querySelector = (s) =>
       s === '.edit-buttons' ? { appendChild() {}, insertBefore() {}, querySelector: () => null } : null;
@@ -283,7 +289,13 @@ function click(env) {
       form.formikTagIds.sort().join(',') === '10,11', form.formikTagIds.join(','));
   }
 
-  // ── no PluginApi: must refuse, not silently save ───────────────────────────
+  // ── no PluginApi: must review, not refuse and not silently save ────────────
+  //
+  // 1.18.0: this used to fall back to merging and saving on the spot. Falling back is
+  // still right - the user opted into the button, not into a review this Stash cannot
+  // render - but the fallback is now the dialog rather than a blind write. What the
+  // dialog then does is merge-task.test.js' business, on a harness that can read one;
+  // here the point is that the click writes nothing by itself and does not alert.
   {
     const form = makeSceneEditForm([{ id: '10', name: 'Blonde', aliases: [] }]);
     const clicks = [];
@@ -291,6 +303,9 @@ function click(env) {
     ctx.document.createElement = () => ({
       type: '', className: '', textContent: '', title: '', disabled: false,
       addEventListener: (evt, fn) => { if (evt === 'click') clicks.push(fn); },
+      // Enough of an element for the dialog the click builds.
+      appendChild() {}, insertBefore() {}, removeChild() {}, querySelector: () => null,
+      style: {}, scrollIntoView() {},
     });
     ctx.document.querySelector = (s) =>
       s === '.edit-buttons' ? { appendChild() {}, insertBefore() {}, querySelector: () => null } : null;
@@ -298,16 +313,16 @@ function click(env) {
     // No ctx.PluginApi at all.
     H.run(ctx);
     await H.flush();
-    const btn = { textContent: 'Copy all Tags from all Performers', disabled: false };
+    const btn = { textContent: 'Copy all Tags from all Performers...', disabled: false };
     clicks[clicks.length - 1]({ preventDefault() {}, currentTarget: btn });
     await H.flush(40);
-    H.check('without PluginApi the button falls back to merging and saving',
-      H.sceneUpdates(calls).length === 1,
+    H.check('without PluginApi the click writes nothing until the dialog is proceeded',
+      H.sceneUpdates(calls).length === 0,
       btn.textContent + ' / updates: ' + H.sceneUpdates(calls).length);
     H.check('and does not pop an alert', !ctx._alert, ctx._alert);
   }
 
-  // ── setting off: original save-immediately behaviour intact ────────────────
+  // ── setting on: the review dialog, not a write ─────────────────────────────
   {
     const env = setup({ settings: { a2SaveTagsImmediately: true } });
     await H.flush();
@@ -315,8 +330,8 @@ function click(env) {
     await H.flush();
     click(env);
     await H.flush(60);
-    H.check('with Save Tags Immediately on, it saves via sceneUpdate',
-      H.sceneUpdates(env.calls).length === 1, 'updates: ' + H.sceneUpdates(env.calls).length);
+    H.check('with Save Tags Immediately on, the click still writes nothing on its own',
+      H.sceneUpdates(env.calls).length === 0, 'updates: ' + H.sceneUpdates(env.calls).length);
     H.check('and does not touch the form', env.form.dirty === false);
   }
 

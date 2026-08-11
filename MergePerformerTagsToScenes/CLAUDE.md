@@ -1,12 +1,20 @@
-# CLAUDE.md — Merge Performer Tags To Scenes
+# CLAUDE.md — GTTx Merge Performer Tags To Scenes
 
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build step,
 `gqlRequest`, `tick()` + MutationObserver, the bulk-edit lease) are in `../CLAUDE.md` and still
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.17.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.0.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.0.0 is a rename, not a rewrite.** The display name is now `GTTx Merge Performer Tags To
+Scenes`, in the `.yml`, the `manifest` and `PLUGIN_NAME` alike, and `PLUGIN_SHORT_NAME` follows it
+(it is still the same string — this name fits). The folder, the plugin **id**, every setting key
+and every storage slot are unchanged, so an upgrade keeps its configuration; what changes is every
+heading match, since `ownSettingGroup` and `ownTaskName` compare against that name. The major digit
+is the warning to anyone matching on it. See "Cross-plugin cooperation: one name prefix" in the
+repo-root `CLAUDE.md`.
 
 **The button-label text is a cross-plugin contract, not cosmetics.** Both manual buttons read
 "Copy Tags to all Scenes" / "Copy all Tags from all Performers", matching the convention
@@ -14,6 +22,12 @@ custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived ther
 plugin's manual-button dedup matches on this exact visible text to tell "another plugin's button is
 showing" from "it only could be"; reword one side and the two plugins' buttons for
 `tags:performer>scene` stop matching and both appear, the exact duplicate the protocol prevents.
+Since 1.18.0 both carry a trailing "..." when the click opens the review dialog — the performer
+button always, the scene button only where staging is unavailable — and the sibling's dedup compares
+with the dots stripped, precisely so the two halves of that contract can differ on it.
+
+**Neither button writes on its own any more** (1.18.0). Both open the task's dialog, scoped to one
+performer or one scene; §7e is the map of that. The base captions above are what did not change.
 
 **Button placement and row spacing are one design in two copies**, shared with
 `PropagateTagsAndPerformers` and written up in full in the repo-root CLAUDE.md ("Placing a manual
@@ -39,15 +53,16 @@ Five entry points share one core:
 
 | Path | Trigger | Saves? |
 | --- | --- | --- |
-| Performer button, "Copy Tags to all Scenes" | click on the performer detail view | yes, every scene of the performer |
-| Scene button, "Copy all Tags from all Performers" | click on the scene Edit tab | **stages** by default; saves if `saveTagsImmediately` |
+| Performer button, "Copy Tags to all Scenes..." | click on the performer detail view | **reviews** in the dialog, scoped to that performer (§7e) |
+| Scene button, "Copy all Tags from all Performers" | click on the scene Edit tab | **stages** by default; **reviews** in the dialog if `saveTagsImmediately`, or where staging is unavailable |
 | Auto-merge on scene update | `sceneUpdate` / `bulkSceneUpdate` seen in `fetch` | yes |
 | Auto-merge on performer update | `performerUpdate` / `bulkPerformerUpdate` seen in `fetch` | yes, every scene of the performer |
 | Library-wide task (1.2.0, review pass 1.3.0) | click in Settings - Tasks - Plugin Tasks | yes, after the user presses **Proceed** |
 
-Everything funnels into two functions — `runMergeTagsIntoScene` (one scene) and
-`runMergeTagsIntoAllPerformerScenes` (a performer's scenes) — plus `stageTagsIntoSceneForm` for
-the staging path. Add behaviour to those, not to the callers.
+The two automatic modes funnel into `runMergeTagsIntoScene` (one scene) and
+`runMergeTagsIntoAllPerformerScenes` (a performer's scenes); the scene button's staging path is
+`stageTagsIntoSceneForm`; everything else goes through the task's own review pass, scoped (§7e). Add
+behaviour to those, not to the callers.
 
 ## 2. Code map
 
@@ -601,6 +616,57 @@ performs that one path, via its buttons at minimum, regardless of what its auto-
 it in the log — informational, never a head warning, because redundant work between two
 add-only plugins is never wrong data. Called from `begin()` right after `checkSibling()`; the two
 are independent and both can fire in the same run.
+
+## 7e. The buttons open this dialog too, scoped (1.18.0)
+
+The repo-root CLAUDE.md states the rule ("No write without a plan in front of it, and '...' says
+which"). This is where this plugin's half of it lives.
+
+**Two scopes, one dialog.** `startTaskRun(taskName, scope)` takes `{ performerId }` or
+`{ sceneId }`; `begin()` branches to `scanScope` instead of `walk(1, …)`, and everything below that
+— the plan, Proceed, the recap, Undo, Rescan, Copy log — is the code the library-wide task already
+ran. The head reads `<caption> - from Performer "Ann" (7)` / `<caption> - for Scene "S102" (102)`,
+which is also the lease label.
+
+**The title was `<caption>... - Performer 7` until 1.18.1**, and both halves of that were wrong.
+`stripEllipsis` takes the dots back off, because they are a promise a *caption* makes — "this click
+asks before it acts" — and are only punctuation in the middle of a sentence here. `scopeLabel(kind,
+id)` names the entity, reusing `performerLabel` and `sceneLogLabel` so a title and a log line cannot
+disagree about how one is written; it costs one by-id read per scoped click, made while a dialog
+opens on a review about to make several, and falls back to the bare kind and id rather than
+rejecting. The direction word is the copy's: `from` a performer, `for` a scene.
+
+**`PLUGIN_SHORT_NAME` is declared beside `PLUGIN_NAME` and is the same string.** The sibling needed
+a genuinely shorter one; this plugin's manifest name already fits. The constant exists for shape —
+both dialogs build their head from the same expression, and a future rename has one place to happen
+— while `PLUGIN_NAME` stays the manifest's, because `ownSettingGroup` matches the settings page's
+heading against it.
+
+**`scanPerformer` is `reviewPerformer` with the performer fetched by id**, so the per-performer half
+of the walk is not reimplemented — it is the same function the page loop calls, given one performer
+instead of a page of them. **`scanScene` goes the other way round**: it reads the scene with its
+performers named and folds each of them into `planScene`, which is what makes the log say *which*
+performer a tag came from. Both go through `sceneMergePlan`, so §3's "one filter, one
+implementation" now covers the review as well as the three writes.
+
+**An excluded scene says so.** `sceneMergePlan` folds "excluded" and "already has everything" into
+one `null`; the scene scope asks `sceneIsExcluded` first and logs it, because an empty dialog with
+no explanation is the one thing a review must not be. The gate makes this rare — an excluded scene
+draws no button — but the gate's answer is cached and can go stale, which is exactly the case that
+reaches it.
+
+**The performer button lost its progress caption**, `Merging... (12/340)`. That is not a
+regression to fix by putting it back: the dialog's own progress line says more, and the button is
+underneath it.
+
+**Apollo eviction grew a second half.** `finishApply`/`finishUndo` evicted the `findScenes` list
+only, which is right for a task run and useless for a scoped one — its user is looking at the scene
+the dialog just wrote, rendered from `Scene:<id>`. `evictWritten` now drops both, from
+`wroteScenes`, accumulated per pass on the server's acceptance rather than from the plan.
+
+**What is deliberately unchanged:** `mergeTagsIntoScene` and `mergeTagsIntoAllPerformerScenes` still
+exist and still write directly — they are what the two *automatic* modes call, and those write
+without a dialog by design. Nothing else calls them.
 
 ## 8. Logging
 

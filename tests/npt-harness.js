@@ -17,8 +17,8 @@ const SRC = process.env.SRC || path.join(
   __dirname, '..', 'NormalizeParentTags', 'NormalizeParentTags.js');
 
 const PLUGIN_ID = 'NormalizeParentTags';
-const TASK_PRUNE = 'Prune Parent Tags from Entities';
-const TASK_ROLLUP = 'Roll Up Parent Tags onto Entities';
+const TASK_PRUNE = 'Prune Parent Tags from Entities...';
+const TASK_ROLLUP = 'Roll Up Parent Tags onto Entities...';
 
 function makeElement(tag) {
   return {
@@ -85,7 +85,15 @@ function makeElement(tag) {
     },
     setAttribute(name, value) { this.attrs[name] = String(value); },
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
-    click() { (this.handlers.click || []).forEach((fn) => fn({ preventDefault() {}, stopPropagation() {} })); },
+    // `currentTarget` and `target` are the node itself, as a real browser sets them on
+    // a dispatched click - a handler reading the button back off its own event (the
+    // scene button's caption flashing does) would otherwise crash here and nowhere else.
+    click() {
+      const self = this;
+      (this.handlers.click || []).forEach((fn) => fn({
+        preventDefault() {}, stopPropagation() {}, currentTarget: self, target: self,
+      }));
+    },
     select() {},
     // Recorded rather than performed: there is no viewport here, but a test can
     // still assert that the plugin asked for a row to be brought into view.
@@ -142,6 +150,10 @@ function makeEnv(opts) {
     MutationObserver: function () { this.observe = function () {}; },
   };
   ctx.window = ctx;
+  // The plugins hang their shared object off one reserved global, `window.__GTTx__`,
+  // with the bare `StashPluginCoop` kept as an alias. Seeded here so a test can replace
+  // the coop object wholesale (writing both names) before the plugin has created it.
+  ctx.__GTTx__ = {};
   ctx.globalThis = ctx;
   ctx.navigator = opts.clipboard ? { clipboard: opts.clipboard } : {};
   ctx.window.navigator = ctx.navigator;
@@ -168,10 +180,14 @@ function makeEnv(opts) {
       return hits[0] || null;
     },
     querySelectorAll: (sel) => {
-      const s = String(sel);
-      return s.charAt(0) === '.'
-        ? body.descendants().filter((n) => hasClass(n, s.slice(1)))
-        : body.descendants().filter((n) => n.tagName === s.toUpperCase());
+      // Only the last segment of a descendant selector is honoured - there is no
+      // ancestor matching here. `#performer-page .details-edit`, the one such selector
+      // any plugin in this repo passes, is answered by its `.details-edit` half; the
+      // page-id part is proved against a real DOM in `placement.test.js` instead.
+      const s = String(sel).trim().split(/\s+/).pop();
+      if (s.charAt(0) === '.') return body.descendants().filter((n) => hasClass(n, s.slice(1)));
+      if (s.charAt(0) === '#') return body.descendants().filter((n) => n.id === s.slice(1));
+      return body.descendants().filter((n) => n.tagName === s.toUpperCase());
     },
     // Real attributes, not just the handful promoted to properties above. Added for
     // the tab-strip anchor, which identifies the right strip by `data-rb-event-key`

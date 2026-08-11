@@ -193,7 +193,7 @@ const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query |
   }
   {
     const env = start({ settings: { a4AutoOnSourceUpdate: true, b1TagsPerformersToScenes: true } });
-    env.ctx.window.StashPluginCoop = {
+    env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [{ owner: 'SomeoneElse', label: 'bulk thing', until: Date.now() + 60000 }],
       respecters: {},
     };

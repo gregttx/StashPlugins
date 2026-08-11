@@ -35,7 +35,7 @@ h.flush()
     h.check('registering does not create a lease', !!coop && coop.leases.length === 0);
     // So that a plugin predating the protocol fails the checks below rather than
     // crashing the suite on the first lease it is handed.
-    if (!e1.ctx.window.StashPluginCoop) e1.ctx.window.StashPluginCoop = { leases: [], respecters: {} };
+    if (!e1.ctx.window.StashPluginCoop) e1.ctx.window.StashPluginCoop = e1.ctx.window.__GTTx__.StashPluginCoop = { leases: [], respecters: {} };
     return saveScene(e1);
   })
   .then((reacted) => {
@@ -73,7 +73,7 @@ h.flush()
     const e2 = env();
     h.run(e2.ctx);
     return h.flush().then(() => {
-      if (!e2.ctx.window.StashPluginCoop) e2.ctx.window.StashPluginCoop = { leases: [], respecters: {} };
+      if (!e2.ctx.window.StashPluginCoop) e2.ctx.window.StashPluginCoop = e2.ctx.window.__GTTx__.StashPluginCoop = { leases: [], respecters: {} };
       e2.ctx.window.StashPluginCoop.leases.push({
         owner: 'NormalizeParentTags', label: 'Prune', until: Date.now() + 60000,
       });

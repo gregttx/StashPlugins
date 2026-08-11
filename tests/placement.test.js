@@ -198,15 +198,15 @@ const EDIT_VIEW = `
 const TASKS_VIEW = `
   <div id="tasks-page">
     <div class="setting-group">
-      <div class="setting"><h3>Merge Performer Tags To Scenes</h3></div>
+      <div class="setting"><h3>GTTx Merge Performer Tags To Scenes</h3></div>
       <div class="setting">
-        <div><button class="btn btn-secondary" type="button">Merge Performer Tags into All Their Scenes</button></div>
+        <div><button class="btn btn-secondary" type="button">Merge Performer Tags into All Their Scenes...</button></div>
       </div>
     </div>
     <div class="setting-group">
       <div class="setting"><h3>Some Other Plugin</h3></div>
       <div class="setting">
-        <div><button class="btn btn-secondary" type="button">Merge Performer Tags into All Their Scenes</button></div>
+        <div><button class="btn btn-secondary" type="button">Merge Performer Tags into All Their Scenes...</button></div>
       </div>
     </div>
   </div>`;

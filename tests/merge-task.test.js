@@ -13,7 +13,7 @@ const h = require('./npt-harness');
 const SRC = process.env.SRC || path.join(
   __dirname, '..', 'MergePerformerTagsToScenes', 'MergePerformerTagsToScenes.js');
 const PLUGIN_ID = 'MergePerformerTagsToScenes';
-const TASK = 'Merge Performer Tags into All Their Scenes';
+const TASK = 'Merge Performer Tags into All Their Scenes...';
 
 // Two performers with one tag each, appearing in two scenes apiece. Scene 1 already
 // carries Blonde, so only three of the four scene/performer pairs need writing.
@@ -49,6 +49,42 @@ function makeResponder(opts) {
       const page = req.variables.page;
       const list = (opts.performers || PERFORMERS).slice((page - 1) * per, page * per);
       return { data: { findPerformers: { count: (opts.performers || PERFORMERS).length, performers: list } } };
+    }
+    // The performer button's gate: one query asking both halves at once, which is why
+    // it cannot share the `findPerformer` branch below.
+    if (/CheckPerformerScenes/.test(q)) {
+      const p = (opts.performers || PERFORMERS).filter((x) => x.id === req.variables.id)[0];
+      return { data: {
+        findPerformer: { tags: (p ? p.tags : []).map((t) => ({ id: t.id })) },
+        findScenes: { count: ((opts.scenes || SCENES)[req.variables.id] || []).length },
+      } };
+    }
+    // 1.18.1: the one by-id read a scoped click makes purely to name the entity in the
+    // dialog's title. Ahead of the generic `findPerformer`/`findScene` branches below,
+    // which it would otherwise fall into and be answered in the wrong shape.
+    if (/CPT2S_ScopeName/.test(q)) {
+      if (opts.failScopeName) return { errors: [{ message: 'scope name boom' }] };
+      const id = String(req.variables.id);
+      if (/findPerformer/.test(q)) {
+        const p = (opts.performers || PERFORMERS).filter((x) => x.id === id)[0];
+        return { data: { findPerformer: p ? { id: p.id, name: p.name } : null } };
+      }
+      return { data: { findScene: { id: id, title: 'S' + id, files: [] } } };
+    }
+    // The performer-scoped review: the same shape the library walk gets per page, for
+    // one performer.
+    if (/CPT2S_TaskPerformer\(/.test(q)) {
+      const p = (opts.performers || PERFORMERS).filter((x) => x.id === req.variables.id)[0];
+      return { data: { findPerformer: p ? { id: p.id, name: p.name, tags: p.tags } : null } };
+    }
+    // The scene button's gate and the scene-scoped review. Both read one scene; the
+    // review also needs the performers named, so the log can say where a tag came from.
+    if (/FindSceneMergeable|CPT2S_TaskScene\(/.test(q)) {
+      const scene = opts.oneScene || {
+        id: '102', title: 'S102', files: [], organized: false, tags: [],
+        performers: [{ id: '1', name: 'Ann', tags: [tag('10')] }],
+      };
+      return { data: { findScene: scene } };
     }
     if (/findPerformer\b/.test(q)) {
       const p = (opts.performers || PERFORMERS).filter((x) => x.id === req.variables.id)[0];
@@ -120,6 +156,26 @@ function openWithDeclares(opts, declares) {
     return h.flush(150).then(() => ({ env, d: () => h.dialog(env.body, 'cpt2s') }));
   });
 }
+
+// A page with one of the manual buttons on it, rather than the settings page the task
+// is clicked from. The buttons need a container Stash would have rendered: the
+// performer detail navbar (a `.details-edit` carrying Delete) or the scene edit row.
+function buttonEnv(opts, pathname) {
+  const env = h.makeEnv({ quiet: true, respond: makeResponder(opts || {}), pathname: pathname });
+  env.ctx.alert = (m) => { env.ctx._alert = m; };
+  h.run(env.ctx, SRC);
+  if (/performers/.test(pathname)) {
+    const nav = h.makeElement('div');
+    nav.className = 'details-edit';
+    const del = h.makeElement('button');
+    del.className = 'delete';
+    nav.appendChild(del);
+    env.body.appendChild(nav);
+  }
+  return env;
+}
+
+const ourButton = (env, cls) => env.body.descendants().filter((n) => h.hasClass(n, cls))[0] || null;
 
 // The forward merge writes one scene at a time; the undo goes out as a bulk delta.
 // The two names do not overlap as substrings - bulkSceneUpdate capitalises the S -
@@ -778,7 +834,7 @@ Promise.resolve()
     header.className = 'setting';
     const headBox = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'Merge Performer Tags To Scenes (1.9.3)';
+    heading.textContent = 'GTTx Merge Performer Tags To Scenes (1.9.3)';
     const sub = h.makeElement('div');
     sub.className = 'sub-heading';
     sub.textContent = 'Copies each performer tags onto their scenes.\n\n' +
@@ -909,6 +965,96 @@ Promise.resolve()
     return h.flush(20).then(() => {
       h.check('no link in the sibling group',
         !env.ctx.document.getElementById('cpt2s-readme-link'));
+    });
+  })
+
+  // ── The manual buttons open the same dialog, scoped (1.18.0) ───────────────
+  //
+  // Both buttons used to write with nothing in front of the user: the performer one
+  // merged into every scene it could reach, and the scene one merged that scene
+  // whenever staging was unavailable. They now open this dialog over one performer or
+  // one scene, through `reviewPerformer` / `planScene` - the very functions the
+  // library walk uses, so the plan a button shows is the plan the task would show.
+  .then(() => {
+    const env = buttonEnv({ settings: { a1ShowManualMergeButtons: true } }, '/performers/1');
+    // Two ticks: the first arms the eligibility probe, the second draws the button
+    // from its answer - the same two beats a live page goes through.
+    return h.flush(40).then(() => {
+      env.tick();
+      return h.flush(60);
+    }).then(() => {
+      env.tick();
+      return h.flush(60);
+    }).then(() => {
+      const btn = ourButton(env, 'cpt2s-merge-to-scenes-btn');
+      h.check('the performer button says it opens a dialog',
+        !!btn && btn.textContent === 'Copy Tags to all Scenes...', btn && btn.textContent);
+      btn.click();
+      return h.flush(150).then(() => {
+        const d = h.dialog(env.body, 'cpt2s');
+        h.check('clicking it opens the review dialog', d.open);
+        // 1.18.1: the caption with its "..." taken back off - it promises a dialog on a
+        // button and is punctuation in the middle of a sentence here - and the scope
+        // named rather than numbered.
+        h.check('scoped to that performer, named rather than numbered',
+          (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent ===
+          'GTTx Merge Performer Tags To Scenes - Copy Tags to all Scenes - from Performer "Ann" (1)',
+          (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent);
+        h.check('and writes nothing before Proceed', sceneUpdates(env.calls).length === 0,
+          sceneUpdates(env.calls).length + ' write(s)');
+        h.check('the plan lists the one scene that needs the tag',
+          d.lines.filter((l) => l.indexOf('[MERGE]') === 0).length === 1,
+          d.lines.join(' | '));
+        h.check('and no other performer is walked',
+          env.calls.filter((c) => /CPT2S_TaskPerformers/.test(c.query || '')).length === 0);
+        d.button('Proceed').click();
+        return h.flush(150);
+      });
+    }).then(() => {
+      const w = sceneUpdates(env.calls);
+      h.check('Proceed writes the reviewed scene, and only it',
+        w.length === 1 && w[0].variables.input.id === '102',
+        w.map((c) => c.variables.input.id).join(','));
+    });
+  })
+
+  // The scene button, with staging unavailable (no PluginApi at all here, which is
+  // the case that used to merge and save on the spot).
+  .then(() => {
+    const env = buttonEnv({ settings: { a1ShowManualMergeButtons: true } }, '/scenes/102');
+    const row = h.makeElement('div');
+    row.className = 'edit-buttons';
+    env.body.appendChild(row);
+    return h.flush(40).then(() => {
+      env.tick();
+      return h.flush(60);
+    }).then(() => {
+      env.tick();
+      return h.flush(60);
+    }).then(() => {
+      const btn = ourButton(env, 'cpt2s-merge-from-perfs-btn');
+      h.check('the scene button carries the dots where staging is unavailable',
+        !!btn && btn.textContent === 'Copy all Tags from all Performers...', btn && btn.textContent);
+      btn.click();
+      return h.flush(150).then(() => {
+        const d = h.dialog(env.body, 'cpt2s');
+        h.check('the scene click opens the dialog rather than merging', d.open &&
+          sceneUpdates(env.calls).length === 0, sceneUpdates(env.calls).length + ' write(s)');
+        h.check('the plan names the performer the tag comes from',
+          d.lines.some((l) => /^\[MERGE\] Performer .*Ann/.test(l)), d.lines.join(' | '));
+        // The other half of `scopeLabel` - a scene is named through `sceneLogLabel`,
+        // so a title and a log line cannot disagree about how one is written.
+        h.check('and the title names the scene, not just its id',
+          (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent ===
+          'GTTx Merge Performer Tags To Scenes - Copy all Tags from all Performers - for Scene "S102" (102)',
+          (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent);
+        d.button('Proceed').click();
+        return h.flush(150);
+      });
+    }).then(() => {
+      const w = sceneUpdates(env.calls);
+      h.check('and Proceed merges that one scene', w.length === 1 &&
+        w[0].variables.input.id === '102', w.map((c) => c.variables.input.id).join(','));
     });
   })
 

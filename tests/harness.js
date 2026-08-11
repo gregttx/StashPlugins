@@ -124,7 +124,15 @@ function responder(overrides) {
                               { id: '11', ignore_auto_tag: false, custom_fields: {} }] }],
       } } };
     }
-    if (q.indexOf('FindScenePerformers') !== -1) return { data: { findScene: { performers: [{ id: '7' }] } } };
+    // The scene button's gate, since 1.16.0: the same selection a merge reads, so it
+    // resolves to the same scene `FindScene(` above does rather than a shape of its own.
+    if (q.indexOf('FindSceneMergeable') !== -1) {
+      return { data: { findScene: (overrides && overrides.scene) || {
+        organized: false, tags: [{ id: '10' }],
+        performers: [{ tags: [{ id: '10', ignore_auto_tag: false, custom_fields: {} },
+                              { id: '11', ignore_auto_tag: false, custom_fields: {} }] }],
+      } } };
+    }
     if (q.indexOf('FindPerformer(') !== -1) {
       return { data: { findPerformer: (overrides && overrides.performer) || {
         tags: [{ id: '10', ignore_auto_tag: false, custom_fields: {} },

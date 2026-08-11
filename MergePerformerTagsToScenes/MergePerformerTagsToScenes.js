@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.15.9';
+  var PLUGIN_VERSION      = '1.16.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -422,34 +422,55 @@
     return guarded(function () { return runMergeTagsIntoScene(sceneId); });
   }
 
+  // Everything between "here is a scene" and "here is what it needs", extracted at
+  // 1.16.0 so the scene button's gate can ask the identical question the click answers.
+  // Same rule as `sceneMergePlan` itself (§3, "one filter, one implementation"): a gate
+  // that re-derived this would be a second opinion free to drift from the first, and a
+  // button that hides while a click would have merged is the drift nobody would notice.
+  // Returns `null` for a scene with nothing to do - no performers, no mergeable tags,
+  // excluded, or already carrying everything.
+  function scenePlanFrom(scene, exclTagId) {
+    if (!scene) return null;
+    var performers = scene.performers || [];
+    if (!performers.length) return null;
+    // Keyed by id to dedupe performers sharing a tag; the tag itself is kept as
+    // the value so the log line can name what was merged.
+    var perfTagById = {};
+    var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
+    performers.forEach(function (p) {
+      (p.tags || []).forEach(function (t) {
+        if (tagIsMergeable(t, exclTagId, cfName)) perfTagById[t.id] = t;
+      });
+    });
+    var perfTagIds = Object.keys(perfTagById);
+    if (!perfTagIds.length) return null;
+    var plan = sceneMergePlan(scene, perfTagIds, exclTagId);
+    if (!plan) return null;
+    plan.tagById = perfTagById;
+    return plan;
+  }
+
+  // The selection both callers need. One string, for the same reason `scenePlanFrom`
+  // is one function: a field present in the click's query and missing from the gate's
+  // is a gate answering a different question from the one it reports on.
+  function sceneMergeSelection() {
+    return 'organized' + sceneLogFields() +
+      ' tags { id } performers { tags { ' + tagFields() + ' } }';
+  }
+
   function runMergeTagsIntoScene(sceneId) {
     return resolveExclusionTagId().then(function (exclTagId) {
       return gqlRequest(
         'query FindScene($id: ID!) {' +
-        '  findScene(id: $id) { organized' + sceneLogFields() +
-        ' tags { id } performers { tags { ' + tagFields() + ' } } }' +
+        '  findScene(id: $id) { ' + sceneMergeSelection() + ' }' +
         '}',
         { id: sceneId }
       ).then(function (data) {
         var scene = data.findScene;
-        if (!scene) return false;
-        var performers = scene.performers || [];
-        if (!performers.length) return false;
-        // Keyed by id to dedupe performers sharing a tag; the tag itself is kept as
-        // the value so the log line can name what was merged.
-        var perfTagById = {};
-        var cfName = (settings.excludeTagWithCustomFieldName || '').trim();
-        performers.forEach(function (p) {
-          (p.tags || []).forEach(function (t) {
-            if (tagIsMergeable(t, exclTagId, cfName)) perfTagById[t.id] = t;
-          });
-        });
-        var perfTagIds = Object.keys(perfTagById);
-        if (!perfTagIds.length) return false;
-        var plan = sceneMergePlan(scene, perfTagIds, exclTagId);
+        var plan = scenePlanFrom(scene, exclTagId);
         if (!plan) return false;
         return updateSceneTags(sceneId, plan.existingIds.concat(plan.missing)).then(function () {
-          logMerges(plan.missing.map(function (id) { return perfTagById[id]; }), scene, sceneId, 'saved');
+          logMerges(plan.missing.map(function (id) { return plan.tagById[id]; }), scene, sceneId, 'saved');
           return true;
         });
       });
@@ -2049,6 +2070,41 @@
           });
         }
       }
+
+      // The same two branches for `sceneCheck`, added at 1.16.0 alongside the scene
+      // button's eligibility gate. Until then this cache had no invalidation at all,
+      // which was survivable while it only asked "has this scene any performers" - the
+      // one edit that could change that answer was rare. It is not survivable now that
+      // the gate reads the scene's own tags: adding a performer in the Edit tab and
+      // pressing Save has to make the button appear, and merging its tags has to make it
+      // go away, neither with a navigation.
+      //
+      // Unconditional on `autoMergeOnSceneUpdate`, for the reason §3 already states
+      // about the performer pair: this decides whether a button appears, and that is not
+      // something a user should have to enable auto-merge to get.
+      // `tick()` straight after, rather than leaving it to the 1s interval: clearing the
+      // slot only *arms* a re-probe on the next tick, and the tick after that is what
+      // draws the result - up to two seconds of a stale button either way. Calling it
+      // here spends the first of those immediately. `tick()` is idempotent by
+      // construction (it is what the interval and the observer both call), so an extra
+      // one costs a probe at most.
+      if (/\bsceneUpdate\b/.test(q)) {
+        var savedSceneId = vars.input && vars.input.id;
+        if (savedSceneId != null) {
+          mutationSucceeded(p).then(function (ok) {
+            if (ok && sceneCheck && sceneCheck.id === String(savedSceneId)) { sceneCheck = null; tick(); }
+          });
+        }
+      }
+      if (/\bbulkSceneUpdate\b/.test(q)) {
+        var savedSceneIds = vars.input && vars.input.ids;
+        if (savedSceneIds && savedSceneIds.length) {
+          mutationSucceeded(p).then(function (ok) {
+            if (!ok || !sceneCheck) return;
+            if (savedSceneIds.map(String).indexOf(sceneCheck.id) !== -1) { sceneCheck = null; tick(); }
+          });
+        }
+      }
     } catch (e) {}
     return p;
   };
@@ -2482,16 +2538,34 @@
   var _sceneFlashToken = 0;
   var FLASH_MS = 1400;
 
+  // 1.16.0: eligibility, not existence. Until then this asked only whether the scene
+  // had any performers, so a scene already carrying every one of their tags showed a
+  // button whose click could report nothing but "No changes" - which is what the
+  // *performer* button had never done (`checkPerformerHasScenes` has always required
+  // `hasTags && hasScenes`). The two of this plugin's own buttons disagreeing was never
+  // a decision; the performer side got the reasoning and this side was not revisited.
+  //
+  // It costs no extra round trip. The query grows from `performers { id }` to what a
+  // merge actually reads, and `scenePlanFrom` then answers exactly the question the
+  // click will answer - including the Organized and exclusion-tag filters and the
+  // custom-field tag rules, which the old gate could not see at all.
+  //
+  // What it reads is the server. In staging mode the click diffs against the *form*, so
+  // an unsaved edit is invisible here until Save - which the `sceneUpdate` branch in the
+  // fetch wrapper is what makes sufficient.
   function checkSceneHasPerformers(sceneId) {
-    gqlRequest(
-      'query FindScenePerformers($id: ID!) { findScene(id: $id) { performers { id } } }',
-      { id: sceneId }
-    )
-      .then(function (data) {
-        var hasPerfs = data.findScene && (data.findScene.performers || []).length > 0;
-        if (sceneCheck && sceneCheck.id === sceneId) {
-          sceneCheck.status = hasPerfs ? 'yes' : 'no';
-        }
+    resolveExclusionTagId()
+      .then(function (exclTagId) {
+        return gqlRequest(
+          'query FindSceneMergeable($id: ID!) {' +
+          '  findScene(id: $id) { ' + sceneMergeSelection() + ' }' +
+          '}',
+          { id: sceneId }
+        ).then(function (data) {
+          if (sceneCheck && sceneCheck.id === sceneId) {
+            sceneCheck.status = scenePlanFrom(data.findScene, exclTagId) ? 'yes' : 'no';
+          }
+        });
       })
       .catch(function () {
         if (sceneCheck && sceneCheck.id === sceneId) sceneCheck.status = 'no';
@@ -2506,7 +2580,6 @@
     }
     var sceneId = getSceneId();
     if (!sceneId) return;
-    if (document.querySelector('.' + SCENE_BTN_CLASS)) return;
     var container = document.querySelector('.edit-buttons');
     if (!container) return;
 
@@ -2515,7 +2588,18 @@
       checkSceneHasPerformers(sceneId);
       return;
     }
-    if (sceneCheck.status !== 'yes') return;
+    // 1.16.0: not eligible means *removed*, not merely "not added". The
+    // already-exists early return used to sit above this check, so once the button was
+    // on the page nothing ever re-evaluated it - harmless while the gate asked only
+    // whether the scene had performers and nothing invalidated the cache anyway, and
+    // wrong the moment a save can make an eligible scene ineligible. A click that
+    // merges everything now takes its own button away.
+    var showing = document.querySelector('.' + SCENE_BTN_CLASS);
+    if (sceneCheck.status !== 'yes') {
+      if (showing && showing.parentNode) showing.parentNode.removeChild(showing);
+      return;
+    }
+    if (showing) return;
 
     var button = document.createElement('button');
     button.type = 'button';

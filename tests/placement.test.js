@@ -203,11 +203,24 @@ function makeResponse(payload) {
 // placement checks (which assume the button is eligible to appear) are unaffected.
 let performerTags = [{ id: '1' }];
 
+// Since 1.16.0 the scene button's gate asks what a merge reads rather than only whether
+// the scene has performers, so the default scene here carries a performer with a tag the
+// scene itself does not have - otherwise there is nothing to merge and no button to
+// place, which is what every placement check in this file is actually about. Mutable,
+// and the calls counted, so the eligibility and invalidation section at the end can move
+// it without a second responder.
+let sceneForGate = { organized: false, tags: [], performers: [{ tags: [{ id: '99' }] }] };
+let sceneGateCalls = 0;
+// Extra settings folded into the config response, so one check can switch an exclusion
+// filter on without a second responder. Empty for every check but that one.
+let gateSettings = {};
+
 win.fetch = function (url, o) {
   const q = JSON.parse(o.body).query;
   if (q.indexOf('configuration') !== -1) {
     return Promise.resolve(makeResponse({ data: { configuration: { plugins: {
-      MergePerformerTagsToScenes: { a1ShowManualMergeButtons: true } } } } }));
+      MergePerformerTagsToScenes: Object.assign(
+        { a1ShowManualMergeButtons: true }, gateSettings) } } } }));
   }
   if (q.indexOf('CheckPerformerScenes') !== -1) {
     return Promise.resolve(makeResponse({ data: {
@@ -215,8 +228,13 @@ win.fetch = function (url, o) {
       findScenes: { count: 4 },
     } }));
   }
-  if (q.indexOf('FindScenePerformers') !== -1) {
-    return Promise.resolve(makeResponse({ data: { findScene: { performers: [{ id: '1' }] } } }));
+  // Since 1.16.0 the scene button's gate asks what a merge reads rather than only
+  // whether the scene has performers, so this scene has to carry a performer with a
+  // tag the scene itself does not have - otherwise there is nothing to merge and no
+  // button to place, which is what every check in this file is actually about.
+  if (q.indexOf('FindSceneMergeable') !== -1) {
+    sceneGateCalls++;
+    return Promise.resolve(makeResponse({ data: { findScene: sceneForGate } }));
   }
   return Promise.resolve(makeResponse({ data: {} }));
 };
@@ -489,6 +507,87 @@ function check(name, cond, extra) {
   check('our own scene button yields, landing on the far side of it instead',
     !!outranked && outranked.nextElementSibling && outranked.nextElementSibling.id === 'foreign-btn',
     'order: ' + outrankedRow);
+
+  // ── Scene button eligibility, and the save that re-arms it (1.16.0) ─────────
+  //
+  // Until 1.16.0 this button gated on `findScene { performers { id } }` - performer
+  // existence alone - so a scene already carrying every one of its performers' tags
+  // showed a button whose click could only report "No changes". The *performer* button
+  // had never behaved that way (`checkPerformerHasScenes` requires `hasTags &&
+  // hasScenes`), and the inconsistency was never a decision. It costs no extra round
+  // trip: the query grew, the count of queries did not.
+  console.log('\nScene button eligibility (1.16.0)');
+
+  const sceneSave = (id, bulk) => win.fetch('/graphql', {
+    method: 'POST',
+    body: JSON.stringify(bulk
+      ? { query: 'mutation X($input: I!) { bulkSceneUpdate(input: $input) { id } }', variables: { input: { ids: [String(id)] } } }
+      : { query: 'mutation X($input: I!) { sceneUpdate(input: $input) { id } }', variables: { input: { id: String(id) } } }),
+  });
+
+  // A fresh scene id each time, so a check reads a probe of its own rather than the
+  // single-slot cache's answer for the previous one.
+  win.history.pushState({}, '', '/scenes/70');
+  sceneForGate = { organized: false, tags: [{ id: '99' }], performers: [{ tags: [{ id: '99' }] }] };
+  root().innerHTML = SCENE_EDIT_VIEW;
+  await sleep(1500);
+  check('a scene already carrying every performer tag shows no button', !sbtn());
+
+  // Organized, with the filter that acts on it switched on. This is the check that
+  // proves the gate goes through `sceneMergePlan` rather than a diff of its own: the
+  // old gate could not see this filter at all, and a hand-rolled replacement would have
+  // had to reimplement it (§3, "one filter, one implementation").
+  // The setting is switched on and allowed to land *before* the navigation that arms
+  // the probe. `sceneCheck` is keyed on the scene id alone, so a settings change while
+  // a page is open is not noticed until the next navigation - true of this plugin since
+  // the cache existed, unchanged here, and not what this check is about.
+  // `pushState` fires no `popstate`, so the dispatch is what a real navigation would do.
+  gateSettings = { b2ExcludeSceneOrganized: true };
+  win.dispatchEvent(new win.PopStateEvent('popstate'));
+  await sleep(2500);
+  win.history.pushState({}, '', '/scenes/71');
+  sceneForGate = { organized: true, tags: [], performers: [{ tags: [{ id: '99' }] }] };
+  root().innerHTML = SCENE_EDIT_VIEW;
+  await sleep(1500);
+  check('and an Organized scene shows none either, which the old gate could not see',
+    !sbtn());
+  gateSettings = {};
+  win.dispatchEvent(new win.PopStateEvent('popstate'));
+  await sleep(2500);
+
+  // The save that re-arms it. `sceneCheck` is keyed on the scene id, which a save does
+  // not change, so before 1.16.0 this answer survived until a navigation.
+  win.history.pushState({}, '', '/scenes/72');
+  sceneForGate = { organized: false, tags: [{ id: '99' }], performers: [{ tags: [{ id: '99' }] }] };
+  root().innerHTML = SCENE_EDIT_VIEW;
+  await sleep(1500);
+  check('no button before the save', !sbtn());
+  sceneForGate = { organized: false, tags: [], performers: [{ tags: [{ id: '99' }] }] };
+  await sceneSave(72);
+  await sleep(1500);
+  check('a save of the viewed scene re-probes and the button appears', !!sbtn());
+
+  win.history.pushState({}, '', '/scenes/73');
+  sceneForGate = { organized: false, tags: [], performers: [{ tags: [{ id: '99' }] }] };
+  root().innerHTML = SCENE_EDIT_VIEW;
+  await sleep(1500);
+  check('a button before the save', !!sbtn());
+  sceneForGate = { organized: false, tags: [{ id: '99' }], performers: [{ tags: [{ id: '99' }] }] };
+  await sceneSave(73, true);
+  await sleep(1500);
+  check('and a bulk save that leaves nothing to merge takes it away', !sbtn());
+
+  // The negative: a save naming some other scene must not re-probe. Counted rather than
+  // observed through the button, since the button would not move either way.
+  win.history.pushState({}, '', '/scenes/74');
+  sceneForGate = { organized: false, tags: [], performers: [{ tags: [{ id: '99' }] }] };
+  root().innerHTML = SCENE_EDIT_VIEW;
+  await sleep(1500);
+  const gateBefore = sceneGateCalls;
+  await sceneSave(999);
+  await sleep(1200);
+  check('a save of a different scene does not re-probe', sceneGateCalls === gateBefore,
+    'probes: ' + (sceneGateCalls - gateBefore));
 
   console.log(failures === 0
     ? '\n' + passes + ' check(s) passed.'

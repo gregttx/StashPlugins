@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.14';
+  var PLUGIN_VERSION = '0.13.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -272,13 +272,17 @@
   // The four that are also targets reuse the target's field list rather than repeating
   // it: two lists describing one entity are two lists that can drift, and the fallback
   // chain reads whichever of them is present.
+  // `one` is the by-id query field, needed by the source-side button probe to read a
+  // source's own payload. The four that reuse a `TARGETS` entry get it from there;
+  // these three carry their own, since nothing else in the plugin ever fetches a
+  // Performer, a Studio or a SceneMarker by id on its own.
   var SOURCES = {
-    performer: { label: 'Performer', fields: 'id name' },
-    studio: { label: 'Studio', fields: 'id name' },
+    performer: { label: 'Performer', fields: 'id name', one: 'findPerformer' },
+    studio: { label: 'Studio', fields: 'id name', one: 'findStudio' },
     // A marker's title is optional and usually blank. `sourceLabel` falls back to the
     // primary tag, which is what Stash itself shows on the scene's marker list, and
     // which every marker path already selects.
-    marker: { label: 'Marker', fields: 'id title' },
+    marker: { label: 'Marker', fields: 'id title', one: 'findSceneMarker' },
     scene: TARGETS.scene,
     gallery: TARGETS.gallery,
     image: TARGETS.image,
@@ -1673,10 +1677,11 @@
       var agg = path.reverse
         ? (pass.gathered && pass.gathered[path.id] || {})[String(ent.id)]
         : self.aggregate(walkSources(ent, path), path);
-      // A hook the manual-button existence probe uses: whether this path found any
-      // sources at all, independent of whether there is anything left to add below.
-      // No-op for the task and for a normal auto-mode reaction, neither of which sets
-      // it - only `checkButtonExistence` does.
+      // A hook the manual-button probe uses: whether this path found any sources at
+      // all, independent of whether there is anything left to add below. No-op for the
+      // task and for a normal auto-mode reaction, neither of which sets it - only
+      // `probeButtons` does. Its partner `recordAddable` fires below, once per id this
+      // path would actually contribute.
       if (self.recordExistence) self.recordExistence(path.id, !!(agg && agg.n));
       // Nothing to aggregate. Under either mode this is "add nothing" - the
       // intersection of no sets is not everything here, it is emptiness, because a
@@ -1703,6 +1708,14 @@
           var why = self.filters.tagBlocked(id);
           if (why) return;
         }
+        // Eligibility, for the manual-button probe: this id survived the target's own
+        // list and the tag filter, so *this path alone* would add it. Deliberately
+        // ahead of the `entry.has` dedup below - that answers "did anyone already ask
+        // for this id in this plan", which is the right question for the plan and the
+        // wrong one for a button. Two paths that would each add the same tag are two
+        // buttons that would each do something, and only the first would be counted
+        // from the far side of the dedup.
+        if (self.recordAddable) self.recordAddable(path.id);
         // The entry is created lazily, so a target with nothing to add never enters
         // the plan and never appears in the count Proceed is enabled on.
         if (!entry) entry = self.planEntry(pass.target, path.kind, ent);
@@ -2226,7 +2239,15 @@
   // Our own settings being saved invalidates the cache rather than waiting out the
   // TTL, so switching a mode off takes effect on the next save and not ten seconds
   // later.
-  function invalidateAutoSettings() { _autoSettings = null; _autoSettingsAt = 0; _probeCtx = null; }
+  // The button probes go with them: a path's own toggle changes `pathIdsKey` and
+  // re-arms on its own, but a "common tags only" toggle changes what a path would add
+  // without changing either the entity or the path set, so nothing else would notice.
+  // Same for a filter setting. `invalidateButtonProbes` is a hoisted declaration
+  // further down, beside the slots it clears.
+  function invalidateAutoSettings() {
+    _autoSettings = null; _autoSettingsAt = 0; _probeCtx = null;
+    invalidateButtonProbes();
+  }
 
   // ── The per-entity cooldown ───────────────────────────────────────────────
   //
@@ -2656,6 +2677,12 @@
           return run.apply(label);
         });
       });
+    }).then(function (n) {
+      // The reaction has changed what a button would add, and it ran after the save
+      // that triggered it - so the wrapper's own invalidation has already been spent
+      // on a library this write then moved again.
+      if (n) invalidateButtonProbes();
+      return n;
     });
   }
 
@@ -3242,7 +3269,14 @@
       runManual(target, id).then(function (result) {
         btn.disabled = false;
         btn.textContent = result.count ? ('Added ' + result.count) : 'No changes';
-        setTimeout(function () { btn.textContent = orig; }, FLASH_MS);
+        // Re-probe when the flash is over rather than now: a saving click has just made
+        // this button ineligible, and invalidating at once would have the next tick
+        // remove it mid-"Added 3". A staging click changes nothing on the server, so the
+        // re-probe is a no-op there beyond one query.
+        setTimeout(function () {
+          btn.textContent = orig;
+          if (result.mode === 'saved' && result.count) invalidateButtonProbes();
+        }, FLASH_MS);
       }, function (err) {
         btn.disabled = false;
         btn.textContent = orig;
@@ -3676,20 +3710,30 @@
     return false;
   }
 
-  // Whether each of `paths` actually finds a source on this one entity - independent
-  // of whether there is anything left to *add*, which is what a click's diff decides.
-  // A scene can have performers whose tags are already all copied in and still show
-  // "No changes" on click - that is deferred (see the button-existence note below);
-  // this only answers "is there a performer here at all". Reuses `AutoRun`'s own
-  // fetch and walk via `Run.prototype.planTarget`'s `recordExistence` hook, rather
-  // than a second query shape, so a button's visibility can never disagree with what
-  // a click into the same entity would see.
-  function checkButtonExistence(target, paths, id, s) {
+  // Whether each of `paths` would actually add anything to this one entity.
+  //
+  // 0.13.0 turned this from existence gating into eligibility gating, and the reason
+  // it could is that the answer was already being computed and thrown away.
+  // `planEntities` fetches the target through `oneQuery`, whose `targetParts` carries
+  // the target's own `tags`/`performers` *and* every path's full walk down to its
+  // payload leaf - so `planTarget` runs the entire diff (aggregate, the common-tags
+  // fold, the already-has check, the tag filter) before deciding whether to create a
+  // plan entry. `recordExistence` tapped that pass at `agg.n`, the weakest question
+  // available in it. `recordAddable` taps the strongest, at no extra request.
+  //
+  // Both hooks are still read. `has` is what the source side and the failure path
+  // fall back to, and keeping them apart is what lets a probe answer "the relationship
+  // is there but has nothing left to give" separately from "there is no relationship" -
+  // the two are one hidden button either way, but only one of them is a bug when it is
+  // wrong.
+  function probeButtons(target, paths, id, s) {
     return probeContext(s).then(function (ctx) {
       var run = new AutoRun(s, ctx.tagMap, ctx.filters);
-      var has = {};
+      var has = {}, adds = {};
       run.recordExistence = function (pathId, exists) { has[pathId] = exists; };
-      return run.planEntities(target, paths, [String(id)]).then(function () { return has; });
+      run.recordAddable = function (pathId) { adds[pathId] = (adds[pathId] || 0) + 1; };
+      return run.planEntities(target, paths, [String(id)])
+        .then(function () { return { has: has, adds: adds }; });
     });
   }
 
@@ -3702,7 +3746,7 @@
   // would immediately be invalidated by navigating away. Keyed on the path *set*, not
   // just the entity, because toggling a path's setting while the page is open changes
   // what needs probing without changing either the target or the id.
-  var _existenceCheck = null; // { target, id, pathsKey, status: 'pending'|'ready', has }
+  var _existenceCheck = null; // { target, id, pathsKey, status: 'pending'|'ready', adds }
 
   // Arms the probe if what it holds does not answer the question being asked, and
   // reports whether an answer is ready. Split out of `manualButtonsTick` at 0.12.14 so
@@ -3718,16 +3762,16 @@
     var wantKey = pathIdsKey(paths);
     if (!_existenceCheck || _existenceCheck.target !== rt.target ||
         _existenceCheck.id !== rt.id || _existenceCheck.pathsKey !== wantKey) {
-      var check = _existenceCheck = { target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', has: null };
-      checkButtonExistence(rt.target, paths, rt.id, s).then(function (has) {
-        if (_existenceCheck === check) { check.has = has; check.status = 'ready'; manualButtonsTick(); }
+      var check = _existenceCheck = { target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', adds: null };
+      probeButtons(rt.target, paths, rt.id, s).then(function (r) {
+        if (_existenceCheck === check) { check.adds = r.adds; check.status = 'ready'; manualButtonsTick(); }
       }, function (e) {
         // A failed probe must not silently hide every button on the page - the
         // recorded preference is a button that is sometimes unneeded over one that
         // is missing when it was needed, and a network hiccup is exactly that trade.
-        // `has: null` is read downstream as "show everything".
-        console.error('[ptp2re] button existence check failed:', e);
-        if (_existenceCheck === check) { check.status = 'ready'; check.has = null; manualButtonsTick(); }
+        // `adds: null` is read downstream as "show everything".
+        console.error('[ptp2re] button probe failed:', e);
+        if (_existenceCheck === check) { check.status = 'ready'; check.adds = null; manualButtonsTick(); }
       });
     }
     return _existenceCheck.status === 'ready';
@@ -3764,18 +3808,25 @@
         return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, buttonLabel(p, s)));
       });
       if (!paths.length) { clearManualButtons(); return; }
-      // Existence gating: a button whose path finds nothing on this entity - no
-      // performers, no studio, no markers, no groups - stays off rather than sitting
-      // there only to report "No changes" on every click. This is deliberately
-      // narrower than Improvement #4's deferred "would this actually add anything":
-      // a scene with performers whose tags are already all present still shows its
-      // button, only an *absent* relationship hides one - matching what
-      // MergePerformerTagsToScenes' own two buttons already do. The probe is async,
-      // so a button that was showing a moment ago can disappear for one tick while a
-      // fresh one is checked; there is no synchronous way to know without the query.
+      // Eligibility gating (0.13.0, Improvement 4): a button whose path would add
+      // nothing to this entity stays off rather than sitting there to report "No
+      // changes" on every click. That covers an absent relationship (no performers, no
+      // studio, no markers) as 0.9.0's existence gating did, and now also a
+      // relationship whose sources carry nothing, one whose payload the target already
+      // has in full, an empty "common tags only" intersection, and a payload the
+      // exclusion filter refuses. An entity blocked outright by `f1`/`f2` hides every
+      // button here, which it already did - `planTarget` returns before either hook.
+      //
+      // The probe is async, so a button that was showing a moment ago can disappear for
+      // one tick while a fresh one is checked; there is no synchronous way to know
+      // without the query.
+      //
+      // What this reads is the server. In staging mode a click diffs against the
+      // *form*, so an unsaved edit is invisible to the gate until Save - see
+      // `invalidateButtonProbes`, which is what makes Save enough.
       if (!armExistenceCheck(rt, paths, s)) { clearManualButtons(); return; }
-      if (_existenceCheck.has) {
-        paths = paths.filter(function (p) { return _existenceCheck.has[p.id]; });
+      if (_existenceCheck.adds) {
+        paths = paths.filter(function (p) { return _existenceCheck.adds[p.id] > 0; });
       }
       // A button whose path is no longer enabled - or no longer wanted because its
       // source turned out to be empty - is removed outright. A button for a
@@ -3844,6 +3895,26 @@
     return null;
   }
 
+  // Whether a mutation's ids name the entity currently on screen. Both route matchers,
+  // because the same URL is a target page and a source page at once - `/scenes/7` shows
+  // target buttons on its Edit tab and a source button on its detail view, and a
+  // `sceneUpdate` is the save that changes what either would do.
+  //
+  // Matching on the id alone, rather than on the id *and* the entity type the mutation
+  // names, is deliberate: the two route matchers agree on the type for every page this
+  // plugin draws a button on, so adding the type would only be a second way to say the
+  // same thing. The cost of a false positive is one re-probe.
+  function viewingOneOf(ids) {
+    var rt = currentRouteTarget(), src = currentSourceRouteTarget();
+    if (!rt && !src) return false;
+    for (var i = 0; i < ids.length; i++) {
+      var id = String(ids[i]);
+      if (rt && rt.id === id) return true;
+      if (src && src.id === id) return true;
+    }
+    return false;
+  }
+
   // The source-side counterpart to each path's target-side `button` label. Keyed
   // separately, rather than derived from `path.button`, because the two read in
   // opposite directions ("from all Performers" versus "to all Scenes") and a table
@@ -3908,11 +3979,72 @@
   // is waiting on before a button appears. The sequential shape elsewhere is about not
   // firing a query per entity across a whole library; a handful of paths on one page is
   // not that.
-  function checkSourceButtonExistence(paths, id) {
-    var has = {};
-    return Promise.all(paths.map(function (p) {
-      return resolveSourceTargets(p, [String(id)], true).then(function (ids) { has[p.id] = ids.length > 0; });
-    })).then(function () { return has; });
+  // The source's own payload, in one by-id query covering every candidate path. A page
+  // can offer paths of both kinds - an Image is the source of `performers:image>gallery`
+  // and `tags:image>gallery` at once - so the selection is the union of their leaves,
+  // deduplicated, and `payloadOf` then reads each path's own ids back out of the one
+  // response exactly as the walk does.
+  function sourcePayloadQuery(sourceType, paths) {
+    var one = SOURCES[sourceType].one, seen = {}, parts = [];
+    paths.forEach(function (p) {
+      var sel = leafSelection(p);
+      if (seen[sel]) return;
+      seen[sel] = true;
+      parts.push(sel);
+    });
+    return 'query PTP_spayload_' + one + '($id: ID!) {' +
+      ' ' + one + '(id: $id) { ' + parts.join(' ') + ' } }';
+  }
+
+  // Whether each of `paths` would put anything on the page's targets from this one
+  // source entity. Two halves, and the split is the whole design:
+  //
+  //   - **a target exists** - `resolveSourceTargets`, the same lookup a click performs,
+  //     so button and click can never disagree about what counts as nothing.
+  //   - **the source carries a payload** worth copying - its own tags or performers,
+  //     minus anything the tag filter refuses. 0.13.0; before it, a performer with
+  //     scenes but no tags showed a button that could only ever report "No changes".
+  //     This is what `MergePerformerTagsToScenes`' performer button has always gated on
+  //     (`hasTags && hasScenes`), and matching it was the point.
+  //
+  // What is deliberately *not* asked here, unlike the target side: whether the targets
+  // already have it. That means reading every scene a studio touches - unbounded, and
+  // the one check on this page that could be. A source button can still report "No
+  // changes" for that reason, and that is the ceiling, not a bug.
+  //
+  // In parallel, unlike every other reverse lookup here: this is one entity's worth of
+  // work per path with nothing to accumulate between them, and a probe is what the user
+  // is waiting on before a button appears. The sequential shape elsewhere is about not
+  // firing a query per entity across a whole library; a handful of paths on one page is
+  // not that. The payload query joins the same `Promise.all`, so it costs no wall clock
+  // beyond the slowest lookup already running.
+  // The two halves write into maps of their own and are folded at the end, never into
+  // one shared map: they resolve in either order, and a late `true` from the target
+  // lookup landing on the same key a payload miss had already set to `false` would
+  // show a button whose source has nothing in it.
+  function checkSourceButtonExistence(paths, id, s) {
+    var reaches = {}, carries = {};
+    var targets = paths.map(function (p) {
+      return resolveSourceTargets(p, [String(id)], true).then(function (ids) { reaches[p.id] = ids.length > 0; });
+    });
+    var payload = probeContext(s).then(function (ctx) {
+      return gqlRequest(sourcePayloadQuery(paths[0].sourceType, paths), { id: String(id) })
+        .then(function (data) {
+          var src = data[SOURCES[paths[0].sourceType].one];
+          paths.forEach(function (p) {
+            carries[p.id] = !!src && payloadOf(src, p).some(function (pid) {
+              // A performers-kind payload has no tag filter to answer to: `f3`/`f4`
+              // refuse a tag, and there is no performer equivalent (§4a).
+              return p.kind === 'performers' || !ctx.filters.tagBlocked(pid);
+            });
+          });
+        });
+    });
+    return Promise.all(targets.concat([payload])).then(function () {
+      var has = {};
+      paths.forEach(function (p) { has[p.id] = !!reaches[p.id] && !!carries[p.id]; });
+      return has;
+    });
   }
 
   function manualSourceButtonTitle(path) {
@@ -3964,7 +4096,16 @@
       runManualSource(path, id).then(function (result) {
         btn.disabled = false;
         btn.textContent = result.count ? ('Added ' + result.count) : 'No changes';
-        setTimeout(function () { btn.textContent = orig; }, FLASH_MS);
+        // Same flash-then-invalidate as the target side. A source click always saves,
+        // and what it changes is the *targets* rather than this page's own entity - so
+        // this re-probe is only worth anything for the payload half of the gate, which
+        // a click cannot change. It runs anyway: this is the one entity whose buttons
+        // are on screen, and a rule that re-probes after every saving click is easier to
+        // hold true than one that reasons about which halves a click could have moved.
+        setTimeout(function () {
+          btn.textContent = orig;
+          if (result.count) invalidateButtonProbes();
+        }, FLASH_MS);
       }, function (err) {
         btn.disabled = false;
         btn.textContent = orig;
@@ -3976,6 +4117,35 @@
   }
 
   var _existenceCheckSrc = null; // same shape as `_existenceCheck`, keyed on sourceType instead of target
+
+  // Both probe slots are keyed on the entity and the path set, neither of which a save
+  // changes - so without this a button decided before an edit keeps that answer until
+  // the user navigates away and back. Dropping them re-arms on the next tick, and the
+  // ticks are called here rather than waited for so the button moves with the save
+  // rather than up to a second after it.
+  //
+  // Three callers, and the reasoning differs at each:
+  //
+  //   - the `fetch` wrapper, on a save of the entity in view. **Unconditional on the
+  //     auto-mode settings**: these caches decide whether a button appears, and a scene
+  //     that just gained a performer has to gain its button whether or not auto mode is
+  //     also configured to react. `MergePerformerTagsToScenes` learned this one first
+  //     and its CLAUDE.md §3 says the same thing about not tidying it into the auto
+  //     conditions.
+  //   - `runAutoTargets`, because an auto reaction writes *after* the save that
+  //     triggered it. Invalidating only at the mutation would re-probe against the
+  //     library as it was a moment before our own reaction changed it.
+  //   - a manual button click, on the flash timer rather than at once, so "Added 3" is
+  //     not torn off the button mid-caption by the tick that removes it.
+  //
+  // The library-wide task writes thousands of mutations and reaches none of this: they
+  // all run inside `guarded()`, which returns from the wrapper before any of it.
+  function invalidateButtonProbes() {
+    _existenceCheck = null;
+    _existenceCheckSrc = null;
+    manualButtonsTick();
+    manualSourceButtonsTick();
+  }
 
   function manualSourceButtonsTick() {
     autoSettings().then(function (s) {
@@ -3994,10 +4164,10 @@
       if (!_existenceCheckSrc || _existenceCheckSrc.sourceType !== rt.sourceType ||
           _existenceCheckSrc.id !== rt.id || _existenceCheckSrc.pathsKey !== wantKey) {
         var check = _existenceCheckSrc = { sourceType: rt.sourceType, id: rt.id, pathsKey: wantKey, status: 'pending', has: null };
-        checkSourceButtonExistence(paths, rt.id).then(function (has) {
+        checkSourceButtonExistence(paths, rt.id, s).then(function (has) {
           if (_existenceCheckSrc === check) { check.has = has; check.status = 'ready'; manualSourceButtonsTick(); }
         }, function (e) {
-          console.error('[ptp2re] source button existence check failed:', e);
+          console.error('[ptp2re] source button probe failed:', e);
           if (_existenceCheckSrc === check) { check.status = 'ready'; check.has = null; manualSourceButtonsTick(); }
         });
       }
@@ -4151,6 +4321,17 @@
       if (/\bconfigurePlugin\b/.test(q) && v.plugin_id === PLUGIN_ID) {
         invalidateAutoSettings();
         settingsTick();
+      }
+
+      // A save of whatever is on screen re-arms the button probes, whichever entity
+      // type it names and whatever the auto-mode settings say. Deliberately its own
+      // branch, ahead of and independent of both reaction branches below: those are
+      // gated on `a3`/`a4` and on `autoSuppressed()`, and a button appearing after a
+      // save is not something a user should have to enable auto mode to get. See
+      // `invalidateButtonProbes`.
+      var savedIds = (v.input && (v.input.ids || (v.input.id != null ? [v.input.id] : []))) || [];
+      if (savedIds.length && (targetOfMutation(q) || sourceOfMutation(q)) && viewingOneOf(savedIds)) {
+        mutationSucceeded(p).then(function (ok) { if (ok) invalidateButtonProbes(); });
       }
 
       // A save of one of our four target types. The suppression check sits after the

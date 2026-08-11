@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.14.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.13.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -41,6 +41,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — the rest of the button delay: settings served stale, the probe stopping at one page | **0.12.12** |
 | | — the delay, measured: the tag query was 766 ms of it, so cache it long and warm it | **0.12.13** |
 | | — and measured again: the probe starts from the route, not from the row appearing | **0.12.14** |
+| | — Improvement 4: a button hides when a click would add nothing, and re-checks on save | **0.13.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -686,9 +687,10 @@ Four "Button Improvement" TODOs came out of the same round of 0.8.x live testing
 the user before any of them were built (§8 records the discussion and the decisions). Two were
 built as fixes, one as a rename, and one — deliberately narrower than first discussed — as a new
 half of the feature. Improvement 4 (hide a button that would add nothing) stayed a deferred
-"maybe": the user's stated preference is a button that is sometimes unneeded over one that is
-missing when it was needed, and that preference is exactly what 0.9.0's existence gating below is
-careful not to violate.
+"maybe" until **0.13.0**, which is §5e below; the stated preference at the time was a button that
+is sometimes unneeded over one that is missing when it was needed, and that preference is what
+0.9.0's existence gating was careful not to violate. Read this section for what existence gating
+was and why, then §5e for what replaced it.
 
 **Button size (Improvement 1) was never actually about `align-items: stretch`.** 0.8.3 fixed a
 *relative* problem — our own buttons rendering at two different heights depending on which row they
@@ -710,16 +712,18 @@ exist at all*, the same question `MergePerformerTagsToScenes` already answers fo
 not "would a click actually change anything," which stays Improvement 4's question and stays
 deferred.
 
-**`MergePerformerTagsToScenes`' own *performer*-page button is stricter still, and deliberately not
-matched.** Its `checkPerformerHasScenes` gates on `hasTags && hasScenes` — the performer must carry
-at least one tag, not merely appear in a scene — while its *scene*-page button (`checkSceneHasPerformers`)
-gates on performer existence alone, the one this plugin's own existence gating was modelled on. The
-two of MPTTS' own buttons are already inconsistent with each other for the same reason Improvement 4
-stays deferred here: gating on "has anything to contribute" is a stronger, more expensive claim than
-gating on "the relationship exists at all," and this plugin picked the weaker, cheaper claim on
-purpose. A performer with scenes but no tags of its own still shows this plugin's button and reports
-"No changes" on click, on any path sourced from a performer — matching the source-side existence
-note below for a studio with no tags, not a bug.
+**`MergePerformerTagsToScenes`' own *performer*-page button was stricter still, and was
+deliberately not matched — until 0.13.0, when matching it became the point.** Its
+`checkPerformerHasScenes` gates on `hasTags && hasScenes` — the performer must carry at least one
+tag, not merely appear in a scene — while its *scene*-page button (`checkSceneHasPerformers`) gated
+on performer existence alone, the one this plugin's own existence gating was modelled on. That
+inconsistency between MPTTS' own two buttons was read here, at 0.9.0, as the same trade this plugin
+was making on purpose. **It was not a trade on that side.** Its performer button carries a comment
+explaining the stronger gate ("a performer with no tags has nothing to merge, so the button would be
+a dead click"); its scene button carries no counter-argument anywhere in its code or its CLAUDE.md.
+The likelier reading is that one side got the reasoning and the other was never revisited — and
+0.9.0 cited it as precedent for a decision nobody had made. **Check whether a sibling's behaviour is
+argued for before citing it as an argument.** Both plugins gate on eligibility from 0.13.0 / 1.16.0.
 
 `Run.prototype.planTarget` (shared with `AutoRun` via the same `['planEntry', 'plannedFor',
 'addSource', 'aggregate', 'planTarget']` assignment §4d already relies on) gained one hook, called
@@ -943,10 +947,78 @@ matches there and the source button for `tags:gallery>image` cannot appear — a
 pending a look at what that page does render to anchor on. A fallback container built from nothing
 would be its own unverified guess, and §6's rule is not to ship one without a live screenshot.
 
-**A studio with no tags of its own still shows "Copy Tags to all Scenes", and that is correct.** A
-source button's existence gate asks whether any *target* exists, never whether the source carries
-anything to copy — the same Improvement-4 boundary §5c documents, read from the other direction.
+**A studio with no tags of its own showed "Copy Tags to all Scenes" until 0.13.0.** The source
+button's gate asked only whether any *target* existed, never whether the source carried anything to
+copy. §5e added the second half; the boundary that remains is one step further out — whether those
+scenes already have the tags — and that one is unbounded, so it stays.
 
+
+## 5e. Improvement 4: hide a button that would add nothing (0.13.0)
+
+Deferred at 0.9.0, built here. Three parts, and the reason they landed together is that the first
+one turned out to be free and the third is what makes the first two usable.
+
+**The target side cost nothing, because the answer was already being computed and discarded.**
+`checkButtonExistence` ran `AutoRun.planEntities(target, paths, [id])`, and `oneQuery`'s
+`targetParts` carries the target's own `tags`/`performers` *and* every path's full walk down to its
+payload leaf. So `planTarget` had already run the whole diff — `aggregate`, the common-tags fold,
+the `existing` check, `filters.tagBlocked` — before deciding whether to create a plan entry. The
+existence hook read `agg.n`, the weakest question available in that pass. `recordAddable` reads the
+strongest, at no extra request, and `checkButtonExistence` became `probeButtons` returning both.
+**Before adding a query to answer a question, check whether the pass in front of you already
+answered it.** Three releases of latency work (§5c) went into what the probe costs, and the
+strongest possible answer was sitting inside it the whole time.
+
+**`recordAddable` fires ahead of `entry.has`, not after it.** The dedup there answers "did any path
+in this plan already ask for this id", which is right for the plan and wrong for a button: two paths
+that would each add the same tag are two buttons that would each do something, and reading
+eligibility off the finished plan would hide the second. `propagate-buttons` pins both directions.
+
+**The source side stops one step short, and the step it stops before is the unbounded one.**
+`checkSourceButtonExistence` gained a second half: one by-id query for the source's own payload,
+`sourcePayloadQuery` selecting the union of the page's paths' `leafSelection`s and `payloadOf`
+reading each path's ids back out of it, minus anything `filters.tagBlocked` refuses. What it still
+does not ask is whether the reachable targets already have those tags — that is reading every scene
+a studio touches. So a source button can still report "No changes", and that is the ceiling rather
+than a bug. `SOURCES` gained `one` (`findPerformer`/`findStudio`/`findSceneMarker`) for the three
+source types that are not also targets; the other four already had it via `TARGETS`.
+
+**The two halves write into maps of their own and are folded at the end.** They resolve in either
+order, and a late `true` from the target lookup landing on the same key a payload miss had already
+set to `false` would show a button whose source is empty. This was written the shared-map way first
+and it is exactly the kind of race a test with deterministic responders does not catch.
+
+**Dynamic refresh is what makes eligibility usable rather than annoying.** Both probe slots are keyed
+on the entity and the path set, and a save changes neither — so a button decided before an edit kept
+that answer until the user navigated away and back. Under *existence* gating that was survivable,
+because the relationships it asked about rarely changed under an open page. Under eligibility it is
+not: the commonest thing a user does on an Edit tab is change exactly what the gate reads.
+`invalidateButtonProbes` drops both slots and re-ticks, from four places:
+
+- **The `fetch` wrapper**, on a successful mutation naming the entity in view (`viewingOneOf`, which
+  checks both route matchers, since `/scenes/7` is a target page and a source page at once). Its own
+  branch, ahead of and independent of both reaction branches, and **unconditional on `a3`/`a4` and
+  on `autoSuppressed()`** — a button appearing after a save is not something a user should have to
+  enable auto mode to get. MPTTS' CLAUDE.md §3 states the same rule about its own equivalent branch,
+  which is the older of the two.
+- **`runAutoTargets`**, on a write, because an auto reaction writes *after* the save that triggered
+  it — so the wrapper's invalidation would otherwise have been spent on a library our own reaction
+  then moved again.
+- **Both button clicks**, on the existing `FLASH_MS` timer rather than at once, so "Added 3" is not
+  torn off the button mid-caption by the tick that removes it.
+- **`invalidateAutoSettings`**, because a "common tags only" or filter toggle changes what a path
+  would add without changing either the entity or the path set. A *path's* own toggle changes
+  `pathIdsKey` and re-arms on its own; these do not.
+
+The library-wide task writes thousands of mutations and reaches none of this: they all run inside
+`guarded()`, which returns from the wrapper before any of it.
+
+**The ceiling, stated rather than hidden: the gate reads the server, and a staged click reads the
+form.** Remove a tag from the open form without saving and the button that would restore it stays
+hidden. Gating against the captured form controls instead is possible and is deliberately not done —
+it would couple button visibility to the `TagSelect`/`PerformerSelect` capture machinery, which
+React re-renders on every keystroke, so the gate would re-evaluate constantly and flicker. Save is
+what reconciles the two, and Save is what the invalidation above hangs off.
 
 ## 6. Anchoring in Stash's markup
 

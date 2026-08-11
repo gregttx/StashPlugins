@@ -230,12 +230,29 @@ Since 0.12.1 this finally takes effect on Scene: up to 0.12.0 the plugin recogni
 by a CSS class that Stash does not put on that page's Delete, so every version silently used the
 Save fallback and placed buttons to the left of Save. Delete is now recognised by its label too.
 
-A button only appears when its source actually exists — a scene with no performers gets no
-performer-tags button, a group with no studio gets no studio-tags button — but it does **not**
-check whether there is anything *new* to copy: a scene whose performers' tags are already all
-present still shows the button, and clicking it reports "No changes." Hiding a button that would
-genuinely add something is worse than one that occasionally does nothing, so this plugin only ever
-hides for a source that is not there at all.
+### When a button appears
+
+Since 0.13.0 a target-side button appears only when clicking it would **actually add something**.
+It hides when the relationship is absent (a scene with no performers, a group with no studio), and
+also when the relationship is there but has nothing left to give: the sources carry no tags, the
+target already has all of them, the "common tags only" intersection is empty, or the exclusion
+filters refuse everything that is left. An entity excluded outright by the entity-level filters
+shows no buttons at all.
+
+This costs nothing. Deciding whether to show the button already meant fetching the entity and its
+sources and running the diff — up to 0.12.14 the answer was computed and thrown away, and the
+button was drawn from the weaker question "is there a performer here at all".
+
+**Source-side buttons stop one step short**, and it is a real limit rather than an oversight. They
+hide when the source reaches nothing (a performer in no scenes) and, since 0.13.0, when the source
+carries nothing worth copying (a performer with no tags of its own — matching what
+`MergePerformerTagsToScenes`' performer button has always done). They do **not** check whether the
+scenes on the far side already have those tags: that means reading every scene a studio touches,
+which is unbounded. So a source button can still report "No changes" on click.
+
+**The gate reads the server.** With **Save Immediately** off, a click diffs against the open edit
+form instead — so if you remove a tag from the form without saving, the button that would put it
+back stays hidden until you press Save. Saving re-checks immediately; you never need to reload.
 
 Clicking one does one of two things, depending on **Save Immediately**:
 
@@ -276,7 +293,7 @@ something you view inside a scene's Markers tab rather than a page you navigate 
 
 Source-side buttons always save immediately, with no staging option — one click can resolve to
 many different entities across many different pages at once, and there is no single form to stage
-the result into. Everything else works the same as the target-side buttons: existence gating, the
+the result into. Everything else works the same as the target-side buttons: the gating above, the
 dedup check against `MergePerformerTagsToScenes`, the same **Show Manual Buttons** toggle, and,
 since 0.9.1, landing before Delete rather than after it.
 
@@ -289,8 +306,8 @@ round yet. If one is missing on a page it should be on, that is most likely it.
 
 All 24 of this plugin's buttons, plus the 2 from `MergePerformerTagsToScenes` that share these
 rows. Every one of them additionally needs **Show Manual Buttons** on (MPTTS's own setting is
-**Show Manual Merge Buttons**), and every one is hidden when the entity it would read from is
-empty — see the existence gating above.
+**Show Manual Merge Buttons**), and every one is hidden when clicking it would add nothing — see
+"When a button appears" above.
 
 Within a row the order is fixed: `Save · …this plugin's buttons… · MPTTS's button · Delete`.
 Group's Edit tab has no Delete, so everything there appends after Save.

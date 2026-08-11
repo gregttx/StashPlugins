@@ -216,10 +216,9 @@ const tag = (id, name) => ({ id, name, ignore_auto_tag: false, custom_fields: {}
           return { data: { configuration: { plugins: { MergePerformerTagsToScenes: {
             a1ShowManualMergeButtons: true, d1LogMergesToConsole: true } } } } };
         }
-        if (q.indexOf('FindScenePerformers') !== -1) {
-          return { data: { findScene: { performers: [{ id: '7' }] } } };
-        }
-        if (q.indexOf('FindSceneForStaging') !== -1) {
+        // Since 1.16.0 the gate reads what a merge reads, so it resolves to the same
+        // scene the staging query below does.
+        if (q.indexOf('FindSceneForStaging') !== -1 || q.indexOf('FindSceneMergeable') !== -1) {
           return { data: { findScene: { organized: false, title: 'Staged Scene',
             tags: [{ id: '10' }],
             performers: [{ tags: [

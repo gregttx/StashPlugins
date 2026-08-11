@@ -69,6 +69,17 @@ function responder(opts) {
       data[m[1]] = opts.entity !== undefined ? opts.entity : SCENE;
       return { data };
     }
+    // 0.13.0: the source button's payload half - the source's *own* tags/performers,
+    // asked for by id in one query covering every path on the page. Defaults to
+    // carrying one tag, since almost every source-side check is about something else
+    // and a source with nothing to give now hides its button. `sourcePayload: {}` is
+    // how a test says "this source is empty".
+    const msp = /query PTP_spayload_(\w+)\(/.exec(q);
+    if (msp) {
+      const data = {};
+      data[msp[1]] = opts.sourcePayload !== undefined ? opts.sourcePayload : { tags: [{ id: '1' }] };
+      return { data };
+    }
     // A source button's `field`-kind lookup: one entity by id, drilling to the
     // back-reference (`resolveFieldReverse`).
     const msf = /query PTP_sfield_(\w+)\(/.exec(q);
@@ -97,6 +108,12 @@ function responder(opts) {
     if (/mutation PTP_bulk/.test(q)) {
       if (opts.failWrite) return { errors: [{ message: 'write boom' }] };
       return { data: { ok: [] } };
+    }
+    // Stash's *own* save, posted by `entityUpdate`. Separate from `failWrite` above,
+    // which is this plugin's write: the probe invalidation hangs off the user's save
+    // succeeding, so a test needs to be able to reject that one specifically.
+    if (opts.failSave && /^mutation Stash_/.test(q)) {
+      return { errors: [{ message: 'save boom' }] };
     }
     return { data: {} };
   };
@@ -175,6 +192,11 @@ function renderControl(patches, name, values) {
 
 const manualButtons = (env) => (env.body.descendants() || [])
   .filter((n) => h.hasClass(n, 'ptp2re-manual-btn'));
+
+// Beside its target-side twin rather than down in the source-side section, because
+// the dynamic-refresh checks above that section read it too.
+const sourceButtons = (env) => (env.body.descendants() || [])
+  .filter((n) => h.hasClass(n, 'ptp2re-manual-src-btn'));
 
 const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query || ''));
 
@@ -756,11 +778,11 @@ function nodeListLikeContainer() {
     h.check('no performers on the scene hides the button', manualButtons(env).length === 0);
   }
   {
-    // The scene has a performer, and that performer's only tag is already on the
-    // scene - nothing left to *add*. The button still shows: existence gating only
-    // asks "is there a performer here", never "would a click actually change
-    // anything" - the latter is Improvement #4, deferred by explicit preference for
-    // a button that is sometimes unneeded over one that is missing when needed.
+    // 0.13.0 (Improvement 4) reverses what this used to assert. The scene has a
+    // performer, and that performer's only tag is already on the scene - the
+    // relationship exists, so the old existence gate showed a button that could only
+    // ever report "No changes". Eligibility gating hides it. Free, because the probe's
+    // one query already carried both the performer's tags and the scene's own.
     const { env } = start({
       settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
       entity: Object.assign({}, SCENE, { tags: [{ id: '1' }] }),
@@ -768,7 +790,47 @@ function nodeListLikeContainer() {
     editButtonsContainer(env);
     env.tick();
     await h.flush(60);
-    h.check('a source with nothing new to add still shows the button', manualButtons(env).length === 1);
+    h.check('a source with nothing new to add hides the button', manualButtons(env).length === 0);
+  }
+  {
+    // The other half of the same distinction, and the reason eligibility is per path
+    // rather than read off the finished plan: two paths that would each add the *same*
+    // tag are two buttons that would each do something. `recordAddable` fires ahead of
+    // `entry.has`, so the second path is not counted as contributing nothing merely
+    // because the first reached the id first.
+    const { env } = start({
+      settings: {
+        a1ShowManualButtons: true, b1TagsPerformersToScenes: true, b2TagsStudioToScenes: true,
+      },
+      entity: Object.assign({}, SCENE, { studio: { id: '20', name: 'S', tags: [{ id: '1' }] } }),
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('two paths offering the same missing tag both show', manualButtons(env).length === 2,
+      manualButtons(env).map((b) => b.textContent).join(','));
+  }
+  {
+    // The "common tags only" fold is part of the diff, so it is part of the gate: two
+    // scenes under a group agreeing on nothing means the button would add nothing,
+    // even though both scenes exist and both carry tags.
+    const { env } = start({
+      settings: {
+        a1ShowManualButtons: true, e1TagsScenesToGroups: true, e2TagsScenesToGroupsCommonOnly: true,
+      },
+      pathname: '/groups/10',
+      entity: {
+        id: '10', name: 'G', tags: [],
+        scenes: [
+          { id: '1', title: 'A', tags: [{ id: '1' }] },
+          { id: '2', title: 'B', tags: [{ id: '2' }] },
+        ],
+      },
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('an empty common-tags intersection hides the button', manualButtons(env).length === 0);
   }
   {
     // Two paths on the same page, gated independently: only the one whose source
@@ -1116,11 +1178,137 @@ function nodeListLikeContainer() {
     editButtonsContainer(env);
     env.tick();
     await h.flush(60);
-    const btn = manualButtons(env)[0];
-    btn.click();
+    // Since 0.13.0 there is no button to click here: in save-immediately mode the gate
+    // and the click both run `planEntities` against the server, so they agree exactly
+    // and "shown but adds nothing" is unreachable by construction. What used to be
+    // checked through a click is now checked by the button's absence, and by there
+    // being no mutation on the page at all.
+    h.check('nothing to add draws no button in save-immediately mode',
+      manualButtons(env).length === 0);
+    h.check('and issues no mutation', writes(env.calls).length === 0);
+  }
+
+  // ── Dynamic refresh: a save on the page re-arms the probe (0.13.0) ────────────
+  //
+  // Both probe slots are keyed on the entity and the path set, neither of which a save
+  // changes - so before 0.13.0 a button decided before an edit kept that answer until
+  // the user navigated away and back. These drive the mutation through the plugin's own
+  // `fetch` wrapper, exactly as Stash's Save button would.
+  {
+    // The scene already carries its performer's only tag, so no button. The user
+    // removes that tag and saves; the responder's entity changes with it, and the
+    // button has to appear without a navigation.
+    const opts = {
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      entity: Object.assign({}, SCENE, { tags: [{ id: '1' }] }),
+    };
+    const { env } = start(opts);
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('nothing to add, so no button before the save', manualButtons(env).length === 0);
+    opts.entity = Object.assign({}, SCENE, { tags: [] });   // the save removed it
+    await h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' });
     await h.flush(80);
-    h.check('nothing to add issues no mutation', writes(env.calls).length === 0);
-    h.check('and reports no changes', btn.textContent === 'No changes', btn.textContent);
+    h.check('a save of the viewed entity re-probes and the button appears',
+      manualButtons(env).length === 1);
+  }
+  {
+    // The other direction, and the one the user described: the scene gains the tag,
+    // and the button that was showing goes away on Save.
+    const opts = {
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+    };
+    const { env } = start(opts);
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('a button before the save', manualButtons(env).length === 1);
+    opts.entity = Object.assign({}, SCENE, { tags: [{ id: '1' }] });
+    await h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' });
+    await h.flush(80);
+    h.check('and it goes away when the save leaves nothing to add',
+      manualButtons(env).length === 0);
+  }
+  {
+    // Unconditional on the auto-mode settings, which are off in every case above and
+    // here too. This is the rule `MergePerformerTagsToScenes`' CLAUDE.md §3 states
+    // about its own equivalent branch: the cache decides whether a button appears, so
+    // the save invalidates it whether or not auto mode is also configured to react.
+    // Pinned by the negative - a save of a *different* entity must not re-probe.
+    const opts = {
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      entity: Object.assign({}, SCENE, { tags: [{ id: '1' }] }),
+    };
+    const { env } = start(opts);
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    const before = entityQueries(env.calls).length;
+    opts.entity = Object.assign({}, SCENE, { tags: [] });
+    await h.entityUpdate(env.ctx, 'sceneUpdate', { id: '999' });   // some other scene
+    await h.flush(80);
+    h.check('a save of a different entity does not re-probe',
+      entityQueries(env.calls).length === before);
+    h.check('and leaves the button hidden', manualButtons(env).length === 0);
+  }
+  {
+    // A bulk save naming the viewed entity among others counts, since `input.ids` is
+    // where a bulk mutation carries them.
+    const opts = {
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      entity: Object.assign({}, SCENE, { tags: [{ id: '1' }] }),
+    };
+    const { env } = start(opts);
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    opts.entity = Object.assign({}, SCENE, { tags: [] });
+    await h.entityUpdate(env.ctx, 'bulkSceneUpdate', { ids: ['7', '10', '11'] });
+    await h.flush(80);
+    h.check('a bulk save naming the viewed entity re-probes',
+      manualButtons(env).length === 1);
+  }
+  {
+    // The source side gets the same treatment, off the same branch: `/performers/100`
+    // is a source route, so a `performerUpdate` naming 100 re-arms it. This is the case
+    // `MergePerformerTagsToScenes` has always had for its own performer button.
+    const opts = {
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+      sourcePayload: { tags: [] },      // no tags yet, so no button
+    };
+    const { env } = start(opts);
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('an untagged performer shows no source button', sourceButtons(env).length === 0);
+    opts.sourcePayload = { tags: [{ id: '1' }] };   // the save gave it one
+    await h.entityUpdate(env.ctx, 'performerUpdate', { id: '100' });
+    await h.flush(80);
+    h.check('and gaining a tag brings the source button back without a navigation',
+      sourceButtons(env).length === 1);
+  }
+  {
+    // A rejected save must change nothing: the edit did not land, so the answer the
+    // probe already holds is still the right one. `mutationSucceeded` is what tells
+    // the two apart, the same guard the auto-mode branches use.
+    const opts = {
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      entity: Object.assign({}, SCENE, { tags: [{ id: '1' }] }),
+      failSave: true,
+    };
+    const { env } = start(opts);
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    const before = entityQueries(env.calls).length;
+    opts.entity = Object.assign({}, SCENE, { tags: [] });
+    await h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' });
+    await h.flush(80);
+    h.check('a save Stash rejected does not re-probe',
+      entityQueries(env.calls).length === before);
   }
 
   // ── Reconciling stale buttons ─────────────────────────────────────────────────
@@ -1160,8 +1348,6 @@ function nodeListLikeContainer() {
   }
 
   // ── Source-side buttons: pushing outward instead of pulling in ──────────────
-  const sourceButtons = (env) => (env.body.descendants() || [])
-    .filter((n) => h.hasClass(n, 'ptp2re-manual-src-btn'));
 
   {
     const { env } = start({
@@ -1208,26 +1394,62 @@ function nodeListLikeContainer() {
   }
   {
     // Live-tested and confirmed already correct, not a regression: a source button's
-    // existence gate is `checkSourceButtonExistence`, which asks `resolveSourceTargets`
-    // whether any *target* exists (scenes, here) - never whether the source entity
-    // itself carries the tags being pushed. So a studio with zero tags of its own
-    // still shows "Copy Tags to all Scenes" as long as it has scenes to push into;
-    // the button reporting "No changes" on click is the correct outcome for that
-    // click, not a reason to hide it up front - the same Improvement #4 boundary the
-    // target-side existence gate draws. This test names the scenario explicitly
-    // rather than relying on the studio-button test above never happening to set
-    // `entity`/studio tags at all.
+    // 0.13.0 reverses this one too, and it is the check that brings the source side up
+    // to `MergePerformerTagsToScenes`' `hasTags && hasScenes`. The gate has two halves
+    // now: `resolveSourceTargets` for "is there a target" and one by-id query for "does
+    // this source carry anything". A studio with scenes but no tags of its own fails the
+    // second, so the button that could only ever report "No changes" is gone.
+    //
+    // What the source side still does *not* ask is whether those scenes already have the
+    // tags - that would mean reading every scene the studio touches, and it is the one
+    // check on this page that is unbounded.
     const { env } = start({
       settings: { a1ShowManualButtons: true, b2TagsStudioToScenes: true },
       pathname: '/studios/9',
       entity: Object.assign({}, SCENE, { studio: { id: '9', name: 'Studio', tags: [] } }),
       sourceFilter: [{ id: '10' }], // the studio has scenes, even though it has no tags
+      sourcePayload: { tags: [] },   // ...and no tags, which is what now hides it
     });
     detailsEditContainer(env, true);
     env.tick();
     await h.flush(60);
-    h.check('a studio with no tags of its own still shows the button, gated on its scenes existing',
-      sourceButtons(env).length === 1);
+    h.check('a studio with scenes but no tags of its own hides the button',
+      sourceButtons(env).length === 0);
+  }
+  {
+    // The mirror, so the check above cannot pass by the payload query simply never
+    // being answered: the same studio with one tag shows its button.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b2TagsStudioToScenes: true },
+      pathname: '/studios/9',
+      entity: Object.assign({}, SCENE, { studio: { id: '9', name: 'Studio', tags: [] } }),
+      sourceFilter: [{ id: '10' }],
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('and the same studio carrying one tag shows it', sourceButtons(env).length === 1);
+  }
+  {
+    // A source whose entire payload is refused by the tag filter carries nothing, the
+    // same as one with no tags at all - so the gate reads the filters rather than only
+    // counting ids. Tag 1 is marked "ignore auto tag" for this one case.
+    const { env } = start({
+      settings: {
+        a1ShowManualButtons: true, b2TagsStudioToScenes: true, f3ExcludeTagWithIgnoreAutoTag: true,
+      },
+      pathname: '/studios/9',
+      tags: [Object.assign({}, TAGS[0], { ignore_auto_tag: true }), TAGS[1]],
+      entity: Object.assign({}, SCENE, { studio: { id: '9', name: 'Studio', tags: [] } }),
+      sourceFilter: [{ id: '10' }],
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('a payload the tag filter refuses in full hides the button too',
+      sourceButtons(env).length === 0);
   }
   {
     // Two performer-sourced paths on one page. 0.12.11 fires their lookups with

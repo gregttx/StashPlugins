@@ -2,7 +2,7 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.12.14**
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.13.0**
 (last checked 2026-08-11). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
@@ -66,6 +66,24 @@ is the instant the user clicks Edit and the instant Stash fires its own five `*F
 The probe is now armed from the route as well, so it runs while the detail view is still on screen
 and opening the Edit tab draws the button with no request at all.
 
+0.13.0 is Improvement 4, deferred since 0.9.0: a button hides when clicking it would add nothing,
+not merely when its source is absent. The target side cost **no extra request** - `planEntities`
+already fetched the entity and its sources and ran the whole diff, and the existence hook was reading
+`agg.n`, the weakest question available inside a pass that had already computed the strongest.
+**Before adding a query, check whether the pass in front of you already answered it**: three releases
+of latency work went into what that probe costs while the better answer sat unused inside it. The
+source side stops one step short on purpose - it now asks whether the source carries anything (one
+by-id query, matching what `MergePerformerTagsToScenes`' performer button always did) but not whether
+the far side already has it, which means reading every scene a studio touches. And because the gate
+now reads exactly what a user edits, both plugins re-probe on a save of the entity in view, so a
+button appears or vanishes without a reload.
+
+It also corrected a claim 0.9.0 made in this plan's own §5c: that `MergePerformerTagsToScenes`' two
+buttons gating differently was a deliberate trade, cited as precedent for this plugin's weaker
+gating. It was not one - the performer side carries an argument for the stronger gate, the scene side
+carries no counter-argument anywhere. **Check whether a sibling's behaviour is argued for before
+citing it as an argument.**
+
 0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
 once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
 of this file, the plugin `CLAUDE.md`s and the READMEs. It also fixed a real divergence it exposed —
@@ -76,14 +94,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.12.14, in all three places |
-| `PropagateTagsAndPerformers.js` | ~4,235 lines |
+| Version | 0.13.0, in all three places |
+| `PropagateTagsAndPerformers.js` | ~4,418 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 119 = **443** |
+| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 133 = **457** |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
-| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.15.9 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass), `NormalizeParentTags` 1.7.5 → 1.7.7 |
-| Landed on `main` | through 0.12.10 (`a2097ec`); 0.12.11-0.12.14 are uncommitted |
+| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.0 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0), `NormalizeParentTags` 1.7.5 → 1.7.7 |
+| Landed on `main` | through 0.12.14 (`27806fa`); 0.13.0 is uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's
@@ -861,19 +879,23 @@ step 9 plus a run against a real Stash, not step 9 alone.
      requiring a harmonizing rename of — MPTTS's own two buttons); keep the selection-menu idea as
      a separate, later TODO (#5 below), since it is a genuinely different placement question the
      button version does not answer, not a refinement of it.
-   - *#4, buttons that cannot add anything.* Kept as a deferred "maybe," per the user's stated
-     preference verbatim: *"I prefer a button that is always there t[h]an needed even if also when
-     not needed than a missing button when it is needed"* — a false positive (a button that
-     sometimes reports "No changes") is preferred over a false negative (a button silently absent
-     when it would have helped). This is full eligibility gating — "would a click actually add
-     anything" — and stays out of scope. See 0.9.0's entry below for the narrower thing that *did*
-     get built instead, which this preference was checked against before building it.
+   - *#4, buttons that cannot add anything.* Deferred at 0.9.0, **built at 0.13.0.** The
+     preference it was weighed against, verbatim: *"I prefer a button that is always there t[h]an
+     needed even if also when not needed than a missing button when it is needed"* — a false
+     positive (a button that sometimes reports "No changes") preferred over a false negative (a
+     button silently absent when it would have helped). What changed is not that preference but the
+     cost: the risk of a false negative is a *stale* answer, and 0.13.0 pairs the gate with
+     re-probing on every save of the entity in view, so the window in which the gate can be wrong is
+     the seconds between an edit and Saving it. The target side also turned out to be free (see the
+     0.13.0 entry above). The source side deliberately keeps a weaker gate, because the strong
+     version there is unbounded. See 0.9.0's entry below for the narrower thing built first.
    - *#5, new: source-side buttons via Stash's selection menu, split out of #3.* Deferred,
      unscoped. Noted as possibly applying to MPTTS too, not just here — the same "could this button
      become a menu item instead" question applies to its performer-page button.
 
    **0.9.0 built #1 (properly this time), #2 (harmonized both plugins), #3 (plain buttons, the new
-   naming), and a narrower cut of #2 the live testing also turned up: existence gating.** Not #4 —
+   naming), and a narrower cut of #2 the live testing also turned up: existence gating.** Not #4,
+   which landed four minor versions later at 0.13.0 and replaced the gating described here —
    the distinction is the load-bearing thing 0.9.0 had to get right, and it is documented at length
    in `PropagateTagsAndPerformers/CLAUDE.md` §5c rather than repeated here. In short: "Add Perf
    Tags" already hid itself with no performers on the scene (MPTTS's own button gates on exactly

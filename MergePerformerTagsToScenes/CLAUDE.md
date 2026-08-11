@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.15.9.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.16.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **The button-label text is a cross-plugin contract, not cosmetics.** Both manual buttons read
@@ -92,10 +92,19 @@ capital S breaks it), so both branches are needed, and each reads its ids from a
 mutation whose query text contains `bulkSceneUpdate` will be reacted to. That is exactly why
 `NormalizeParentTags` needs the lease.
 
-**The `performerUpdate` cache-invalidation branches are unconditional** — not gated on
-`autoMergeOnPerformerUpdate` — because they invalidate `performerCheck`, which decides whether the
-button appears. A performer gaining its first tag has to make the button appear whether or not
-auto-merge is configured. Do not "tidy" them into the auto-merge conditions.
+**The `performerUpdate` and `sceneUpdate` cache-invalidation branches are unconditional** — not
+gated on `autoMergeOnPerformerUpdate` / `autoMergeOnSceneUpdate` — because they invalidate
+`performerCheck` / `sceneCheck`, which decide whether the buttons appear. A performer gaining its
+first tag has to make the button appear whether or not auto-merge is configured. Do not "tidy" them
+into the auto-merge conditions.
+
+The `sceneCheck` pair is new at 1.16.0 and arrived with the scene button's eligibility gate (§5).
+Until then that cache had no invalidation at all, which was survivable while it asked only "has this
+scene any performers" — an answer that rarely changed under an open page. It is not survivable now
+that the gate reads the scene's own tags, since changing exactly that is the commonest thing a user
+does on an Edit tab. Both pairs call `tick()` straight after clearing: clearing only *arms* a
+re-probe on the next tick, and the tick after that draws the result, so without it a save is up to
+two seconds from showing its effect.
 
 **The exclusion-tag lookup rejects rather than resolving to `null` on error.** Treating a failed
 lookup as "no exclusion configured" would merge tags into the very scenes the user asked to
@@ -209,7 +218,45 @@ two button builders (`addPerformerButton`, `addSceneButton`) are what tag their 
 **`performerCheck` / `sceneCheck`** cache per-id eligibility (`pending`/`yes`/`no`) so `tick()` —
 which runs every second and on every DOM mutation burst — does not re-query. They are invalidated
 by navigation and by the save-detection branches in §3, not by polling; a change made elsewhere
-(another tab, a bulk edit) is not noticed until one of those happens.
+(another tab, a bulk edit) is not noticed until one of those happens. Neither is invalidated by a
+*settings* change either, so switching an exclusion filter on while a page is open is not seen until
+the next navigation — small, pre-existing, and not worth a snapshot-and-compare to fix.
+
+**The scene button gates on eligibility since 1.16.0, not on performer existence.** It asked
+`findScene { performers { id } }`, so a scene already carrying every one of its performers' tags
+showed a button whose click could only report "No changes" — while the *performer* button had always
+required `hasTags && hasScenes`. That inconsistency was read by `PropagateTagsAndPerformers` 0.9.0 as
+a deliberate trade and cited as precedent for its own weaker gating; it was not one. The performer
+side carries a comment arguing for the stronger gate, the scene side carries no counter-argument
+anywhere. One got the reasoning and the other was never revisited.
+
+Two things make the fix cheap and keep it honest:
+
+- **`scenePlanFrom(scene, exclTagId)` and `sceneMergeSelection()` are extracted, not reimplemented.**
+  The gate asks the identical question the click answers, through the same function and the same
+  selection — §3's "one filter, one implementation" applied to a *reader* rather than a writer. A
+  gate with a diff of its own would be a second opinion free to drift, and a button that hides while
+  a click would have merged is drift nobody would notice. It also picks up Organized, the exclusion
+  tag and the custom-field rules, none of which the old gate could see.
+- **The query grew; the number of queries did not.** Still one round trip, on the same tick.
+
+**Not eligible now means *removed*, not merely "not added".** `addSceneButton`'s already-exists early
+return used to sit *above* the eligibility check, so once the button was on the page nothing
+re-evaluated it. Harmless while the gate asked about performers and nothing invalidated the cache;
+wrong the moment a save can make an eligible scene ineligible. A click that merges everything now
+takes its own button away.
+
+**One consequence worth knowing: "Scene excluded" is now nearly unreachable.** `stageTagsIntoSceneForm`
+reports it as a distinct outcome (§3), but an excluded scene no longer draws a button to click. The
+caption survives for the one case that still reaches it — the gate's cached answer going stale,
+because the scene became Organized in another tab — and `staging.test.js` drives exactly that, via a
+`gateScene` that disagrees with the scene the click reads.
+
+**The gate reads the server; a staged click reads the form.** Remove a tag from the open form without
+saving and the button that would restore it stays hidden until Save. Save is what reconciles them,
+which is what the `sceneUpdate` branch in §3 is for. `PropagateTagsAndPerformers` §5e documents the
+same ceiling for the same reason — gating against the captured controls would re-evaluate on every
+keystroke.
 
 **Caption flashing.** The scene button's messages are each shorter than "Copy all Tags from all Performers" so the
 button never changes width, and `_sceneFlashToken` makes a later click supersede a running

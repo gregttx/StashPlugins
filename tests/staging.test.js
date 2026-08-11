@@ -54,10 +54,15 @@ function responder(opts) {
     if (q.indexOf('FindTagByName') !== -1) {
       return { data: { findTags: { tags: [{ id: '99', name: 'Do_Not_Merge' }] } } };
     }
-    if (q.indexOf('FindScenePerformers') !== -1) {
-      return { data: { findScene: { performers: [{ id: '7' }] } } };
+    // Since 1.16.0 the scene button's gate reads what a merge reads, through the same
+    // `sceneMergeSelection()` the click uses - so it resolves to the same scene the two
+    // queries below do. `gateScene` lets one case hand the gate a *different* answer
+    // from the click's, which is the only way the two can now disagree.
+    if (q.indexOf('FindSceneMergeable') !== -1) {
+      return { data: { findScene: opts.gateScene || opts.scene || {
+        organized: false, tags: [{ id: '10' }], performers: [{ tags: PERF_TAGS }],
+      } } };
     }
-    // Both the staging query and the save-immediately query resolve to the same scene.
     if (q.indexOf('FindSceneForStaging') !== -1 || q.indexOf('query FindScene(') !== -1) {
       return { data: { findScene: opts.scene || {
         organized: false, tags: [{ id: '10' }], performers: [{ tags: PERF_TAGS }],
@@ -210,8 +215,14 @@ function click(env) {
 
   // ── exclusion filters still apply ──────────────────────────────────────────
   {
+    // Since 1.16.0 an excluded scene draws no button at all - the gate goes through
+    // `sceneMergePlan`, which answers the exclusion filters. So "Scene excluded" is now
+    // reachable only when the gate's cached answer is *stale*: the scene became
+    // Organized after the button was drawn, in another tab or another session. That is
+    // the case this drives, via a `gateScene` that still looks mergeable.
     const env = setup({
       settings: { b2ExcludeSceneOrganized: true },
+      gateScene: { organized: false, tags: [], performers: [{ tags: PERF_TAGS }] },
       scene: { organized: true, tags: [], performers: [{ tags: PERF_TAGS }] },
     });
     await H.flush();

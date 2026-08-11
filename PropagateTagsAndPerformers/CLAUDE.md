@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.13.3.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.14.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -45,6 +45,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — `coop().debugButtons`: a console switch that says why each button is shown or hidden | **0.13.1** |
 | | — that switch said nothing off a cached answer, which is when it is switched on | **0.13.2** |
 | | — one of its lines named Scene on every page; and Scene/Gallery confirmed anchorless | **0.13.3** |
+| | — a second anchor: our own row under the tab strip, for pages with no action row | **0.14.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -958,13 +959,44 @@ source buttons had simply never appeared on any of them and nothing said so. A s
 two-thirds of the pages a feature covers is the case for the diagnostic in §5e, more than the
 per-button reasons it was built for.
 
-The fix is a second anchor for pages with no navbar, and the user's own suggestion is the tab strip
-— the only stable chrome those pages have. Not built yet, and deliberately not guessed at: §6's rule
-is no fallback container without a live look at the markup, which is what cost four releases of
-placement churn. Two consequences to decide first, neither technical: it would be a *second*
-placement convention (navbar on Performer/Group, tab strip on Scene/Gallery/Image), and the tab strip
-is present while the Edit tab is open, so a source button anchored there would sit near the
-target-side buttons rather than only on the detail view.
+**0.14.0 is the second anchor, and the markup was read rather than guessed** — §6's rule, and the one
+four releases of placement churn paid for. What a live Scene renders:
+
+```html
+<div class="scene-tabs order-xl-first order-last">     <!-- grandparent, flex -->
+  <div>                                                 <!-- parent, block, 1 child -->
+    <div class="mr-auto nav nav-tabs" role="tablist">   <!-- the strip, flex -->
+      <div class="nav-item"><a data-rb-event-key="scene-details-panel">Details</a></div>
+      … <a data-rb-event-key="scene-edit-panel">Edit</a>
+```
+
+`findSourceButtonContainer` is `findDetailContainer() || ensureTabStripRow()`, and the order is what
+keeps Performer and Group exactly as they were: they render a navbar and no strip, so they never
+reach the second branch.
+
+**The strip is found by its Edit tab's key, never by its class.** Gallery renders *two* `.nav-tabs`
+strips — its own panels, and an Images/Add strip for the image list — and only the entity's own
+carries a `*-edit-panel` key; a class match picks whichever comes first. Scene independently renders
+a second element whose text is exactly `Edit` (a `button.btn-link` in the details panel), so the
+label match `findActionByLabel` uses would be ambiguous there too. The key is the only signal that is
+unambiguous on both pages, and it says what it is. `hasEditPanelTab` is a hand-rolled walk for the
+same reason `findActionByLabel` is one: the shared harness's fake DOM answers class selectors and
+nothing else. A mutant matching by class alone fails exactly the two Gallery checks.
+
+**The row is ours, and that makes it the simplest container in the plugin.** It goes immediately
+after the strip inside the strip's block-level parent — not *inside* the strip, which is a
+`role="tablist"` whose children are meant to be tabs and whose flex row would put a button on the tab
+line. Stash puts nothing in our row, so there is no anchor to find and nothing to order against:
+`insertBeforeImportantAction` recognises no action and appends, which is already its fallback, so
+that call needed no branch. It spaces its own children with `column-gap`, which is the one case
+`applyButtonSpacing` already knows to keep its hands off.
+
+**It shows on every tab, including Edit.** The strip is the tab selector, so it is present whichever
+panel is open — meaning a source button on a Scene now sits above the target-side buttons in the
+edit row. That is deliberate: a source button pushes outward to other entities and does not depend on
+what the current tab shows, unlike `MergePerformerTagsToScenes`' performer button, which hides during
+editing because the scene list it acts on is off screen. If it turns out to read as clutter, hiding
+it while `*-edit-panel` is the selected tab is a one-line check against `aria-selected`.
 
 **A studio with no tags of its own showed "Copy Tags to all Scenes" until 0.13.0.** The source
 button's gate asked only whether any *target* existed, never whether the source carried anything to

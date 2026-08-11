@@ -75,6 +75,15 @@ function makeElement(tag) {
       const sibs = this.parentNode.childNodes;
       return sibs[sibs.indexOf(this) - 1] || null;
     },
+    // Real attributes, not just the handful promoted to properties above. Added for
+    // the tab-strip anchor, which identifies the right strip by `data-rb-event-key`
+    // ending in `-edit-panel` - Gallery renders two tablists and only one is the
+    // entity's own, so a class match alone picks the wrong one half the time.
+    attrs: {},
+    getAttribute(name) {
+      return Object.prototype.hasOwnProperty.call(this.attrs, name) ? this.attrs[name] : null;
+    },
+    setAttribute(name, value) { this.attrs[name] = String(value); },
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
     click() { (this.handlers.click || []).forEach((fn) => fn({ preventDefault() {}, stopPropagation() {} })); },
     select() {},
@@ -164,6 +173,15 @@ function makeEnv(opts) {
         ? body.descendants().filter((n) => hasClass(n, s.slice(1)))
         : body.descendants().filter((n) => n.tagName === s.toUpperCase());
     },
+    // Real attributes, not just the handful promoted to properties above. Added for
+    // the tab-strip anchor, which identifies the right strip by `data-rb-event-key`
+    // ending in `-edit-panel` - Gallery renders two tablists and only one is the
+    // entity's own, so a class match alone picks the wrong one half the time.
+    attrs: {},
+    getAttribute(name) {
+      return Object.prototype.hasOwnProperty.call(this.attrs, name) ? this.attrs[name] : null;
+    },
+    setAttribute(name, value) { this.attrs[name] = String(value); },
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
     handlers: {},
     execCommand: () => (opts.execCommand !== false),

@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.13.3';
+  var PLUGIN_VERSION = '0.14.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -627,6 +627,15 @@
     // pre-wrap is the fallback for a description we have not split yet - a blank
     // line renders as a blank line. Once split, the paragraphs are divs and the gap
     // is this margin instead: roughly a third of a line, not a whole one.
+    // Our own source-button row, under the tab strip on the pages that render no
+    // detail action row (Scene, Gallery, and Image if it is the same). This is the one
+    // container in the plugin Stash puts nothing into, so there is no neighbour to
+    // measure a gap off and none of `applyButtonSpacing`'s branches apply - the row
+    // spaces its own children instead, which is the `column-gap` case that helper
+    // already knows to keep its hands off. `.5rem` top separates it from the tabs it
+    // sits under; `flex-wrap` because Scene can offer several at once.
+    '.ptp2re-src-row{display:flex;flex-wrap:wrap;column-gap:.5rem;row-gap:.25rem;' +
+    'margin:.5rem 0;}' +
     '.ptp2re-own-group .sub-heading{white-space:pre-wrap;}' +
     '.ptp2re-own-group .sub-heading .ptp2re-p{margin:0 0 .35em;}' +
     '.ptp2re-own-group .sub-heading .ptp2re-p:last-child{margin-bottom:0;}' +
@@ -4034,6 +4043,77 @@
     return null;
   }
 
+  // ── The tab strip: where a source button goes on a page with no navbar ──────
+  //
+  // `findDetailContainer` wants a `.details-edit` carrying a Delete button, and 0.13.3
+  // confirmed live that **only Performer and Group render one**. Scene and Gallery show
+  // a tab strip instead - Details / File Info / Chapters / Edit - and no action row at
+  // all, so five of the eleven source buttons had nowhere to go and had never once
+  // appeared. Image is untested and handled by the same rule either way.
+  //
+  // Read off a live Stash rather than guessed, which is §6's rule and the one four
+  // releases of placement churn were spent learning:
+  //
+  //   <div class="scene-tabs order-xl-first order-last">      <- grandparent, flex
+  //     <div>                                                  <- parent, block, 1 child
+  //       <div class="mr-auto nav nav-tabs" role="tablist">    <- the strip, flex
+  //         <div class="nav-item"><a data-rb-event-key="scene-details-panel" …>
+  //         … <a data-rb-event-key="scene-edit-panel">Edit</a>
+  //
+  // **The strip is found by its Edit tab's key, not by its class.** Gallery renders
+  // *two* `.nav-tabs` strips - its own panels, and an Images/Add strip for the image
+  // list - and only the entity's own carries a `*-edit-panel` key. A class match alone
+  // picks the wrong one on that page. Scene also renders a second element whose text is
+  // exactly "Edit" (a `button.btn-link` in the details panel), so matching on the label
+  // the way `findActionByLabel` does would be ambiguous too. The key is the one signal
+  // that is unambiguous on both pages, and it names what it is.
+  //
+  // The walk is hand-rolled rather than `querySelectorAll('[data-rb-event-key$=…]')`
+  // for the reason `findActionByLabel` is: the shared test harness's fake DOM answers
+  // class selectors and nothing more.
+  function hasEditPanelTab(node) {
+    if (!node) return false;
+    var key = node.getAttribute && node.getAttribute('data-rb-event-key');
+    if (typeof key === 'string' && key.length > 11 && key.slice(-11) === '-edit-panel') return true;
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) if (hasEditPanelTab(kids[i])) return true;
+    return false;
+  }
+
+  function findTabStrip() {
+    var lists = document.querySelectorAll('.nav-tabs') || [];
+    for (var i = 0; i < lists.length; i++) if (hasEditPanelTab(lists[i])) return lists[i];
+    return null;
+  }
+
+  var SRC_ROW_CLASS = 'ptp2re-src-row';
+
+  // A row of our own, immediately after the strip inside the strip's own block-level
+  // parent. This is the one container in the plugin that Stash puts nothing into, so
+  // it is also the one with no anchor to find and nothing to order against - a button
+  // here appends, which is what `insertBeforeImportantAction` already does when it
+  // recognises no action, so that call needs no branch for this case.
+  //
+  // Not *inside* the strip: it is `role="tablist"`, whose children are meant to be
+  // tabs, and it is the flex row the tabs are laid out in. A button in there would be
+  // wrong to a screen reader and would sit on the tab line rather than under it.
+  function ensureTabStripRow() {
+    var strip = findTabStrip();
+    if (!strip || !strip.parentNode) return null;
+    var existing = byClass(strip.parentNode, SRC_ROW_CLASS);
+    if (existing) return existing;
+    var row = el('div', SRC_ROW_CLASS);
+    strip.parentNode.insertBefore(row, strip.nextSibling);
+    return row;
+  }
+
+  // The navbar where there is one, our own row under the tab strip where there is not.
+  // Order matters: Performer and Group render a navbar *and* no tab strip, so the first
+  // branch is the only one they ever reach, and their placement is unchanged.
+  function findSourceButtonContainer() {
+    return findDetailContainer() || ensureTabStripRow();
+  }
+
   var MANUAL_SRC_BTN_CLASS = 'ptp2re-manual-src-btn';
 
   function manualSourceButtonId(path) {
@@ -4253,17 +4333,14 @@
       }
       gateLogOnce('s:paths', SOURCES[rt.sourceType].label + ' ' + rt.id + ' - ' + candidates.length +
         ' candidate path(s): ' + candidates.map(function (p) { return p.id; }).join(', '));
-      var container = findDetailContainer();
+      var container = findSourceButtonContainer();
       if (!container) {
-        // Reported rather than passed over: Gallery Details renders no button row of
-        // its own, so this is the expected answer there and a real gap elsewhere. On a
-        // Scene it is also what an open Edit tab looks like, the detail navbar being
-        // the thing a source button anchors to.
-        gateLogOnce('s:container', 'no detail button row on ' + SOURCES[rt.sourceType].label +
-          ' ' + rt.id + ' - nothing to anchor a source button to');
+        gateLogOnce('s:container', 'nowhere to put a source button on ' + SOURCES[rt.sourceType].label +
+          ' ' + rt.id + ' - no detail action row and no tab strip');
         clearManualSourceButtons(); return;
       }
-      gateLogOnce('s:container', 'detail button row found on ' + SOURCES[rt.sourceType].label + ' ' + rt.id);
+      gateLogOnce('s:container', 'source button row on ' + SOURCES[rt.sourceType].label + ' ' + rt.id +
+        ': ' + (hasClass(container, SRC_ROW_CLASS) ? 'our own, under the tab strip' : "Stash's detail action row"));
       ensureRowSpacing(container);
       var paths = candidates.filter(function (p) {
         var dropped = otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, sourceButtonLabel(p, s));

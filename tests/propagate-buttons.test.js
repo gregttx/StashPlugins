@@ -153,6 +153,42 @@ function stashAction(harness, label, computed, tag) {
   return node;
 }
 
+// The tab strip Scene and Gallery render in place of a detail action row, reproduced
+// from a live Stash (2026-08-12):
+//
+//   <div class="scene-tabs …"><div><div class="mr-auto nav nav-tabs" role="tablist">
+//     <div class="nav-item"><a data-rb-event-key="scene-details-panel">Details</a></div>
+//     … <a data-rb-event-key="scene-edit-panel">Edit</a>
+//
+// `keys` names the tabs; the plugin picks a strip by whether one of them ends
+// `-edit-panel`, so a fixture can build the *other* kind (Gallery's Images/Add strip)
+// by passing keys that do not.
+function tabStrip(env, keys) {
+  const outer = h.makeElement('div');
+  outer.className = 'gallery-tabs';
+  const parent = h.makeElement('div');           // the block-level wrapper our row goes into
+  const strip = h.makeElement('div');
+  strip.className = 'mr-auto nav nav-tabs';
+  strip.setAttribute('role', 'tablist');
+  keys.forEach((k) => {
+    const item = h.makeElement('div');
+    item.className = 'nav-item';
+    const a = h.makeElement('a');
+    a.className = 'nav-link';
+    a.setAttribute('data-rb-event-key', k);
+    a.textContent = k.replace(/^.*-(\w+)-panel$/, '$1');
+    item.appendChild(a);
+    strip.appendChild(item);
+  });
+  parent.appendChild(strip);
+  outer.appendChild(parent);
+  env.body.appendChild(outer);
+  return { strip: strip, parent: parent };
+}
+
+const srcRow = (env) => (env.body.descendants() || [])
+  .filter((n) => h.hasClass(n, 'ptp2re-src-row'));
+
 // Group's (and, per MergePerformerTagsToScenes' own code, Performer's) edit form,
 // found live: `.details-edit`, the same container Stash swaps between a detail-view
 // navbar (carries a Delete button) and the edit form itself (does not). `withDelete`
@@ -1309,6 +1345,79 @@ function nodeListLikeContainer() {
     await h.flush(80);
     h.check('a save Stash rejected does not re-probe',
       entityQueries(env.calls).length === before);
+  }
+
+  // ── The tab strip: a source button on a page with no action row (0.14.0) ─────
+  //
+  // Confirmed live 2026-08-12: Scene and Gallery render no `.details-edit` at all, so
+  // five of the eleven source buttons had nowhere to anchor and had never appeared.
+  {
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    const { strip, parent } = tabStrip(env, ['scene-details-panel', 'scene-edit-panel']);
+    env.tick();
+    await h.flush(60);
+    const rows = srcRow(env);
+    h.check('a page with only a tab strip gets a source-button row of ours', rows.length === 1);
+    h.check('placed immediately after the strip, inside its own block-level parent',
+      rows.length === 1 && rows[0].parentNode === parent && strip.nextSibling === rows[0]);
+    h.check('and the button lands in it', sourceButtons(env).length === 1 &&
+      sourceButtons(env)[0].parentNode === rows[0]);
+    h.check('never inside the tablist itself, whose children are meant to be tabs',
+      !(strip.childNodes || []).some((n) => h.hasClass(n, 'ptp2re-manual-src-btn')));
+  }
+  {
+    // Gallery renders *two* `.nav-tabs` strips - its own panels, and an Images/Add
+    // strip for the image list - and a class match alone picks whichever comes first.
+    // The Images/Add one is seeded first here, so a plugin choosing by class fails.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, d1TagsGalleriesToImages: true },
+      pathname: '/galleries/10',
+      sourceFilter: [{ id: '55' }],
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    const decoy = tabStrip(env, ['images', 'add']);
+    const real = tabStrip(env, ['gallery-details-panel', 'gallery-edit-panel']);
+    env.tick();
+    await h.flush(60);
+    h.check('the strip carrying the entity\'s own Edit tab is the one chosen',
+      srcRow(env).length === 1 && srcRow(env)[0].parentNode === real.parent);
+    h.check('and the Images/Add strip is left alone',
+      !(decoy.parent.childNodes || []).some((n) => h.hasClass(n, 'ptp2re-src-row')));
+  }
+  {
+    // Performer has a real navbar and no tab strip: unchanged, and the row is never
+    // built. The order of the two branches is what guarantees that.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    const navbar = detailsEditContainer(env, true);
+    tabStrip(env, ['performer-details-panel', 'performer-edit-panel']);
+    env.tick();
+    await h.flush(60);
+    h.check('a page with a real action row still uses it, not a row of ours',
+      srcRow(env).length === 0 && sourceButtons(env).length === 1 &&
+      sourceButtons(env)[0].parentNode === navbar);
+  }
+  {
+    // Neither: still nothing, and still no crash. This is the state every Scene and
+    // Gallery was in before 0.14.0.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }] },
+    });
+    env.tick();
+    await h.flush(60);
+    h.check('no action row and no tab strip draws nothing at all',
+      srcRow(env).length === 0 && sourceButtons(env).length === 0);
   }
 
   // ── Gating diagnostics: off by default, on from the console ──────────────────

@@ -264,10 +264,11 @@ see the reasoning, open the browser console (F12), run:
 StashPluginCoop.debugButtons = true
 ```
 
-and navigate to the page. Each button reports whether it is shown or hidden and why, prefixed
-`[ptp2re gate]`. It takes effect on the next tick — no reload, no setting to change — and one switch
-covers both this plugin and its sibling, since they draw buttons into the same rows. Set it to
-`false`, or just reload the page, to turn it off again.
+Each button reports whether it is shown or hidden and why, prefixed `[ptp2re gate]`, on the next tick —
+no reload, no navigation, no setting to change. It works on the page you are already looking at,
+which is the point: since 0.13.2 the answer is restated from what the plugin already knows rather
+than only when it next re-checks. One switch covers both this plugin and its sibling, since they
+draw buttons into the same rows. Set it to `false`, or reload the page, to turn it off again.
 
 Clicking one does one of two things, depending on **Save Immediately**:
 

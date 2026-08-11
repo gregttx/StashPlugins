@@ -202,10 +202,11 @@ see the reasoning, open the browser console (F12), run:
 StashPluginCoop.debugButtons = true
 ```
 
-and navigate to the page. Each button reports whether it is shown or hidden and why, prefixed
-`[cpt2s gate]`. It takes effect on the next tick — no reload, no setting to change — and one switch
-covers both this plugin and its sibling, since they draw buttons into the same rows. Set it to
-`false`, or just reload the page, to turn it off again.
+Each button reports whether it is shown or hidden and why, prefixed `[cpt2s gate]`, on the next tick —
+no reload, no navigation, no setting to change. It works on the page you are already looking at,
+which is the point: since 1.16.2 the answer is restated from what the plugin already knows rather
+than only when it next re-checks. One switch covers both this plugin and its sibling, since they
+draw buttons into the same rows. Set it to `false`, or reload the page, to turn it off again.
 
 **The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Copy all Tags from all Performers" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
 

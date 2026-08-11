@@ -38,6 +38,13 @@ function responder(opts) {
       plugins[NAME] = opts.settings || {};
       return { data: { configuration: { plugins } } };
     }
+    // The recap's tooltips: aliases and descriptions for the tags a run moves, asked
+    // for by id after the walk rather than carried on `PTPTags` for the whole library.
+    // Checked before `PTPTags`, since that regex would match this query's name too.
+    if (/PTPTagDetail/.test(q)) {
+      if (opts.failTagDetail) return { errors: [{ message: 'too expensive' }] };
+      return { data: { findTags: { tags: opts.tagDetail || [] } } };
+    }
     if (/PTPTags/.test(q)) {
       if (opts.failTags) return { errors: [{ message: 'tags boom' }] };
       return { data: { findTags: { tags: opts.tags || TAGS } } };
@@ -70,6 +77,15 @@ function run(opts) {
 const mutations = (calls) => calls.filter((c) => /\bmutation\b/.test(c.query || ''));
 const tagLines = (d) => d.lines.filter((l) => /^\[TAG\]/.test(l));
 const perfLines = (d) => d.lines.filter((l) => /^\[PERF\]/.test(l));
+// The hoverable segments of the tag recap: only the tags with something to say beyond
+// the caption carry a title, and nothing else about the line changes.
+const recapSpans = (env, verb) => {
+  const line = env.ctx.document.body.descendants().filter((n) =>
+    h.hasClass(n, 'ptp2re-line') && n.textContent.indexOf('tag(s) ' + verb + ':') !== -1)[0];
+  return line ? line.descendants() : [];
+};
+const recapTips = (env, verb) => recapSpans(env, verb).filter((n) => n.title)
+  .map((n) => ({ text: n.textContent, title: n.title }));
 
 Promise.resolve()
 
@@ -542,6 +558,78 @@ Promise.resolve()
     // A count in brackets here would make the legend false.
     h.check('and the count outside the brackets, as the legend promises',
       !/\(\d+\) \(\d+\)/.test(line) && /x\d+/.test(line), line);
+  })
+
+  // ── The recap's tags hover ────────────────────────────────────────────────
+  //
+  // The recap is the one place this dialog enumerates tags, so it is where a tag can
+  // say what it *is* - which is what tells two tags sharing a name apart without
+  // leaving the dialog. `tagMap` already carries names for the whole library because
+  // the filters need them; aliases and a description are paragraphs, and carrying
+  // those for every tag to name the handful a recap mentions is the trade this query
+  // exists to avoid.
+  .then(() => run({
+    settings: { b1TagsPerformersToScenes: true },
+    tagDetail: [
+      { id: '2', name: 'Blonde', aliases: ['Blond', 'Blonde Hair'],
+        description: 'Light hair,\n  natural or dyed.' },
+      { id: '3', name: 'Outdoor', aliases: [], description: null },
+    ],
+    library: {
+      findScenes: { node: 'scenes', list: [
+        { id: '10', title: 'One', tags: [], organized: false,
+          performers: [{ id: '100', name: 'Jane', tags: [{ id: '2' }, { id: '3' }] }] },
+      ] },
+    },
+  })).then(({ env, d }) => {
+    const detail = env.calls.filter((c) => /PTPTagDetail/.test(c.query || ''));
+    h.check('the detail query is scoped to the tags the recap names',
+      detail.length === 1 && detail[0].variables.ids.slice().sort().join() === '2,3',
+      JSON.stringify(detail.map((c) => c.variables)));
+    // Read defensively: a build that never issues the query must fail this rather
+    // than throw and take the rest of the suite with it.
+    const detailQuery = (detail[0] || {}).query || '';
+    h.check('and asks for the two fields the library-wide tag query does not',
+      /aliases/.test(detailQuery) && /description/.test(detailQuery), detailQuery);
+    h.check('while the library-wide tag query still asks for neither',
+      !env.calls.some((c) => /PTPTags\b/.test(c.query || '') &&
+        (/aliases/.test(c.query) || /description/.test(c.query))));
+
+    const tips = recapTips(env, 'to add');
+    h.check('the tag with aliases and a description hovers to them',
+      tips.length === 1 && tips[0].text.indexOf('"Blonde" (2)') === 0 &&
+      tips[0].title === 'Blonde\nStash tag id 2\nAliases: Blond, Blonde Hair\n' +
+        'Description: Light hair, natural or dyed.', JSON.stringify(tips));
+    // Nothing marks which tags hover, so a hover that opens has to say something the
+    // line does not already.
+    h.check('a tag with neither is left plain',
+      !tips.some((t) => t.text.indexOf('Outdoor') !== -1), JSON.stringify(tips));
+    // The spans exist to hang a title on; styling them read as decoration in a log
+    // that has none elsewhere, so the recap has to look like every other line.
+    h.check('and the tags are not styled, only titled',
+      recapSpans(env, 'to add').every((n) => !n.className),
+      recapSpans(env, 'to add').map((n) => n.className).join('|'));
+    h.check('and the line itself is unchanged as text, which is what Copy log hands over',
+      d.lines.some((l) => l === '[INFO] 2 tag(s) to add: "Blonde" (2) x1, "Outdoor" (3) x1'),
+      d.lines.join(' | '));
+  })
+
+  // A tooltip is worth a query, not a run: the recap must read the same when the
+  // query fails, and must not spend an [ERROR] line on it.
+  .then(() => run({
+    settings: { b1TagsPerformersToScenes: true },
+    failTagDetail: true,
+    library: {
+      findScenes: { node: 'scenes', list: [
+        { id: '10', title: 'One', tags: [], organized: false,
+          performers: [{ id: '100', name: 'Jane', tags: [{ id: '2' }] }] },
+      ] },
+    },
+  })).then(({ d }) => {
+    h.check('a failed detail query still leaves the recap readable',
+      d.lines.some((l) => l === '[INFO] 1 tag(s) to add: "Blonde" (2) x1'), d.lines.join(' | '));
+    h.check('and says nothing about it',
+      !d.lines.some((l) => l.indexOf('[ERROR]') === 0), d.lines.join(' | '));
   })
 
   .then(() => run({

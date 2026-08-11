@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.15.0';
+  var PLUGIN_VERSION = '0.16.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -888,6 +888,65 @@
     return String(a) < String(b) ? -1 : (String(a) > String(b) ? 1 : 0);
   }
 
+  // ── Tag tooltips on the recap ─────────────────────────────────────────────
+  //
+  // The recap names a tag; this says what the tag *is*, which is what tells two tags
+  // with the same name apart without leaving the dialog. Same shape and same caps as
+  // `MergePerformerTagsToScenes`' `taskTagTooltip` and `NormalizeParentTags`'
+  // `tagTooltip` - separate because the plugins share no module; keep them readable
+  // against each other.
+  var TIP_ALIASES = 8;        // aliases named before the rest become a count
+  var TIP_ALIAS_CHARS = 120;  // and the width that can cut the list shorter still
+  var TIP_DESC_CHARS = 240;   // how much of a description the excerpt carries
+
+  // Cut on the last space before the limit so a word is never sliced in half - unless
+  // the only space is near the start, where honouring it would throw most of the
+  // excerpt away.
+  function excerpt(text, max) {
+    var s = oneLine(text);
+    if (s.length <= max) return s;
+    var cut = s.slice(0, max);
+    var space = cut.lastIndexOf(' ');
+    if (space > max * 0.6) cut = cut.slice(0, space);
+    return cut.replace(/[\s,;:.\-]+$/, '') + '…';
+  }
+
+  function aliasList(t) {
+    return (((t && t.aliases) || []).map(oneLine)).filter(function (a) { return !!a; });
+  }
+
+  // Whether the tag has anything to say the recap does not already show. The span
+  // already reads `"Tattoo" (11) x18`, so a tooltip repeating the name and id would
+  // open on a hover only to restate the line under it - and since nothing marks which
+  // tags have one, every hover that does open had better say something new.
+  function tagHasDetail(t) {
+    return !!(aliasList(t).length || oneLine(t && t.description));
+  }
+
+  function tagTooltip(t, id) {
+    var lines = [oneLine((t && t.name) || 'unknown'), 'Stash tag id ' + id];
+    var aliases = aliasList(t);
+    if (aliases.length) {
+      var shown = [], used = 0;
+      for (var i = 0; i < aliases.length; i++) {
+        if (shown.length && (shown.length >= TIP_ALIASES || used + aliases[i].length > TIP_ALIAS_CHARS)) break;
+        shown.push(shown.length ? aliases[i] : excerpt(aliases[i], TIP_ALIAS_CHARS));
+        used += aliases[i].length + 2;
+      }
+      // The tail is counted rather than dropped: a shortened list that does not say
+      // it is shortened reads as a complete one.
+      var rest = aliases.length - shown.length;
+      lines.push('Aliases: ' + shown.join(', ') + (rest > 0 ? ', and ' + rest + ' more' : ''));
+    }
+    var desc = oneLine(t && t.description);
+    if (desc) lines.push('Description: ' + excerpt(desc, TIP_DESC_CHARS));
+    return lines.join('\n');
+  }
+
+  function partsText(parts) {
+    return parts.map(function (p) { return p.text; }).join('');
+  }
+
   // ── The exclusion filters ─────────────────────────────────────────────────
   //
   // Two levels, and they answer different questions. Entity-level skips a whole
@@ -1222,6 +1281,10 @@
     this.undone = 0;
     this.undoFailed = 0;
     this.undoTotal = 0;
+    // Entities the server has accepted a write for, `{ target: { id: true } }`, so the
+    // dialog can drop them from Apollo's cache when it finishes. Cleared per pass:
+    // what an earlier pass evicted is already gone.
+    this.wrote = {};
     this.cancelled = false;
     this.stopped = false;
     this.lines = [];
@@ -1339,11 +1402,14 @@
       ? this.noteEl.textContent + ' ' + msg : msg;
   };
 
-  Run.prototype.log = function (kind, message) {
+  // `parts` is optional and only the tag recap passes it: that line is rendered as
+  // spans so each tag can carry its own tooltip. `lines` keeps the plain string
+  // either way - Copy log hands over text, and a tooltip is not text.
+  Run.prototype.log = function (kind, message, parts) {
     var line = '[' + kind + '] ' + message;
     this.lines.push(line);
     this.viewLines++;
-    this.pending.push({ kind: kind, line: line });
+    this.pending.push({ kind: kind, line: line, parts: parts || null });
     this.scheduleFlush();
   };
 
@@ -1364,7 +1430,20 @@
     var pending = this.pending;
     this.pending = [];
     pending.forEach(function (p) {
-      this.logEl.appendChild(el('div', 'ptp2re-line ptp2re-' + p.kind, p.line));
+      var node = el('div', 'ptp2re-line ptp2re-' + p.kind, p.parts ? null : p.line);
+      // The line looks exactly like every other one: the spans exist to hang a title
+      // on and carry no styling of their own, the same call the sibling settled on
+      // after an underline and a help cursor read as decoration on a log that has
+      // none anywhere else.
+      if (p.parts) {
+        node.appendChild(el('span', null, '[' + p.kind + '] '));
+        p.parts.forEach(function (seg) {
+          var span = el('span', null, seg.text);
+          if (seg.title) span.title = seg.title;
+          node.appendChild(span);
+        });
+      }
+      this.logEl.appendChild(node);
     }, this);
     while (this.logEl.childNodes && this.logEl.childNodes.length > LOG_RENDER_CAP) {
       this.logEl.removeChild(this.logEl.firstChild);
@@ -1877,32 +1956,80 @@
   // Phase 2 passes counts accumulated from the **writes the server accepted**, not
   // from the plan, so a failed batch or a Stop is never summarised as though it had
   // landed. The two lines differing is meaningful rather than a fault.
+  //
+  // The tag half hovers. `tagMap` carries names and sort names for every tag in the
+  // library, because the filters need them; aliases and descriptions are fetched here
+  // instead, for the handful of ids a recap actually mentions. A description can run
+  // to paragraphs, and putting that text on `tagQuery` would carry it for the whole
+  // library to name tens of tags. The performer half stays plain text: performers have
+  // no equivalent detail on the traversal, and fetching it would be a query for a
+  // tooltip.
   Run.prototype.recap = function (source, verb) {
+    var self = this;
+    var ids = {};
+    ['tags', 'performers'].forEach(function (kind) {
+      var counts = source[kind] || {};
+      var list = [];
+      for (var id in counts) if (hasOwn(counts, id)) list.push(id);
+      ids[kind] = list;
+    });
+    if (!ids.tags.length) { this.recapLines(source, verb, ids, null); return Promise.resolve(); }
+    // A rescan empties the log while this is in flight, and a recap of the pass before
+    // it would land in the middle of the new one. The pass token is what makes the
+    // wait safe.
+    var pass = this.pass;
+    return this.loadTagDetail(ids.tags).then(function (detail) {
+      if (self.pass !== pass) return;
+      self.recapLines(source, verb, ids, detail);
+      self.flush();
+    });
+  };
+
+  // Aliases and descriptions for the tags a recap names, or null if they could not be
+  // had. Failure is silent by design: this buys a tooltip, not a write, and an [ERROR]
+  // line in a log the user is reading for what was changed would be the worse outcome.
+  Run.prototype.loadTagDetail = function (tagIds) {
+    return gqlRequest(
+      'query PTPTagDetail($ids: [ID!]) { findTags(ids: $ids) ' +
+      '{ tags { id name aliases description } } }', { ids: tagIds }
+    ).then(function (data) {
+      var out = {};
+      (((data.findTags || {}).tags) || []).forEach(function (t) { out[String(t.id)] = t; });
+      return out;
+    }, function () { return null; });
+  };
+
+  Run.prototype.recapLines = function (source, verb, ids, detail) {
     var self = this;
     ['tags', 'performers'].forEach(function (kind) {
       var counts = source[kind] || {};
-      var ids = [];
-      for (var id in counts) if (hasOwn(counts, id)) ids.push(id);
-      if (!ids.length) return;
+      var list = ids[kind];
+      if (!list.length) return;
       if (kind === 'tags') {
-        ids.sort(function (a, b) {
+        list.sort(function (a, b) {
           var c = collator().compare(sortKey(self.tagMap, a), sortKey(self.tagMap, b));
           return c !== 0 ? c : numericId(a, b);
         });
       } else {
-        ids.sort(function (a, b) {
+        list.sort(function (a, b) {
           var c = collator().compare(self.performerNames[a] || a, self.performerNames[b] || b);
           return c !== 0 ? c : numericId(a, b);
         });
       }
       var label = kind === 'tags' ? 'tag' : 'performer';
-      self.log('INFO', ids.length + ' ' + label + '(s) ' + verb + ': ' +
-        ids.map(function (id) {
-          var name = kind === 'tags' ? tagLabel(self.tagMap, id) : performerLabel(self.performerNames, id);
+      var parts = [{ text: list.length + ' ' + label + '(s) ' + verb + ': ' }];
+      list.forEach(function (id, i) {
+        var name = kind === 'tags' ? tagLabel(self.tagMap, id) : performerLabel(self.performerNames, id);
+        var d = kind === 'tags' && detail && hasOwn(detail, String(id)) ? detail[String(id)] : null;
+        parts.push({
           // The count is written x250 and never in brackets - the head legend says
           // so, and a count in brackets on this line would make it false.
-          return name.replace(/^(Tag|Performer) /, '') + ' x' + counts[id];
-        }).join(', '));
+          text: name.replace(/^(Tag|Performer) /, '') + ' x' + counts[id],
+          title: d && tagHasDetail(d) ? tagTooltip(d, id) : null,
+        });
+        if (i < list.length - 1) parts.push({ text: ', ' });
+      });
+      self.log('INFO', partsText(parts), parts);
     });
   };
 
@@ -1936,6 +2063,14 @@
       (entry.from[id] ? ' - from ' + entry.from[id] : '');
   };
 
+  // Called from both directions - an undo moves an entity as surely as an apply does,
+  // so a cache entry left over from either is equally stale.
+  Run.prototype.noteWritten = function (batch) {
+    if (!this.wrote[batch.target]) this.wrote[batch.target] = {};
+    var into = this.wrote[batch.target];
+    batch.entries.forEach(function (entry) { into[String(entry.id)] = true; });
+  };
+
   Run.prototype.batchFailed = function (batch, verb, e) {
     var ids = batch.entries.map(function (x) { return x.id; });
     // Sampled rather than listed: a failed chunk of a hundred should not put a
@@ -1954,6 +2089,7 @@
         // Recorded only once the server has taken it, so Undo can never try to
         // reverse a write that never landed.
         self.undoable.push(batch);
+        self.noteWritten(batch);
         batch.entries.forEach(function (entry) {
           batch.ids.forEach(function (id) {
             self.log(batch.kind === 'performers' ? 'PERF' : 'TAG',
@@ -2042,6 +2178,12 @@
     this.recap(this.appliedCounts, 'added');
     this.setState('done');
     this.flush();
+    // Evicted here rather than per batch: the dialog covers the page, so nothing
+    // behind it is being read until it closes, and one eviction at the end beats one
+    // per hundred entities. Eviction only, never `location.reload()` - that would tear
+    // this dialog down at the moment the user wants to read or copy its log.
+    evictWritten(this.wrote);
+    this.wrote = {};
   };
 
   // ── Undo ──────────────────────────────────────────────────────────────────
@@ -2067,6 +2209,7 @@
         // exactly the batches that are still applied.
         var at = self.undoable.indexOf(batch);
         if (at !== -1) self.undoable.splice(at, 1);
+        self.noteWritten(batch);
         batch.entries.forEach(function (entry) {
           batch.ids.forEach(function (id) {
             self.log(batch.kind === 'performers' ? 'PERF' : 'TAG',
@@ -2136,6 +2279,9 @@
     // next step rather than a Proceed left armed over ground that has moved.
     this.setState('done');
     this.flush();
+    // Same reasoning as finishApply: an undo moved these entities too.
+    evictWritten(this.wrote);
+    this.wrote = {};
   };
 
   Run.prototype.disarmUndo = function () {
@@ -2617,18 +2763,30 @@
 
   // Writes the plan. One lease for the whole reaction, renewed per batch, released
   // whatever happens - an error here must not latch a sibling into standing down.
+  //
+  // Apollo eviction happens here rather than in a caller, because every headless write
+  // this plugin makes goes through this one function - the two manual buttons and both
+  // auto modes. It shipped in `runManualSource` alone, so an auto reaction rewrote the
+  // page the user was looking at and left it showing what it read before the save;
+  // `MergePerformerTagsToScenes` refreshes after every one of its own auto merges.
+  // Evicting from the caller means remembering to, once per write path.
   AutoRun.prototype.apply = function (label) {
     var self = this;
     var batches = buildBatches(this.plan);
     if (!batches.length) return Promise.resolve(0);
     var lease = acquireLease(label, AUTO_LEASE_TTL_MS);
+    // Only what the server accepted, so a failed batch does not drop a cache entry
+    // that still matches the library.
+    var wrote = {};
     var chain = Promise.resolve();
     batches.forEach(function (batch) {
       chain = chain.then(function () {
         lease.renew();
         return gqlRequest(bulkMutation(batch.target), { input: batchInput(batch, 'ADD') })
           .then(function () {
+            if (!wrote[batch.target]) wrote[batch.target] = {};
             batch.entries.forEach(function (entry) {
+              wrote[batch.target][String(entry.id)] = true;
               // Marked only once the server has taken it: an entity we failed to write
               // has not been written, and must not be shielded from the next save.
               markWritten(batch.target, entry.id);
@@ -2652,9 +2810,11 @@
     });
     return chain.then(function () {
       lease.release();
+      evictWritten(wrote);
       return self.written;
     }, function (e) {
       lease.release();
+      evictWritten(wrote);
       throw e;
     });
   };
@@ -3141,17 +3301,34 @@
   // Patches have to be registered before the components they target first render,
   // so this runs at script load; the load-event retry only covers Stash setting
   // window.PluginApi later than usual.
+  // Whether staging is possible at all on this Stash. Read by `runManual`, which saves
+  // rather than staging when it is false.
+  var _selectPatchesInstalled = false;
+
   function installSelectPatches() {
     var api = window.PluginApi;
     if (!api || !api.patch || typeof api.patch.before !== 'function') return false;
     try {
       api.patch.before('TagSelect', function (props) { captureSelect(_tagCaptures, props); return [props]; });
       api.patch.before('PerformerSelect', function (props) { captureSelect(_perfCaptures, props); return [props]; });
+      _selectPatchesInstalled = true;
       return true;
     } catch (e) {
       console.warn('[ptp2re] could not patch TagSelect/PerformerSelect:', e);
       return false;
     }
+  }
+
+  // Said once, and again if the user turns "save immediately" off and back on. Without
+  // it the only symptom is a button that saves when the setting says it should stage,
+  // which reads as the setting not working.
+  var _warnedNoStaging = false;
+  function warnNoStagingOnce(s) {
+    if (s.a2SaveImmediately || _selectPatchesInstalled) { _warnedNoStaging = false; return; }
+    if (_warnedNoStaging) return;
+    _warnedNoStaging = true;
+    console.warn('[ptp2re] staging is unavailable - this Stash does not expose PluginApi ' +
+      'component patching, so the manual buttons will copy and save directly.');
   }
 
   function idsOf(items) {
@@ -3227,21 +3404,37 @@
 
   // ── The click: plan one entity, then save or stage it ───────────────────────
   //
+  // **Just the path whose button was clicked**, never every enabled path into this
+  // target. That is what the button says it does - `manualButtonTitle` names one path,
+  // the caption names one source, and the setting description promises "one button per
+  // path". `runManualSource` had this right from the start and carries the same note;
+  // this side did not, so on a scene with both the performer and studio paths enabled,
+  // "Copy all Tags from all Performers" also copied the studio's tags. It also made
+  // this plugin's button silently wider than `MergePerformerTagsToScenes`' identically
+  // labelled one, which copies performer tags and nothing else.
+  //
   // `guarded()` around the whole thing for the same reason auto mode needs it: with
   // "save immediately" on, `run.apply()` issues the very bulk mutation the fetch
   // wrapper watches for, and without the guard a click would react to its own write.
-  function runManual(target, id) {
+  function runManual(path, target, id) {
     return autoSettings().then(function (s) {
-      var paths = enabledPaths(s).filter(function (p) { return p.target === target; });
-      if (!paths.length) throw new Error('no enabled paths into this page');
+      // Re-read rather than trusted: a path can be switched off between the tick that
+      // drew the button and the click on it.
+      if (!s[path.setting]) throw new Error('that path is no longer enabled');
+      // Staging needs PluginApi's component patching. Where that is missing the click
+      // saves instead, because the user never opted into review - they opted into the
+      // button, and this is the behaviour their Stash can support. The sibling has made
+      // the same trade since it grew staging; without it the click ends in an alert
+      // about a form control on a Stash that was never going to have one.
+      var immediate = s.a2SaveImmediately || !_selectPatchesInstalled;
+      warnNoStagingOnce(s);
       return guarded(function () {
         return autoContext(s).then(function (ctx) {
           var run = new AutoRun(s, ctx.tagMap, ctx.filters);
-          return run.planEntities(target, paths, [String(id)]).then(function () {
-            if (s.a2SaveImmediately) {
-              return run.apply('manual: ' + TARGETS[target].label + ' ' + id).then(function (n) {
-                return { mode: 'saved', count: n };
-              });
+          return run.planEntities(target, [path], [String(id)]).then(function () {
+            if (immediate) {
+              return run.apply('manual: ' + path.id + ' ' + TARGETS[target].label + ' ' + id)
+                .then(function (n) { return { mode: 'saved', count: n }; });
             }
             var count = applyPlanToForm(target, String(id), run.plan, run.tagMap, run.performerNames);
             return { mode: 'staged', count: count };
@@ -3307,7 +3500,7 @@
       var orig = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Working...';
-      runManual(target, id).then(function (result) {
+      runManual(path, target, id).then(function (result) {
         btn.disabled = false;
         btn.textContent = result.count ? ('Added ' + result.count) : 'No changes';
         // Re-probe when the flash is over rather than now: a saving click has just made
@@ -3936,7 +4129,10 @@
         var existing = document.getElementById(manualButtonId(p));
         if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-        insertBeforeImportantAction(container, buildManualButton(p, label, rt.target, rt.id, !!s.a2SaveImmediately));
+        // Same expression the click uses, so the tooltip never promises a review this
+        // Stash cannot give.
+        insertBeforeImportantAction(container, buildManualButton(p, label, rt.target, rt.id,
+          !!s.a2SaveImmediately || !_selectPatchesInstalled));
       });
     });
   }
@@ -4326,6 +4522,17 @@
     }
   }
 
+  // `{ target: { id: true } }`, as `AutoRun.apply` accumulates it. Nothing written
+  // means nothing to evict - refetching a panel this run did not change is the one
+  // cost eviction has.
+  function evictWritten(wrote) {
+    for (var target in wrote) {
+      if (!hasOwn(wrote, target)) continue;
+      var ids = Object.keys(wrote[target]);
+      if (ids.length) evictTargets(target, ids);
+    }
+  }
+
   function runManualSource(path, id) {
     return autoSettings().then(function (s) {
       return guarded(function () {
@@ -4334,12 +4541,9 @@
           return autoContext(s).then(function (ctx) {
             var run = new AutoRun(s, ctx.tagMap, ctx.filters);
             return run.planEntities(path.target, [path], targetIds).then(function () {
-              return run.apply('manual source: ' + path.id + ' ' + id).then(function (n) {
-                // Only on a write, and only the entities the run actually touched -
-                // evicting on a no-op would refetch a panel nothing changed.
-                if (n) evictTargets(path.target, targetIds);
-                return n;
-              });
+              // Eviction is `run.apply`'s, over the entities it actually wrote rather
+              // than every target this source reaches.
+              return run.apply('manual source: ' + path.id + ' ' + id);
             });
           });
         });

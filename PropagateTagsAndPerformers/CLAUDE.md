@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.15.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.16.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -47,6 +47,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — one of its lines named Scene on every page; and Scene/Gallery confirmed anchorless | **0.13.3** |
 | | — a second anchor: our own row under the tab strip, for pages with no action row | **0.14.0** |
 | | — that row shown only on its targets' tab; Apollo evicted so counts redraw; labels | **0.15.0** |
+| | — parity with `MergePerformerTagsToScenes` on the one path both plugins run (§5f) | **0.16.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -1139,6 +1140,62 @@ ran before the candidate-path filter, so it complained about nowhere to put a bu
 going to exist. Only the *dedup* half of that filter needs a container, so the two are split now and
 the cheap half runs first.
 
+## 5f. Parity with `MergePerformerTagsToScenes` (0.16.0)
+
+Both plugins run `tags:performer>scene` (§5a), which makes them comparable on that one path, and a
+side-by-side reading found four places they disagreed. Three were this plugin's to fix; the fourth
+was the sibling's, and it was fixed there in the same round (its 1.16.3). None of them is about
+*what* gets copied — the copy itself was already the same — and that is why they went unnoticed:
+every one is about what happens around the write.
+
+**A target-side button ran every enabled path into the page, not the one that was clicked.**
+`runManual` took `(target, id)` and planned `enabledPaths(s).filter(p => p.target === target)`, so
+with the performer and studio paths both on, "Copy all Tags from all Performers" copied the studio's
+tags too. It now takes the path. **`runManualSource` had this right from the start and carries a
+comment naming the hazard** — "not `runAutoTargets`' replan everything enabled for this target,
+which would pull in *other* sources' paths too and do more than the button that was clicked
+promised" — so this is not a case of nobody having thought about it. The reasoning was written down
+on one side of a pair and never crossed to the other, which is the same failure §5c records about
+citing a sibling's behaviour without checking whether it was argued for. **When you write a note
+explaining why a function is narrow, check its twin.**
+
+**Apollo eviction lived in one caller instead of at the write.** `evictTargets` was called from
+`runManualSource` only, so both automatic modes wrote and left the page showing what Stash had read
+before the save — the sibling refreshes after every one of its auto merges. It moved into
+`AutoRun.apply`, which is the one function every headless write here passes through, and into the
+task's `finishApply`/`finishUndo` for the dialog's two. It now evicts **what the server accepted**
+rather than every target the run looked at, which is strictly narrower than what the source button
+did before: that evicted every target a source *reached*, including ones it wrote nothing to. The
+plugin already refused to evict at all after a zero-write click, so the old behaviour was
+inconsistent with its own rule rather than merely coarse.
+
+**Staging failed instead of degrading where `PluginApi` cannot be patched.** `stageEntry` throws
+"open the Edit tab first", which is the right answer when the control is genuinely absent from an
+open form — and the wrong one on a Stash that was never going to expose the patch point at all.
+`_selectPatchesInstalled` records whether `installSelectPatches` succeeded, and a click falls back
+to saving when it did not, warning once. The user did not opt into review; they opted into the
+button. The tooltip reads the same expression, so it never promises a review this Stash cannot give.
+The sibling has made this trade since it grew staging (`stagingActive`/`warnNoStagingOnce`).
+
+**The recap's tags now hover**, naming aliases and description — the sibling's 1.8.0 feature, in
+this plugin's own recap. Same four constraints and they are worth restating because they are what
+keep it cheap: the line is rendered as **spans** (`log` takes an optional `parts`, `flush` builds a
+span per segment, `lines` keeps the joined string because Copy log hands over text); only tags with
+something to add beyond the caption carry a title, since nothing marks which ones hover; the detail
+is **one query scoped to the ids the recap names**, never two fields on `tagQuery`, which would
+carry a paragraph per tag for the whole library; and failure is silent, because this buys a tooltip
+rather than a write. `pass` is captured across the wait for the same reason it is in the sibling — a
+Rescan mid-flight must drop the recap rather than land it in the next pass's log.
+
+**The performer half stays plain text**, and that is deliberate rather than unfinished: performers
+carry no equivalent detail on the traversal, so a tooltip there would be a second query for a
+hover. The sibling has no performer recap at all to compare against.
+
+**What stayed different, and should.** The sibling shows `Merging... (12/340)` on its performer
+button while this plugin's source button shows `Working...` — a real gap, left open on request. And
+its per-scene writes against this plugin's bulk batching are not a discrepancy to close: the batches
+are what let a run write tens of thousands of assignments in hundreds of requests.
+
 ## 6. Anchoring in Stash's markup
 
 Every foothold here is a guess until it runs against a real Stash, and a test written from the same
@@ -1173,7 +1230,11 @@ of it apply unchanged:
   suite.
 - **`propagate-plan.test.js`** — the walk over the library: the gather, the diff, both aggregation
   modes and their edges, the cascade, every exclusion filter, pass ordering, naming, the recap, and
-  that a review issues no mutation at all.
+  that a review issues no mutation at all. Since 0.16.0 the recap's tooltips (§5f): the detail query
+  scoped to the ids the recap names and asking for the two fields `PTPTags` deliberately does not, a
+  tag with aliases and a description hovering to both, a tag with neither left plain, the spans
+  carrying a title and no class, the line unchanged as text so Copy log is unaffected, and a failed
+  detail query leaving the recap readable and unremarked.
 - **`propagate-sweep.test.js`** — the two reverse paths and the sweep that gathers them: what it
   costs, that an image in two galleries reaches both, that it pages and accumulates, that every
   source is gathered before any target is read, a partial sweep after a failed page, and the
@@ -1186,7 +1247,9 @@ of it apply unchanged:
   restraint around the mode being off, no matching path, a rejected save, a deleted entity; that the
   reaction never reacts to its own write; the per-entity cooldown, keyed and marked correctly; the
   lease, honoured and released; bulk saves; the settings cache and its TTL; the exclusion filters;
-  and a reverse path reacting without sweeping the library.
+  and a reverse path reacting without sweeping the library. Since 0.16.0 (§5f), that a reaction
+  evicts what it wrote from Apollo and collects afterwards, paired with the negative that a reaction
+  writing nothing evicts nothing.
 - **`propagate-auto-source.test.js`** — auto mode, source side (§4e): both lookup kinds, including a
   two-hop `field` and a two-hop `filter`; that every `PATHS` entry has a `SOURCE_REVERSE` entry; the
   same restraint suite as the target side, reused rather than re-derived because `runAutoTargets` is
@@ -1237,7 +1300,12 @@ of it apply unchanged:
   at load before any container exists, with the negative that a user who has the buttons switched
   off is never asked for the tag library at all. Since 0.12.14: the probe running with no container
   present at all, and the button then drawn from the cached answer when the row appears without a
-  single new query.
+  single new query. Since 0.16.0 (§5f): two enabled paths drawing two buttons and the performer one
+  writing *only* the performer's tag; a Stash with no `PluginApi` at all (`noPluginApi`, which is
+  why `start` builds the fake conditionally) saving rather than alerting, with the tooltip promising
+  the save; and the source-button eviction narrowed to what was written, via an `entity` responder
+  that can answer per id — the flat form served one object for every id, so the old check was
+  asserting that an *unwritten* group is evicted.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.** The

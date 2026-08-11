@@ -100,6 +100,43 @@ const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query |
       w.length && w[0].variables.input.tag_ids.mode === 'ADD');
   }
 
+  // ── The reaction drops what it wrote out of Apollo (0.15.1) ──────────────
+  //
+  // Eviction shipped in the source button's click handler alone, so an auto reaction
+  // rewrote the page the user was looking at and left it showing what Stash had read
+  // before the save. It now happens in `AutoRun.apply`, which is the one function every
+  // headless write here goes through - both buttons and both auto modes.
+  // `MergePerformerTagsToScenes` refreshes after every one of its own auto merges.
+  {
+    const evicted = [];
+    const env = start({ settings: ON });
+    env.ctx.window.__APOLLO_CLIENT__ = {
+      cache: { evict: (o) => evicted.push(o.id), gc: () => { evicted.push('gc'); } },
+    };
+    await h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' });
+    await h.flush(80);
+    h.check('the scene the reaction wrote is evicted by Apollo id',
+      evicted.indexOf('Scene:10') !== -1, evicted.join(','));
+    h.check('and the cache is collected afterwards',
+      evicted[evicted.length - 1] === 'gc', evicted.join(','));
+  }
+  {
+    // The negative, and it is the reason eviction reads the writes rather than the
+    // plan: a reaction that changed nothing must not refetch a panel that is correct.
+    const evicted = [];
+    const env = start({
+      settings: ON,
+      entities: { 10: Object.assign({}, SCENE, { tags: [{ id: '1' }] }) },  // already has it
+    });
+    env.ctx.window.__APOLLO_CLIENT__ = {
+      cache: { evict: (o) => evicted.push(o.id), gc: () => { evicted.push('gc'); } },
+    };
+    await h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' });
+    await h.flush(80);
+    h.check('a reaction that wrote nothing evicts nothing',
+      evicted.length === 0, evicted.join(','));
+  }
+
   // ── Restraint ───────────────────────────────────────────────────────────
   {
     const env = start({ settings: { b1TagsPerformersToScenes: true } });   // mode off

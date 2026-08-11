@@ -88,6 +88,12 @@ Where several entities carried the same thing, one is named and the rest are cou
 one is where to start looking. Numbers in brackets are Stash ids, so you can go straight to
 `/performers/7` to see why a tag was copied, or to undo one by hand later.
 
+Each phase closes with a recap of every distinct tag and performer the run moves and how many
+entities each lands on — the question worth asking before a library-wide write, and one a
+six-figure log cannot be read for. Since 0.16.0 **the tags in that line hover**, naming their
+aliases and description, which is what tells two tags sharing a name apart without leaving the
+dialog. Only tags with something to add beyond the name carry one.
+
 `MergePerformerTagsToScenes` already does one of these thirteen paths, and does it well. This
 plugin implements it too, so it can stand alone; the two coexist, and the dialog says so when both
 are set to act on the same path. Neither disables the other.
@@ -270,6 +276,13 @@ which is the point: since 0.13.2 the answer is restated from what the plugin alr
 than only when it next re-checks. One switch covers both this plugin and its sibling, since they
 draw buttons into the same rows. Set it to `false`, or reload the page, to turn it off again.
 
+**Each button copies its own path and nothing else** (0.16.0). With both the performer and studio
+paths enabled on a scene, "Copy all Tags from all Performers" copies the performers' tags and
+leaves the studio's alone; the studio's button is what copies those. Up to 0.15.0 either button ran
+every enabled path into the page, which is not what the caption, the tooltip or the setting
+description said, and made this plugin's scene button quietly do more than
+`MergePerformerTagsToScenes`' identically labelled one.
+
 Clicking one does one of two things, depending on **Save Immediately**:
 
 - **Off (the default) — stages.** The tags or performers it would add are pushed straight into the
@@ -284,7 +297,9 @@ Clicking one does one of two things, depending on **Save Immediately**:
 
 A button that cannot find the tag or performer box — the Edit tab was never opened, or a fresh
 Stash version has changed markup this plugin has not seen yet — reports the problem in an alert
-rather than silently doing nothing.
+rather than silently doing nothing. On a Stash too old to let a plugin observe those boxes at all,
+staging is impossible rather than merely failing, so since 0.16.0 the buttons **save** there
+instead, say so in their tooltip, and warn once in the browser console.
 
 **If `MergePerformerTagsToScenes` is also installed and showing its own button for the same path**
 ("Copy Tags to all Scenes" on the performer page, "Copy all Tags from all Performers" on the scene
@@ -376,9 +391,13 @@ mistake. Buttons in a detail action row (Performer, Group) are not affected.
 Until 0.13.3 those five buttons simply never appeared, and nothing said why; the gating diagnostics
 below are what found it.
 
-**Clicking one refreshes what it wrote.** The groups (or images, or scenes) it updated are dropped
-from Stash's client-side cache, so the panel you are looking at redraws with the new tag counts
-instead of the ones it loaded before the click. No page reload — the button keeps its "Added N".
+**Anything this plugin writes outside the task dialog refreshes what it wrote.** The groups (or
+images, or scenes) it updated are dropped from Stash's client-side cache, so the panel you are
+looking at redraws with the new tag counts instead of the ones it loaded before. No page reload —
+a button keeps its "Added N". Since 0.16.0 this covers **both automatic modes** as well as both
+buttons; before that only the source-side button refreshed, so an automatic propagation left the
+page you had just saved showing what it read a moment earlier. Only entities actually written are
+dropped: refetching a panel a run did not change is the one cost this has.
 
 ### What a source-side button actually does
 

@@ -2,8 +2,8 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.15.0**
-(last checked 2026-08-11). All eight decisions are settled (§4) and every open question is closed
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.16.0**
+(last checked 2026-08-13). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
 correctly on **all four target pages, confirmed live** (step 8) — built best-effort, without a live
@@ -123,6 +123,7 @@ recorded preference is a button sometimes unneeded over one missing.
 
 Two more in the same release. The click **evicts what it wrote from Apollo**, so the panel redraws
 with the new tag counts - eviction only, never a reload, which would tear the page down mid-flash.
+(0.16.0 moved that eviction out of the click handler and into the write itself; see below.)
 And the two `{mode}` source buttons were **renamed in the user's own words** to say where the tags
 come from: `Copy {mode} Tags to all Groups from their Scenes`. The misconception it fixes is worth
 recording, because it is inherent to the source side and not a wording accident: **a source button
@@ -136,6 +137,49 @@ middle segment exactly, and **no test can distinguish that from a substring test
 merely contains a target's name, not because anything observed needs it. An earlier version of the
 test claimed to catch it and did not.
 
+0.16.0 came from a question this plan never asked: **is this plugin a superset of
+`MergePerformerTagsToScenes` on the one path both of them run?** §4 D3 settled that the two coexist
+and neither disables the other, and step 7 built the machinery to say so — but nobody had read them
+side by side on `tags:performer>scene` to check they behave the same. Four places they did not, and
+none of them is about *what* gets copied, which is exactly why nothing found them earlier: the copy
+itself was always identical. Three were this plugin's, one the sibling's (its 1.16.3).
+
+- **A target-side button ran every enabled path into the page, not the one clicked.** With the
+  performer and studio paths both on, "Copy all Tags from all Performers" copied the studio's tags
+  too — contradicting its own caption, its tooltip and the `a1` setting's promise of one button per
+  path, and making this plugin's button quietly do more than the sibling's identically labelled one.
+  The sharp part is that **`runManualSource` had it right and carries a comment naming the hazard**
+  in as many words. The reasoning was written down on one side of a pair and never crossed to the
+  other. Same shape as §5c's lesson about citing a sibling's behaviour without checking it was
+  argued for, one file closer to home: when a note explains why a function is narrow, check its twin.
+- **Apollo eviction lived in one caller instead of at the write**, so both automatic modes left the
+  page showing what Stash read before the save. It moved into `AutoRun.apply` — the one function
+  every headless write here passes through — and into the task's `finishApply`/`finishUndo`. It now
+  evicts what the *server accepted* rather than every target the run looked at, which is narrower
+  than 0.15.0's version: that evicted every target a source reached, including ones it wrote nothing
+  to, while the same code already refused to evict at all after a zero-write click. The old
+  behaviour was inconsistent with its own rule, not merely coarse.
+- **Staging failed instead of degrading** on a Stash with no `PluginApi.patch`. The alert about a
+  form control is right when the control is missing from an open form and wrong when the patch point
+  was never going to exist; a click now saves there, warns once and says so in the tooltip. The user
+  opted into the button, not into review.
+- **The recap's tags now hover**, naming aliases and description — the sibling's 1.8.0 feature in
+  this plugin's recap, under the same four constraints that keep it cheap: spans rather than text,
+  a title only where there is something to add beyond the name, one query scoped to the ids the
+  recap names, and silence on failure. The performer half stays plain, because no performer detail
+  rides the traversal and a tooltip is not worth a second query.
+
+The sibling's half was the mirror image of the exclusion-tag rule §4a records here: this plugin has
+always *stopped* when a configured exclusion tag name matches nothing, and its comment even said
+"the sibling does the same" — while `MergePerformerTagsToScenes` warned to the console and merged
+unfiltered. Same silent failure its own error path already refused, reached by a typo rather than a
+network fault, and a typo is the likelier of the two. **A note asserting what a sibling does is
+worth no more than the last time someone checked.**
+
+One gap left open on request: the sibling shows `Merging... (12/340)` on its performer button where
+this plugin's source button shows `Working...`. Its per-scene writes against this plugin's bulk
+batching are *not* a gap to close — the batches are what make a library-wide run affordable.
+
 0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
 once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
 of this file, the plugin `CLAUDE.md`s and the READMEs. It also fixed a real divergence it exposed —
@@ -146,14 +190,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.15.0, in all three places |
-| `PropagateTagsAndPerformers.js` | ~4,418 lines |
+| Version | 0.16.0, in all three places |
+| `PropagateTagsAndPerformers.js` | ~4,946 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 156 = **480** |
+| Checks in the eight | paths 60, base 75, plan 59, apply 43, sweep 30, auto 41, auto-source 28, buttons 163 = **499** |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
-| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.2 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch), `NormalizeParentTags` 1.7.5 → 1.7.7 |
-| Landed on `main` | through 0.14.0 (`6c5ed24`); 0.15.0 is uncommitted |
+| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.2 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch, 1.16.3 its half of the 0.16.0 parity pass), `NormalizeParentTags` 1.7.5 → 1.7.7 |
+| Landed on `main` | through 0.15.0 (`22aa4bb`); 0.16.0 is uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's
@@ -364,6 +408,17 @@ patchable. Staging generalises to all four target pages.
 **Status of the registry itself: built, step 7, 0.7.0.** It ended up narrower than sketched here —
 see step 7's own entry in §8 for what actually shipped and why the sibling plugins' hardcoded checks
 were *not* replaced wholesale.
+
+**Status of the parity claim: first actually checked at 0.16.0, and it did not hold.** "Feature
+parity" was asserted here at design time and built towards for fifteen minor versions without anyone
+reading the two plugins side by side on the path they share. Four behavioural differences turned up
+in one pass, three of them this plugin's — a target-side button running every enabled path rather
+than the one clicked, Apollo eviction sitting in one of four write paths, and staging alerting rather
+than degrading where `PluginApi` cannot be patched — plus the recap's tag tooltips, which the sibling
+had and this did not. See 0.16.0's entry in §1 for each, and for the sibling's own half of it
+(1.16.3, an exclusion-tag name matching no tag). **Parity is a claim about behaviour, and a claim
+about behaviour is worth what its last check was worth.** One difference is left open by decision:
+MPTTS's performer button reports `Merging... (12/340)`, this plugin's source button `Working...`.
 
 ### D4 — Not unifying with NormalizeParentTags ✅ *(recommendation, user did not object)*
 

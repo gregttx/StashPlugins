@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.16.2';
+  var PLUGIN_VERSION      = '1.16.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -358,13 +358,31 @@
   // A failed request rejects rather than resolving to null: silently treating an
   // error as "no exclusion configured" would merge tags into the very scenes the
   // user asked to protect, and tags are never removed again.
+  //
+  // **A name that matches no tag rejects too** (1.16.3). It used to warn to the console
+  // and merge unfiltered, which is the same silent-failure shape the paragraph above
+  // rejects, reached by a typo instead of by a network error: the user believes scenes
+  // carrying that tag are protected, every one of them is merged into, and nothing here
+  // removes a tag afterwards. A miss is still *cached* on the short TTL, so creating the
+  // tag starts the filter working without a reload - what changed is that the run stops
+  // meanwhile instead of proceeding without the protection it was asked for.
+  // `PropagateTagsAndPerformers`' `resolveExclusionTagId` throws on the same condition,
+  // with the same message shape; the two were opposite until now.
+  function excludeTagMissing(name) {
+    return new Error('The exclusion tag "' + name + '" does not exist. Nothing was ' +
+      'merged: running without it would write to the scenes it is there to protect. ' +
+      'Create the tag, or clear that setting.');
+  }
+
   function resolveExclusionTagId() {
     var name = (settings.excludeSceneWithTagName || '').trim();
     if (!name) { _excludeTagId = null; _excludeTagName = ''; return Promise.resolve(null); }
     if (name === _excludeTagName) {
       var age = Date.now() - _excludeTagAt;
       if (_excludeTagId && age < EXCLUDE_TAG_HIT_TTL_MS) return Promise.resolve(_excludeTagId);
-      if (!_excludeTagId && age < EXCLUDE_TAG_MISS_TTL_MS) return Promise.resolve(null);
+      if (!_excludeTagId && age < EXCLUDE_TAG_MISS_TTL_MS) {
+        return Promise.reject(excludeTagMissing(name));
+      }
     }
     // per_page: -1 because Stash compiles the EQUALS modifier to SQL LIKE, where _ and
     // % are wildcards. A name containing either can match far more tags than the default
@@ -390,7 +408,8 @@
       _excludeTagAt   = Date.now();
       if (!match) {
         console.warn('[cpt2s] exclusion tag not found: ' + name +
-          (hadId ? ' (it existed a moment ago — scenes are no longer being excluded)' : ''));
+          (hadId ? ' (it existed a moment ago — merging is stopping until it is back)' : ''));
+        throw excludeTagMissing(name);
       }
       return _excludeTagId;
     });

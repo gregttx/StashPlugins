@@ -265,5 +265,31 @@ function stashPerformerSave(ctx, id) {
     H.check('hit is cached within the TTL', second === first, first + ' then ' + second);
   }
 
+  // ── #12: a configured exclusion tag that matches nothing stops the merge ────
+  //
+  // Until 1.16.3 this warned to the console and merged unfiltered, which is the same
+  // silent failure the error path already refused, reached by a typo instead of by a
+  // network fault: the user believes those scenes are protected, every one of them is
+  // written to, and nothing here removes a tag afterwards.
+  // `PropagateTagsAndPerformers` has always stopped on this; the two were opposite.
+  {
+    console.log('\n#12 a missing exclusion tag stops the merge');
+    const { ctx, calls } = H.makeEnv({
+      respond: H.responder({
+        tags: [],   // the configured name matches nothing
+        scene: { organized: false, tags: [], performers: [
+          { tags: [{ id: '10', ignore_auto_tag: false, custom_fields: {} }] }] },
+      }),
+    });
+    H.run(ctx);
+    await H.flush();
+    const before = H.sceneUpdates(calls).length;
+    await stashSceneSave(ctx, 1);
+    await H.flush(80);
+    const ours = H.sceneUpdates(calls).length - before - 1; // minus the simulated user save
+    H.check('no merge is written while the exclusion tag is missing', ours === 0,
+      'plugin issued ' + ours);
+  }
+
   H.finish();
 })();

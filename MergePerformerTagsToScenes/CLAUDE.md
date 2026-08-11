@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.16.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.16.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **The button-label text is a cross-plugin contract, not cosmetics.** Both manual buttons read
@@ -110,6 +110,18 @@ two seconds from showing its effect.
 lookup as "no exclusion configured" would merge tags into the very scenes the user asked to
 protect, and tags are never removed again. Hits are cached 60s, misses 10s, both keyed on the
 configured name, so creating or deleting the tag is noticed without a page reload.
+
+**A name matching no tag rejects too** (1.16.3). It used to warn to the console and merge
+unfiltered, which is the *same* silent failure the sentence above refuses, reached by a typo instead
+of by a network fault — and a typo is much likelier than a failed request. The caching is unchanged,
+so creating the tag starts the filter working without a reload; what changed is that a run stops
+meanwhile rather than proceeding without the protection it was asked for. Every caller already
+handled a rejection sensibly and none needed touching: the task logs `[ERROR] Review failed` and
+finishes with an empty plan, the scene gate hides the button and says why on the debug channel, and
+both button clicks alert. **`PropagateTagsAndPerformers` has always thrown on this condition** —
+its own comment even claimed "the sibling does the same" while this side did the opposite, which is
+what a side-by-side reading of the two plugins found. A note asserting what a sibling does is worth
+no more than the last time someone checked.
 
 **`per_page: -1` in `resolveExclusionTagId`.** Stash compiles the `EQUALS` modifier to SQL `LIKE`,
 where `_` and `%` are wildcards, so a name containing either can match far more tags than one page
@@ -682,6 +694,9 @@ what it is given, not that Stash still gives it that.
 
 When fixing a bug, confirm the new test fails against the unfixed plugin:
 `SRC=/path/to/old.js node tests/merge-logic.test.js`.
+
+`merge-logic.test.js` §12 covers 1.16.3's exclusion-tag change: a configured name matching no tag
+writes nothing at all. It fails against 1.16.2, which merged unfiltered.
 
 ## 10. Versioning
 

@@ -66,7 +66,13 @@ function responder(opts) {
     const m = /query PTP_one_(\w+)\(/.exec(q);
     if (m) {
       const data = {};
-      data[m[1]] = opts.entity !== undefined ? opts.entity : SCENE;
+      // A function when a test needs the answer to depend on *which* id was asked for.
+      // The flat form serves the same object for every id, which is fine everywhere a
+      // test names one entity and misleading where it names several - the Apollo
+      // eviction check below is the one that cares.
+      data[m[1]] = typeof opts.entity === 'function'
+        ? opts.entity(String((req.variables || {}).id))
+        : (opts.entity !== undefined ? opts.entity : SCENE);
       return { data };
     }
     // 0.13.0: the source button's payload half - the source's *own* tags/performers,
@@ -212,8 +218,12 @@ function start(opts) {
   const env = h.makeEnv({
     quiet: true, respond: responder(opts), pathname: opts.pathname || '/scenes/10',
   });
-  env.ctx.PluginApi = { patch: { before: (n, fn) => { patches[n] = fn; } } };
-  env.ctx.window.PluginApi = env.ctx.PluginApi;
+  // `noPluginApi` is a Stash with no component patching at all - the case staging
+  // cannot work on, and the reason the buttons fall back to saving there.
+  if (!opts.noPluginApi) {
+    env.ctx.PluginApi = { patch: { before: (n, fn) => { patches[n] = fn; } } };
+    env.ctx.window.PluginApi = env.ctx.PluginApi;
+  }
   env.ctx.alert = (m) => { env.ctx._alert = m; };
   h.run(env.ctx, SRC);
   return { env, patches };
@@ -1205,6 +1215,66 @@ function nodeListLikeContainer() {
       w[0].variables.input.tag_ids.ids.join() === '1');
     h.check('the button reports what was written', /Added 1/.test(btn.textContent), btn.textContent);
   }
+
+  // ── A button copies its own path and nothing else (0.15.1) ──────────────────
+  //
+  // `runManual` planned *every* enabled path into the target regardless of which
+  // button was clicked, so "Copy all Tags from all Performers" on a scene with the
+  // studio path also enabled copied the studio's tags too. The caption names one
+  // source, the tooltip names one path and the setting promises one button per path;
+  // `runManualSource` had this right from the start. It also made this plugin's button
+  // silently wider than `MergePerformerTagsToScenes`' identically labelled one.
+  {
+    const { env } = start({
+      settings: {
+        a1ShowManualButtons: true, a2SaveImmediately: true,
+        b1TagsPerformersToScenes: true, b2TagsStudioToScenes: true,
+      },
+      entity: Object.assign({}, SCENE, {
+        tags: [],
+        performers: [{ id: '100', name: 'Jane', tags: [{ id: '1' }] }],
+        studio: { id: '200', name: 'Studio', tags: [{ id: '2' }] },
+      }),
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    const btns = manualButtons(env);
+    h.check('two enabled paths draw two buttons', btns.length === 2,
+      btns.map((b) => b.textContent).join(' | '));
+    const perf = btns.filter((b) => /from all Performers/.test(b.textContent))[0];
+    perf.click();
+    await h.flush(80);
+    const w = writes(env.calls);
+    h.check('the performer button writes only the performer tag',
+      w.length === 1 && w[0].variables.input.tag_ids.ids.join() === '1',
+      w.map((c) => JSON.stringify(c.variables.input.tag_ids)).join(' | '));
+    h.check('and says so on the caption', /Added 1/.test(perf.textContent), perf.textContent);
+  }
+
+  // ── Staging falls back to saving where PluginApi cannot be patched ──────────
+  //
+  // The user never opted into review - they opted into the button - so a Stash with no
+  // component patching gets the behaviour it can support, and one console warning. It
+  // used to end in an alert about a form control that was never going to be captured.
+  // `MergePerformerTagsToScenes` has made the same trade since it grew staging.
+  {
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true }, // staging is the default
+      noPluginApi: true,
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('the tooltip promises a save, not a review',
+      /saves immediately/.test(btn.title || ''), btn.title);
+    btn.click();
+    await h.flush(80);
+    h.check('the click saves instead of staging', writes(env.calls).length === 1,
+      writes(env.calls).length + ' write(s)');
+    h.check('and raises no alert about a form control', !env.ctx._alert, env.ctx._alert);
+  }
   {
     const { env } = start({
       settings: {
@@ -1516,7 +1586,13 @@ function nodeListLikeContainer() {
       pathname: '/scenes/10',
       sourceField: { groups: [{ group: { id: '400' } }, { group: { id: '401' } }] },
       sourcePayload: { tags: [{ id: '1' }] },
-      entity: { id: '400', name: 'G', tags: [], scenes: [{ id: '10', title: 'S', tags: [{ id: '1' }] }] },
+      // Both groups answer as themselves, so both are genuinely written. Serving one
+      // object for both ids would have the plan hold a single entity and the check
+      // below would then be asserting that an *unwritten* group is evicted - which is
+      // what it did until the eviction moved to the write.
+      entity: (id) => ({
+        id, name: 'G' + id, tags: [], scenes: [{ id: '10', title: 'S', tags: [{ id: '1' }] }],
+      }),
     });
     env.ctx.window.__APOLLO_CLIENT__ = {
       cache: { evict: (o) => evicted.push(o.id), gc: () => { evicted.push('gc'); } },
@@ -1552,6 +1628,34 @@ function nodeListLikeContainer() {
     sourceButtons(env)[0].click();
     await h.flush(120);
     h.check('a no-op click evicts nothing', evicted.length === 0, evicted.join(','));
+  }
+  {
+    // The half-and-half case, which is what moving the eviction to the write bought:
+    // one of the two groups already carries the tag, so only the other is written and
+    // only the other is evicted. Evicting both would refetch a panel this click did
+    // not change - the same waste the no-op case above refuses, one entity at a time.
+    const evicted = [];
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }, { group: { id: '401' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+      entity: (id) => ({
+        id, name: 'G' + id,
+        tags: id === '401' ? [{ id: '1' }] : [],   // 401 has it already
+        scenes: [{ id: '10', title: 'S', tags: [{ id: '1' }] }],
+      }),
+    });
+    env.ctx.window.__APOLLO_CLIENT__ = { cache: { evict: (o) => evicted.push(o.id), gc: () => {} } };
+    tabStrip(env, ['scene-details-panel', 'scene-group-panel', 'scene-edit-panel'],
+      'scene-group-panel');
+    env.tick();
+    await h.flush(60);
+    sourceButtons(env)[0].click();
+    await h.flush(120);
+    h.check('only the group that was actually written is evicted',
+      evicted.indexOf('Group:400') !== -1 && evicted.indexOf('Group:401') === -1,
+      evicted.join(','));
   }
   {
     // No Apollo at all: no crash, no reload. The sibling's equivalent falls back to

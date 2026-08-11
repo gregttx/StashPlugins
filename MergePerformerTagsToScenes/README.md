@@ -190,6 +190,18 @@ This setting is independent of everything else — it does not change what gets 
 
 The two buttons appear in different places, because each one sits where the content it acts on is visible.
 
+Since 1.17.0 both are **amber**, where Stash's own row actions are grey. Amber is this repo's
+colour for "a plugin put this here, and pressing it writes to entities other than the one in front
+of you" — the same colour `PropagateTagsAndPerformers` uses, so a row holding buttons from both
+reads as one kind of thing rather than two. It is deliberately not the blue of a primary action:
+Save is still the primary action on those pages. The plugin's task button in
+**Settings → Tasks → Plugin Tasks** is amber too.
+
+Four of the settings are colour-coded on the same principle. **Save Tags Immediately** and the two
+**Auto Merge** switches are amber — they are what make the plugin write without showing you a plan
+first — and the logging switch below is teal, for one that only talks to the console. Everything
+else stays Stash's blue.
+
 **Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, an **"Copy Tags to all Scenes"** button appears in the button bar on the detail view, just before the Delete button. Click it to copy the performer's tags to all their scenes. Scenes already having all the tags are skipped, and the button counts through the scenes as it goes.
 
 ### Why is a button missing?

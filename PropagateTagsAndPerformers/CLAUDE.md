@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.16.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.17.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -1195,6 +1195,26 @@ hover. The sibling has no performer recap at all to compare against.
 button while this plugin's source button shows `Working...` — a real gap, left open on request. And
 its per-scene writes against this plugin's bulk batching are not a discrepancy to close: the batches
 are what let a run write tens of thousands of assignments in hundreds of requests.
+
+## 5g. Colour (0.17.0)
+
+Every button this plugin draws — target side and source side — is `btn-warning` rather than
+`btn-secondary`, and so is the task button `paintTaskButtons` repaints on the Plugin Tasks page.
+Four settings toggles are recoloured to match: `a2SaveImmediately` and the two auto modes in amber,
+`g1LogToConsole` in teal. The reasoning, the two live facts about Stash's theme it rests on, and why
+the variant is pinned to the same string in the sibling are in the repo-root CLAUDE.md under *one
+colour for "a plugin wrote this"*.
+
+Placement is unchanged. §5d's important-vs-casual rule still decides *where* a button lands, and the
+ordering protocol still decides which of two plugins' buttons sits closer to Delete — amber is a
+casual button in a new colour, not a claim on the row's primary role.
+
+`paintTaskButtons` reuses `ownTaskName` rather than matching the label a second time, which keeps
+the paint and the click interception from ever disagreeing about what is ours. That function gained
+a real fix at the same version — it now answers from the button's own `.setting-group` and stops,
+where it used to climb past it into the panel holding every plugin's group and match whichever
+plugin was listed first. See §2 of `NormalizeParentTags`' CLAUDE.md for the full note; all three
+plugins carried it and all three were fixed together.
 
 ## 6. Anchoring in Stash's markup
 

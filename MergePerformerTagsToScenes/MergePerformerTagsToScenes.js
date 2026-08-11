@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.16.3';
+  var PLUGIN_VERSION      = '1.17.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -40,6 +40,25 @@
   var SPACING_CLASS       = 'mx-2';
   var PERFORMER_BTN_CLASS = 'cpt2s-merge-to-scenes-btn';
   var SCENE_BTN_CLASS     = 'cpt2s-merge-from-perfs-btn';
+
+  // Every button this plugin puts on a page, and the task button Stash renders for
+  // it, in amber. Stash's own row actions are `btn-secondary`, so a button of ours
+  // sitting among them was indistinguishable from one of its own - and these are not
+  // the same kind of thing: Stash's write what is in the form in front of you, ours
+  // reach out and rewrite other entities. Amber says "this one is mine and it writes"
+  // without claiming the primary role `btn-primary` would.
+  //
+  // A Bootstrap variant class rather than a colour of our own, so the hover, focus
+  // and active states come from Stash's theme and stay in step with it. Its
+  // `btn-warning` renders white text, unlike stock Bootstrap's dark - checked live,
+  // 2026-08-11 - so nothing here overrides the foreground. `btn-dark` is worth
+  // knowing about and not worth using: Stash themes it identically to
+  // `btn-secondary`, so it would read as no change at all.
+  //
+  // Pinned to the same string in PropagateTagsAndPerformers: the two plugins' buttons
+  // share a row, and one amber beside one grey would read as a difference in kind
+  // rather than in plugin.
+  var PLUGIN_BTN_VARIANT  = 'btn-warning';
 
   // Declared in the manifest so Stash lists it under Settings - Tasks - Plugin
   // Tasks, but run in the browser: this plugin has no exec, so a queued job could
@@ -905,7 +924,34 @@
     '.cpt2s-desc-collapsed .cpt2s-p:not(:first-child){display:none;}' +
     '.cpt2s-desc-toggle{display:block;margin-top:.25rem;padding:0;border:0;' +
     'background:none;color:#7cc4ff;font-size:.8rem;cursor:pointer;' +
-    'text-decoration:underline;}';
+    'text-decoration:underline;}' +
+    // ── Colour-coded toggles ────────────────────────────────────────────────
+    //
+    // Amber for the switches that make this plugin write on its own - the two auto
+    // modes, which merge with no dialog and no undo, and the one that turns the
+    // scene button from staging tags for review into saving them - and teal for the
+    // one that only talks to the console. Every other setting keeps Stash's blue:
+    // this marks the ones that are not like the rest, and marking everything would
+    // mark nothing.
+    //
+    // Keyed on the ids SettingsPluginsPanel.tsx builds from the plugin id and the
+    // setting key, the same anchor `settingElement` uses, rather than on position
+    // or heading text.
+    //
+    // Two shapes because the switch is Stash's to render: `::before` is the track
+    // of a react-bootstrap Form.Switch, which is what it renders today, and
+    // `accent-color` covers a plain checkbox if that ever changes. Whichever is not
+    // in use costs nothing.
+    '#plugin-MergePerformerTagsToScenes-a2SaveTagsImmediately,' +
+    '#plugin-MergePerformerTagsToScenes-a3AutoMergeOnSceneUpdate,' +
+    '#plugin-MergePerformerTagsToScenes-a4AutoMergeOnPerformerUpdate{accent-color:#ffc107;}' +
+    '#plugin-MergePerformerTagsToScenes-a2SaveTagsImmediately:checked~.custom-control-label::before,' +
+    '#plugin-MergePerformerTagsToScenes-a3AutoMergeOnSceneUpdate:checked~.custom-control-label::before,' +
+    '#plugin-MergePerformerTagsToScenes-a4AutoMergeOnPerformerUpdate:checked~.custom-control-label::before' +
+    '{background-color:#ffc107;border-color:#ffc107;}' +
+    '#plugin-MergePerformerTagsToScenes-d1LogMergesToConsole{accent-color:#17a2b8;}' +
+    '#plugin-MergePerformerTagsToScenes-d1LogMergesToConsole:checked~.custom-control-label::before' +
+    '{background-color:#17a2b8;border-color:#17a2b8;}';
 
   function taskInjectStyle() {
     if (document.getElementById(TASK_STYLE_ID)) return;
@@ -1957,12 +2003,31 @@
   function ownTaskName(btn) {
     var label = (btn.textContent || '').trim();
     if (TASKS.indexOf(label) === -1) return null;
+    // Answer from the button's *own* SettingGroup and stop there. Testing every
+    // ancestor for an h3 - which is what this did until 1.17.0 - climbs past the group
+    // on a miss and into the panel holding every plugin's group, where
+    // `querySelector('h3')` answers with whichever plugin is listed first. A plugin
+    // declaring a task by the same name as ours was therefore hijacked whenever we
+    // happened to be above it, which is the one thing the heading check exists to
+    // stop. Found by the tasks-page check in `tests/placement.test.js`.
+    //
+    // A group's first h3 is its heading: PluginTasks renders it in the header, above
+    // the per-task `Setting` rows that each carry an h3 of their own - which is also
+    // why the walk cannot simply stop at the nearest ancestor containing any h3.
+    //
+    // The any-ancestor walk survives as a fallback for a Stash that does not put
+    // `setting-group` on that box. It carries the bug above, and that is deliberate:
+    // it is the behaviour every release before this one shipped, so it can be no worse
+    // than what it replaces.
     var node = btn;
+    var fallback = null;
     for (var depth = 0; node && depth < 8; depth++, node = node.parentElement) {
       var heading = node.querySelector ? node.querySelector('h3') : null;
-      if (heading && (heading.textContent || '').trim() === PLUGIN_NAME) return label;
+      var ours = !!heading && (heading.textContent || '').trim() === PLUGIN_NAME;
+      if (hasClass(node, 'setting-group')) return ours ? label : null;
+      if (ours) fallback = label;
     }
-    return null;
+    return fallback;
   }
 
   document.addEventListener('click', function (event) {
@@ -2590,7 +2655,7 @@
     // No spacing class here since 1.15.4 - `applyButtonSpacing` copies the row's own
     // margins inline and adds `mx-2` back itself when there is nothing to copy. A
     // Bootstrap `mx-*` is `!important` and would outrank the copied margins.
-    button.className = 'btn btn-secondary ' + PERFORMER_BTN_CLASS;
+    button.className = 'btn ' + PLUGIN_BTN_VARIANT + ' ' + PERFORMER_BTN_CLASS;
     // "Copy Tags to all Scenes", not the older "Add Tags to Scene(s)": harmonized
     // with PropagateTagsAndPerformers' naming convention, since that plugin's own
     // manual-button dedup (§7d's `declares`) matches on this exact label text to
@@ -2716,7 +2781,7 @@
     // `mx-2` (which replaced a left-only `ml-2` at 1.15.2, once this button started
     // landing *between* Save and Delete rather than at the row's end) is now applied by
     // `applyButtonSpacing` only when the row has no margins of its own to copy.
-    button.className = 'btn btn-secondary ' + SCENE_BTN_CLASS;
+    button.className = 'btn ' + PLUGIN_BTN_VARIANT + ' ' + SCENE_BTN_CLASS;
     // "Copy all Tags from all Performers", not the older "Add Perf Tags" - same
     // harmonization as the performer button above.
     button.textContent = 'Copy all Tags from all Performers';
@@ -3110,6 +3175,40 @@
     slot.parent.insertBefore(link, slot.before);
   }
 
+  // ── Plugin Task buttons ───────────────────────────────────────────────────
+  //
+  // Settings - Tasks - Plugin Tasks renders every task of every plugin with the same
+  // `btn-secondary`, so nothing on that page says which buttons rewrite the library.
+  // Repainting ours in the same amber as its page buttons is the whole change.
+  //
+  // `ownTaskName` decides what is ours - the same function the click interception
+  // keys on, which checks the label *and* the enclosing group's heading, so another
+  // plugin declaring a task by the same name is not repainted.
+  //
+  // Swapping Bootstrap's variant class rather than writing a colour: `btn-warning`
+  // brings Stash's hover, focus and active states with it, which a background-color
+  // of ours would have to restate and then keep in step with the theme.
+  //
+  // `btn-warning` is deliberately not in the strip list - it is what we add, and the
+  // guard in `paintButton` returns before any of this once it is there.
+  var BTN_VARIANTS = /\bbtn-(secondary|primary|success|info|light|dark|link)\b/g;
+
+  function paintButton(btn, variant) {
+    if (hasClass(btn, variant)) return;                        // already ours
+    var cls = String(btn.className || '').replace(BTN_VARIANTS, '');
+    btn.className = cls.replace(/\s+/g, ' ').replace(/^ | $/g, '') + ' ' + variant;
+  }
+
+  // Re-applied every tick rather than once: React re-renders this panel and hands
+  // back a button with Stash's own classes, and `paintButton` is a no-op on one that
+  // still carries ours.
+  function paintTaskButtons() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('button') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (ownTaskName(nodes[i])) paintButton(nodes[i], PLUGIN_BTN_VARIANT);
+    }
+  }
+
   function tick() {
     maybeGoToEdit();
     addPerformerButton();
@@ -3117,6 +3216,7 @@
     // Costs two getElementById calls off the settings page, which is where this tab
     // spends none of its time; no query, no observer of its own.
     ensureReadmeLink();
+    paintTaskButtons();
   }
 
   // The MutationObserver watches the whole SPA subtree, which churns constantly

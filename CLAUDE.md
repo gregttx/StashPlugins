@@ -250,6 +250,57 @@ before.
 `d1LogMergesToConsole`) narrate what a run *changed*, are meant to be left on, and go to a different
 prefix. This narrates what the UI *decided*, and nothing in it is about the library.
 
+## Cross-plugin cooperation: one colour for "a plugin wrote this"
+
+A fifth shared convention, and the only one that is purely visual. Every button these plugins draw
+into a page, and every task button Stash renders for them, is **`btn-warning` (amber)**; a control
+that only reads is **`btn-info` (teal)**. Four settings toggles are recoloured to match — the ones
+that make a plugin write without showing a plan first are amber, and the console-logging ones teal.
+
+**Why not `btn-secondary`, which is what all of these were until
+`NormalizeParentTags` 1.8.0 / `MergePerformerTagsToScenes` 1.17.0 /
+`PropagateTagsAndPerformers` 0.17.0.** Stash's own row actions are `btn-secondary`, so a plugin's
+button sitting among them was indistinguishable from one of Stash's — and the two are not the same
+kind of thing. Stash's row buttons write what is in the form in front of you; these reach out and
+rewrite *other* entities, often many of them. The note below still governs *where* the button goes,
+and it still holds that ours are casual rather than primary: amber is not `btn-primary`, and Save
+keeps the row's primary role.
+
+**Pinned to the same string in every plugin.** `PLUGIN_BTN_VARIANT` is declared near the top of each
+file, like the CSS strings and for the same reason: two plugins' buttons share a row, and one amber
+beside one grey would read as a difference in kind rather than in plugin. `tests/placement.test.js`
+covers the task-button case; the manual buttons are covered by the same suite's existing checks.
+
+**A Bootstrap variant class, never a colour of our own.** The variant brings Stash's hover, focus
+and active states with it. A `background-color` in a plugin's CSS would have to restate all three
+and then keep them in step with the theme.
+
+**Two live facts about Stash's theme, from a user's own instance, 2026-08-11.** Neither matches
+stock Bootstrap, and neither is derivable from this repo:
+
+- **`btn-warning` renders white text**, not Bootstrap's dark `#212529`. So nothing here sets a
+  foreground colour, and the usual warning about amber being unreadable on a dark chrome does not
+  apply to Stash.
+- **`btn-dark` is themed identically to `btn-secondary`.** It is worth knowing and not worth using:
+  it would read as no change at all.
+
+**The settings toggles are CSS, not a class swap** — a Bootstrap switch has no variant classes, so
+the colour has to be written. Two shapes per rule, because the switch is Stash's to render:
+`#plugin-<id>-<key>:checked ~ .custom-control-label::before` is the track of the react-bootstrap
+`Form.Switch` it renders today, and `accent-color` on the input covers a plain checkbox if that ever
+changes. Whichever is not in use costs nothing.
+
+The `#plugin-<id>-<key>` id is Stash's own, built by `SettingsPluginsPanel.tsx` — the same anchor
+`settingElement` uses, and the one thing on that page that is ours by construction. The **key half
+is the storage key**, so renaming a setting drops its colour silently along with everything else
+renaming one drops; `tests/style.test.js` checks every such selector against the plugin's own `.yml`.
+It deliberately does *not* pin *which* settings are coloured — that is a judgement per plugin, and
+pinning the list would make every new setting an edit in two files for no gain.
+
+**Marking everything would mark nothing.** Only the settings that write on their own are amber. The
+entity toggles, the path toggles and the exclusion filters all stay Stash's blue, because they
+choose what a run covers rather than starting one.
+
 ## Placing a manual button near Stash's own actions: important vs. casual
 
 A rule for *any* plugin injecting a button into a row Stash already put buttons in — distinct from

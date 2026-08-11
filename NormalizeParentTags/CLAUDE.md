@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 1.7.8.** This file is both the design and the map of the code — the
+**Status: implemented at 1.8.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -77,6 +77,16 @@ job queue. So the click is caught client-side, with two independent layers:
    to the enclosing `.setting`, and matching the button's text against our two declared task
    names *within* the plugin's own `SettingGroup` (match the group heading against the plugin
    name) — never by task name alone, or another plugin with a same-named task gets hijacked.
+   **Answer from the button's own `.setting-group` and stop there** (1.8.0). Until then the walk
+   tested *every* ancestor for an `h3`, so on a miss it climbed past the group into the panel that
+   holds all of them, where `querySelector('h3')` returns whichever plugin is listed first — which
+   hijacked exactly the same-named task the heading check exists to protect, whenever we were
+   listed above it. Note that a group's *first* `h3` is its heading and each task row carries an
+   `h3` of its own, so the walk cannot simply stop at the nearest ancestor holding any `h3`. The
+   old any-ancestor walk survives as a fallback for a Stash that does not put `setting-group` on
+   that box, bug and all: it is what every earlier release shipped, so it cannot be worse. All
+   three plugins carried this and all three were fixed together; `tests/placement.test.js` found
+   it, and covers it against `MergePerformerTagsToScenes`.
    `TASKS` is the list; adding a task means adding it there as well as to the manifest.
 2. **Fallback — `window.fetch` wrapper.** If layer 1 misses (Stash restructures the page, the
    button is reached by keyboard in a way we did not anticipate), catch the `runPluginTask`

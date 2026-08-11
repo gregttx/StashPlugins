@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.16.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.17.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **The button-label text is a cross-plugin contract, not cosmetics.** Both manual buttons read
@@ -299,6 +299,21 @@ where it exists and only fall back to `location.reload()` otherwise. The reload 
 always consumes that key — on a different scene, or on a 10s deadline if the Edit link never
 renders — because leaving it behind would make an unrelated later visit jump into edit mode.
 `_reloading` stops the ticks between the write and the unload from consuming it early.
+
+**Both buttons are `btn-warning` since 1.17.0**, not `btn-secondary`, and so is the task button
+`paintTaskButtons` repaints on the Plugin Tasks page. The reasoning, the two live facts about
+Stash's theme that it rests on, and why it is pinned to the same string in the sibling are in the
+repo-root CLAUDE.md under *one colour for "a plugin wrote this"*. Placement is unchanged: §5d's
+important-vs-casual rule still decides *where*, and amber is still a casual button rather than a
+primary one.
+
+`paintTaskButtons` reuses `ownTaskName` rather than matching the label a second time, which is what
+keeps the paint and the click interception from ever disagreeing about what is ours. That function
+gained a real fix at 1.17.0 — it now answers from the button's own `.setting-group` and stops,
+where it used to climb past it into the panel holding every plugin's group and match whichever
+plugin was listed first. A plugin declaring a task by the same name as ours was hijacked by that,
+which is the one thing the heading check exists to stop; see §2 of `NormalizeParentTags`' CLAUDE.md
+for the full note, since all three plugins carried it and all three were fixed together.
 
 ## 6. Settings
 

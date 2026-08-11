@@ -2,7 +2,7 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.16.0**
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.17.0**
 (last checked 2026-08-13). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
@@ -180,6 +180,29 @@ One gap left open on request: the sibling shows `Merging... (12/340)` on its per
 this plugin's source button shows `Working...`. Its per-scene writes against this plugin's bulk
 batching are *not* a gap to close — the batches are what make a library-wide run affordable.
 
+0.17.0 is colour, asked for directly after a question about what Bootstrap variants Stash's theme
+offers. Every button this plugin draws, and its task button on the Plugin Tasks page, is now
+`btn-warning`; four of its settings toggles are recoloured, amber for the three that make it write
+without showing a plan and teal for the console one. The convention is repo-wide — the two siblings
+moved with it, `NormalizeParentTags` painting its read-only **Show Tag Hierarchy** task teal against
+its two writing tasks in amber — and the reasoning lives in the repo-root CLAUDE.md rather than here,
+since it is now a rule for any future plugin in this repo, not a fact about this one.
+
+Two things worth recording. The user supplied both live facts it rests on: Stash renders
+`btn-warning` with **white** text rather than stock Bootstrap's dark, and themes `btn-dark`
+identically to `btn-secondary`. Neither is derivable from this repo, and the first is what makes
+amber usable at all here — this is the same lesson §5c keeps relearning, that one reading off a live
+instance beats a round of inference.
+
+And the check written for the task buttons found a **bug nobody was looking for**: `ownTaskName`
+climbed past its own `SettingGroup` into the panel that holds every plugin's, where
+`querySelector('h3')` answers with whichever plugin is listed first — so a plugin declaring a task
+by the same name as ours was ours, whenever we were above it. That is precisely what the heading
+check was written to prevent, and all three plugins had carried it since their task interception
+shipped. A cosmetic change is a strange place to find that; the reason it turned up is that colouring
+the buttons meant *drawing* the same identification the click path had only ever run on a click, and
+the fixture that made the negative case explicit is the one that failed.
+
 0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
 once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
 of this file, the plugin `CLAUDE.md`s and the READMEs. It also fixed a real divergence it exposed —
@@ -190,14 +213,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.16.0, in all three places |
-| `PropagateTagsAndPerformers.js` | ~4,946 lines |
+| Version | 0.17.0, in all three places |
+| `PropagateTagsAndPerformers.js` | ~5,041 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 59, apply 43, sweep 30, auto 41, auto-source 28, buttons 163 = **499** |
+| Checks in the eight | paths 60, base 75, plan 59, apply 43, sweep 30, auto 41, auto-source 28, buttons 163 = **499** (0.17.0's own checks went into the repo-level `style` and `placement` suites instead) |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
-| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.2 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch, 1.16.3 its half of the 0.16.0 parity pass), `NormalizeParentTags` 1.7.5 → 1.7.7 |
-| Landed on `main` | through 0.15.0 (`22aa4bb`); 0.16.0 is uncommitted |
+| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.2 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch, 1.16.3 its half of the 0.16.0 parity pass, 1.17.0 its half of 0.17.0's colour pass and the `ownTaskName` fix that came out of it), `NormalizeParentTags` 1.7.5 → 1.8.0 |
+| Landed on `main` | through 0.16.0 (`2b1332c`, pushed); 0.17.0 is uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's

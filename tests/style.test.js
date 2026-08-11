@@ -108,4 +108,41 @@ parsed.forEach((p) => {
     p.rules['.modal']);
 });
 
+// The colour-coded toggles (NormalizeParentTags 1.8.0, MergePerformerTagsToScenes
+// 1.17.0, PropagateTagsAndPerformers 0.17.0) are the one place a stylesheet names a
+// *setting*. `#plugin-<id>-<key>` is Stash's own id and the key half is the storage
+// key, so renaming a setting - which §6 of NormalizeParentTags' CLAUDE.md already
+// warns resets it for every install - would also drop its colour, silently and with
+// nothing else to notice it. The plugin id half is checked too: it is hardcoded in
+// the string rather than built from PLUGIN_ID, so that the CSS parser above sees a
+// plain literal.
+//
+// Not a check that any particular setting *is* coloured. Which ones are is a
+// judgement (the ones that write on their own, plus the console one), and pinning the
+// list here would make every future setting an edit in two files for no gain.
+const SETTING_ID = /#plugin-([A-Za-z]+)-([A-Za-z0-9]+)/g;
+
+parsed.forEach((p) => {
+  const yml = fs.readFileSync(
+    path.join(__dirname, '..', p.plugin.name, p.plugin.name + '.yml'), 'utf8');
+  // The `settings:` block, as `key:` at one indent level under it.
+  const block = yml.slice(yml.indexOf('\nsettings:'));
+  const keys = (block.match(/^ {2}([A-Za-z0-9]+):$/gm) || [])
+    .map((l) => l.trim().slice(0, -1));
+  const named = [];
+  let m;
+  SETTING_ID.lastIndex = 0;
+  while ((m = SETTING_ID.exec(Object.keys(p.rules).join(' '))) !== null) named.push(m);
+
+  h.check(p.plugin.name + ' colours at least one setting toggle', named.length > 0,
+    String(named.length) + ' selector(s)');
+  h.check(p.plugin.name + ' names itself in every toggle selector',
+    named.every((x) => x[1] === p.plugin.name),
+    named.filter((x) => x[1] !== p.plugin.name).map((x) => x[0]).join(' ') || 'all match');
+  h.check(p.plugin.name + ' colours only settings its yml declares',
+    named.every((x) => keys.indexOf(x[2]) !== -1),
+    named.filter((x) => keys.indexOf(x[2]) === -1).map((x) => x[2]).join(' ') ||
+      'all ' + keys.length + ' key(s) known');
+});
+
 h.finish();

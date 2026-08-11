@@ -31,6 +31,10 @@ that change tag assignments, and one that only looks:
 The first two open a dialog that lists every change *before* anything is written. Nothing is
 saved until you press **Proceed**. The third never writes at all.
 
+The colours on that page say which is which: the two writing tasks are **amber**, and
+**Show Tag Hierarchy** is **teal**, the plugin's colour for something that only reads. Two of the
+settings below are amber for the same reason — see [Automatic mode](#automatic-mode).
+
 Either direction can also be kept up **automatically**, applying to each entity as Stash saves it
 rather than to the whole library at once — see [Automatic mode](#automatic-mode). That path has no
 dialog and no undo, and it is off by default.
@@ -333,6 +337,10 @@ The two tasks normalize your library **once**. These two settings keep it that w
 > find out from your library, not from a log you can still read.
 >
 > Run the **Prune** task manually at least once, and read what it plans, before you turn this on.
+
+**Their switches are amber on the settings page**, not Stash's blue. They are the only two
+settings here that make the plugin write on its own — the rest just choose what a task covers —
+so they are the two worth a second look before they are ticked.
 
 Things worth knowing:
 

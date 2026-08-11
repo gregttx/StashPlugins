@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.16.0';
+  var PLUGIN_VERSION = '0.17.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -59,6 +59,21 @@
   var README_LINK_ID = 'ptp2re-readme-link';
   var DESC_TOGGLE_ID = 'ptp2re-desc-toggle';
   var STYLE_ID       = 'ptp2re-style';
+
+  // Every button this plugin puts on a page, and every task button Stash renders for
+  // it, in amber. Stash's own row actions are `btn-secondary`, so a button of ours
+  // sitting among them was indistinguishable from one of its own - and these are not
+  // the same kind of thing: Stash's write what is in the form in front of you, ours
+  // reach out and rewrite other entities. Amber says "this one is mine and it writes"
+  // without claiming the primary role `btn-primary` would.
+  //
+  // A Bootstrap variant class rather than a colour of our own, so the hover, focus
+  // and active states come from Stash's theme and stay in step with it. Its
+  // `btn-warning` renders white text, unlike stock Bootstrap's dark - checked live,
+  // 2026-08-11 - so nothing here overrides the foreground. `btn-dark` is worth
+  // knowing about and not worth using: Stash themes it identically to
+  // `btn-secondary`, so it would read as no change at all.
+  var PLUGIN_BTN_VARIANT = 'btn-warning';
 
   // Declared in the manifest so Stash lists it under Settings - Tasks - Plugin
   // Tasks, but run in the browser: this plugin has no exec, so a queued job could
@@ -672,7 +687,33 @@
     '.ptp2re-desc-collapsed .ptp2re-p:not(:first-child){display:none;}' +
     '.ptp2re-desc-toggle{display:block;margin-top:.25rem;padding:0;border:0;' +
     'background:none;color:#7cc4ff;font-size:.8rem;cursor:pointer;' +
-    'text-decoration:underline;}';
+    'text-decoration:underline;}' +
+    // ── Colour-coded toggles ────────────────────────────────────────────────
+    //
+    // Amber for the switches that make this plugin write on its own - once one of
+    // these is on, saving an entity in Stash rewrites others with no dialog and no
+    // undo - and teal for the one that only talks to the console. Every other
+    // setting keeps Stash's blue: this marks the two that are not like the rest,
+    // and marking everything would mark nothing.
+    //
+    // Keyed on the ids SettingsPluginsPanel.tsx builds from the plugin id and the
+    // setting key, the same anchor `settingElement` uses, rather than on position
+    // or heading text.
+    //
+    // Two shapes because the switch is Stash's to render: `::before` is the track
+    // of a react-bootstrap Form.Switch, which is what it renders today, and
+    // `accent-color` covers a plain checkbox if that ever changes. Whichever is not
+    // in use costs nothing.
+    '#plugin-PropagateTagsAndPerformers-a2SaveImmediately,' +
+    '#plugin-PropagateTagsAndPerformers-a3AutoOnTargetUpdate,' +
+    '#plugin-PropagateTagsAndPerformers-a4AutoOnSourceUpdate{accent-color:#ffc107;}' +
+    '#plugin-PropagateTagsAndPerformers-a2SaveImmediately:checked~.custom-control-label::before,' +
+    '#plugin-PropagateTagsAndPerformers-a3AutoOnTargetUpdate:checked~.custom-control-label::before,' +
+    '#plugin-PropagateTagsAndPerformers-a4AutoOnSourceUpdate:checked~.custom-control-label::before' +
+    '{background-color:#ffc107;border-color:#ffc107;}' +
+    '#plugin-PropagateTagsAndPerformers-g1LogToConsole{accent-color:#17a2b8;}' +
+    '#plugin-PropagateTagsAndPerformers-g1LogToConsole:checked~.custom-control-label::before' +
+    '{background-color:#17a2b8;border-color:#17a2b8;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -3230,8 +3271,43 @@
     slot.parent.insertBefore(link, slot.before);
   }
 
+  // ── Plugin Task buttons ───────────────────────────────────────────────────
+  //
+  // Settings - Tasks - Plugin Tasks renders every task of every plugin with the same
+  // `btn-secondary`, so nothing on that page says which buttons rewrite the library.
+  // Repainting ours in the same amber as their page buttons is the whole change.
+  //
+  // `ownTaskName` decides what is ours - the same function the click interception
+  // keys on, which checks the label *and* the enclosing group's heading, so another
+  // plugin declaring a task by the same name is not repainted.
+  //
+  // Swapping Bootstrap's variant class rather than writing a colour: `btn-warning`
+  // brings Stash's hover, focus and active states with it, which a background-color
+  // of ours would have to restate and then keep in step with the theme.
+  //
+  // `btn-warning` is deliberately not in the strip list - it is what we add, and the
+  // guard above returns before any of this once it is there.
+  var BTN_VARIANTS = /\bbtn-(secondary|primary|success|info|light|dark|link)\b/g;
+
+  function paintButton(btn, variant) {
+    if (hasClass(btn, variant)) return;                        // already ours
+    var cls = String(btn.className || '').replace(BTN_VARIANTS, '');
+    btn.className = cls.replace(/\s+/g, ' ').replace(/^ | $/g, '') + ' ' + variant;
+  }
+
+  // Re-applied every tick rather than once: React re-renders this panel and hands
+  // back a button with Stash's own classes, and `paintButton` is a no-op on one that
+  // still carries ours.
+  function paintTaskButtons() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('button') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (ownTaskName(nodes[i])) paintButton(nodes[i], PLUGIN_BTN_VARIANT);
+    }
+  }
+
   function settingsTick() {
     ensureReadmeLink();
+    paintTaskButtons();
   }
 
   // No MutationObserver here, unlike a button injection: this is decoration in a
@@ -3477,7 +3553,7 @@
     // row's own margins inline, and a Bootstrap `mx-*` class is `!important`, so a
     // spacing class here would outrank them. It adds `mx-1` back itself when there is
     // nothing to copy.
-    var btn = el('button', 'btn btn-secondary ' + MANUAL_BTN_CLASS, label);
+    var btn = el('button', 'btn ' + PLUGIN_BTN_VARIANT + ' ' + MANUAL_BTN_CLASS, label);
     btn.type = 'button';
     btn.id = manualButtonId(path);
     btn._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
@@ -4555,7 +4631,7 @@
     // No margin of either axis here - same reasoning as the target-side button above,
     // and `applyButtonSpacing` handles both. Studio can show two of these at once and
     // wraps just as readily.
-    var btn = el('button', 'btn btn-secondary ' + MANUAL_SRC_BTN_CLASS, label);
+    var btn = el('button', 'btn ' + PLUGIN_BTN_VARIANT + ' ' + MANUAL_SRC_BTN_CLASS, label);
     btn.type = 'button';
     btn.id = manualSourceButtonId(path);
     btn._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
@@ -4780,12 +4856,31 @@
   function ownTaskName(btn) {
     var label = (btn.textContent || '').trim();
     if (TASKS.indexOf(label) === -1) return null;
+    // Answer from the button's *own* SettingGroup and stop there. Testing every
+    // ancestor for an h3 - which is what this did until 0.17.0 - climbs past the group
+    // on a miss and into the panel holding every plugin's group, where
+    // `querySelector('h3')` answers with whichever plugin is listed first. A plugin
+    // declaring a task by the same name as ours was therefore hijacked whenever we
+    // happened to be above it, which is the one thing the heading check exists to
+    // stop. Found by the tasks-page check in `tests/placement.test.js`.
+    //
+    // A group's first h3 is its heading: PluginTasks renders it in the header, above
+    // the per-task `Setting` rows that each carry an h3 of their own - which is also
+    // why the walk cannot simply stop at the nearest ancestor containing any h3.
+    //
+    // The any-ancestor walk survives as a fallback for a Stash that does not put
+    // `setting-group` on that box. It carries the bug above, and that is deliberate:
+    // it is the behaviour every release before this one shipped, so it can be no worse
+    // than what it replaces.
     var node = btn;
+    var fallback = null;
     for (var depth = 0; node && depth < 8; depth++, node = node.parentElement) {
       var heading = node.querySelector ? node.querySelector('h3') : null;
-      if (heading && headingIsOurs(heading.textContent)) return label;
+      var ours = !!heading && headingIsOurs(heading.textContent);
+      if (hasClass(node, 'setting-group')) return ours ? label : null;
+      if (ours) fallback = label;
     }
-    return null;
+    return fallback;
   }
 
   document.addEventListener('click', function (event) {

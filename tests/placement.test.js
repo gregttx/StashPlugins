@@ -187,6 +187,30 @@ const EDIT_VIEW = `
     </div>
   </div>`;
 
+// Settings - Tasks - Plugin Tasks: one SettingGroup per plugin, headed with its name,
+// one button per declared task. The second group is another plugin declaring a task by
+// the same name, which is the case `ownTaskName`'s heading check exists for - and the
+// reason the paint cannot key on the label alone.
+//
+// The heading is the *bare* plugin name, with no version in brackets. That is what
+// `PluginTasks.tsx` renders (`heading: o.name`); the `(1.17.0)` suffix belongs to
+// Settings - Plugins, which is a different panel and has no task buttons on it.
+const TASKS_VIEW = `
+  <div id="tasks-page">
+    <div class="setting-group">
+      <div class="setting"><h3>Merge Performer Tags To Scenes</h3></div>
+      <div class="setting">
+        <div><button class="btn btn-secondary" type="button">Merge Performer Tags into All Their Scenes</button></div>
+      </div>
+    </div>
+    <div class="setting-group">
+      <div class="setting"><h3>Some Other Plugin</h3></div>
+      <div class="setting">
+        <div><button class="btn btn-secondary" type="button">Merge Performer Tags into All Their Scenes</button></div>
+      </div>
+    </div>
+  </div>`;
+
 const dom = new JSDOM('<!doctype html><html><body><div id="root">' + DETAIL_VIEW + '</div></body></html>', {
   url: 'http://localhost:9999/performers/7',
   runScripts: 'outside-only',
@@ -588,6 +612,34 @@ function check(name, cond, extra) {
   await sleep(1200);
   check('a save of a different scene does not re-probe', sceneGateCalls === gateBefore,
     'probes: ' + (sceneGateCalls - gateBefore));
+
+  // ── The Plugin Tasks page (1.17.0) ──────────────────────────────────────────
+  //
+  // Amber for our own task button, and Stash's grey left alone on the identically
+  // labelled button belonging to somebody else. The negative is the whole point: the
+  // paint runs over every button on the page, so a version keying on the label alone
+  // would repaint another plugin's task and pass the first check.
+  win.history.pushState({}, '', '/settings?tab=tasks');
+  root().innerHTML = TASKS_VIEW;
+  await sleep(1500);
+  const groups = win.document.querySelectorAll('.setting-group');
+  const ourTask = groups[0].querySelector('button');
+  const theirTask = groups[1].querySelector('button');
+  check('our task button is repainted amber',
+    ourTask.className.split(/\s+/).indexOf('btn-warning') !== -1, ourTask.className);
+  check('and no longer carries Stash\'s grey',
+    ourTask.className.split(/\s+/).indexOf('btn-secondary') === -1, ourTask.className);
+  check('it keeps the btn class it needs to look like a button',
+    ourTask.className.split(/\s+/).indexOf('btn') !== -1, ourTask.className);
+  check('a same-named task in another plugin\'s group is left alone',
+    theirTask.className === 'btn btn-secondary', theirTask.className);
+
+  // Idempotence: the paint runs on every tick, and a button already carrying the
+  // variant must come back unchanged rather than accumulating classes.
+  const painted = ourTask.className;
+  await sleep(1500);
+  check('a second tick leaves the painted button untouched', ourTask.className === painted,
+    painted + ' -> ' + ourTask.className);
 
   console.log(failures === 0
     ? '\n' + passes + ' check(s) passed.'

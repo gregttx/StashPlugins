@@ -236,6 +236,12 @@ Since 0.12.1 this finally takes effect on Scene: up to 0.12.0 the plugin recogni
 by a CSS class that Stash does not put on that page's Delete, so every version silently used the
 Save fallback and placed buttons to the left of Save. Delete is now recognised by its label too.
 
+Since 0.17.0 every button this plugin draws is **amber**, where Stash's own row actions are grey.
+Amber is this repo's colour for "a plugin put this here, and pressing it writes to entities other
+than the one in front of you" — the same colour `MergePerformerTagsToScenes` uses for its two
+buttons, so a row holding both reads as one kind of thing rather than two. It is deliberately not
+the blue of a primary action: Save is still the primary action on those pages.
+
 ### When a button appears
 
 Since 0.13.0 a target-side button appears only when clicking it would **actually add something**.
@@ -456,6 +462,12 @@ never copy tags set to *Ignore auto tag*, and never copy tags carrying a custom 
 
 **Logging** — write every copy to the browser console (F12 → Console; **not** the Stash server log
 or the Logs page — this is a UI plugin and cannot write there).
+
+Since 0.17.0 four of those switches are not Stash's blue. **Save Immediately** and the two
+automatic modes are **amber**, the plugin's colour for a setting that makes it write without
+showing you a plan first; the logging switch is **teal**, for one that only talks to the console.
+Everything else stays blue. The plugin's task button in **Settings → Tasks → Plugin Tasks** is
+amber for the same reason.
 
 ## Relationship to the other plugins in this repo
 

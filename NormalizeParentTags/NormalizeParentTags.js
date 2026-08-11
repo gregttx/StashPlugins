@@ -23,7 +23,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '1.7.8';
+  var PLUGIN_VERSION = '1.8.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -45,6 +45,22 @@
   var TASK_ROLLUP = 'Roll Up Parent Tags onto Entities';
   var TASK_TREE   = 'Show Tag Hierarchy';
   var TASKS = [TASK_PRUNE, TASK_ROLLUP, TASK_TREE];
+
+  // Stash renders every plugin task with the same `btn-secondary`, so nothing on the
+  // Tasks page says which of these three rewrites the library. Amber for the two that
+  // write, teal for the one that only reads - Show Tag Hierarchy opens a viewer and
+  // writes nothing, and it is the button a user should be able to press without
+  // checking first.
+  //
+  // Bootstrap variant classes rather than colours of our own, so the hover, focus and
+  // active states come from Stash's theme and stay in step with it. Its `btn-warning`
+  // renders white text, unlike stock Bootstrap's dark - checked live, 2026-08-11 - so
+  // nothing overrides the foreground. `btn-dark` is worth knowing about and not worth
+  // using: Stash themes it identically to `btn-secondary`.
+  //
+  // The amber is pinned to the same string the two siblings use for their own buttons.
+  var PLUGIN_BTN_VARIANT   = 'btn-warning';
+  var READONLY_BTN_VARIANT = 'btn-info';
 
   var PAGE_SIZE      = 1000;  // entities per find query
   var CHUNK_SIZE     = 100;   // entity ids per bulk mutation
@@ -1000,7 +1016,32 @@
     '.npt-desc-collapsed .npt-p:not(:first-child){display:none;}' +
     '.npt-desc-toggle{display:block;margin-top:.25rem;padding:0;border:0;' +
     'background:none;color:#7cc4ff;font-size:.8rem;cursor:pointer;' +
-    'text-decoration:underline;}';
+    'text-decoration:underline;}' +
+    // ── Colour-coded toggles ────────────────────────────────────────────────
+    //
+    // Amber for the two switches that make this plugin write on its own. They are
+    // the only settings here that do - the rest choose what a task covers - and Auto
+    // Prune in particular *deletes* tag assignments with no dialog, no review and no
+    // undo, which is the one thing on this page worth a second glance before it is
+    // ticked. Every other setting keeps Stash's blue: marking everything would mark
+    // nothing.
+    //
+    // Keyed on the ids SettingsPluginsPanel.tsx builds from the plugin id and the
+    // setting key, the same anchor `settingElement` uses, rather than on position
+    // or heading text.
+    //
+    // Two shapes because the switch is Stash's to render: `::before` is the track
+    // of a react-bootstrap Form.Switch, which is what it renders today, and
+    // `accent-color` covers a plain checkbox if that ever changes. Whichever is not
+    // in use costs nothing.
+    //
+    // This plugin has no console-logging setting, so it has no teal twin of the
+    // rule the two siblings carry - only the read-only task button below is teal.
+    '#plugin-NormalizeParentTags-a8AutoPruneOnUpdate,' +
+    '#plugin-NormalizeParentTags-a9AutoRollUpOnUpdate{accent-color:#ffc107;}' +
+    '#plugin-NormalizeParentTags-a8AutoPruneOnUpdate:checked~.custom-control-label::before,' +
+    '#plugin-NormalizeParentTags-a9AutoRollUpOnUpdate:checked~.custom-control-label::before' +
+    '{background-color:#ffc107;border-color:#ffc107;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -3102,10 +3143,44 @@
     slot.parent.insertBefore(link, slot.before);
   }
 
+  // ── Plugin Task buttons ───────────────────────────────────────────────────
+  //
+  // `ownTaskName` decides what is ours - the same function the click interception
+  // keys on, which checks the label *and* the enclosing group's heading, so another
+  // plugin declaring a task by the same name is not repainted. It also returns the
+  // label, which is what picks amber from teal here.
+  //
+  // `btn-info` appears in `BTN_VARIANTS` and is also what Show Tag Hierarchy ends up
+  // carrying. That is safe because of the guard at the top of `paintButton`, not by
+  // accident: it returns on a button that already has the variant being applied, so
+  // the strip never runs over our own colour.
+  var BTN_VARIANTS = /\bbtn-(secondary|primary|success|info|light|dark|link)\b/g;
+
+  function paintButton(btn, variant) {
+    if (hasClass(btn, variant)) return;                        // already ours
+    var cls = String(btn.className || '').replace(BTN_VARIANTS, '');
+    btn.className = cls.replace(/\s+/g, ' ').replace(/^ | $/g, '') + ' ' + variant;
+  }
+
+  // Re-applied every tick rather than once: React re-renders this panel and hands
+  // back a button with Stash's own classes, and `paintButton` is a no-op on one that
+  // still carries ours.
+  function paintTaskButtons() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('button') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      var name = ownTaskName(nodes[i]);
+      if (!name) continue;
+      paintButton(nodes[i], name === TASK_TREE ? READONLY_BTN_VARIANT : PLUGIN_BTN_VARIANT);
+    }
+  }
+
   function settingsTick() {
     // Ahead of the conflict logic and outside its early return: the link belongs on
     // the settings page whatever the two Auto settings happen to be.
     ensureReadmeLink();
+    // Before it too, and before the early return below: the task buttons are on a
+    // different tab from the conflict notice, and that return is about this one.
+    paintTaskButtons();
     if (!conflictNoticeSlot()) {
       removeConflictNotice();
       return;
@@ -3161,12 +3236,31 @@
   function ownTaskName(btn) {
     var label = (btn.textContent || '').trim();
     if (TASKS.indexOf(label) === -1) return null;
+    // Answer from the button's *own* SettingGroup and stop there. Testing every
+    // ancestor for an h3 - which is what this did until 1.8.0 - climbs past the group
+    // on a miss and into the panel holding every plugin's group, where
+    // `querySelector('h3')` answers with whichever plugin is listed first. A plugin
+    // declaring a task by the same name as ours was therefore hijacked whenever we
+    // happened to be above it, which is the one thing the heading check exists to
+    // stop. Found by the tasks-page check in `tests/placement.test.js`.
+    //
+    // A group's first h3 is its heading: PluginTasks renders it in the header, above
+    // the per-task `Setting` rows that each carry an h3 of their own - which is also
+    // why the walk cannot simply stop at the nearest ancestor containing any h3.
+    //
+    // The any-ancestor walk survives as a fallback for a Stash that does not put
+    // `setting-group` on that box. It carries the bug above, and that is deliberate:
+    // it is the behaviour every release before this one shipped, so it can be no worse
+    // than what it replaces.
     var node = btn;
+    var fallback = null;
     for (var depth = 0; node && depth < 8; depth++, node = node.parentElement) {
       var heading = node.querySelector ? node.querySelector('h3') : null;
-      if (heading && (heading.textContent || '').trim() === PLUGIN_NAME) return label;
+      var ours = !!heading && (heading.textContent || '').trim() === PLUGIN_NAME;
+      if (hasClass(node, 'setting-group')) return ours ? label : null;
+      if (ours) fallback = label;
     }
-    return null;
+    return fallback;
   }
 
   document.addEventListener('click', function (event) {

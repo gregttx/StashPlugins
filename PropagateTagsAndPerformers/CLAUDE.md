@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.14.0.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.15.0.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -46,6 +46,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — that switch said nothing off a cached answer, which is when it is switched on | **0.13.2** |
 | | — one of its lines named Scene on every page; and Scene/Gallery confirmed anchorless | **0.13.3** |
 | | — a second anchor: our own row under the tab strip, for pages with no action row | **0.14.0** |
+| | — that row shown only on its targets' tab; Apollo evicted so counts redraw; labels | **0.15.0** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -991,12 +992,49 @@ line. Stash puts nothing in our row, so there is no anchor to find and nothing t
 that call needed no branch. It spaces its own children with `column-gap`, which is the one case
 `applyButtonSpacing` already knows to keep its hands off.
 
-**It shows on every tab, including Edit.** The strip is the tab selector, so it is present whichever
-panel is open — meaning a source button on a Scene now sits above the target-side buttons in the
-edit row. That is deliberate: a source button pushes outward to other entities and does not depend on
-what the current tab shows, unlike `MergePerformerTagsToScenes`' performer button, which hides during
-editing because the scene list it acts on is off screen. If it turns out to read as clutter, hiding
-it while `*-edit-panel` is the selected tab is a one-line check against `aria-selected`.
+**0.14.0 showed it on every tab, and 0.15.0 stopped.** The strip is the tab selector, so a source
+button anchored under it sat over Details, over File Info, and just above the target-side buttons on
+Edit. Live feedback, and right: "Copy Tags to all Groups from their Scenes" means something while you
+are looking at the scene's groups and is noise everywhere else. `targetTabSelected(path)` matches the
+open tab against the path's **target** type, so each button appears on the tab showing the things it
+writes to. Performer and Group are unaffected — they have a navbar and no strip, and a page with no
+strip is not gated by one.
+
+**It fails open, and that direction is the whole design.** Three tab keys have been read off a live
+Stash and the rest have not, so `targetTabSelected` returns `null` for "this page has no tab for that
+type", which the caller reads as *show*. Hiding on an unrecognised key would be indistinguishable
+from the bug 0.13.3 spent a release finding — a button silently absent with nothing saying why — and
+§5c's recorded preference is a button sometimes unneeded over one missing when needed. A mutant
+flipping `sel !== false` to `sel === true` fails six checks.
+
+**The match is exact on the key's middle segment, and that part is defence, not a fix.** No fixture
+can tell it from a substring test: the case it looks like it guards — a Group page, where every key
+starts `group-` — has a substring matcher matching every tab, one always selected, answering "shown"
+exactly as falling open does. What it actually buys is a future key that merely *contains* a target's
+name (`scene-grouping-panel`) engaging the gate and letting it hide. **A mutant using `indexOf`
+passes the entire suite**; that is recorded rather than hidden, because an earlier version of the
+test claimed to catch it and did not.
+
+**The click evicts what it wrote from Apollo** (`evictTargets`), so the panel listing those entities
+redraws — the visible case is the tag counts on a Scene's Groups tab, rendered from cached `Group`
+objects that nothing else would refresh short of a navigation. `TARGETS[].label` doubles as the
+GraphQL typename, which is what Apollo keys normalised objects on. **Eviction only, never
+`location.reload()`**, which is where this differs from `MergePerformerTagsToScenes`'
+`refreshSceneData`: a reload is tolerable after its performer button, which moves the user anyway,
+and here it would tear the page down mid-"Added 3". Where Apollo is absent the panel stays stale
+until the user navigates. Only on a write — evicting after a no-op would refetch a panel nothing
+changed.
+
+**The labels name the real source, and the tooltip says the part no label can.** A source button does
+not copy *this* entity's payload outward: it finds the targets this entity reaches and rebuilds each
+of them from **all** of their own sources. For the two `{mode}` paths that is the difference between
+something and nothing — a scene's tag is copied to its group only if every *other* scene in that
+group carries it too — so 0.15.0 puts it in the caption, in the user's own wording:
+`Copy {mode} Tags to all Groups from their Scenes` and `Copy {mode} Tags to all Containing Groups
+from their Sub-groups`. The other nine keep their captions, because their extra sources only ever
+*add* on top of what the user expected; `manualSourceButtonTitle` states the aggregation for all
+eleven and names the common-mode consequence where it applies. Renaming these two is safe against
+§5c's cross-plugin dedup contract, which only ever matches on `tags:performer>scene`.
 
 **A studio with no tags of its own showed "Copy Tags to all Scenes" until 0.13.0.** The source
 button's gate asked only whether any *target* existed, never whether the source carried anything to

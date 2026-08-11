@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.14.0';
+  var PLUGIN_VERSION = '0.15.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -4012,13 +4012,13 @@
     'tags:performer>group': 'Copy Tags to all Groups',
     'tags:studio>scene': 'Copy Tags to all Scenes',
     'tags:studio>group': 'Copy Tags to all Groups',
-    'tags:scene>group': 'Copy {mode} Tags to all Groups',
+    'tags:scene>group': 'Copy {mode} Tags to all Groups from their Scenes',
     'performers:gallery>scene': 'Copy Perfs to all Scenes',
     'tags:gallery>image': 'Copy Tags to all Images',
     'performers:image>gallery': 'Copy Perfs to all Galleries',
     'tags:image>gallery': 'Copy Tags to all Galleries',
     'tags:group>scene': 'Copy Tags to all Scenes',
-    'tags:subgroup>group': 'Copy {mode} Tags to all Containing Groups',
+    'tags:subgroup>group': 'Copy {mode} Tags to all Containing Groups from their Sub-groups',
   };
 
   function sourceButtonLabel(path, s) {
@@ -4084,6 +4084,68 @@
     var lists = document.querySelectorAll('.nav-tabs') || [];
     for (var i = 0; i < lists.length; i++) if (hasEditPanelTab(lists[i])) return lists[i];
     return null;
+  }
+
+  // Which entity type a tab shows, from its `data-rb-event-key`. The keys are
+  // `<page>-<what>-panel` (`scene-details-panel`, `scene-edit-panel`), so the middle
+  // segment is the answer. Gallery's image-list strip uses bare keys (`images`, `add`)
+  // with neither prefix nor suffix, hence the no-hyphen fallback.
+  //
+  // **Exact match on that segment, not a substring test on the whole key** - and this
+  // is defence rather than a fix for anything observed. A substring test cannot be told
+  // apart from this one by any fixture: the case it looks like it protects against is a
+  // Group page whose keys all start `group-`, and there a substring matcher matches
+  // *every* tab, so one of them is always selected and it answers "shown" exactly as
+  // falling open does. What the exact match actually buys is the future key that merely
+  // *contains* a target's name without being that target's tab - `scene-grouping-panel`
+  // and the like - which would engage the gate and let it hide a button. Hiding is the
+  // bad direction here (see `targetTabSelected`), so the stricter test is the cheap side
+  // to be wrong on. A mutant using `indexOf` passes the whole suite; do not read that as
+  // the check being redundant, and do not read it as the check being proven either.
+  function tabShows(node) {
+    var key = node && node.getAttribute && node.getAttribute('data-rb-event-key');
+    if (typeof key !== 'string' || !key) return '';
+    var mid = key.indexOf('-') === -1 ? key : key.split('-').slice(1).join('-');
+    return mid.replace(/-panel$/, '').toLowerCase();
+  }
+
+  function eachTab(fn) {
+    var lists = document.querySelectorAll('.nav-tabs') || [];
+    for (var i = 0; i < lists.length; i++) {
+      var kids = [];
+      (function walk(n) {
+        if (!n) return;
+        if (n.getAttribute && n.getAttribute('data-rb-event-key')) kids.push(n);
+        var c = n.childNodes || [];
+        for (var j = 0; j < c.length; j++) walk(c[j]);
+      }(lists[i]));
+      for (var k = 0; k < kids.length; k++) fn(kids[k]);
+    }
+  }
+
+  // Whether the tab showing this path's *targets* is the one currently open.
+  //
+  // Live feedback: "Copy Tags to all Groups from their Scenes" is only meaningful while
+  // you are looking at the scene's groups, and the tab strip it is anchored under is
+  // present on every tab - so without this it sits over the Details panel, over File
+  // Info, and just above the target-side buttons on Edit.
+  //
+  // **Fails open, and that direction is deliberate.** Three of the keys here have been
+  // read off a live Stash and the rest have not; a page whose target tab this cannot
+  // identify shows the button on every tab, exactly as 0.14.0 did. Hiding on a failed
+  // match would make an unrecognised key look identical to the bug 0.13.3 spent a
+  // release finding - the recorded preference is a button sometimes unneeded over one
+  // missing when it was needed, and a naming guess is precisely where to apply it.
+  // `null` means "no such tab on this page", which the caller reads as "show".
+  function targetTabSelected(path) {
+    var want = path.target, found = null;
+    eachTab(function (tab) {
+      var shows = tabShows(tab);
+      if (shows !== want && shows !== want + 's') return;
+      if (found === null) found = false;
+      if (String(tab.getAttribute('aria-selected')) === 'true') found = true;
+    });
+    return found;
   }
 
   var SRC_ROW_CLASS = 'ptp2re-src-row';
@@ -4208,11 +4270,27 @@
     });
   }
 
-  function manualSourceButtonTitle(path) {
-    return pathLabel(path) + ' - copies and saves immediately into every ' +
-      TARGETS[path.target].label.toLowerCase() + ' this reaches. There is no staging ' +
-      'here: the write fans out to many entities at once, and there is no single form ' +
-      'to stage it into.';
+  // The one thing a source button's caption cannot say, and the thing users get wrong:
+  // it does not copy *this* entity's payload outward. It finds the targets this entity
+  // reaches and then rebuilds each of them from **all** of their own sources - every
+  // performer of that scene, every scene of that group. This entity is how the targets
+  // were found, not the whole of what is copied.
+  //
+  // For the two "common tags only" paths that is the difference between something and
+  // nothing, which is why they say it in the label as well (`SOURCE_BUTTON_LABELS`).
+  // For the other nine the extra sources only ever *add* on top of what you expected,
+  // so the tooltip carries it alone.
+  function manualSourceButtonTitle(path, s) {
+    var target = TARGETS[path.target].label.toLowerCase();
+    var common = path.mode && s && s[path.mode];
+    return pathLabel(path) + ' - updates every ' + target + ' this ' +
+      SOURCES[path.sourceType].label.toLowerCase() + ' belongs to. Each ' + target +
+      ' is rebuilt from ALL of its ' + path.source.toLowerCase() + ', not only this one' +
+      (common
+        ? ', and only tags that every one of them carries are copied - so this can add nothing.'
+        : '.') +
+      ' Saves immediately: the write fans out to many entities at once, and there is no ' +
+      'single form to stage it into.';
   }
 
   // The click: resolve which targets this source reaches, then plan and apply just
@@ -4221,6 +4299,33 @@
   // the button that was clicked promised. `guarded()` around the whole thing, same
   // reason as `runManual`: `run.apply()` issues the bulk mutation the fetch wrapper
   // watches for, and without it a click would react to its own write.
+  // Drops what we just wrote out of Apollo's cache, so the panel listing those entities
+  // redraws with the new tags instead of the ones it read before the click. The tag
+  // *counts* on a Scene's Groups tab are the visible case: they are rendered from the
+  // cached Group objects, and nothing else would refresh them short of a navigation.
+  //
+  // Eviction only, never `location.reload()` - which is where this differs from
+  // `MergePerformerTagsToScenes`' `refreshSceneData`, whose fallback is a reload. That
+  // is tolerable after its performer button, which navigates the user away anyway; here
+  // it would tear the page down mid-"Added 3" and lose the flash the click just earned.
+  // Where Apollo is absent the panel stays stale until the user navigates, which is the
+  // same trade the sibling's task makes for its own dialog.
+  //
+  // `TARGETS[].label` doubles as the GraphQL typename ('Scene', 'Gallery', 'Image',
+  // 'Group'), which is what Apollo keys normalised objects on.
+  function evictTargets(target, ids) {
+    var client = window.__APOLLO_CLIENT__;
+    if (!client || !client.cache || !client.cache.evict) return;
+    try {
+      ids.forEach(function (id) {
+        client.cache.evict({ id: TARGETS[target].label + ':' + String(id) });
+      });
+      if (client.cache.gc) client.cache.gc();
+    } catch (e) {
+      console.error('[ptp2re] cache eviction failed:', e);
+    }
+  }
+
   function runManualSource(path, id) {
     return autoSettings().then(function (s) {
       return guarded(function () {
@@ -4229,7 +4334,12 @@
           return autoContext(s).then(function (ctx) {
             var run = new AutoRun(s, ctx.tagMap, ctx.filters);
             return run.planEntities(path.target, [path], targetIds).then(function () {
-              return run.apply('manual source: ' + path.id + ' ' + id);
+              return run.apply('manual source: ' + path.id + ' ' + id).then(function (n) {
+                // Only on a write, and only the entities the run actually touched -
+                // evicting on a no-op would refetch a panel nothing changed.
+                if (n) evictTargets(path.target, targetIds);
+                return n;
+              });
             });
           });
         });
@@ -4237,7 +4347,7 @@
     }).then(function (n) { return { count: n }; });
   }
 
-  function buildManualSourceButton(path, label, id) {
+  function buildManualSourceButton(path, label, id, s) {
     // No margin of either axis here - same reasoning as the target-side button above,
     // and `applyButtonSpacing` handles both. Studio can show two of these at once and
     // wraps just as readily.
@@ -4248,7 +4358,7 @@
     btn._ptp2reEntityId = id;
     btn._ptp2reLabel = label;
     btn.style = 'align-self:flex-start;';
-    btn.title = manualSourceButtonTitle(path);
+    btn.title = manualSourceButtonTitle(path, s);
     btn.addEventListener('click', function (event) {
       if (event && event.preventDefault) event.preventDefault();
       var orig = btn.textContent;
@@ -4347,6 +4457,13 @@
         if (dropped) gateLogOnce('s:dedup:' + p.id, p.id + ' - hidden: another plugin is already ' +
           'showing "' + sourceButtonLabel(p, s) + '" in this row');
         return !dropped;
+      }).filter(function (p) {
+        var sel = targetTabSelected(p);
+        gateLogOnce('s:tab:' + p.id, p.id + ' - ' + (sel === null
+          ? 'no ' + TARGETS[p.target].plural + ' tab found on this page, so the tab does not gate it'
+          : sel ? 'the ' + TARGETS[p.target].plural + ' tab is open'
+          : 'hidden: the ' + TARGETS[p.target].plural + ' tab is not the one open'));
+        return sel !== false;
       });
       if (!paths.length) { clearManualSourceButtons(); return; }
       var wantKey = pathIdsKey(paths);
@@ -4392,7 +4509,7 @@
         var existing = document.getElementById(manualSourceButtonId(p));
         if (existing && existing._ptp2reEntityId === rt.id && existing._ptp2reLabel === label) return;
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-        insertBeforeImportantAction(container, buildManualSourceButton(p, label, rt.id));
+        insertBeforeImportantAction(container, buildManualSourceButton(p, label, rt.id, s));
       });
     });
   }

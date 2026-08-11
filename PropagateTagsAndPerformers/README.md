@@ -338,21 +338,21 @@ Group's Edit tab has no Delete, so everything there appends after Save.
 | `/scenes/<id>` | Edit tab | Copy Tags from Studio | this | `b2` |
 | `/scenes/<id>` | Edit tab | Copy all Tags from all Groups | this | `b4` |
 | `/scenes/<id>` | Edit tab | Copy all Tags from all Performers | MPTTS | its only scene button |
-| `/scenes/<id>` | Any tab | Copy *all\|common* Tags to all Groups | this | `e1` — under the tab strip |
+| `/scenes/<id>` | Groups tab | Copy *all\|common* Tags to all Groups from their Scenes | this | `e1` — under the tab strip |
 | `/galleries/<id>` | Edit tab | Copy all Perfs from all Images | this | `c2` |
 | `/galleries/<id>` | Edit tab | Copy all Tags from all Images | this | `c1` |
-| `/galleries/<id>` | Any tab | Copy Perfs to all Scenes | this | `b5` — under the tab strip |
-| `/galleries/<id>` | Any tab | Copy Tags to all Images | this | `d1` — under the tab strip |
+| `/galleries/<id>` | Scenes tab | Copy Perfs to all Scenes | this | `b5` — under the tab strip |
+| `/galleries/<id>` | Images tab | Copy Tags to all Images | this | `d1` — under the tab strip |
 | `/images/<id>` | Edit tab | Copy all Tags from all Galleries | this | `d1` |
-| `/images/<id>` | Any tab | Copy Perfs to all Galleries | this | `c2` — under the tab strip, if Image has one |
-| `/images/<id>` | Any tab | Copy Tags to all Galleries | this | `c1` — under the tab strip, if Image has one |
+| `/images/<id>` | Galleries tab | Copy Perfs to all Galleries | this | `c2` — under the tab strip, if Image has one |
+| `/images/<id>` | Galleries tab | Copy Tags to all Galleries | this | `c1` — under the tab strip, if Image has one |
 | `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Scenes | this | `e1` |
 | `/groups/<id>` | Edit tab | Copy Tags from Studio | this | `e3` |
 | `/groups/<id>` | Edit tab | Copy all Tags from all Performers | this | `e4` |
 | `/groups/<id>` | Edit tab | Copy all Tags from all Markers | this | `e5` |
 | `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Sub-groups | this | `e6` |
 | `/groups/<id>` | Detail | Copy Tags to all Scenes | this | `b4` |
-| `/groups/<id>` | Detail | Copy *all\|common* Tags to all Containing Groups | this | `e6` |
+| `/groups/<id>` | Detail | Copy *all\|common* Tags to all Containing Groups from their Sub-groups | this | `e6` |
 | `/performers/<id>` | Detail | Copy Tags to all Scenes | this | `b1` — **hidden when MPTTS shows its own** |
 | `/performers/<id>` | Detail | Copy Tags to all Groups | this | `e4` |
 | `/performers/<id>` | Detail | Copy Tags to all Scenes | MPTTS | its only performer button |
@@ -368,13 +368,34 @@ no such row at all — just a tab strip (Details / File Info / Chapters / Edit) 
 button gets a small row of its own directly under that strip. Image follows whichever shape it turns
 out to have.
 
-Because the tab strip belongs to the page rather than to one tab, those buttons stay visible on every
-tab, the Edit tab included. On a Scene that puts "Copy Tags to all Groups" (which pushes outward,
-to the groups) a little above "Copy all Tags from all Performers" (which pulls inward, into this
-scene) — different directions, so read the *to* and *from* in the labels.
+Since 0.15.0 a button in that row **appears only while the tab showing its targets is open** — the
+Groups tab for "…to all Groups", the Images tab for "…to all Images". Where a page has no tab for
+that type, the button shows on every tab rather than disappearing; a missing button is the worse
+mistake. Buttons in a detail action row (Performer, Group) are not affected.
 
 Until 0.13.3 those five buttons simply never appeared, and nothing said why; the gating diagnostics
 below are what found it.
+
+**Clicking one refreshes what it wrote.** The groups (or images, or scenes) it updated are dropped
+from Stash's client-side cache, so the panel you are looking at redraws with the new tag counts
+instead of the ones it loaded before the click. No page reload — the button keeps its "Added N".
+
+### What a source-side button actually does
+
+This is the one thing worth reading twice, because the obvious reading is wrong.
+
+**It does not copy the tags of the entity you are standing on.** It finds the targets that entity
+reaches, then rebuilds *each of those targets from all of their own sources*. On a scene, "Copy
+common Tags to all Groups from their Scenes" updates every group the scene belongs to, and each group
+is computed from **every scene in it** — this one is merely how the groups were found.
+
+With **common tags only** on, a tag is copied only if *every* scene in that group carries it. So a
+tag unique to the scene you are on adds nothing, and the button can honestly report "No changes".
+Turn the setting off and the label becomes "Copy all Tags…", the union, and it lands.
+
+The same is true of the other source buttons, less dramatically: they aggregate too, but without a
+"common" mode the extra sources only ever add on top of what you expected. Every source button's
+tooltip says so.
 
 Nowhere else. There are no buttons on list pages, on tag pages, or on scene markers — a marker has
 no page of its own, which is why `tags:marker>scene` and `tags:marker>group` are the two paths with

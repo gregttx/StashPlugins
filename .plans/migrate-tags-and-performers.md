@@ -2,7 +2,7 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.14.0**
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.15.0**
 (last checked 2026-08-11). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
@@ -115,11 +115,26 @@ Gallery renders two `.nav-tabs` strips and only one is the entity's own, and Sce
 element whose text is exactly "Edit", so neither the class nor the label is unambiguous. The row goes
 *after* the strip rather than inside it - a `role="tablist"`'s children are meant to be tabs.
 
-One consequence, accepted rather than worked around: the strip is the tab selector, so those buttons
-show on every tab including Edit. A source button pushes outward and does not depend on what the
-current tab shows, unlike MPTTS's performer button, which hides during editing because the list it
-acts on is off screen. Hiding it on the Edit tab is a one-line `aria-selected` check if it reads as
-clutter.
+0.15.0 then took that consequence back, and it was right to: the strip is the tab selector, so the
+buttons sat on every tab including Edit. Each now shows only while the tab displaying its **targets**
+is open. It fails open - a page with no identifiable tab for that type shows the button rather than
+hiding it, because hiding on an unrecognised key is indistinguishable from the 0.13.3 bug and §5c's
+recorded preference is a button sometimes unneeded over one missing.
+
+Two more in the same release. The click **evicts what it wrote from Apollo**, so the panel redraws
+with the new tag counts - eviction only, never a reload, which would tear the page down mid-flash.
+And the two `{mode}` source buttons were **renamed in the user's own words** to say where the tags
+come from: `Copy {mode} Tags to all Groups from their Scenes`. The misconception it fixes is worth
+recording, because it is inherent to the source side and not a wording accident: **a source button
+does not copy this entity's payload outward.** It finds the targets this entity reaches and rebuilds
+each of them from all of *their* sources. Under "common tags only" that is the difference between
+something and nothing.
+
+One honest note from building it: the tab-key matcher strips the `<page>-` prefix and matches the
+middle segment exactly, and **no test can distinguish that from a substring test** - a mutant using
+`indexOf` passes the whole suite. The stricter form is kept as defence against a future key that
+merely contains a target's name, not because anything observed needs it. An earlier version of the
+test claimed to catch it and did not.
 
 0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
 once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
@@ -131,14 +146,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.14.0, in all three places |
+| Version | 0.15.0, in all three places |
 | `PropagateTagsAndPerformers.js` | ~4,418 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 147 = **471** |
+| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 156 = **480** |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
 | Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.2 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch), `NormalizeParentTags` 1.7.5 → 1.7.7 |
-| Landed on `main` | through 0.13.3 (`c76a624`); 0.14.0 is uncommitted |
+| Landed on `main` | through 0.14.0 (`6c5ed24`); 0.15.0 is uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's

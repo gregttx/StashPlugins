@@ -163,7 +163,7 @@ function stashAction(harness, label, computed, tag) {
 // `keys` names the tabs; the plugin picks a strip by whether one of them ends
 // `-edit-panel`, so a fixture can build the *other* kind (Gallery's Images/Add strip)
 // by passing keys that do not.
-function tabStrip(env, keys) {
+function tabStrip(env, keys, selected) {
   const outer = h.makeElement('div');
   outer.className = 'gallery-tabs';
   const parent = h.makeElement('div');           // the block-level wrapper our row goes into
@@ -176,6 +176,7 @@ function tabStrip(env, keys) {
     const a = h.makeElement('a');
     a.className = 'nav-link';
     a.setAttribute('data-rb-event-key', k);
+    a.setAttribute('aria-selected', String(k === (selected || keys[0])));
     a.textContent = k.replace(/^.*-(\w+)-panel$/, '$1');
     item.appendChild(a);
     strip.appendChild(item);
@@ -1418,6 +1419,161 @@ function nodeListLikeContainer() {
     await h.flush(60);
     h.check('no action row and no tab strip draws nothing at all',
       srcRow(env).length === 0 && sourceButtons(env).length === 0);
+  }
+
+  // ── A source button shows only while its targets' tab is open (0.15.0) ───────
+  //
+  // Live feedback: the tab strip the row hangs under is present on every tab, so
+  // "Copy Tags to all Groups from their Scenes" sat over the Details panel, over File
+  // Info, and just above the target-side buttons on Edit.
+  {
+    const opts = {
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+    };
+    const { env } = start(opts);
+    tabStrip(env, ['scene-details-panel', 'scene-group-panel', 'scene-edit-panel'],
+      'scene-group-panel');
+    env.tick();
+    await h.flush(60);
+    h.check('shown while the Groups tab is the open one', sourceButtons(env).length === 1);
+  }
+  {
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    tabStrip(env, ['scene-details-panel', 'scene-group-panel', 'scene-edit-panel'],
+      'scene-details-panel');
+    env.tick();
+    await h.flush(60);
+    h.check('and hidden while any other tab is', sourceButtons(env).length === 0);
+  }
+  {
+    // A Group page, where the target type and the page type are the same word - every
+    // key starts `group-`. `tags:subgroup>group` writes to *containing* groups, for
+    // which this page has no tab, so the right answer is to fall open and show.
+    //
+    // This does **not** distinguish exact matching from a substring test, and the
+    // comment on `tabShows` explains why: a substring matcher matches every tab here,
+    // one of them is always selected, and it answers "shown" too. Written down because
+    // an earlier version of this check claimed to catch that and did not - the mutant
+    // passed the entire suite. What it does pin is the fail-open branch on the one page
+    // shape most likely to trip a future matcher.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e6TagsSubGroupsToGroups: true },
+      pathname: '/groups/10',
+      sourceField: { containing_groups: [{ group: { id: '900' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    tabStrip(env, ['group-details-panel', 'group-scenes-panel', 'group-edit-panel'],
+      'group-scenes-panel');
+    env.tick();
+    await h.flush(60);
+    h.check('a page with no tab for the target falls open, even when every key names it',
+      sourceButtons(env).length === 1);
+  }
+  {
+    // Fails open: a page with no identifiable tab for the target shows the button on
+    // every tab, exactly as 0.14.0 did. Hiding on an unrecognised key would look
+    // identical to the bug 0.13.3 spent a release finding.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    tabStrip(env, ['scene-details-panel', 'scene-movie-panel', 'scene-edit-panel'],
+      'scene-details-panel');
+    env.tick();
+    await h.flush(60);
+    h.check('an unrecognised tab vocabulary shows the button rather than hiding it',
+      sourceButtons(env).length === 1);
+  }
+  {
+    // A page with a real action row and no strip at all: unchanged, always shown.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+      sourcePayload: { tags: [{ id: '1' }] },
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('a page with no tab strip is not gated by one', sourceButtons(env).length === 1);
+  }
+
+  // ── The click drops what it wrote out of Apollo, so the panel redraws ────────
+  {
+    const evicted = [];
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }, { group: { id: '401' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+      entity: { id: '400', name: 'G', tags: [], scenes: [{ id: '10', title: 'S', tags: [{ id: '1' }] }] },
+    });
+    env.ctx.window.__APOLLO_CLIENT__ = {
+      cache: { evict: (o) => evicted.push(o.id), gc: () => { evicted.push('gc'); } },
+    };
+    tabStrip(env, ['scene-details-panel', 'scene-group-panel', 'scene-edit-panel'],
+      'scene-group-panel');
+    env.tick();
+    await h.flush(60);
+    sourceButtons(env)[0].click();
+    await h.flush(120);
+    h.check('the groups it wrote are evicted by Apollo id, so their tag counts redraw',
+      evicted.indexOf('Group:400') !== -1 && evicted.indexOf('Group:401') !== -1,
+      evicted.join(','));
+    h.check('and the cache is collected once afterwards',
+      evicted[evicted.length - 1] === 'gc', evicted.join(','));
+  }
+  {
+    // A click that wrote nothing evicts nothing - refetching a panel that did not
+    // change is worse than leaving it alone.
+    const evicted = [];
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+      entity: { id: '400', name: 'G', tags: [{ id: '1' }], scenes: [{ id: '10', tags: [{ id: '1' }] }] },
+    });
+    env.ctx.window.__APOLLO_CLIENT__ = { cache: { evict: (o) => evicted.push(o.id), gc: () => {} } };
+    tabStrip(env, ['scene-details-panel', 'scene-group-panel', 'scene-edit-panel'],
+      'scene-group-panel');
+    env.tick();
+    await h.flush(60);
+    sourceButtons(env)[0].click();
+    await h.flush(120);
+    h.check('a no-op click evicts nothing', evicted.length === 0, evicted.join(','));
+  }
+  {
+    // No Apollo at all: no crash, no reload. The sibling's equivalent falls back to
+    // `location.reload()`; here that would tear the page down mid-flash.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e1TagsScenesToGroups: true },
+      pathname: '/scenes/10',
+      sourceField: { groups: [{ group: { id: '400' } }] },
+      sourcePayload: { tags: [{ id: '1' }] },
+      entity: { id: '400', name: 'G', tags: [], scenes: [{ id: '10', tags: [{ id: '1' }] }] },
+    });
+    let reloaded = false;
+    env.ctx.location.reload = () => { reloaded = true; };
+    tabStrip(env, ['scene-details-panel', 'scene-group-panel', 'scene-edit-panel'],
+      'scene-group-panel');
+    env.tick();
+    await h.flush(60);
+    const btn = sourceButtons(env)[0];
+    btn.click();
+    await h.flush(120);
+    h.check('without Apollo the write still reports, and nothing reloads the page',
+      /Added/.test(btn.textContent) && !reloaded, btn.textContent + ' reloaded=' + reloaded);
   }
 
   // ── Gating diagnostics: off by default, on from the console ──────────────────

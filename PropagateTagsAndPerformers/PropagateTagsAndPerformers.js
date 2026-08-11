@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.12.10';
+  var PLUGIN_VERSION = '0.12.14';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2193,24 +2193,40 @@
     }
     // One in-flight load is shared: a bulk edit of forty scenes arrives as one
     // mutation, but two saves in quick succession must not become two settings loads.
-    if (_autoSettingsWait) return _autoSettingsWait;
-    _autoSettingsWait = loadSettings().then(function (r) {
-      _autoSettings = r.settings;
-      _autoSettingsAt = Date.now();
-      _autoSettingsWait = null;
-      publishDeclares(_autoSettings);
-      return _autoSettings;
-    }, function (e) {
-      _autoSettingsWait = null;
-      throw e;
-    });
+    if (!_autoSettingsWait) {
+      _autoSettingsWait = loadSettings().then(function (r) {
+        _autoSettings = r.settings;
+        _autoSettingsAt = Date.now();
+        _autoSettingsWait = null;
+        publishDeclares(_autoSettings);
+        return _autoSettings;
+      }, function (e) {
+        _autoSettingsWait = null;
+        throw e;
+      });
+    }
+    // Stale while it revalidates. Awaiting a lapsed TTL means one tick in ten blocks on
+    // a full `configuration { plugins }` query before it can even look at the DOM, and
+    // the button ticks run every second - so on any given navigation there is a real
+    // chance the tick that would have drawn the button is the one paying for the
+    // reload. `MergePerformerTagsToScenes` never has this problem because it reads a
+    // plain settings object synchronously and refreshes it on its own timer, off the
+    // path that draws the button; this is the same shape without a second copy of the
+    // settings. The staleness window is the one the TTL already opened - every caller
+    // was always working from settings up to ten seconds old - and our own save calls
+    // `invalidateAutoSettings`, which clears the value rather than ageing it, so a
+    // setting the user just changed is never served stale.
+    if (_autoSettings) {
+      _autoSettingsWait.then(null, function () {}); // the refresh is nobody's to await
+      return Promise.resolve(_autoSettings);
+    }
     return _autoSettingsWait;
   }
 
   // Our own settings being saved invalidates the cache rather than waiting out the
   // TTL, so switching a mode off takes effect on the next save and not ten seconds
   // later.
-  function invalidateAutoSettings() { _autoSettings = null; _autoSettingsAt = 0; }
+  function invalidateAutoSettings() { _autoSettings = null; _autoSettingsAt = 0; _probeCtx = null; }
 
   // ── The per-entity cooldown ───────────────────────────────────────────────
   //
@@ -2371,7 +2387,13 @@
       ' count ' + t.node + ' { ' + sel + ' } } }';
   }
 
-  function resolveFilterReverse(entry, id) {
+  // `anyIsEnough` is the button existence probe, which asks only whether the list comes
+  // back empty. It stops at the first page that has yielded *something*, never at an
+  // empty one - so the answer is identical to a full walk for both entry shapes,
+  // including a two-hop pick where page 1 can legitimately produce nothing while page 2
+  // does. What it saves is the common case: a studio with five thousand scenes paged
+  // through in full to decide whether to draw one button.
+  function resolveFilterReverse(entry, id, anyIsEnough) {
     var t = TARGETS[entry.on];
     var out = [], fetched = 0;
     function page(n) {
@@ -2381,6 +2403,7 @@
           var list = res[t.node] || [];
           fetched += list.length;
           list.forEach(function (node) { out = out.concat(entry.pick(node)); });
+          if (anyIsEnough && out.length) return out;
           if (list.length && fetched < (res.count || 0)) return page(n + 1);
           return out;
         });
@@ -2393,14 +2416,14 @@
   // combined query: it is what every other reverse lookup in this plugin already
   // does, and a bulk save of sources is the uncommon case, not the one worth a second
   // query shape for.
-  function resolveSourceTargets(path, ids) {
+  function resolveSourceTargets(path, ids, anyIsEnough) {
     var entry = SOURCE_REVERSE[path.id];
     if (!entry) return Promise.resolve([]);
     var out = {};
     var chain = Promise.resolve();
     ids.forEach(function (id) {
       chain = chain.then(function () {
-        var got = entry.kind === 'filter' ? resolveFilterReverse(entry, id) : resolveFieldReverse(entry, id);
+        var got = entry.kind === 'filter' ? resolveFilterReverse(entry, id, anyIsEnough) : resolveFieldReverse(entry, id);
         return got.then(function (tids) {
           tids.forEach(function (tid) { if (tid != null) out[String(tid)] = true; });
         });
@@ -2582,6 +2605,33 @@
       var tagMap = buildTagMap(((data.findTags || {}).tags) || []);
       return { tagMap: tagMap, filters: makeFilters(settings, tagMap, resolveExclusionTagId(settings, tagMap)) };
     });
+  }
+
+  // The same context, cached, *for the button existence probe only*. Safe here and
+  // nowhere else, for exactly the reason the comment above gives: a probe decides whether
+  // to *show* a button, never what to write, so a stale answer costs at most one button
+  // shown or hidden. Dropped by `invalidateAutoSettings`, so changing a filter setting
+  // re-probes at once rather than waiting the TTL out.
+  //
+  // The TTL is its own, and long. Measured on a live library: `tagQuery` took **766 ms**
+  // of the 1230 ms a Scene Edit button took to appear, and it is the single largest cost
+  // in the whole path. 0.12.11 cached it on the settings TTL, ten seconds - which is
+  // shorter than the gap between two visits to an edit tab, so in practice it was paid
+  // again every time and the delay stayed exactly where it was. What the value has to be
+  // sized against is not how fresh the answer needs to be for a *write* (this answer is
+  // never used for one) but how long a button may go on being shown or hidden after the
+  // tag library changed underneath it.
+  var PROBE_CTX_TTL_MS = 300000; // 5 minutes
+  var _probeCtx = null; // { at, promise }
+  function probeContext(s) {
+    var now = Date.now();
+    if (_probeCtx && now - _probeCtx.at < PROBE_CTX_TTL_MS) return _probeCtx.promise;
+    var p = autoContext(s);
+    _probeCtx = { at: now, promise: p };
+    // A failed probe must not be cached, or one hiccup mis-draws the buttons for the
+    // whole TTL - which now matters a great deal more than it did at ten seconds.
+    p.then(null, function () { if (_probeCtx && _probeCtx.promise === p) _probeCtx = null; });
+    return p;
   }
 
   // Plans and writes into a fixed set of targets - shared by both auto modes, so a
@@ -3635,7 +3685,7 @@
   // than a second query shape, so a button's visibility can never disagree with what
   // a click into the same entity would see.
   function checkButtonExistence(target, paths, id, s) {
-    return autoContext(s).then(function (ctx) {
+    return probeContext(s).then(function (ctx) {
       var run = new AutoRun(s, ctx.tagMap, ctx.filters);
       var has = {};
       run.recordExistence = function (pathId, exists) { has[pathId] = exists; };
@@ -3654,6 +3704,35 @@
   // what needs probing without changing either the target or the id.
   var _existenceCheck = null; // { target, id, pathsKey, status: 'pending'|'ready', has }
 
+  // Arms the probe if what it holds does not answer the question being asked, and
+  // reports whether an answer is ready. Split out of `manualButtonsTick` at 0.12.14 so
+  // it can be called *before* the container is found: measured on a live Scene Edit tab,
+  // the three sequential passes took ~900 ms of wall clock, and they were starting the
+  // moment the row appeared - which is the moment the user clicked Edit, and also the
+  // moment Stash fires its own five `*ForSelect` queries for the form's dropdowns, each
+  // of which measured 810-1096 ms. So the probe was queueing behind the busiest instant
+  // of the page load, and every millisecond of it sat between the click and the button.
+  // Run from the route instead and it is spent while the user is still reading the
+  // detail view, with the answer already cached by the time the row exists.
+  function armExistenceCheck(rt, paths, s) {
+    var wantKey = pathIdsKey(paths);
+    if (!_existenceCheck || _existenceCheck.target !== rt.target ||
+        _existenceCheck.id !== rt.id || _existenceCheck.pathsKey !== wantKey) {
+      var check = _existenceCheck = { target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', has: null };
+      checkButtonExistence(rt.target, paths, rt.id, s).then(function (has) {
+        if (_existenceCheck === check) { check.has = has; check.status = 'ready'; manualButtonsTick(); }
+      }, function (e) {
+        // A failed probe must not silently hide every button on the page - the
+        // recorded preference is a button that is sometimes unneeded over one that
+        // is missing when it was needed, and a network hiccup is exactly that trade.
+        // `has: null` is read downstream as "show everything".
+        console.error('[ptp2re] button existence check failed:', e);
+        if (_existenceCheck === check) { check.status = 'ready'; check.has = null; manualButtonsTick(); }
+      });
+    }
+    return _existenceCheck.status === 'ready';
+  }
+
   // Reconciles the container's buttons against the currently enabled paths for this
   // page, adding what is missing and dropping what no longer belongs - a stale
   // button left over from the previous entity, or every button at once when the
@@ -3662,17 +3741,28 @@
     autoSettings().then(function (s) {
       var rt = s.a1ShowManualButtons ? currentRouteTarget() : null;
       if (!rt) { clearManualButtons(); return; }
+      var wanted = enabledPaths(s).filter(function (p) { return p.target === rt.target; });
+      if (!wanted.length) { clearManualButtons(); return; }
       var container = findManualButtonContainer();
-      if (!container) { clearManualButtons(); return; }
+      if (!container) {
+        // No row yet - on a Scene that means the Edit tab is not open. Probe anyway:
+        // see `armExistenceCheck`. The dedup filter below needs a container to read, so
+        // this arms on the unfiltered set; dedup only drops a path when another plugin
+        // is *showing* a button for it, so in every other case the key is the one the
+        // filtered call would have produced and the answer is already there when the
+        // row appears.
+        armExistenceCheck(rt, wanted, s);
+        clearManualButtons();
+        return;
+      }
       ensureRowSpacing(container);
       // A path another plugin also declares, whose button is already visible right
       // here, is dropped from what we want before either loop below ever sees it -
       // so the removal loop tears an earlier one of ours down the moment a sibling
       // plugin's appears, and the add loop never puts a second one up beside it.
-      var paths = enabledPaths(s).filter(function (p) { return p.target === rt.target; })
-        .filter(function (p) {
-          return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, buttonLabel(p, s)));
-        });
+      var paths = wanted.filter(function (p) {
+        return !(otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, buttonLabel(p, s)));
+      });
       if (!paths.length) { clearManualButtons(); return; }
       // Existence gating: a button whose path finds nothing on this entity - no
       // performers, no studio, no markers, no groups - stays off rather than sitting
@@ -3683,22 +3773,7 @@
       // MergePerformerTagsToScenes' own two buttons already do. The probe is async,
       // so a button that was showing a moment ago can disappear for one tick while a
       // fresh one is checked; there is no synchronous way to know without the query.
-      var wantKey = pathIdsKey(paths);
-      if (!_existenceCheck || _existenceCheck.target !== rt.target ||
-          _existenceCheck.id !== rt.id || _existenceCheck.pathsKey !== wantKey) {
-        var check = _existenceCheck = { target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', has: null };
-        checkButtonExistence(rt.target, paths, rt.id, s).then(function (has) {
-          if (_existenceCheck === check) { check.has = has; check.status = 'ready'; manualButtonsTick(); }
-        }, function (e) {
-          // A failed probe must not silently hide every button on the page - the
-          // recorded preference is a button that is sometimes unneeded over one that
-          // is missing when it was needed, and a network hiccup is exactly that
-          // trade. `has: null` below is read as "show everything".
-          console.error('[ptp2re] button existence check failed:', e);
-          if (_existenceCheck === check) { check.status = 'ready'; check.has = null; manualButtonsTick(); }
-        });
-      }
-      if (_existenceCheck.status !== 'ready') { clearManualButtons(); return; }
+      if (!armExistenceCheck(rt, paths, s)) { clearManualButtons(); return; }
       if (_existenceCheck.has) {
         paths = paths.filter(function (p) { return _existenceCheck.has[p.id]; });
       }
@@ -3828,15 +3903,16 @@
   // walk to aggregate, only `resolveSourceTargets`' own id list, the same lookup a
   // click performs. A performer in no scenes yields an empty list either way, so the
   // button and the click can never disagree about what counts as "nothing here".
+  // In parallel, unlike every other reverse lookup here: this is one entity's worth of
+  // work per path with nothing to accumulate between them, and a probe is what the user
+  // is waiting on before a button appears. The sequential shape elsewhere is about not
+  // firing a query per entity across a whole library; a handful of paths on one page is
+  // not that.
   function checkSourceButtonExistence(paths, id) {
     var has = {};
-    var chain = Promise.resolve();
-    paths.forEach(function (p) {
-      chain = chain.then(function () {
-        return resolveSourceTargets(p, [String(id)]).then(function (ids) { has[p.id] = ids.length > 0; });
-      });
-    });
-    return chain.then(function () { return has; });
+    return Promise.all(paths.map(function (p) {
+      return resolveSourceTargets(p, [String(id)], true).then(function (ids) { has[p.id] = ids.length > 0; });
+    })).then(function () { return has; });
   }
 
   function manualSourceButtonTitle(path) {
@@ -3979,6 +4055,17 @@
   document.addEventListener('click', function () { setTimeout(bothButtonTicks, 300); }, true);
   setInterval(bothButtonTicks, 1000);
   bothButtonTicks();
+
+  // Warm the probe's tag context now rather than making the first button wait for it.
+  // It is the same answer for every page and it is the expensive one (see
+  // `PROBE_CTX_TTL_MS`), so paying for it while Stash is still rendering costs the user
+  // nothing, where paying for it on their first click costs three quarters of a second.
+  // Gated on the buttons being on at all: a user who has never enabled one should not be
+  // asked for the tag library on every page load. Failure is ignored - this is a warm-up,
+  // and the probe that actually needs the context will report its own.
+  autoSettings().then(function (s) {
+    if (s.a1ShowManualButtons) probeContext(s).then(null, function () {});
+  }, function () {});
 
   // ── Task interception ─────────────────────────────────────────────────────
   //

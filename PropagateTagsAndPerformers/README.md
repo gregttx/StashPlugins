@@ -1,6 +1,6 @@
 # Propagate Tags and Performers to Related Entities
 
-> ## 🚧 Under construction — 0.12.10, every step but the last has landed
+> ## 🚧 Under construction — 0.12.14, every step but the last has landed
 >
 > The library-wide task is complete and covers every path: it reviews, applies and undoes. **Back
 > up your database before running it** — see below. Both automatic modes work, both cooperate with

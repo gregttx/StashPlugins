@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.12.10.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.12.14.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -37,6 +37,10 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — an *actionless* neighbour walked past entirely, to the button behind it | **0.12.8** |
 | | — the apply/undo batch driver written once; `findByClass` → `querySelector` | **0.12.9** |
 | | — README gains the per-page table of all 26 buttons, MPTTS's two included | **0.12.10** |
+| | — the button existence probe: a cached tag context, and parallel source lookups | **0.12.11** |
+| | — the rest of the button delay: settings served stale, the probe stopping at one page | **0.12.12** |
+| | — the delay, measured: the tag query was 766 ms of it, so cache it long and warm it | **0.12.13** |
+| | — and measured again: the probe starts from the route, not from the row appearing | **0.12.14** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -734,6 +738,111 @@ needing a navigation to notice. A failed probe (the tag query `autoContext` need
 `has: null`, read downstream as "show everything" rather than "hide everything" — the stated
 preference applied to the one place a network hiccup could otherwise violate it.
 
+**The probe is what a button waits on, so it is the only place either query shape is tuned for
+latency** (0.12.11). Live-reported: this plugin's buttons appeared about a second after
+`MergePerformerTagsToScenes`' on the same page. Neither tick loop was at fault — both poll at 1 s and
+coalesce observer bursts identically, and this plugin re-ticks the instant a probe resolves while the
+sibling waits for the next tick. The difference was entirely what each probe costs: the sibling asks
+one small combined query, and this one asked `tagQuery` — the whole tag library — on every
+navigation, plus one round trip per source path *in series*. Two changes, one per side:
+
+- **`probeContext(s)` caches `autoContext`'s result on the settings TTL, for the probe only.** The
+  comment above `autoContext` explaining why it is deliberately uncached still holds for every other
+  caller: a stale exclusion tag would mean writing to the entities it exists to protect. A probe
+  never writes — it decides whether to *show* a button — so the worst a stale answer costs is one
+  button shown or hidden for a few seconds. `invalidateAutoSettings` drops it too, so saving a
+  filter setting re-probes at once rather than waiting the TTL out.
+- **`checkSourceButtonExistence` fires its per-path lookups with `Promise.all`.** This is not a
+  reversal of §4e's "sequential per source id": that rule is about not firing a query per entity
+  across a whole library, and a handful of paths on one page is not that.
+
+0.12.11 fixed the target side and left the source side almost untouched — `probeContext` is never
+reached from a Performer or Studio page, and `Promise.all` over a single enabled path is the same one
+query it always was. Live feedback said as much: still a small delay. Two more, and between them they
+are the reason the *sibling* has never had one:
+
+- **`autoSettings()` serves the last known settings and revalidates behind itself.** This is the one
+  that applied to every page. Awaiting a lapsed TTL means one tick in ten blocks on a full
+  `configuration { plugins }` query before it can even look at the DOM, and the ticks that draw
+  buttons run every second — so on any given navigation there is a real chance the tick that would
+  have drawn the button is the one paying for the reload. `MergePerformerTagsToScenes` never had this
+  because it reads a plain object synchronously and refreshes it on a separate timer; this is the
+  same shape without a second copy of the settings. **The staleness window is the one the TTL already
+  opened** — every caller was always working from settings up to ten seconds old — and our own save
+  calls `invalidateAutoSettings`, which *clears* the value rather than ageing it, so a setting the
+  user just changed is never served stale.
+- **The probe's filter lookups stop at the first page that found something**
+  (`resolveFilterReverse`'s `anyIsEnough`). The probe asks only whether the list comes back empty, and
+  a studio with five thousand scenes was paging through all of them to decide whether to draw one
+  button — a delay that scaled with how busy the entity was. It stops on a page that *yielded*
+  something, never on an empty one, so a two-hop pick that legitimately finds nothing on page 1 pages
+  on exactly as before and the answer is identical to a full walk. That equivalence is what keeps
+  §5c's "button and click can never disagree" true.
+
+**0.12.13 is the one that was measured, and it is the one that mattered.** 0.12.11 and 0.12.12 were
+both derived by reading the code for plausible costs, and both removed real work without moving the
+number the user could see. A `fetch` wrapper logging every operation with its duration, against a
+button-visibility observer, settled it in one paste on a Scene Edit tab:
+
+```
+→  4447ms  PTPTags
+←  5212ms  PTPTags  (766ms)          <- the whole tag library
+→  5214 / 5233 / 5387  PTP_one_findScene  (19 / 81 / 287ms, sequential passes)
+★  5677ms  PTP2RE target button visible
+```
+
+766 ms of 1230 ms was the tag query — the thing 0.12.11 had already "fixed" by caching it on the
+*settings* TTL. Ten seconds is shorter than the gap between two visits to an edit tab, so it was
+paid again nearly every time and the delay stayed exactly where it was. **A cache whose TTL is
+shorter than the interval between uses is not a cache**, and the TTL was copied from a neighbour
+rather than sized against what it was actually protecting. `PROBE_CTX_TTL_MS` is now its own
+constant at five minutes, sized against the only thing a stale probe context can cost: how long a
+button may go on being wrongly shown or hidden after the tag library changed. The context is also
+warmed at load when the buttons are enabled at all, so the first one does not wait for it either.
+
+`planEntities` walking its stages in sequence, one query per pass, is left alone throughout: it is
+the shared planner, and §5c's guarantee that a button's visibility can never disagree with what a
+click into the same entity would compute is worth more than the round trips.
+
+**The lesson, and it is the same one the placement work learned twice:** three releases reasoned
+about which cost to remove while nobody had measured which cost was there. The instrumentation that
+answered it took one paste and no code change. Measure before the second fix, never after the
+third.
+
+**0.12.14 came from re-measuring after 0.12.13, and corrected 0.12.13's own conclusion.** With
+`PTPTags` gone from the log entirely the button still took 1100 ms instead of 1230 - so the tag
+query had been worth about 130 ms of *wall clock*, not the 766 ms its own duration suggested. The
+second capture says why:
+
+```
+-> 1553ms  PTP_one_findScene  (650ms)   <- pass 1, while Stash's own five *ForSelect
+-> 2204ms  PTP_one_findScene  ( 76ms)      queries for the edit form's dropdowns are
+-> 2356ms  PTP_one_findScene  (138ms)      each taking 810-1096ms
+*  2653ms  PTP2RE target button visible
+```
+
+The same pass measured 19 ms in the first capture and 650 ms in the second. Nothing about it
+changed; what changed is that it no longer had `PTPTags` in front of it absorbing the wait, so it
+ran head-on into the busiest instant of the page. **A duration is not a cost when requests contend -
+removing the query in front only moves the waiting.** The real problem was never which queries the
+probe makes but *when it starts*, and it started when `.edit-buttons` appeared: the moment the user
+clicks Edit, which is also the moment Stash issues those five queries.
+
+So `armExistenceCheck` is called before the container lookup as well as after. On a Scene the probe
+runs while the user is still on the detail view and the answer is cached by the time the row exists;
+opening the Edit tab draws the button with no request at all. Two consequences worth stating:
+
+- **The dedup filter needs a container, so the early call arms on the unfiltered path set.** Dedup
+  only drops a path when another plugin is *showing* a button for it, so in every other case the key
+  matches what the filtered call would have produced and the cached answer stands. Where it does
+  differ the probe re-arms, exactly as it did before.
+- **A page view now costs a probe even if the user never opens the Edit tab.** That is the trade,
+  and it is gated on `a1ShowManualButtons`: someone who has enabled the buttons wants them ready.
+
+The source side is deliberately unchanged. Its container is the detail navbar, which is present on
+load, so there is no later moment to move the probe ahead of - and the measurement showed both
+plugins level on Performer detail, which is the floor for one round trip.
+
 **The probe is asynchronous, which the target-side buttons never were before.** A button that was
 showing a moment ago can vanish for one tick while a fresh probe runs after navigating to a
 different entity or toggling a path's setting — there is no synchronous way to know existence
@@ -925,7 +1034,19 @@ of it apply unchanged:
   source sides. `tests/npt-harness.js` gained `previousSibling` for that last pair; without it every
   ordering check passed for the wrong reason regardless of which priority actually won. The
   placement fixtures are deliberately untidy - a class-less `<a>` Delete with padded label text -
-  because a tidier one would pass against the unfixed source.
+  because a tidier one would pass against the unfixed source. Since 0.12.11, the probe's cost: a
+  second probe within the settings TTL reuses the cached tag context instead of re-asking for the
+  whole library (it fails against the pre-0.12.11 source, which asked twice), and two source paths on
+  one page are still gated independently now that their lookups run in parallel. Since 0.12.12: a
+  lapsed settings TTL no longer holds a button back — the clock is shifted and the settings query made
+  to hang from that point, so a tick that still draws the *new* entity's button is the only thing
+  separating the two behaviours — and the probe stops at the first page that found a target, paired
+  with the negative that a page which yielded *nothing* still pages on. Since 0.12.13: the tag context
+  outliving the settings TTL (the clock shifted past ten seconds, still one query) and being warmed
+  at load before any container exists, with the negative that a user who has the buttons switched
+  off is never asked for the tag library at all. Since 0.12.14: the probe running with no container
+  present at all, and the button then drawn from the cached answer when the row appears without a
+  single new query.
 - **`style.test.js`** — the CSS this plugin shares with its two siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.** The

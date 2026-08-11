@@ -2,8 +2,8 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.12.10**
-(last checked 2026-08-10). All eight decisions are settled (§4) and every open question is closed
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.12.14**
+(last checked 2026-08-11). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
 correctly on **all four target pages, confirmed live** (step 8) — built best-effort, without a live
@@ -29,6 +29,43 @@ failing on the very row being tested), and **a measured gap is true of one insta
 true whenever you ask** (0.12.6 derived spacing from `getBoundingClientRect` in a row that had not
 finished settling, and was reverted).
 
+0.12.11 is the first change here aimed at *latency* rather than correctness or placement, and it
+came from the same live testing: this plugin's buttons appeared about a second after
+`MergePerformerTagsToScenes`' on the same page. Neither tick loop was at fault — both poll at 1 s and
+coalesce observer bursts the same way, and this plugin already re-ticks the moment a probe resolves
+while the sibling waits for the next tick. The cost was entirely in the existence probe, which asked
+for the whole tag library on every navigation and ran its per-path source lookups in series. A
+probe-only cache on the settings TTL (`probeContext`) and a `Promise.all` fix both, without touching
+the write paths, which still read fresh for the reason `autoContext`'s own comment gives.
+
+0.12.12 is the rest of it, after live feedback that a small delay remained — which was correct, and
+predictable in hindsight: neither 0.12.11 change reaches a Performer or Studio page, where the probe
+never asks for the tag library and one enabled path has nothing to parallelise. The two that did:
+`autoSettings()` now serves the last known settings and revalidates behind itself, so a lapsed TTL no
+longer blocks the tick that would have drawn the button (the sibling gets this for free by reading a
+plain object), and the probe's paged lookups stop at the first page that found a target instead of
+walking every page a busy source has. Both are in `CLAUDE.md` §5c. **The lesson worth keeping is the
+first one: a latency fix aimed at the wrong half of a feature measures as no fix at all.**
+
+0.12.13 is the one that worked, and the difference is that it was measured. A `fetch` wrapper
+logging each operation's duration alongside an observer watching for the button showed, in one
+paste, that 766 ms of a 1230 ms Scene Edit button was `tagQuery` - the query 0.12.11 had already
+cached, on a ten-second TTL shorter than the gap between two visits to an edit tab, so it was paid
+again nearly every time. **A cache whose TTL is shorter than the interval between uses is not a
+cache.** It now has its own five-minute constant, sized against the only thing a stale probe context
+can cost (a button wrongly shown), and is warmed at load. **Three releases reasoned about which cost
+to remove while nobody had measured which cost was there; the instrumentation that settled it took
+one paste and no code change.** Measure before the second fix, never after the third.
+
+0.12.14 corrected 0.12.13's own conclusion, from a second capture. With the tag query gone the button
+still took 1100 ms rather than 1230 - so its 766 ms had been worth ~130 ms of wall clock, because the
+pass behind it simply absorbed the wait instead (19 ms in the first capture, 650 ms in the second,
+unchanged code). **A duration is not a cost when requests contend.** What mattered was never which
+queries the probe makes but *when it starts*: it could not start until `.edit-buttons` existed, which
+is the instant the user clicks Edit and the instant Stash fires its own five `*ForSelect` queries.
+The probe is now armed from the route as well, so it runs while the detail view is still on screen
+and opening the Edit tab draws the button with no request at all.
+
 0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
 once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
 of this file, the plugin `CLAUDE.md`s and the READMEs. It also fixed a real divergence it exposed —
@@ -39,14 +76,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.12.10, in all three places |
-| `PropagateTagsAndPerformers.js` | ~4,150 lines |
+| Version | 0.12.14, in all three places |
+| `PropagateTagsAndPerformers.js` | ~4,235 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 101 = **425** |
+| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 119 = **443** |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
 | Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.15.9 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass), `NormalizeParentTags` 1.7.5 → 1.7.7 |
-| Landed on `main` | through 0.12.9 (`dee5079`); 0.12.10 is uncommitted |
+| Landed on `main` | through 0.12.10 (`a2097ec`); 0.12.11-0.12.14 are uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's

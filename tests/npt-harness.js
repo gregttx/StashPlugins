@@ -186,6 +186,9 @@ function makeEnv(opts) {
     const req = JSON.parse(o.body);
     calls.push({ query: req.query, variables: req.variables });
     const payload = opts.respond(req, calls);
+    // A responder returning `HANG` models a request that is still in flight - the only
+    // way to tell "this code path waited for the answer" from "it did not need to".
+    if (payload === HANG) return new Promise(() => {});
     return Promise.resolve({
       ok: true,
       status: 200,
@@ -367,8 +370,10 @@ function fire(node, type, ev) {
   });
 }
 
+const HANG = { __hang: true };
+
 module.exports = {
-  SRC, PLUGIN_ID, TASK_PRUNE, TASK_ROLLUP, TAGS,
+  SRC, PLUGIN_ID, TASK_PRUNE, TASK_ROLLUP, TAGS, HANG,
   makeEnv, run, startTask, flush, dialog, hasClass, makeElement, fire,
   check, finish, makeResponder, bulkCalls, entityUpdate,
   results: () => failures,

@@ -52,6 +52,9 @@ function responder(opts) {
   return function (req) {
     const q = req.query || '';
     if (q.indexOf('configuration') !== -1) {
+      // `hangSettings` is a mutable flag rather than a fixed option: the interesting
+      // case is a load that stops answering *after* one has already succeeded.
+      if (opts.hangSettings && opts.hangSettings.on) return h.HANG;
       const plugins = {};
       plugins[NAME] = opts.settings || {};
       return { data: { configuration: { plugins } } };
@@ -80,9 +83,14 @@ function responder(opts) {
     const msl = /query PTP_sfilter_(\w+)_(\w+)\(/.exec(q);
     if (msl) {
       const node = FIND_TO_NODE[msl[1]] || msl[1].toLowerCase();
-      const list = opts.sourceFilter !== undefined ? opts.sourceFilter : [];
+      const all = opts.sourceFilter !== undefined ? opts.sourceFilter : [];
+      // Only page 1 carries anything. With `sourceFilterCount` set above the list's
+      // own length this is a source whose targets span more pages than the probe
+      // should ever ask for.
+      const page = (req.variables || {}).page || 1;
+      const list = opts.sourceFilterPages ? (opts.sourceFilterPages[page - 1] || []) : (page > 1 ? [] : all);
       const data = {};
-      data[msl[1]] = { count: list.length };
+      data[msl[1]] = { count: opts.sourceFilterCount !== undefined ? opts.sourceFilterCount : all.length };
       data[msl[1]][node] = list;
       return { data };
     }
@@ -95,6 +103,19 @@ function responder(opts) {
 }
 
 const FIND_TO_NODE = { findScenes: 'scenes', findGroups: 'groups', findGalleries: 'galleries', findImages: 'images' };
+
+// The plugin reads `Date.now()` at call time off its own global, so a subclass swapped
+// in afterwards shifts its clock without touching this file's.
+const AUTO_SETTINGS_TTL_MS = 10000;
+function advanceClock(env, ms) {
+  const D = env.ctx.Date;
+  env.ctx.Date = class extends D { static now() { return D.now() + ms; } };
+}
+
+const tagQueries = (calls) => calls.filter((c) => /PTPTags/.test(c.query || ''));
+const entityQueries = (calls) => calls.filter((c) => /query PTP_one_/.test(c.query || ''));
+const sourceLookups = (calls) => calls.filter((c) => /PTP_sfilter_/.test(c.query || ''));
+const settingsQueries = (calls) => calls.filter((c) => (c.query || '').indexOf('configuration') !== -1);
 
 function editButtonsContainer(env) {
   const c = h.makeElement('div');
@@ -776,6 +797,116 @@ function nodeListLikeContainer() {
     h.check('a failed probe falls back to showing the button rather than hiding it',
       manualButtons(env).length === 1);
   }
+  {
+    // 0.12.11: the tag query the probe needs is the *whole* tag library, and it was
+    // being re-asked on every navigation - the dominant cost of a target-side button
+    // appearing, live-reported as about a second's lag behind
+    // MergePerformerTagsToScenes' own button. `probeContext` caches it on the settings
+    // TTL, for the probe only; the write paths still call `autoContext` directly.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    const afterFirst = tagQueries(env.calls).length;
+    env.ctx.location.pathname = '/scenes/11';
+    env.tick();
+    await h.flush(60);
+    h.check('the first probe asks for the tag library once', afterFirst === 1, 'count: ' + afterFirst);
+    h.check('a second probe within the settings TTL reuses it rather than re-asking',
+      tagQueries(env.calls).length === 1, 'count: ' + tagQueries(env.calls).length);
+    h.check('and the button is still there for the new entity', manualButtons(env).length === 1);
+  }
+  {
+    // 0.12.11, the other half of the same delay: `autoSettings()` was awaited on every
+    // tick, so whenever the TTL had lapsed one tick blocked on a full
+    // `configuration { plugins }` query before it could even look at the DOM - and the
+    // ticks that draw buttons run every second. It now serves the last-known settings
+    // and revalidates behind itself, which is what `MergePerformerTagsToScenes` gets
+    // for free by reading a plain object.
+    //
+    // The clock is shifted rather than waited out, and the settings query is made to
+    // hang from that point on: a tick that still draws the *new* entity's button while
+    // a reload is in flight is the only thing that distinguishes the two behaviours.
+    const hangSettings = { on: false };
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      hangSettings,
+    });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('the settings loaded once to begin with', settingsQueries(env.calls).length === 1);
+
+    advanceClock(env, AUTO_SETTINGS_TTL_MS + 1000);
+    hangSettings.on = true;
+    env.ctx.location.pathname = '/scenes/11';
+    env.tick();
+    await h.flush(60);
+    const btn = manualButtons(env)[0];
+    h.check('a lapsed TTL does not hold the button back while settings reload',
+      !!btn && btn._ptp2reEntityId === '11', btn && btn._ptp2reEntityId);
+    h.check('and the reload it kicked off is genuinely in flight',
+      settingsQueries(env.calls).length === 2, 'loads: ' + settingsQueries(env.calls).length);
+  }
+  {
+    // 0.12.13, measured rather than reasoned about: on a live library `tagQuery` took
+    // 766 ms of the 1230 ms a Scene Edit button took to appear. 0.12.11 had cached it on
+    // the *settings* TTL - ten seconds, which is shorter than the gap between two visits
+    // to an edit tab, so it was paid again almost every time and the delay stayed put.
+    // The probe's TTL is its own and long, because it is sized against how long a button
+    // may be wrongly shown, not against how fresh a write needs its filters.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    advanceClock(env, AUTO_SETTINGS_TTL_MS + 1000);
+    env.ctx.location.pathname = '/scenes/11';
+    env.tick();
+    await h.flush(60);
+    h.check('the tag context outlives the settings TTL rather than being re-asked with it',
+      tagQueries(env.calls).length === 1, 'count: ' + tagQueries(env.calls).length);
+    h.check('with the button still drawn for the new entity', manualButtons(env).length === 1);
+  }
+  {
+    // And it is warmed at load, so the *first* button does not wait for it either. No
+    // container here at all: nothing has asked for a button yet, and the query has
+    // already been made.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    await h.flush(60);
+    h.check('the tag context is warmed at load, before any button is wanted',
+      tagQueries(env.calls).length === 1, 'count: ' + tagQueries(env.calls).length);
+  }
+  {
+    // Not for a user who has never turned the buttons on: they would be paying for the
+    // whole tag library on every page load for a feature they do not use.
+    const { env } = start({ settings: { b1TagsPerformersToScenes: true } });
+    await h.flush(60);
+    h.check('with the buttons switched off, nothing is warmed', tagQueries(env.calls).length === 0);
+  }
+  {
+    // 0.12.14, and the measurement that produced it: the probe's three sequential passes
+    // took ~900 ms of wall clock on a live Scene Edit tab, and they only *started* when
+    // `.edit-buttons` appeared - which is the instant the user clicks Edit, and also the
+    // instant Stash fires its own five `*ForSelect` queries for the form's dropdowns
+    // (810-1096 ms each, measured). So the whole probe queued behind the busiest moment
+    // of the page and every millisecond of it sat between the click and the button.
+    // Probing from the route instead spends it while the detail view is still on screen.
+    const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
+    env.tick(); // no container at all: the Edit tab has not been opened
+    await h.flush(60);
+    h.check('the probe runs before the button row exists', entityQueries(env.calls).length > 0,
+      'queries: ' + entityQueries(env.calls).length);
+    h.check('and no button is drawn while there is nowhere to put one',
+      manualButtons(env).length === 0);
+
+    const spent = entityQueries(env.calls).length;
+    editButtonsContainer(env);
+    env.tick();
+    await h.flush(60);
+    h.check('so opening the Edit tab draws the button off the cached answer, asking nothing new',
+      manualButtons(env).length === 1 && entityQueries(env.calls).length === spent,
+      'queries: ' + entityQueries(env.calls).length + ' vs ' + spent);
+  }
 
   // ── The `.details-edit` fallback (Group, and per MPTTS also Performer) ───────
   {
@@ -1096,6 +1227,65 @@ function nodeListLikeContainer() {
     env.tick();
     await h.flush(60);
     h.check('a studio with no tags of its own still shows the button, gated on its scenes existing',
+      sourceButtons(env).length === 1);
+  }
+  {
+    // Two performer-sourced paths on one page. 0.12.11 fires their lookups with
+    // `Promise.all` instead of a sequential chain - the buttons wait on the slowest
+    // rather than the sum - so the thing worth pinning is that each path still gets
+    // its own answer in the `has` map rather than the last one winning.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true, e4TagsPerformersToGroups: true },
+      pathname: '/performers/100',
+      // `tags:performer>group` is the two-hop filter lookup: the same `performers`
+      // filter on findScenes, reading `groups` out of the same response.
+      sourceFilter: [{ id: '10', groups: [{ group: { id: '400' } }] }],
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    const labels = sourceButtons(env).map((b) => b.textContent).sort();
+    h.check('two source paths on one page are probed and gated independently',
+      labels.length === 2 && labels.join('|') === 'Copy Tags to all Groups|Copy Tags to all Scenes',
+      labels.join(','));
+  }
+  {
+    // 0.12.11: the probe asks whether the list is empty, so it stops at the first page
+    // that yielded something. Before, a performer or studio with more targets than one
+    // page paged through every one of them to decide whether to draw a button - the
+    // live symptom being that the delay scaled with how busy the entity was.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true },
+      pathname: '/performers/100',
+      sourceFilter: [{ id: '10' }],
+      sourceFilterCount: 500, // many pages' worth, of which the probe needs one
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('the existence probe stops at the first page that found a target',
+      sourceLookups(env.calls).length === 1, 'pages: ' + sourceLookups(env.calls).length);
+    h.check('and still shows the button', sourceButtons(env).length === 1);
+  }
+  {
+    // The other half of the same rule: an *empty* page is not an answer, because a
+    // two-hop pick can legitimately produce nothing on page 1 and something on page 2.
+    // Paging must continue exactly as it did before until something is found.
+    // `tags:performer>group` reads `groups` out of the scenes the filter returns, so a
+    // page full of scenes that are in no group yields nothing while the walk is very
+    // much unfinished.
+    const { env } = start({
+      settings: { a1ShowManualButtons: true, e4TagsPerformersToGroups: true },
+      pathname: '/performers/100',
+      sourceFilterPages: [[{ id: '10' }], [{ id: '11', groups: [{ group: { id: '400' } }] }]],
+      sourceFilterCount: 2,
+    });
+    detailsEditContainer(env, true);
+    env.tick();
+    await h.flush(60);
+    h.check('a page that yielded nothing is not mistaken for a finished walk',
+      sourceLookups(env.calls).length === 2, 'pages: ' + sourceLookups(env.calls).length);
+    h.check('so the two-hop path still finds its target on the second page',
       sourceButtons(env).length === 1);
   }
   {

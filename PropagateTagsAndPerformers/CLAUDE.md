@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.13.1.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.13.2.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -43,6 +43,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — and measured again: the probe starts from the route, not from the row appearing | **0.12.14** |
 | | — Improvement 4: a button hides when a click would add nothing, and re-checks on save | **0.13.0** |
 | | — `coop().debugButtons`: a console switch that says why each button is shown or hidden | **0.13.1** |
+| | — that switch said nothing off a cached answer, which is when it is switched on | **0.13.2** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -1034,6 +1035,22 @@ The two hooks are what make the line specific: `has` and `adds` are both kept on
 purely so it can tell "there is no studio here" from "the studio's tags are already all on this
 scene", and the source side keeps `reaches` and `carries` apart for the same reason. Both
 distinctions are invisible from the button and each points at a different thing to go and fix.
+
+**0.13.2 fixed it saying nothing at all in the commonest case.** Live paste, one day after 0.13.1:
+the structural lines appeared (`5 enabled path(s)`, `button row found`) and not a single per-button
+outcome. The outcomes were emitted from the probe's callback, and a probe runs once per entity — so
+switching the flag on while already on the page produced no probe and therefore no outcome, which is
+precisely how a debug flag gets switched on. They now come from the tick via `gateLogOnce`, keyed per
+path with the entity in the text, so a cached answer states itself, a repeat is silent and a change
+or a navigation speaks. The probe keeps one line of its own saying it ran. **A diagnostic that only
+speaks when a cache misses is silent exactly when it is wanted** — and storing both halves of each
+answer (§5e above) is what makes restating it possible without re-querying.
+
+The same paste showed `manualSourceButtonsTick` reporting "no detail button row" on a Scene whose
+Edit tab was open, for a page where no enabled path reads from a Scene at all. The container lookup
+ran before the candidate-path filter, so it complained about nowhere to put a button that was never
+going to exist. Only the *dedup* half of that filter needs a container, so the two are split now and
+the cheap half runs first.
 
 ## 6. Anchoring in Stash's markup
 

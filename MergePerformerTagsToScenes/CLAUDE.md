@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 1.16.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 1.16.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 
 **The button-label text is a cross-plugin contract, not cosmetics.** Both manual buttons read
@@ -270,6 +270,12 @@ about this plugin's copy:
   are one absent button and two different things to go and fix.
 - **The performer button's line names both halves** rather than the verdict, for the same reason:
   "no tags of their own" and "in no scenes" are one absent button and two different fixes.
+- **The outcome is reported from the tick, not from the check that computed it** (1.16.2). Both
+  slots gained a `why` string, and `_lastPlanReason` carries `scenePlanFrom`'s refusal out to the
+  caller that stores it. 1.16.1 logged only from the check, which runs once per entity — so
+  switching the flag on while already on the page said nothing, which is how a debug flag is
+  switched on. A diagnostic that only speaks when a cache misses is silent exactly when it is
+  wanted.
 
 **Caption flashing.** The scene button's messages are each shorter than "Copy all Tags from all Performers" so the
 button never changes width, and `_sceneFlashToken` makes a later click supersede a running

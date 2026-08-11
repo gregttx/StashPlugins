@@ -221,13 +221,30 @@ storage slot, a settings-page row and a version bump in three files, to expose a
 whoever is already in DevTools looking at the console. It would also persist, which is exactly wrong
 for a flag whose natural lifetime is one debugging session.
 
-**Two shapes, and the distinction is load-bearing.** The probe-resolution lines fire every time,
-because a probe runs once per entity and again after every save that invalidates it — seeing the
-same answer twice there is the point, since it says the re-check ran. The tick-driven lines are
-deduplicated per channel, because the ticks that draw buttons run every second and on every DOM
-mutation burst; undeduplicated, one open page would emit the same handful of lines forever. Turning
-the flag off clears the channels, so switching it back on restates the current position rather than
-staying silent until something moves.
+**Two shapes, and the distinction is load-bearing.** A short line fires from the probe every time
+one runs, because a probe runs once per entity and again after every save that invalidates it, and
+seeing that is the point — it says the re-check happened. Everything else is deduplicated per
+channel and emitted from the *tick*, because the ticks that draw buttons run every second and on
+every DOM mutation burst; undeduplicated, one open page would emit the same handful of lines
+forever. Turning the flag off clears the channels, so switching it back on restates the current
+position rather than staying silent until something moves.
+
+**The per-button outcome has to come from the tick, not from the probe that computed it.** This
+shipped the other way round and was wrong within a day of live use: the outcome lines fired from the
+probe's callback, and a probe runs *once per entity*, so someone who switches the flag on while
+already looking at the page whose buttons they are asking about gets the structural lines and no
+outcome at all. That is not an edge case — it is how anyone actually turns a debug flag on. The
+eligibility answers are cached, and **a diagnostic that only speaks when a cache misses is silent
+exactly when it is wanted.** Both plugins now keep enough on the cached answer to restate the reason
+without re-querying: `has` beside `adds` in `PropagateTagsAndPerformers`, `reaches` beside `carries`
+on its source side, a `why` string on `MergePerformerTagsToScenes`' two check slots.
+
+**Report "nothing to place" before "nowhere to place it".** The same live paste showed a Scene with
+its Edit tab open reporting no detail navbar for a *source* button, on a page where no enabled path
+reads from a Scene at all — a complaint about a missing container for a button that was never going
+to exist. `manualSourceButtonsTick` now filters candidate paths first and looks for the container
+second; only the dedup half of that filter needs a container, which is why the two were one pass
+before.
 
 **It is not the plugins' user-facing logging.** Those settings (`g1LogToConsole`,
 `d1LogMergesToConsole`) narrate what a run *changed*, are meant to be left on, and go to a different

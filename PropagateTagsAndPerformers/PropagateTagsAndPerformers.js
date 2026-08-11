@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.13.1';
+  var PLUGIN_VERSION = '0.13.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3797,21 +3797,11 @@
       var check = _existenceCheck = {
         target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', adds: null, has: null,
       };
+      gateLog('probing ' + TARGETS[rt.target].label + ' ' + rt.id + ' for ' + paths.length +
+        ' path(s) - the outcomes below are this probe\'s');
       probeButtons(rt.target, paths, rt.id, s).then(function (r) {
         if (_existenceCheck !== check) return;
         check.adds = r.adds; check.has = r.has; check.status = 'ready';
-        // `has` and `adds` are both kept precisely so this line can tell the two
-        // reasons for hiding apart - "there is no studio here" and "the studio's tags
-        // are already all on this scene" look identical from the button.
-        paths.forEach(function (p) {
-          gateLog(TARGETS[rt.target].label + ' ' + rt.id + ' - ' + p.id + ' - ' +
-            (r.adds[p.id] > 0 ? 'SHOWN: ' + r.adds[p.id] + ' to add'
-              : r.has[p.id] === false ? 'hidden: no ' + p.source.toLowerCase() + ' on this entity'
-              : r.has[p.id] ? 'hidden: source found, but nothing it carries is missing here'
-              // Neither hook fired: `planTarget` returned before both of them, which it
-              // does for an entity the f1/f2 entity-level filters exclude outright.
-              : 'hidden: entity excluded by a filter'));
-        });
         manualButtonsTick();
       }, function (e) {
         // A failed probe must not silently hide every button on the page - the
@@ -3821,7 +3811,6 @@
         console.error('[ptp2re] button probe failed:', e);
         if (_existenceCheck !== check) return;
         check.status = 'ready'; check.adds = null; check.has = null;
-        gateLog(TARGETS[rt.target].label + ' ' + rt.id + ' - probe failed, showing every button');
         manualButtonsTick();
       });
     }
@@ -3893,8 +3882,28 @@
       // *form*, so an unsaved edit is invisible to the gate until Save - see
       // `invalidateButtonProbes`, which is what makes Save enough.
       if (!armExistenceCheck(rt, paths, s)) { clearManualButtons(); return; }
-      if (_existenceCheck.adds) {
-        paths = paths.filter(function (p) { return _existenceCheck.adds[p.id] > 0; });
+      // Reported here rather than from the probe's callback, and that is the whole
+      // point: a probe runs once per entity, so a cached answer produced no line at
+      // all - which is exactly the state someone is in when they switch the debug flag
+      // on while already looking at the page whose buttons they are asking about.
+      // `gateLogOnce` keys on the path and carries the entity in the text, so a repeat
+      // of the same answer is silent and a change (or a navigation) speaks.
+      var adds = _existenceCheck.adds, seen = _existenceCheck.has;
+      paths.forEach(function (p) {
+        gateLogOnce('t:out:' + p.id, TARGETS[rt.target].label + ' ' + rt.id + ' - ' + p.id + ' - ' +
+          // `has` and `adds` are both kept precisely so this can tell the two reasons
+          // for hiding apart: "there is no studio here" and "the studio's tags are
+          // already all on this scene" look identical from the button.
+          (!adds ? 'SHOWN: the probe failed, so every button is shown rather than hidden'
+            : adds[p.id] > 0 ? 'SHOWN: ' + adds[p.id] + ' to add'
+            : seen && seen[p.id] === false ? 'hidden: no ' + p.source.toLowerCase() + ' on this entity'
+            : seen && seen[p.id] ? 'hidden: source found, but nothing it carries is missing here'
+            // Neither hook fired: `planTarget` returned before both of them, which it
+            // does for an entity the f1/f2 entity-level filters exclude outright.
+            : 'hidden: entity excluded by a filter'));
+      });
+      if (adds) {
+        paths = paths.filter(function (p) { return adds[p.id] > 0; });
       }
       // A button whose path is no longer enabled - or no longer wanted because its
       // source turned out to be empty - is removed outright. A button for a
@@ -4110,19 +4119,12 @@
     });
     return Promise.all(targets.concat([payload])).then(function () {
       var has = {};
-      paths.forEach(function (p) {
-        has[p.id] = !!reaches[p.id] && !!carries[p.id];
-        // The two halves are logged apart for the same reason they are computed apart:
-        // "this performer is in no scenes" and "this performer has no tags" are one
-        // absent button and two entirely different things to go and fix.
-        gateLog(SOURCES[p.sourceType].label + ' ' + id + ' - ' + p.id + ' - ' +
-          (has[p.id] ? 'SHOWN: reaches at least one ' + TARGETS[p.target].label.toLowerCase() +
-              ' and carries something to copy'
-            : !reaches[p.id] ? 'hidden: reaches no ' + TARGETS[p.target].label.toLowerCase()
-            : 'hidden: carries no ' + (p.kind === 'performers' ? 'performers' : 'tags') +
-              ' to copy (or the tag filter refuses all of them)'));
-      });
-      return has;
+      paths.forEach(function (p) { has[p.id] = !!reaches[p.id] && !!carries[p.id]; });
+      // The two halves are handed back beside the verdict, not folded away, so the tick
+      // can state a *reason* off a cached answer: "this performer is in no scenes" and
+      // "this performer has no tags" are one absent button and two entirely different
+      // things to go and fix.
+      return { has: has, reaches: reaches, carries: carries };
     });
   }
 
@@ -4235,47 +4237,73 @@
           : 'no source buttons: Show Manual Buttons is off');
         clearManualSourceButtons(); return;
       }
+      // The enabled-path filter is split off from the dedup one and runs *first*, so a
+      // page with nothing to place never reports having nowhere to place it. Only the
+      // dedup half needs the container, which is why the two were one filter before -
+      // and why a Scene with its Edit tab open used to complain about a missing detail
+      // navbar whether or not any path even reads from a Scene.
+      var candidates = PATHS.filter(function (p) {
+        return p.sourceType === rt.sourceType && !!s[p.setting] && hasOwn(SOURCE_BUTTON_LABELS, p.id);
+      });
+      if (!candidates.length) {
+        gateLogOnce('s:paths', 'no source buttons on ' + SOURCES[rt.sourceType].label + ' ' + rt.id +
+          ': no enabled path reads from a ' + SOURCES[rt.sourceType].label.toLowerCase() +
+          ' (both marker paths have no detail page and never qualify)');
+        clearManualSourceButtons(); return;
+      }
+      gateLogOnce('s:paths', SOURCES[rt.sourceType].label + ' ' + rt.id + ' - ' + candidates.length +
+        ' candidate path(s): ' + candidates.map(function (p) { return p.id; }).join(', '));
       var container = findDetailContainer();
       if (!container) {
         // Reported rather than passed over: Gallery Details renders no button row of
-        // its own, so this is the expected answer there and a real gap elsewhere.
+        // its own, so this is the expected answer there and a real gap elsewhere. On a
+        // Scene it is also what an open Edit tab looks like, the detail navbar being
+        // the thing a source button anchors to.
         gateLogOnce('s:container', 'no detail button row on ' + SOURCES[rt.sourceType].label +
           ' ' + rt.id + ' - nothing to anchor a source button to');
         clearManualSourceButtons(); return;
       }
       gateLogOnce('s:container', 'detail button row found on ' + SOURCES[rt.sourceType].label + ' ' + rt.id);
       ensureRowSpacing(container);
-      var paths = PATHS.filter(function (p) {
-        return p.sourceType === rt.sourceType && !!s[p.setting] && hasOwn(SOURCE_BUTTON_LABELS, p.id);
-      }).filter(function (p) {
+      var paths = candidates.filter(function (p) {
         var dropped = otherPluginDeclaresPath(p.id) && foreignButtonAlreadyShows(container, sourceButtonLabel(p, s));
         if (dropped) gateLogOnce('s:dedup:' + p.id, p.id + ' - hidden: another plugin is already ' +
           'showing "' + sourceButtonLabel(p, s) + '" in this row');
         return !dropped;
       });
-      if (!paths.length) {
-        gateLogOnce('s:paths', 'no source buttons on ' + SOURCES[rt.sourceType].label + ' ' + rt.id +
-          ': no enabled path reads from a ' + SOURCES[rt.sourceType].label.toLowerCase() +
-          ' (both marker paths have no detail page and never qualify)');
-        clearManualSourceButtons(); return;
-      }
-      gateLogOnce('s:paths', SOURCES[rt.sourceType].label + ' ' + rt.id + ' - ' + paths.length +
-        ' candidate path(s): ' + paths.map(function (p) { return p.id; }).join(', '));
+      if (!paths.length) { clearManualSourceButtons(); return; }
       var wantKey = pathIdsKey(paths);
       if (!_existenceCheckSrc || _existenceCheckSrc.sourceType !== rt.sourceType ||
           _existenceCheckSrc.id !== rt.id || _existenceCheckSrc.pathsKey !== wantKey) {
         var check = _existenceCheckSrc = { sourceType: rt.sourceType, id: rt.id, pathsKey: wantKey, status: 'pending', has: null };
-        checkSourceButtonExistence(paths, rt.id, s).then(function (has) {
-          if (_existenceCheckSrc === check) { check.has = has; check.status = 'ready'; manualSourceButtonsTick(); }
+        gateLog('probing ' + SOURCES[rt.sourceType].label + ' ' + rt.id + ' for ' + paths.length +
+          ' path(s) - the outcomes below are this probe\'s');
+        checkSourceButtonExistence(paths, rt.id, s).then(function (r) {
+          if (_existenceCheckSrc !== check) return;
+          check.has = r.has; check.reaches = r.reaches; check.carries = r.carries;
+          check.status = 'ready'; manualSourceButtonsTick();
         }, function (e) {
           console.error('[ptp2re] source button probe failed:', e);
-          gateLog(SOURCES[rt.sourceType].label + ' ' + rt.id + ' - probe failed, showing every button');
           if (_existenceCheckSrc === check) { check.status = 'ready'; check.has = null; manualSourceButtonsTick(); }
         });
       }
       if (_existenceCheckSrc.status !== 'ready') { clearManualSourceButtons(); return; }
-      if (_existenceCheckSrc.has) {
-        paths = paths.filter(function (p) { return _existenceCheckSrc.has[p.id]; });
+      // From the tick rather than the probe, for the reason the target side is: a cached
+      // answer runs no probe, which is precisely the state someone is in when they turn
+      // the debug flag on while already on the page they are asking about.
+      var srcHas = _existenceCheckSrc.has;
+      var srcReaches = _existenceCheckSrc.reaches || {};
+      paths.forEach(function (p) {
+        gateLogOnce('s:out:' + p.id, SOURCES[rt.sourceType].label + ' ' + rt.id + ' - ' + p.id + ' - ' +
+          (!srcHas ? 'SHOWN: the probe failed, so every button is shown rather than hidden'
+            : srcHas[p.id] ? 'SHOWN: reaches at least one ' + TARGETS[p.target].label.toLowerCase() +
+                ' and carries something to copy'
+            : !srcReaches[p.id] ? 'hidden: reaches no ' + TARGETS[p.target].label.toLowerCase()
+            : 'hidden: carries no ' + (p.kind === 'performers' ? 'performers' : 'tags') +
+              ' to copy (or the tag filter refuses all of them)'));
+      });
+      if (srcHas) {
+        paths = paths.filter(function (p) { return srcHas[p.id]; });
       }
       Array.prototype.slice.call(container.childNodes || []).forEach(function (node) {
         if (!hasClass(node, MANUAL_SRC_BTN_CLASS)) return;

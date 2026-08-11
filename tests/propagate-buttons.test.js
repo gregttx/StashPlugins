@@ -1327,7 +1327,20 @@ function nodeListLikeContainer() {
     await h.flush(60);
     h.check('says nothing while the debug flag is unset', said.length === 0, said.join(' | '));
 
+    // Switched on with the answer *already cached* - which is how anyone actually turns
+    // it on: they are looking at the page whose buttons they are asking about. Reported
+    // for the first release of this, because the outcome lines fired from the probe's
+    // callback and a cached answer runs no probe, so the most important lines never came.
     env.ctx.window.StashPluginCoop.debugButtons = true;
+    env.tick();
+    await h.flush(60);
+    const cached = said.filter((m) => m.indexOf('[ptp2re gate]') === 0);
+    h.check('states the outcome off a cached answer, with no probe to fire',
+      cached.some((m) => /tags:performer>scene/.test(m) && /hidden: no performers/.test(m)),
+      cached.join(' | '));
+    h.check('and asks the server for nothing to do it',
+      entityQueries(env.calls).length === 1, String(entityQueries(env.calls).length));
+
     env.ctx.location.pathname = '/scenes/11';   // a different entity, so the probe re-arms
     env.tick();
     await h.flush(60);

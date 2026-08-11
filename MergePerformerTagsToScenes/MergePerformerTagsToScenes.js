@@ -17,7 +17,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '1.16.1';
+  var PLUGIN_VERSION      = '1.16.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -458,8 +458,15 @@
   // `who` labels the diagnostic line, because the gate and the click now ask this the
   // same question through this same function - two identical lines with nothing to tell
   // them apart would be worse than none.
+  // The reason the most recent `scenePlanFrom` refused, so a *cached* eligibility answer
+  // can still be explained. The gate probes once per scene, so without this the debug
+  // channel says nothing at all to someone who switches it on while already looking at
+  // the page whose button they are asking about - which is the normal way to switch it
+  // on. Read straight after the call that set it, never later.
+  var _lastPlanReason = null;
+
   function scenePlanFrom(scene, exclTagId, who) {
-    function no(reason) { gateLog(who + ': no - ' + reason); return null; }
+    function no(reason) { _lastPlanReason = reason; gateLog(who + ': no - ' + reason); return null; }
     if (!scene) return no('scene not found');
     var performers = scene.performers || [];
     if (!performers.length) return no('no performers on this scene');
@@ -486,7 +493,8 @@
         : 'scene already carries all ' + perfTagIds.length + ' mergeable performer tag(s)');
     }
     plan.tagById = perfTagById;
-    gateLog(who + ': YES - ' + plan.missing.length + ' tag(s) to add');
+    _lastPlanReason = plan.missing.length + ' tag(s) to add';
+    gateLog(who + ': YES - ' + _lastPlanReason);
     return plan;
   }
 
@@ -2174,19 +2182,20 @@
         // Both halves named, not just the verdict: "this performer has no tags" and
         // "this performer is in no scenes" are one absent button and two different
         // things to go and fix.
-        gateLog('performer button, performer ' + performerId + ': ' +
-          (hasTags && hasScenes ? 'YES - has tags and scenes'
-            : 'no - ' + (!hasTags && !hasScenes ? 'no tags of their own, and in no scenes'
-              : !hasTags ? 'no tags of their own to copy'
-              : 'in no scenes to copy them to')));
+        var why = hasTags && hasScenes ? 'has tags and scenes'
+          : !hasTags && !hasScenes ? 'no tags of their own, and in no scenes'
+          : !hasTags ? 'no tags of their own to copy'
+          : 'in no scenes to copy them to';
         if (performerCheck && performerCheck.id === performerId) {
           performerCheck.status = (hasTags && hasScenes) ? 'yes' : 'no';
+          performerCheck.why = why;
         }
       })
       .catch(function (e) {
-        gateLog('performer button, performer ' + performerId + ': no - the check itself failed: ' +
-          (e && e.message ? e.message : e));
-        if (performerCheck && performerCheck.id === performerId) performerCheck.status = 'no';
+        var failed = 'the check itself failed: ' + (e && e.message ? e.message : e);
+        if (performerCheck && performerCheck.id === performerId) {
+          performerCheck.status = 'no'; performerCheck.why = failed;
+        }
       });
   }
 
@@ -2539,8 +2548,18 @@
       if (existing.parentNode) existing.parentNode.removeChild(existing);
     }
 
+    if (performerCheck && performerCheck.status !== 'pending') {
+      // From the tick rather than the check, so a cached answer still explains itself -
+      // see `_lastPlanReason` for why that matters. Both halves named rather than the
+      // verdict: "no tags of their own" and "in no scenes" are one absent button and
+      // two different things to go and fix.
+      gateLogOnce('p:outcome', 'performer button, performer ' + performerCheck.id + ': ' +
+        (performerCheck.status === 'yes' ? 'SHOWN' : 'hidden') +
+        (performerCheck.why ? ' - ' + performerCheck.why : ''));
+    }
     if (!performerCheck || performerCheck.id !== performerId) {
       performerCheck = { id: performerId, status: 'pending' };
+      gateLog('probing performer ' + performerId + ' - the outcome below is this probe\'s');
       checkPerformerHasScenes(performerId);
       return;
     }
@@ -2617,16 +2636,17 @@
           '}',
           { id: sceneId }
         ).then(function (data) {
+          var plan = scenePlanFrom(data.findScene, exclTagId, 'scene button, scene ' + sceneId);
           if (sceneCheck && sceneCheck.id === sceneId) {
-            sceneCheck.status =
-              scenePlanFrom(data.findScene, exclTagId, 'scene button, scene ' + sceneId) ? 'yes' : 'no';
+            sceneCheck.status = plan ? 'yes' : 'no';
+            sceneCheck.why = _lastPlanReason;
           }
         });
       })
       .catch(function (e) {
-        gateLog('scene button, scene ' + sceneId + ': no - the check itself failed: ' +
-          (e && e.message ? e.message : e));
-        if (sceneCheck && sceneCheck.id === sceneId) sceneCheck.status = 'no';
+        var failed = 'the check itself failed: ' + (e && e.message ? e.message : e);
+        gateLog('scene button, scene ' + sceneId + ': no - ' + failed);
+        if (sceneCheck && sceneCheck.id === sceneId) { sceneCheck.status = 'no'; sceneCheck.why = failed; }
       });
   }
 
@@ -2650,6 +2670,7 @@
 
     if (!sceneCheck || sceneCheck.id !== sceneId) {
       sceneCheck = { id: sceneId, status: 'pending' };
+      gateLog('probing scene ' + sceneId + ' - the outcome below is this probe\'s');
       checkSceneHasPerformers(sceneId);
       return;
     }
@@ -2659,6 +2680,9 @@
     // whether the scene had performers and nothing invalidated the cache anyway, and
     // wrong the moment a save can make an eligible scene ineligible. A click that
     // merges everything now takes its own button away.
+    gateLogOnce('s:outcome', 'scene button, scene ' + sceneId + ': ' +
+      (sceneCheck.status === 'yes' ? 'SHOWN' : 'hidden') +
+      (sceneCheck.why ? ' - ' + sceneCheck.why : ''));
     var showing = document.querySelector('.' + SCENE_BTN_CLASS);
     if (sceneCheck.status !== 'yes') {
       if (showing && showing.parentNode) showing.parentNode.removeChild(showing);

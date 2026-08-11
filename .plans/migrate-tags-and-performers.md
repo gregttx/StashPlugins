@@ -2,7 +2,7 @@
 
 *Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
-**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.13.1**
+**Status: BUILDING — all nine steps resolved (eight built, one retired), the plugin is at 0.13.2**
 (last checked 2026-08-11). All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work
@@ -91,6 +91,12 @@ self-explanatory to unexplainable. `coop().debugButtons`, typed into the console
 in both plugins naming per button whether it is shown or hidden and why. **A gate whose reasons the
 user cannot see needs a way to ask it.**
 
+0.13.2 fixed that switch being silent in the one case it is always used in. Live paste, a day later:
+the structural lines appeared and not one per-button outcome, because the outcomes fired from the
+probe's callback and a probe runs once per entity — so turning the flag on while already on the page
+produced neither. **A diagnostic that only speaks when a cache misses is silent exactly when it is
+wanted.** They come from the tick now, deduplicated, off the cached answer.
+
 0.12.9 is a repo-wide simplification pass rather than a feature: the apply/undo batch driver written
 once instead of twice, `findByClass` replaced by `querySelector`, and the version archaeology cut out
 of this file, the plugin `CLAUDE.md`s and the READMEs. It also fixed a real divergence it exposed —
@@ -101,14 +107,14 @@ Where it stands, in numbers:
 
 | | |
 |---|---|
-| Version | 0.13.1, in all three places |
+| Version | 0.13.2, in all three places |
 | `PropagateTagsAndPerformers.js` | ~4,418 lines |
 | Settings shipped | 25 (13 paths + 2 modes + 10 parity/filters) — unchanged since 0.1.0; everything since has changed labels, behaviour and placement, not the settings table |
 | Test suites | 8 of the plugin's own, 21 in the repo, all passing |
-| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 137 = **461** |
+| Checks in the eight | paths 60, base 75, plan 50, apply 43, sweep 30, auto 38, auto-source 28, buttons 139 = **463** |
 | Mutants confirmed | 6 + 10 + 13 + 14 + 9 + 12 + 12 + 3 + 4 (spot-checked) = **83+**; every button/placement check added from 0.9.0 on was confirmed the coarser way instead, against the pre-fix source via `SRC=`, rather than one hand-built mutant each |
-| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.1 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1 its half of the shared gating-diagnostics switch), `NormalizeParentTags` 1.7.5 → 1.7.7 |
-| Landed on `main` | through 0.13.0 (`c95d1a4`); 0.13.1 is uncommitted |
+| Sibling plugins also touched | `MergePerformerTagsToScenes` 1.11.0 → 1.16.2 (1.12.0 at step 7, 1.12.1 harmonizing its two button labels for 0.9.0's dedup, 1.13.0–1.15.8 its half of the placement work, 1.15.9 the simplification pass, 1.16.0 its own scene button's eligibility gate alongside 0.13.0, 1.16.1-1.16.2 its half of the shared gating-diagnostics switch), `NormalizeParentTags` 1.7.5 → 1.7.7 |
+| Landed on `main` | through 0.13.1 (`b0f2d47`); 0.13.2 is uncommitted |
 
 **Nothing here has been exercised against a running Stash.** Every foothold in Stash's markup and
 schema is reproduced from notes. That is the standing caveat on the whole plan, and step 8's

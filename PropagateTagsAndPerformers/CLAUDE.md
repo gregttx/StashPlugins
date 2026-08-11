@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: under construction, 0.13.2.** The version is below 1.0.0 deliberately and stays there
+**Status: under construction, 0.13.3.** The version is below 1.0.0 deliberately and stays there
 until the plugin is finished — the major digit is the claim that it is worth installing. Each
 implementation step takes a minor bump; fixes within a step take the patch.
 
@@ -44,6 +44,7 @@ implementation step takes a minor bump; fixes within a step take the patch.
 | | — Improvement 4: a button hides when a click would add nothing, and re-checks on save | **0.13.0** |
 | | — `coop().debugButtons`: a console switch that says why each button is shown or hidden | **0.13.1** |
 | | — that switch said nothing off a cached answer, which is when it is switched on | **0.13.2** |
+| | — one of its lines named Scene on every page; and Scene/Gallery confirmed anchorless | **0.13.3** |
 | 9 | Repo `CLAUDE.md` TODO/IDEAS | — |
 
 **Placement and row spacing are one design in two copies**, shared with
@@ -944,10 +945,26 @@ answer "is a button for this exact path already showing" and suppress one of two
 applies only once both plugins have decided to show buttons, necessarily for different paths, and
 only decides which sits closer to the anchor. The two run independently.
 
-**Gallery Details reportedly renders no buttons of its own**, so `findDetailContainer()` never
-matches there and the source button for `tags:gallery>image` cannot appear — a real gap, left alone
-pending a look at what that page does render to anchor on. A fallback container built from nothing
-would be its own unverified guess, and §6's rule is not to ship one without a live screenshot.
+**Four of the six source-button pages have no anchor, not one** (confirmed live 2026-08-12, by the
+0.13.1 gating channel). `findDetailContainer()` wants a `.details-edit` carrying a Delete button —
+the detail-view navbar — and **only Performer and Group render one.** Scene and Gallery render none
+at all: their detail views show a tab strip (Details / File Info / Chapters / Edit) and no button
+row, so `no detail button row on <entity>` is emitted with the Edit tab shut and stays true. Studio
+and Image are still unconfirmed but are now more likely to match Scene/Gallery than Performer/Group.
+
+Until 0.13.3 this was recorded here as "Gallery Details reportedly renders no buttons of its own",
+one page and second-hand. **It was four pages, and the gating channel is what found them** — the
+source buttons had simply never appeared on any of them and nothing said so. A silent gap on
+two-thirds of the pages a feature covers is the case for the diagnostic in §5e, more than the
+per-button reasons it was built for.
+
+The fix is a second anchor for pages with no navbar, and the user's own suggestion is the tab strip
+— the only stable chrome those pages have. Not built yet, and deliberately not guessed at: §6's rule
+is no fallback container without a live look at the markup, which is what cost four releases of
+placement churn. Two consequences to decide first, neither technical: it would be a *second*
+placement convention (navbar on Performer/Group, tab strip on Scene/Gallery/Image), and the tab strip
+is present while the Edit tab is open, so a source button anchored there would sit near the
+target-side buttons rather than only on the detail view.
 
 **A studio with no tags of its own showed "Copy Tags to all Scenes" until 0.13.0.** The source
 button's gate asked only whether any *target* existed, never whether the source carried anything to

@@ -37,7 +37,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '0.13.2';
+  var PLUGIN_VERSION = '0.13.3';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3847,7 +3847,7 @@
         // filtered call would have produced and the answer is already there when the
         // row appears.
         gateLogOnce('t:container', 'no button row yet on ' + TARGETS[rt.target].label + ' ' + rt.id +
-          ' - probing anyway; on a Scene this means the Edit tab is not open');
+          ' - probing anyway; this usually means the Edit tab is not open');
         armExistenceCheck(rt, wanted, s);
         clearManualButtons();
         return;

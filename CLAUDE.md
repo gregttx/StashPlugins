@@ -28,9 +28,29 @@ https://github.com/stashapp/CommunityScripts/tree/main/plugins
 ## Adding a new plugin
 
 1. Create a new folder: `<PluginName>/`
-2. Add `<PluginName>.yml` — copy the manifest structure from an existing plugin.
+2. Add `<PluginName>.yml` — copy the manifest structure from an existing plugin. **`version: 0.0.1`**
+   — see below, and do not reason your way past it.
 3. Add `<PluginName>.js` — write an IIFE in ES5; no `import`/`export`, no bundler.
 4. Install by copying the folder into `<stash-config-dir>/plugins/` and reloading plugins in Stash Settings.
+
+### A new plugin starts at 0.0.1, and the major digit is a claim to the user
+
+**Not a style preference — a statement about whether the thing works.** `0.x` says "written";
+`1.0.0` says "finished and worth installing". Only running it in a real Stash can support the
+second, because every plugin here is a set of guesses about Stash's markup that no test in this repo
+can check (see "Anchoring in Stash's markup" in each plugin's own CLAUDE.md).
+
+**The failure mode is specific and has happened twice.** Both times the reasoning was *"this one is
+complete, so 1.0.0"* — which is a fact about the code and answers a question nobody asked. The
+first time was `PropagateTagsAndPerformers`, caught at step 1 of 8; the second was
+`CustomFieldsBulkEditor`, which shipped at 1.0.0 with a passing suite and not one live click behind
+it, and was corrected to 0.0.1. **A complete implementation is not a release candidate.** If you
+find yourself weighing 0.0.1 against something higher for a plugin nobody has run, the answer is
+0.0.1.
+
+The cadence from there: **patch** for a fix, **minor** for a delivered capability, and the major
+digit moves exactly once — when the plugin has been used in a live instance and the unverified list
+in its CLAUDE.md is empty. `PropagateTagsAndPerformers`' step table is the worked example.
 
 ## GraphQL conventions
 
@@ -154,6 +174,11 @@ Rules that make this safe:
   therefore *say* a lease is held and carry on — an advisory the user can act on, not a lock.
 - **UI plugins only.** A server-side `hooks:` plugin runs in the Stash process, never sees this
   `window`, and cannot be leased against. Do not let documentation imply otherwise.
+- **A bulk-only plugin takes leases and registers no `respecters` entry.**
+  `CustomFieldsBulkEditor` is the first of those: it never wraps `window.fetch` and never reacts to
+  a save, so it has nothing to stand down. Registering anyway would be a claim a sibling's dialog
+  repeats to the user ("it will stand down") and it would be false — worse than silence, which the
+  other side already reads correctly as "too old, or not listening".
 
 ## Cross-plugin cooperation: the `declares` registry
 
@@ -267,6 +292,12 @@ next tick with no reload, no setting and no file edit.
 buttons sit in one row, and "why is this button missing" is rarely a question about only one plugin.
 A user debugging a row wants both sides talking, not to discover a second flag afterwards.
 
+**It covers any control a plugin draws into Stash's chrome, not only a button in those rows.**
+`CustomFieldsBulkEditor` answers to the same flag for its list-view menu item — the name
+`debugButtons` is now narrower than what it does, and renaming it would strand every user who has
+the old name written down for the sake of a word. A plugin whose control has *one* place to fail
+still uses it: the whole point is that a user types one thing.
+
 **On the shared object rather than a plugin setting.** A setting would need a manifest key, a
 storage slot, a settings-page row and a version bump in three files, to expose a diagnostic aimed at
 whoever is already in DevTools looking at the console. It would also persist, which is exactly wrong
@@ -356,12 +387,17 @@ choose what a run covers rather than starting one.
 
 A sixth shared convention, and the only one the user reads before installing anything. Every
 plugin in this repo is named **`GTTx <name>`** — `GTTx Normalize Parent Tags`,
-`GTTx Merge Performer Tags To Scenes`, `GTTx Propagate Tags and Performers to Related Entities` —
-since `NormalizeParentTags` 2.0.0 / `MergePerformerTagsToScenes` 2.0.0 /
-`PropagateTagsAndPerformers` 1.0.0. Stash's plugin list is one flat alphabetical column of every
-plugin installed, from every source; the prefix is what collects these three in it and says they
+`GTTx Merge Performer Tags To Scenes`, `GTTx Propagate Tags and Performers to Related Entities`,
+`GTTx Custom Fields Bulk Editor` — since `NormalizeParentTags` 2.0.0 /
+`MergePerformerTagsToScenes` 2.0.0 / `PropagateTagsAndPerformers` 1.0.0, and from its first release
+for `CustomFieldsBulkEditor`. Stash's plugin list is one flat alphabetical column of every
+plugin installed, from every source; the prefix is what collects them in it and says they
 are one author's, which matters here because they cooperate through the mechanisms above and are
 meant to be installed together.
+
+**A new plugin is named this way from 1.0.0 rather than renamed into it later.** The prefix costs a
+major version only when it replaces a name people already matched on; `CustomFieldsBulkEditor` had
+no such name, which is why it is the one plugin here whose major digit says nothing about a rename.
 
 **The name is a display string; the id is the contract.** `PLUGIN_ID`, the folder, every setting
 key, every `plugin-<id>-<key>` element id, every `coop()` key and every path id in `declares` are
@@ -600,13 +636,21 @@ same goes for the settings page since `NormalizeParentTags` 1.7.5 — the descri
 visible summary and a hover box, and the group description behind a **Show more** toggle. A plugin
 folder is copied as-is, with no build step and no shared module, so none can import another's
 stylesheet: each carries its own CSS string, `CSS` in `NormalizeParentTags`, `TASK_CSS` in
-`MergePerformerTagsToScenes`, `CSS` in `PropagateTagsAndPerformers`.
+`MergePerformerTagsToScenes`, `CSS` in `PropagateTagsAndPerformers`, `CSS` in
+`CustomFieldsBulkEditor`.
+
+**A plugin with no `settings:` carries none of the settings-page rules, and that is checked
+positively.** `CustomFieldsBulkEditor` declares no settings at all, so Stash renders no group for
+it: there is no description to split, no per-setting tooltip to open and no toggle to colour, and
+those rules would be dead CSS naming ids that never exist. `tests/style.test.js` carries a
+`settingsPage: false` flag for it — paired with a check that it declares no settings *and* defines
+none of those selectors, or the flag would be excusing a drift instead of recording an absence.
 
 **Keep the overlapping rules byte-identical.** They drifted once — the modal was `#202b33` in one
 and `#30404d` in the other, with a `font-size` and a `z-index` to match — because the second dialog
-was written a day after the first and nobody compared them. `tests/style.test.js` parses all three
-strings, strips the `npt-` / `cpt2s-` / `ptp2re-` prefixes, and fails on any selector two or more of
-them define differently.
+was written a day after the first and nobody compared them. `tests/style.test.js` parses all four
+strings, strips the `npt-` / `cpt2s-` / `ptp2re-` / `cfbe-` prefixes, and fails on any selector two
+or more of them define differently.
 
 Only the overlap is pinned. Rules the others have no use for — the hierarchy viewer's tree and
 inspector, each plugin's own log-line kinds (`REMOVE`/`ADD` against `MERGE` against `TAG`/`PERF`) —
@@ -637,6 +681,13 @@ When fixing a bug, check the new test fails against the unfixed plugin before tr
 
 Findings from reading `stashapp/stash` `graphql/schema/types/*` on `main`, 2026-08-04. Verify
 against the running Stash version before relying on any of it — this is a snapshot, not a contract.
+
+**`CustomFieldsBulkEditor` is what came of this section**, and it acts on every line of it: the
+seven types are its `ENTITIES` table, the two without a bulk input are the two it writes one at a
+time, `partial`/`remove` are the only two inputs it uses, and "there is no way to query objects for
+*whichever* custom fields they happen to have" is why it reads a **named selection** rather than
+offering a key picker. Scene markers being absent from the seven is why it offers nothing on the
+marker list, which is stated in three places because it otherwise reads as a bug.
 
 Seven entity types carry custom fields, marked by `custom_fields: Map!` on the object type: **Scene,
 Image, Gallery, Performer, Studio, Group, Tag**. Scene markers do not, nor do files or folders.

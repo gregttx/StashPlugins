@@ -13,10 +13,15 @@ const fs = require('fs');
 const path = require('path');
 const h = require('./npt-harness');
 
+// `settingsPage: false` is not an exemption granted to a plugin that skimped: it
+// says the plugin declares no `settings:` at all, so Stash renders no group for it,
+// so there is no description to split, no per-setting tooltip to open and no toggle
+// to colour. Those rules would be dead CSS naming ids that never exist.
 const PLUGINS = [
-  { name: 'NormalizeParentTags', prefix: 'npt', decl: 'var CSS =' },
-  { name: 'MergePerformerTagsToScenes', prefix: 'cpt2s', decl: 'var TASK_CSS =' },
-  { name: 'PropagateTagsAndPerformers', prefix: 'ptp2re', decl: 'var CSS =' },
+  { name: 'NormalizeParentTags', prefix: 'npt', decl: 'var CSS =', settingsPage: true },
+  { name: 'MergePerformerTagsToScenes', prefix: 'cpt2s', decl: 'var TASK_CSS =', settingsPage: true },
+  { name: 'PropagateTagsAndPerformers', prefix: 'ptp2re', decl: 'var CSS =', settingsPage: true },
+  { name: 'CustomFieldsBulkEditor', prefix: 'cfbe', decl: 'var CSS =', settingsPage: false },
 ];
 
 // The CSS is a run of single-quoted fragments joined with +. Pull the block out,
@@ -73,9 +78,21 @@ parsed.forEach((p) => {
   h.check(p.plugin.name + ' defines the shared dialog chrome',
     CHROME.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
     CHROME.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
+  if (!p.plugin.settingsPage) return;
   h.check(p.plugin.name + ' defines the shared settings-page rules',
     SETTINGS.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
     SETTINGS.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
+});
+
+// A plugin with no settings must not carry the rules for them either: a stylesheet
+// that styles a group Stash never renders is dead weight nobody would notice, and
+// the flag above would then be hiding a real drift rather than a real absence.
+parsed.filter((p) => !p.plugin.settingsPage).forEach((p) => {
+  h.check(p.plugin.name + ' declares no settings and styles none',
+    SETTINGS.every((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)) &&
+      !/\nsettings:/.test(fs.readFileSync(
+        path.join(__dirname, '..', p.plugin.name, p.plugin.name + '.yml'), 'utf8')),
+    SETTINGS.filter((s) => Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'yml has settings:');
 });
 
 // Any selector two or more of them define is shared by construction, and every one
@@ -122,7 +139,7 @@ parsed.forEach((p) => {
 // list here would make every future setting an edit in two files for no gain.
 const SETTING_ID = /#plugin-([A-Za-z]+)-([A-Za-z0-9]+)/g;
 
-parsed.forEach((p) => {
+parsed.filter((p) => p.plugin.settingsPage).forEach((p) => {
   const yml = fs.readFileSync(
     path.join(__dirname, '..', p.plugin.name, p.plugin.name + '.yml'), 'utf8');
   // The `settings:` block, as `key:` at one indent level under it.

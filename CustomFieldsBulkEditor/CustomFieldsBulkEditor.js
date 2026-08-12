@@ -1,0 +1,1154 @@
+// Custom Fields Bulk Editor
+//
+// Requires Stash 0.31.0 or newer: `custom_fields` on the seven entity types, and
+// `CustomFieldsInput` on their update mutations, are what this plugin is built on.
+//
+// Stash can already store a custom field on a Scene, Image, Gallery, Performer,
+// Studio, Group or Tag, and its UI can only edit one record at a time. The API has
+// no such limit - five of the seven accept `custom_fields` on their *bulk* mutation,
+// and the other two take one single update each - so this plugin adds the one thing
+// missing: a view of what a selection actually carries, and one write across it.
+//
+// It adds a "Custom Fields..." item to the "..." menu of any entity list view while
+// something is selected, and does nothing anywhere else. No settings, no tasks, and
+// nothing that runs on its own.
+//
+// The design notes, and the reasoning behind the parts that look arbitrary, are in
+// CLAUDE.md next to this file.
+(function () {
+  'use strict';
+
+  var PLUGIN_ID   = 'CustomFieldsBulkEditor';
+  var PLUGIN_NAME = 'GTTx Custom Fields Bulk Editor';
+  // The name the dialog head wears. The same string here, because this name already
+  // fits in a title that goes on to name an entity type and a count - the constant
+  // exists so that every head in the repo reads from one expression, not because
+  // every plugin has to shorten. See the repo-root CLAUDE.md, "one name prefix".
+  var PLUGIN_SHORT_NAME = 'GTTx Custom Fields Bulk Editor';
+
+  // The one version that proves anything. The settings page reads the manifest over
+  // GraphQL and goes current the moment plugins are reloaded, while the browser can
+  // still be running a script it cached before the edit. This constant travels
+  // inside the file; bump it with the manifest and the yml, or the `version` suite
+  // fails.
+  var PLUGIN_VERSION = '0.0.1';
+
+  // Printed before anything else runs, so a script that loads and then throws is told
+  // apart from one that never loaded at all. Through whatever the console offers
+  // rather than console.info directly: this is the first statement in the file.
+  function cfbe(message) {
+    if (typeof console !== 'undefined' && (console.info || console.log)) {
+      (console.info || console.log).call(console, message);
+    }
+  }
+
+  cfbe('[cfbe] CustomFieldsBulkEditor.js ' + PLUGIN_VERSION + ' loaded. This is the ' +
+    'running script own version - the settings page reads the manifest instead, which can be ' +
+    'newer than the script your browser has cached.');
+
+  var README_URL = 'https://github.com/gregttx/StashPlugins/blob/main/CustomFieldsBulkEditor/README.md';
+  var STYLE_ID   = 'cfbe-style';
+
+  // The one control this plugin draws into Stash's own UI, and the button that
+  // writes, in amber. Stash's own menu items and row actions are neutral, and these
+  // are not the same kind of thing: this one reaches out and rewrites every entity in
+  // a selection. See "one colour for a plugin wrote this" in the repo-root CLAUDE.md.
+  var PLUGIN_BTN_VARIANT = 'btn-warning';
+
+  var CHUNK_SIZE   = 100;   // entity ids per read alias batch and per bulk mutation
+  var LEASE_TTL_MS = 300000;
+  var UNDO_ARM_MS  = 4000;  // how long Undo stays armed for its second click
+  var TICK_MS      = 1000;
+  var OBSERVE_MS   = 100;   // a burst of DOM mutations coalesced into one tick
+  var ROW_WALK_MAX = 8;     // ancestors climbed from a checkbox looking for its row
+
+  function hasOwn(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  // ── The seven entity types ────────────────────────────────────────────────
+  //
+  // Keyed by the plural segment Stash puts in the URL, because that is also how a
+  // list view is recognised: `/scenes`, `/performers/12/scenes` and `/tags/9/images`
+  // all end in the type they list. `/scenes/markers` ends in `markers`, which is not
+  // a key here and so is not a list this plugin offers anything on - SceneMarker is
+  // the one selectable entity in Stash with no `custom_fields` field at all, so there
+  // is nothing to edit rather than something left undone.
+  //
+  //   one         the by-id query; every entity in a batch is one alias of it
+  //   fields      what `displayName` reads, so the list can name the entity
+  //   route       matches this type's own detail link, which is how a selected card
+  //               is turned back into an id
+  //   bulk        the mutation that takes `ids` and one `custom_fields` delta.
+  //               Absent for Studio and Tag: `BulkStudioUpdateInput` and
+  //               `BulkTagUpdateInput` carry no `custom_fields` field, so those two
+  //               are written one at a time through `single` instead. That is a
+  //               schema fact, not a scoping decision - do not "add the missing bulk".
+  var ENTITIES = {
+    scenes: {
+      key: 'scenes', label: 'Scene', plural: 'Scenes',
+      one: 'findScene', fields: 'title files { basename }',
+      route: /^\/scenes\/(\d+)(?:[/?#]|$)/,
+      bulk: 'bulkSceneUpdate', bulkInput: 'BulkSceneUpdateInput',
+      single: 'sceneUpdate', singleInput: 'SceneUpdateInput',
+    },
+    images: {
+      key: 'images', label: 'Image', plural: 'Images',
+      one: 'findImage',
+      fields: 'title visual_files { ... on ImageFile { basename } ... on VideoFile { basename } }',
+      route: /^\/images\/(\d+)(?:[/?#]|$)/,
+      bulk: 'bulkImageUpdate', bulkInput: 'BulkImageUpdateInput',
+      single: 'imageUpdate', singleInput: 'ImageUpdateInput',
+    },
+    galleries: {
+      key: 'galleries', label: 'Gallery', plural: 'Galleries',
+      one: 'findGallery', fields: 'title files { basename } folder { basename }',
+      route: /^\/galleries\/(\d+)(?:[/?#]|$)/,
+      bulk: 'bulkGalleryUpdate', bulkInput: 'BulkGalleryUpdateInput',
+      single: 'galleryUpdate', singleInput: 'GalleryUpdateInput',
+    },
+    performers: {
+      key: 'performers', label: 'Performer', plural: 'Performers',
+      one: 'findPerformer', fields: 'name',
+      route: /^\/performers\/(\d+)(?:[/?#]|$)/,
+      bulk: 'bulkPerformerUpdate', bulkInput: 'BulkPerformerUpdateInput',
+      single: 'performerUpdate', singleInput: 'PerformerUpdateInput',
+    },
+    groups: {
+      key: 'groups', label: 'Group', plural: 'Groups',
+      one: 'findGroup', fields: 'name',
+      route: /^\/groups\/(\d+)(?:[/?#]|$)/,
+      bulk: 'bulkGroupUpdate', bulkInput: 'BulkGroupUpdateInput',
+      single: 'groupUpdate', singleInput: 'GroupUpdateInput',
+    },
+    studios: {
+      key: 'studios', label: 'Studio', plural: 'Studios',
+      one: 'findStudio', fields: 'name',
+      route: /^\/studios\/(\d+)(?:[/?#]|$)/,
+      bulk: null, bulkInput: null,
+      single: 'studioUpdate', singleInput: 'StudioUpdateInput',
+    },
+    tags: {
+      key: 'tags', label: 'Tag', plural: 'Tags',
+      one: 'findTag', fields: 'name',
+      route: /^\/tags\/(\d+)(?:[/?#]|$)/,
+      bulk: null, bulkInput: null,
+      single: 'tagUpdate', singleInput: 'TagUpdateInput',
+    },
+  };
+
+  // ── Cross-plugin cooperation ──────────────────────────────────────────────
+  //
+  // `window.__GTTx__` is the one global this repo reserves and everything shared
+  // hangs off it. `StashPluginCoop` on its own was a name any third-party plugin
+  // could have picked, and a collision would hand someone else's object our leases.
+  //
+  // `window.StashPluginCoop` stays as an alias to the very same object, and an
+  // existing one is adopted rather than replaced: a user who updates one of these
+  // plugins and not the others has two releases of the protocol in one tab, and both
+  // halves have to keep seeing one set of leases. Keep this function byte-identical
+  // across the plugins, like the CSS.
+  function coopObject() {
+    var ns = window.__GTTx__;
+    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+    var c = ns.StashPluginCoop || window.StashPluginCoop;
+    if (!c || typeof c !== 'object') c = {};
+    ns.StashPluginCoop = c;
+    if (window.StashPluginCoop !== c) window.StashPluginCoop = c;
+    return c;
+  }
+
+  function coop() {
+    var c = coopObject();
+    if (!c.leases) c.leases = [];
+    if (!c.respecters) c.respecters = {};
+    if (!c.declares) c.declares = {};
+    if (!c.order) c.order = {};
+    return c;
+  }
+
+  // This plugin is bulk-only: it never watches `window.fetch` and never reacts to a
+  // save, so it registers no `respecters` entry - claiming to honour leases while
+  // having nothing to stand down would be a lie a sibling's dialog would repeat to
+  // the user. It has no relationship-copy paths, so it declares nothing either, and
+  // it puts no button in an entity's action row, so it takes no `order` priority.
+  // `coop()` still creates all four fields, for shape-consistency with its siblings.
+
+  // Off unless `__GTTx__.StashPluginCoop.debugButtons = true`, typed into the browser
+  // console: no setting, no reload, and read at call time so it takes effect on the
+  // next tick. The shared switch rather than one of our own, because the question it
+  // answers - "why is this control not there" - is rarely about a single plugin.
+  //
+  // Deduplicated per channel: the tick runs every second and on every DOM mutation
+  // burst, so an undeduplicated line would emit forever on a page nobody is touching.
+  // What is worth seeing is the moment an outcome changes. Turning the flag off
+  // clears the channels, so switching it back on restates the current position.
+  var _gateLast = {};
+  function gateLogOnce(channel, line) {
+    if (!coop().debugButtons) { _gateLast = {}; return; }
+    if (_gateLast[channel] === line) return;
+    _gateLast[channel] = line;
+    console.info('[cfbe gate] ' + line);
+  }
+
+  // A bulk run announces itself for the duration of its writes, so a reactive plugin
+  // in the same tab stands down rather than reacting to every entity we touch.
+  // Advisory, always expiring, per tab - see the repo-root CLAUDE.md.
+  function acquireLease(label, ttl) {
+    var c = coop();
+    var ms = ttl || LEASE_TTL_MS;
+    var lease = { owner: PLUGIN_ID, label: label, until: Date.now() + ms };
+    c.leases.push(lease);
+    return {
+      renew: function () { lease.until = Date.now() + ms; },
+      release: function () {
+        var i = c.leases.indexOf(lease);
+        if (i !== -1) c.leases.splice(i, 1);
+      },
+    };
+  }
+
+  // ── GraphQL ───────────────────────────────────────────────────────────────
+
+  function gqlRequest(query, variables) {
+    return fetch('/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query, variables: variables }),
+    })
+      .then(function (resp) { return resp.json(); })
+      .then(function (json) {
+        if (json.errors) throw new Error(json.errors.map(function (e) { return e.message; }).join('; '));
+        return json.data;
+      });
+  }
+
+  // ── Styles ────────────────────────────────────────────────────────────────
+
+  var CSS =
+    // Kept literally identical to the three sibling plugins' stylesheets wherever
+    // the dialogs overlap, down to the hex values. They are separate strings because
+    // the plugins share no module, not because they are meant to look different -
+    // and two of them did drift, from #202b33 to #30404d, because nothing compared
+    // them. `tests/style.test.js` pins the overlap now. #202b33 is Blueprint's
+    // dark-gray2, the step Stash's own page uses; every dim grey in these dialogs was
+    // chosen against it.
+    '.cfbe-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
+    'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
+    '.cfbe-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
+    'width:min(56rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
+    '.cfbe-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
+    '.cfbe-title{font-size:1.1rem;font-weight:600;}' +
+    '.cfbe-warn{color:#ffb648;margin-top:.35rem;}' +
+    '.cfbe-note{color:#a7b6c2;margin-top:.35rem;}' +
+    '.cfbe-legend{color:#7d8f9c;margin-top:.35rem;font-size:.8rem;}' +
+    '.cfbe-progress{padding:.5rem 1rem;border-bottom:1px solid #394b59;color:#a7b6c2;' +
+    'white-space:pre-wrap;}' +
+    '.cfbe-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;font-size:.8rem;' +
+    'line-height:1.35;min-height:14rem;}' +
+    '.cfbe-line{white-space:pre-wrap;word-break:break-word;}' +
+    '.cfbe-ERROR{color:#ff7373;} .cfbe-WARN{color:#ffb648;} .cfbe-INFO{color:#a7b6c2;}' +
+    '.cfbe-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
+    'flex-wrap:wrap;align-items:center;}' +
+    '.cfbe-foot button{margin-right:.5rem;}' +
+    '.cfbe-hidden{display:none;}' +
+    // The filter row, shared with NormalizeParentTags' find bar: same position in the
+    // dialog (a strip under the head), same job, so the same rule.
+    '.cfbe-search{padding:.5rem 1rem;border-bottom:1px solid #394b59;position:relative;' +
+    'display:flex;gap:.5rem;align-items:center;}' +
+    // ── This dialog's own ───────────────────────────────────────────────────
+    //
+    // The list is a real <textarea>, not a stack of divs: it is what makes the
+    // listing selectable and copyable with no button to press, and a selection of
+    // several thousand entities is one node here rather than one node per line - the
+    // very cost that made every sibling dialog cap what it renders.
+    '.cfbe-list{width:100%;height:100%;min-height:12rem;box-sizing:border-box;resize:none;' +
+    'background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;border-radius:3px;' +
+    'font-family:monospace;font-size:.8rem;line-height:1.35;padding:.35rem .5rem;}' +
+    '.cfbe-msgs{max-height:6rem;overflow:auto;padding:0 1rem .35rem;font-family:monospace;' +
+    'font-size:.8rem;line-height:1.35;}' +
+    '.cfbe-editor{padding:.5rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
+    'flex-wrap:wrap;align-items:center;}' +
+    '.cfbe-label{color:#a7b6c2;font-size:.85rem;white-space:nowrap;}' +
+    '.cfbe-input,.cfbe-select{background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
+    'border-radius:3px;padding:.25rem .5rem;}' +
+    '.cfbe-input{flex:1 1 10rem;min-width:8rem;}' +
+    '.cfbe-readme{color:#7cc4ff;font-size:.8rem;margin-top:.35rem;display:inline-block;}' +
+    // The menu item, amber because it is the one thing this plugin puts into Stash's
+    // own chrome and it leads to a write. Stash's `.dropdown-item` supplies the
+    // padding, the hover and the layout; only the two things that are ours are set.
+    '.cfbe-menu-item{cursor:pointer;color:#ffb648;}';
+
+  function injectStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+    var style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = CSS;
+    (document.head || document.body || document.documentElement).appendChild(style);
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function button(label, className) {
+    var b = el('button', 'btn btn-secondary btn-sm' + (className ? ' ' + className : ''), label);
+    b.type = 'button';
+    return b;
+  }
+
+  function hasClass(node, name) {
+    return !!node && (' ' + (node.className || '') + ' ').indexOf(' ' + name + ' ') !== -1;
+  }
+
+  // ── Is this script the one Stash has installed? ───────────────────────────
+  //
+  // "Reload plugins" re-reads the plugin folder on the server; it cannot replace a
+  // script this page already fetched and executed. Comparing the two numbers is the
+  // only way the script can notice it is the stale one.
+  //
+  // Resolves to null wherever the answer is unknown - a Stash too old for the field,
+  // a plugin it cannot see, a failed request. Unknown is not a mismatch.
+  function installedVersion() {
+    return gqlRequest('query CFBEPluginVersion { plugins { id version } }', null)
+      .then(function (data) {
+        var list = (data && data.plugins) || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && String(list[i].id) === PLUGIN_ID) return list[i].version || null;
+        }
+        return null;
+      }, function () { return null; });
+  }
+
+  // ── Naming an entity ──────────────────────────────────────────────────────
+  //
+  // Whichever of the display fields is present, rather than a branch per type: a
+  // per-type branch is what let galleries and images log as "untitled" in a sibling
+  // for three releases. `title` is optional on scenes, galleries and images, so each
+  // falls back to its file - and a gallery can be a folder, with no file at all.
+  function firstBasename(files) {
+    for (var i = 0; files && i < files.length; i++) {
+      if (files[i] && files[i].basename) return files[i].basename;
+    }
+    return null;
+  }
+
+  function displayName(ent) {
+    if (!ent) return null;
+    return ent.title || ent.name || firstBasename(ent.files) || firstBasename(ent.visual_files) ||
+      (ent.folder && ent.folder.basename) || null;
+  }
+
+  function entityLabel(spec, ent) {
+    return spec.label + ' "' + (displayName(ent) || 'untitled') + '" (' + ent.id + ')';
+  }
+
+  // Custom field values are an arbitrary JSON `Map`, so anything that is not already
+  // a string is shown as JSON rather than as `[object Object]`.
+  function valueText(v) {
+    if (v == null) return '';
+    if (typeof v === 'string') return v;
+    try { return JSON.stringify(v); } catch (e) { return String(v); }
+  }
+
+  // ── Which list is on screen, and what is selected ─────────────────────────
+
+  // The last path segment names the type: `/scenes`, `/performers/12/scenes` and
+  // `/tags/9/images` all end in the list they show, and a detail page (`/scenes/12`)
+  // or the marker list (`/scenes/markers`) ends in something that is not a key here.
+  function listType() {
+    var path = String((window.location && window.location.pathname) || '');
+    var seg = path.replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop();
+    return hasOwn(ENTITIES, seg) ? seg : null;
+  }
+
+  // A plain recursive walk rather than `querySelectorAll`: neither the shared test
+  // harness's fake DOM nor this concern needs a selector engine, and the same walk
+  // has to skip text nodes, which carry no tagName.
+  function collect(node, match, out) {
+    out = out || [];
+    var kids = node && node.childNodes;
+    for (var i = 0; kids && i < kids.length; i++) {
+      var c = kids[i];
+      if (!c || !c.tagName) continue;
+      if (match(c)) out.push(c);
+      collect(c, match, out);
+    }
+    return out;
+  }
+
+  function checkedBoxes(root) {
+    return collect(root, function (n) {
+      return n.tagName === 'INPUT' && String(n.type).toLowerCase() === 'checkbox' && !!n.checked;
+    });
+  }
+
+  // Every distinct id of this type linked to from inside `node`. One is a row; more
+  // than one means the walk has climbed past the row into a container.
+  function idsUnder(node, spec) {
+    var seen = {};
+    var out = [];
+    collect(node, function (n) {
+      if (n.tagName !== 'A' || !n.getAttribute) return false;
+      var m = spec.route.exec(n.getAttribute('href') || '');
+      if (m && !hasOwn(seen, m[1])) { seen[m[1]] = true; out.push(m[1]); }
+      return false;
+    });
+    return out;
+  }
+
+  // A checked checkbox says "this row is selected"; the row's own detail link says
+  // which entity that is. Climb from the box until an ancestor links somewhere.
+  //
+  // **More than one id means this is not a row.** A table view's select-all box sits
+  // in the header, whose only ancestor carrying links is the whole table - so it
+  // resolves to every id on the page, and taking that as a selection would silently
+  // widen a write to the entire list. One distinct id is the only answer accepted;
+  // a card that links to itself twice (its image and its title) still gives one.
+  function rowEntityId(box, spec) {
+    var n = box.parentNode;
+    for (var depth = 0; n && depth < ROW_WALK_MAX; depth++) {
+      var ids = idsUnder(n, spec);
+      if (ids.length === 1) return ids[0];
+      if (ids.length > 1) return null;
+      n = n.parentNode;
+    }
+    return null;
+  }
+
+  function selectedIds(type) {
+    var spec = ENTITIES[type];
+    var seen = {};
+    var ids = [];
+    checkedBoxes(document.body).forEach(function (box) {
+      var id = rowEntityId(box, spec);
+      if (id && !hasOwn(seen, id)) { seen[id] = true; ids.push(id); }
+    });
+    return ids;
+  }
+
+  // ── The menu item ─────────────────────────────────────────────────────────
+
+  var MENU_LABEL = 'Custom Fields...';
+  var MENU_ITEM_CLASS = 'cfbe-menu-item';
+
+  // Stash's list toolbar renders the "..." dropdown with `id="more-menu"` on its
+  // toggle, and react-bootstrap only mounts the menu itself while it is open - so
+  // this finds nothing except in the moment the user has it open, which is exactly
+  // when the item has to be there.
+  //
+  // The fallback exists because that id is the single point of failure for the whole
+  // plugin and it has not been read off a running Stash. It matches a menu by what is
+  // *in* it - Stash puts the selection operations in this menu and nowhere else - so
+  // it cannot capture the sort or the display-mode dropdown, which is the one thing a
+  // looser fallback must not do.
+  var MENU_SIGNALS = ['select all', 'select none'];
+
+  function menuOf(toggleParent) {
+    return toggleParent ? toggleParent.querySelector('.dropdown-menu') : null;
+  }
+
+  function looksLikeOperationMenu(menu) {
+    var items = collect(menu, function (n) { return hasClass(n, 'dropdown-item'); });
+    for (var i = 0; i < items.length; i++) {
+      var text = String(items[i].textContent || '').replace(/\s+/g, ' ').toLowerCase();
+      if (MENU_SIGNALS.indexOf(text.replace(/^ | $/g, '')) !== -1) return true;
+    }
+    return false;
+  }
+
+  function findMenu() {
+    var toggle = document.getElementById('more-menu');
+    var menu = menuOf(toggle && toggle.parentNode);
+    if (menu) return menu;
+    var all = document.querySelectorAll('.dropdown-menu');
+    for (var i = 0; i < all.length; i++) {
+      if (looksLikeOperationMenu(all[i])) return all[i];
+    }
+    return null;
+  }
+
+  // Through `document`, not a walk: this runs on every tick and on every DOM mutation
+  // burst, and a list view holding a thousand cards is not a subtree to sweep once a
+  // second for a node that is usually absent. Indexed rather than `forEach`, because a
+  // real `NodeList` carries nothing from `Array.prototype` in every engine.
+  function existingItems() {
+    var found = document.querySelectorAll('.' + MENU_ITEM_CLASS);
+    var out = [];
+    for (var i = 0; i < found.length; i++) out.push(found[i]);
+    return out;
+  }
+
+  function clearItems(keep) {
+    existingItems().forEach(function (n) {
+      if (n !== keep && n.parentNode) n.parentNode.removeChild(n);
+    });
+  }
+
+  function buildItem(type, ids) {
+    // An <a> with no href, the shape react-bootstrap's own Dropdown.Item renders, so
+    // Stash's `.dropdown-item` styling applies unchanged.
+    var item = el('a', 'dropdown-item ' + MENU_ITEM_CLASS, MENU_LABEL);
+    item.title = 'View and bulk edit the custom fields of the ' + ids.length + ' selected ' +
+      (ids.length === 1 ? ENTITIES[type].label.toLowerCase() : ENTITIES[type].plural.toLowerCase()) +
+      '. Opens a dialog listing what they carry now; nothing is written until you press Apply.';
+    item.addEventListener('click', function (ev) {
+      if (ev && ev.preventDefault) ev.preventDefault();
+      startRun(type, ids);
+    });
+    return item;
+  }
+
+  // Reconciliation rather than tracking: React tears the menu down when it closes and
+  // rebuilds it on the next open, so there is nothing durable to hold on to. Every
+  // tick rebuilds the opinion of whether the item should exist, and where.
+  function menuTick() {
+    var type = listType();
+    if (!type) {
+      clearItems(null);
+      gateLogOnce('route', 'not an entity list view (' +
+        String((window.location && window.location.pathname) || '') + ')');
+      return;
+    }
+
+    var menu = findMenu();
+    if (!menu) {
+      clearItems(null);
+      gateLogOnce('route', ENTITIES[type].plural + ' list: no open "..." menu to add to');
+      return;
+    }
+
+    var ids = selectedIds(type);
+    if (!ids.length) {
+      clearItems(null);
+      gateLogOnce('route', ENTITIES[type].plural + ' list: menu open, nothing selected');
+      return;
+    }
+    gateLogOnce('route', ENTITIES[type].plural + ' list: menu open, ' + ids.length + ' selected');
+
+    // Always last in the menu, and rebuilt when the selection changes: the caption
+    // says nothing about the count but the tooltip does, and a click has to carry the
+    // ids that were selected when it was made.
+    var current = null;
+    existingItems().forEach(function (n) {
+      if (n.parentNode === menu && n._cfbeKey === type + ':' + ids.join(',') &&
+          n === menu.childNodes[menu.childNodes.length - 1]) current = n;
+    });
+    if (current) { clearItems(current); return; }
+
+    clearItems(null);
+    var item = buildItem(type, ids);
+    item._cfbeKey = type + ':' + ids.join(',');
+    menu.appendChild(item);
+  }
+
+  // ── The dialog ────────────────────────────────────────────────────────────
+
+  var _active = null;
+
+  function startRun(type, ids) {
+    if (_active) { _active.focus(); return; }
+    _active = new Run(type, ids);
+    _active.begin();
+  }
+
+  function Run(type, ids) {
+    this.type = type;
+    this.spec = ENTITIES[type];
+    this.ids = ids;
+    // { id, label, fields } per entity that still exists, in selection order.
+    this.entities = [];
+    // The listing, flattened: one per (entity, custom field).
+    this.rows = [];
+    // What the last Apply wrote, and what each entity carried before it. This is what
+    // Undo replays - a per-key delta, never a stored copy of the whole map, so it puts
+    // back exactly the one field this dialog changed and touches nothing else.
+    this.changes = [];
+    this.applied = 0;
+    this.failed = 0;
+    this.undone = 0;
+    // Set by checkVersion when the running script is not the one Stash has installed.
+    this.stale = false;
+    this.undoArmed = 0;
+    this.state = 'loading';
+    this.build();
+  }
+
+  Run.prototype.build = function () {
+    injectStyle();
+    var self = this;
+
+    this.backdrop = el('div', 'cfbe-backdrop');
+    this.modal = el('div', 'cfbe-modal');
+    this.backdrop.appendChild(this.modal);
+
+    var head = el('div', 'cfbe-head');
+    // A plain block, so a title too long for one line wraps rather than being clipped.
+    head.appendChild(el('div', 'cfbe-title', PLUGIN_SHORT_NAME + ' - ' + this.spec.plural +
+      ' - ' + this.ids.length + ' selected'));
+    head.appendChild(el('div', 'cfbe-warn',
+      'Back up your database before proceeding. Apply rewrites one custom field across every ' +
+      'entity in scope, and Undo reverses only what this dialog wrote, only while it stays ' +
+      'open, and cannot account for changes made elsewhere in the meantime.'));
+    head.appendChild(el('div', 'cfbe-legend',
+      'Reading the list: the number in brackets after a name is that entity\'s Stash id - ' +
+      'Scene "My Scene" (123) is the scene with id 123. Counts are written as x250, never in ' +
+      'brackets. A line reads: entity - field name - field value.'));
+    this.noteEl = el('div', 'cfbe-note', '');
+    head.appendChild(this.noteEl);
+    var link = el('a', 'cfbe-readme', 'Plugin README');
+    link.href = README_URL;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    head.appendChild(link);
+    this.modal.appendChild(head);
+
+    this.progressEl = el('div', 'cfbe-progress', 'Loading...');
+    this.modal.appendChild(this.progressEl);
+
+    var filters = el('div', 'cfbe-search');
+    filters.appendChild(el('span', 'cfbe-label', 'Filter by Name'));
+    this.nameFilter = this.input('cfbe-filter-name');
+    filters.appendChild(this.nameFilter);
+    filters.appendChild(el('span', 'cfbe-label', 'Filter by Value'));
+    this.valueFilter = this.input('cfbe-filter-value');
+    filters.appendChild(this.valueFilter);
+    [this.nameFilter, this.valueFilter].forEach(function (i) {
+      i.addEventListener('input', function () { self.renderList(); });
+    });
+    this.modal.appendChild(filters);
+
+    var listWrap = el('div', 'cfbe-log');
+    this.listEl = el('textarea', 'cfbe-list');
+    this.listEl.readOnly = true;
+    listWrap.appendChild(this.listEl);
+    this.modal.appendChild(listWrap);
+
+    this.msgEl = el('div', 'cfbe-msgs');
+    this.modal.appendChild(this.msgEl);
+
+    var ops = el('div', 'cfbe-editor');
+    this.modeSel = this.select('cfbe-mode', [
+      ['add', 'Add'], ['overwrite', 'Overwrite'], ['remove', 'Remove'],
+    ], 'add');
+    this.scopeSel = this.select('cfbe-scope', [
+      ['all', 'All'], ['filtered', 'Filtered list only'],
+    ], 'all');
+    ops.appendChild(el('span', 'cfbe-label', 'Operation'));
+    ops.appendChild(this.modeSel);
+    ops.appendChild(el('span', 'cfbe-label', 'Apply to'));
+    ops.appendChild(this.scopeSel);
+    [this.modeSel, this.scopeSel].forEach(function (s) {
+      s.addEventListener('change', function () { self.syncApply(); });
+    });
+    this.modal.appendChild(ops);
+
+    var fields = el('div', 'cfbe-editor');
+    fields.appendChild(el('span', 'cfbe-label', 'Custom Field name'));
+    this.nameInput = this.input('cfbe-field-name');
+    fields.appendChild(this.nameInput);
+    fields.appendChild(el('span', 'cfbe-label', 'Custom Field value'));
+    this.valueInput = this.input('cfbe-field-value');
+    fields.appendChild(this.valueInput);
+    [this.nameInput, this.valueInput].forEach(function (i) {
+      i.addEventListener('input', function () { self.syncApply(); });
+    });
+    this.modal.appendChild(fields);
+
+    var foot = el('div', 'cfbe-foot');
+    this.cancelBtn = button('Cancel', 'cfbe-cancel');
+    // Amber: this is the button that writes. See "one colour for a plugin wrote this".
+    this.applyBtn = button('Apply', 'cfbe-apply');
+    this.applyBtn.className = this.applyBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    this.undoBtn = button('Undo', 'cfbe-undo cfbe-hidden');
+    this.undoBtn.className = this.undoBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    this.closeBtn = button('Close', 'cfbe-close cfbe-hidden');
+    this.applyBtn.disabled = true;
+    this.undoBtn.title = 'Put back the value each entity carried before Apply, field by field. ' +
+      'Only what this dialog wrote, and only while it stays open.';
+
+    this.cancelBtn.addEventListener('click', function () { self.close(); });
+    this.applyBtn.addEventListener('click', function () { self.apply(); });
+    this.undoBtn.addEventListener('click', function () { self.undo(); });
+    this.closeBtn.addEventListener('click', function () { self.close(); });
+
+    [this.cancelBtn, this.undoBtn, this.applyBtn, this.closeBtn].forEach(function (b) {
+      foot.appendChild(b);
+    });
+    this.modal.appendChild(foot);
+
+    document.body.appendChild(this.backdrop);
+  };
+
+  Run.prototype.input = function (className) {
+    var i = el('input', 'cfbe-input ' + className);
+    i.type = 'text';
+    i.value = '';
+    return i;
+  };
+
+  Run.prototype.select = function (className, options, initial) {
+    var s = el('select', 'cfbe-select ' + className);
+    options.forEach(function (o) {
+      var opt = el('option', null, o[1]);
+      opt.value = o[0];
+      s.appendChild(opt);
+    });
+    s.value = initial;
+    return s;
+  };
+
+  Run.prototype.focus = function () {
+    if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
+  };
+
+  Run.prototype.show = function (node, visible) {
+    node.className = node.className.replace(/\s*cfbe-hidden/g, '') + (visible ? '' : ' cfbe-hidden');
+  };
+
+  Run.prototype.setState = function (state) {
+    this.state = state;
+    var listing = state === 'listing';
+    // `undoing` counts as applied for the footer: the write it is performing started
+    // from this half of it, and flipping back to Cancel/Apply mid-undo would offer a
+    // second write over a library the first one is still moving.
+    var applied = state === 'applied' || state === 'undoing';
+    var busy = state === 'applying' || state === 'undoing';
+    // Cancel and Apply while there is something to decide; Undo and Close once there
+    // is something to take back. The two pairs never overlap: after Apply the listing
+    // describes a library this dialog has already changed, so offering Apply again
+    // over it would write from a plan the user is no longer looking at.
+    this.show(this.cancelBtn, !applied);
+    this.show(this.applyBtn, !applied);
+    this.show(this.undoBtn, applied && this.changes.length > 0);
+    this.show(this.closeBtn, applied);
+    this.cancelBtn.disabled = busy;
+    this.undoBtn.disabled = busy;
+    this.closeBtn.disabled = busy;
+    [this.modeSel, this.scopeSel, this.nameInput, this.valueInput].forEach(function (n) {
+      n.disabled = !listing;
+    });
+    this.syncApply();
+  };
+
+  // Apply is enabled by the one rule the user asked for - a non-empty field name,
+  // an empty value being a legitimate thing to store - plus the version gate, which
+  // is the only warning in this repo's dialogs that blocks. Undo is deliberately not
+  // gated on it: stranding the user with changes they cannot take back is worse than
+  // the mismatch it protects against.
+  Run.prototype.syncApply = function () {
+    this.applyBtn.disabled = this.state !== 'listing' ||
+      !String(this.nameInput.value || '').replace(/^\s+|\s+$/g, '') || this.stale;
+  };
+
+  Run.prototype.note = function (message) {
+    this.msg('WARN', message);
+    this.noteEl.textContent = this.noteEl.textContent
+      ? this.noteEl.textContent + ' ' + message : message;
+  };
+
+  Run.prototype.msg = function (kind, message) {
+    this.msgEl.appendChild(el('div', 'cfbe-line cfbe-' + kind, '[' + kind + '] ' + message));
+    if (typeof this.msgEl.scrollHeight === 'number') this.msgEl.scrollTop = this.msgEl.scrollHeight;
+  };
+
+  Run.prototype.begin = function () {
+    var self = this;
+    this.setState('loading');
+
+    // Someone else's lease, held right now. Ours is taken in apply(). It is advisory
+    // and this is a manual action, so it does not block - but two plugins rewriting
+    // the same entities at once is worth saying out loud.
+    if (coop().leases.length) {
+      this.note('Another plugin is applying bulk changes right now (' +
+        coop().leases[0].owner + ' - ' + coop().leases[0].label + '). Running both at once ' +
+        'means each may undo part of the other; let it finish first.');
+    }
+
+    // Not chained ahead of the read: one small query against a batch that may be a
+    // hundred, and it lands long before Apply is reachable.
+    this.checkVersion();
+
+    this.load().then(function () {
+      self.setState('listing');
+      self.renderList();
+    }, function (e) {
+      self.msg('ERROR', 'Reading custom fields failed: ' + (e && e.message ? e.message : String(e)));
+      self.setState('listing');
+      self.renderList();
+    });
+  };
+
+  Run.prototype.checkVersion = function () {
+    var self = this;
+    installedVersion().then(function (installed) {
+      if (!installed || installed === PLUGIN_VERSION) {
+        console.info('[cfbe] running ' + PLUGIN_VERSION + ', Stash reports ' +
+          (installed || 'nothing') + ' installed.');
+        return;
+      }
+      self.stale = true;
+      self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but Stash has ' +
+        installed + ' installed. Reload the page before applying anything.');
+      self.syncApply();
+    });
+  };
+
+  // ── Reading ───────────────────────────────────────────────────────────────
+  //
+  // One aliased by-id query per batch of a hundred, rather than a filtered list query
+  // per entity type. Every one of the seven has a `find<Type>(id:)`, so one query
+  // shape serves all of them and nothing here has to be right about the shape of
+  // seven different filter inputs.
+  Run.prototype.load = function () {
+    var self = this;
+    var chunks = [];
+    for (var i = 0; i < this.ids.length; i += CHUNK_SIZE) {
+      chunks.push(this.ids.slice(i, i + CHUNK_SIZE));
+    }
+    return chunks.reduce(function (p, chunk) {
+      return p.then(function () { return self.loadChunk(chunk); });
+    }, Promise.resolve());
+  };
+
+  Run.prototype.loadChunk = function (ids) {
+    var self = this;
+    var spec = this.spec;
+    var parts = ids.map(function (id, i) {
+      return 'r' + i + ': ' + spec.one + '(id: ' + JSON.stringify(String(id)) + ') { id ' +
+        spec.fields + ' custom_fields }';
+    });
+    return gqlRequest('query CFBE_Read { ' + parts.join(' ') + ' }', null).then(function (data) {
+      ids.forEach(function (id, i) {
+        var ent = data && data['r' + i];
+        // An entity deleted between the selection and the read is reported rather
+        // than silently dropped: the count in the head came from the selection.
+        if (!ent) { self.msg('WARN', spec.label + ' ' + id + ' no longer exists.'); return; }
+        self.entities.push({
+          id: String(ent.id), label: entityLabel(spec, ent),
+          fields: ent.custom_fields || {},
+        });
+      });
+    });
+  };
+
+  // ── The listing ───────────────────────────────────────────────────────────
+
+  Run.prototype.buildRows = function () {
+    var rows = [];
+    this.entities.forEach(function (e) {
+      var names = [];
+      for (var k in e.fields) { if (hasOwn(e.fields, k)) names.push(k); }
+      names.sort();
+      names.forEach(function (k) {
+        rows.push({ id: e.id, label: e.label, name: k, value: valueText(e.fields[k]) });
+      });
+    });
+    this.rows = rows;
+  };
+
+  Run.prototype.filtered = function () {
+    var name = String(this.nameFilter.value || '').toLowerCase();
+    var value = String(this.valueFilter.value || '').toLowerCase();
+    return this.rows.filter(function (r) {
+      return (!name || r.name.toLowerCase().indexOf(name) !== -1) &&
+        (!value || r.value.toLowerCase().indexOf(value) !== -1);
+    });
+  };
+
+  Run.prototype.renderList = function () {
+    this.buildRows();
+    var rows = this.filtered();
+    this.listEl.value = rows.map(function (r) {
+      return r.label + ' - ' + r.name + ' - ' + r.value;
+    }).join('\n');
+    this.renderProgress(rows.length);
+  };
+
+  Run.prototype.renderProgress = function (listed) {
+    var withFields = this.entities.filter(function (e) {
+      for (var k in e.fields) { if (hasOwn(e.fields, k)) return true; }
+      return false;
+    }).length;
+
+    var summary;
+    if (this.state === 'loading') {
+      summary = 'Loading. ' + this.entities.length + ' of ' + this.ids.length + ' read';
+    } else if (this.state === 'applying') {
+      summary = 'Applying. ' + this.applied + ' of ' + this.changes.length + ' entity change(s) written';
+    } else if (this.state === 'undoing') {
+      summary = 'Undoing. ' + this.undone + ' of ' + this.changes.length + ' change(s) reversed';
+    } else if (this.state === 'applied') {
+      summary = 'Applied. ' + this.applied + ' entity change(s) written' +
+        (this.failed ? ', ' + this.failed + ' failed' : '') +
+        (this.undone ? ', ' + this.undone + ' reversed by Undo' : '');
+    } else {
+      summary = this.entities.length + ' ' + this.spec.plural.toLowerCase() + ' read, ' +
+        withFields + ' with custom fields, ' + this.rows.length + ' field(s) in total, ' +
+        (listed == null ? this.rows.length : listed) + ' line(s) listed';
+    }
+    this.progressEl.textContent = summary;
+  };
+
+  // ── Applying ──────────────────────────────────────────────────────────────
+
+  // What the three modes mean, and why they are not Stash's own bulk tabs: a custom
+  // field holds one value per key, so there is no list to append to. "Add" therefore
+  // means *do not overwrite* - only entities that do not already carry the key are
+  // written - and "Overwrite" means every entity in scope regardless. That is the
+  // distinction worth having, and it is the only one the data shape allows.
+  Run.prototype.plan = function () {
+    var mode = this.modeSel.value;
+    var name = String(this.nameInput.value || '').replace(/^\s+|\s+$/g, '');
+    var value = String(this.valueInput.value || '');
+
+    var scope = this.entities;
+    if (this.scopeSel.value === 'filtered') {
+      var keep = {};
+      this.filtered().forEach(function (r) { keep[r.id] = true; });
+      scope = scope.filter(function (e) { return hasOwn(keep, e.id); });
+    }
+
+    var changes = [];
+    scope.forEach(function (e) {
+      var has = hasOwn(e.fields, name);
+      if (mode === 'add' && has) return;
+      if (mode === 'remove' && !has) return;
+      var after = mode === 'remove' ? null : value;
+      // Nothing to write where the value is already exactly what was asked for.
+      if (mode !== 'remove' && has && valueText(e.fields[name]) === value) return;
+      changes.push({
+        id: e.id, label: e.label, entity: e, name: name,
+        had: has, before: has ? e.fields[name] : null, after: after, remove: mode === 'remove',
+      });
+    });
+    return { mode: mode, name: name, value: value, changes: changes };
+  };
+
+  Run.prototype.apply = function () {
+    var self = this;
+    var planned = this.plan();
+    if (!planned.changes.length) {
+      this.msg('INFO', 'Nothing to change: no ' + this.spec.plural.toLowerCase() +
+        ' in scope need "' + planned.name + '" ' +
+        (planned.mode === 'remove' ? 'removed.' : 'set to that value.'));
+      return;
+    }
+
+    this.changes = planned.changes;
+    this.applied = 0;
+    this.failed = 0;
+    this.undone = 0;
+    this.setState('applying');
+    this.renderProgress();
+
+    // Grouped by the delta each entity needs, which for an apply is one delta for all
+    // of them: an ADD/Overwrite sets the same key to the same value, and a Remove
+    // drops the same key. So this is one bulk mutation per chunk, not one per entity.
+    var payload = planned.mode === 'remove'
+      ? { remove: [planned.name] }
+      : (function () { var p = {}; p[planned.name] = planned.value; return { partial: p }; })();
+
+    var ids = planned.changes.map(function (c) { return c.id; });
+    var label = 'Custom Fields - ' + planned.mode + ' "' + planned.name + '"';
+
+    this.runWrites([{ ids: ids, cf: payload }], label).then(function (ok) {
+      self.applied = ok;
+      // The local copy is moved with the server's, so Undo compares against what the
+      // dialog actually wrote rather than against the map it read at open.
+      planned.changes.forEach(function (c) {
+        if (planned.mode === 'remove') delete c.entity.fields[c.name];
+        else c.entity.fields[c.name] = planned.value;
+      });
+      self.renderChanges(planned, false);
+      self.setState('applied');
+      self.renderProgress();
+    });
+  };
+
+  // Undo replays each change as its own inverse: put the previous value back where
+  // there was one, remove the key where there was not. A stored copy of the whole map
+  // written back would be simpler and wrong - it would revert every unrelated edit
+  // made in between, which is the one thing an undo must not do.
+  //
+  // It arms and asks, with the count in the caption: one click here starts a write
+  // across a selection, with Close as its neighbour.
+  Run.prototype.undo = function () {
+    var self = this;
+    var now = Date.now();
+    if (!this.undoArmed || now - this.undoArmed > UNDO_ARM_MS) {
+      this.undoArmed = now;
+      this.undoBtn.textContent = 'Undo ' + this.changes.length + ' change(s)?';
+      setTimeout(function () {
+        if (self.undoBtn.textContent !== 'Undo') self.undoBtn.textContent = 'Undo';
+      }, UNDO_ARM_MS);
+      return;
+    }
+    this.undoArmed = 0;
+    this.undoBtn.textContent = 'Undo';
+
+    // One batch per distinct previous value, plus one for everything that had no
+    // value at all. Entities that shared a value before the apply share a mutation.
+    var groups = {};
+    this.changes.forEach(function (c) {
+      var key = c.had ? 'v:' + valueText(c.before) : 'absent';
+      if (!groups[key]) {
+        groups[key] = { ids: [], cf: c.had
+          ? (function () { var p = {}; p[c.name] = c.before; return { partial: p }; })()
+          : { remove: [c.name] } };
+      }
+      groups[key].ids.push(c.id);
+    });
+
+    var batches = [];
+    for (var k in groups) { if (hasOwn(groups, k)) batches.push(groups[k]); }
+
+    this.setState('undoing');
+    this.renderProgress();
+    this.runWrites(batches, 'Custom Fields (undo)').then(function (ok) {
+      self.undone = ok;
+      self.changes.forEach(function (c) {
+        if (c.had) c.entity.fields[c.name] = c.before;
+        else delete c.entity.fields[c.name];
+      });
+      self.renderChanges(null, true);
+      // Back to `applied` rather than to `listing`: the listing this dialog opened
+      // with describes a library it has now written to twice, and re-offering Apply
+      // over it would write from a plan nobody is looking at. Rescanning is what
+      // closing and reselecting does.
+      self.changes = [];
+      self.setState('applied');
+      self.renderProgress();
+    });
+  };
+
+  // The one write driver, shared by Apply and Undo. Takes the lease, renews it per
+  // batch and releases it in every outcome - success, failure, an empty batch list -
+  // so a reactive plugin is never left standing down.
+  Run.prototype.runWrites = function (batches, label) {
+    var self = this;
+    var spec = this.spec;
+    var lease = acquireLease(label);
+    var ok = 0;
+
+    // One chunk per bulk mutation - or per *entity* where there is no bulk mutation,
+    // so that one refused Studio is reported as one failure rather than taking the
+    // ninety-nine that were written with it out of the count.
+    var size = spec.bulk ? CHUNK_SIZE : 1;
+    var chunks = [];
+    batches.forEach(function (b) {
+      for (var i = 0; i < b.ids.length; i += size) {
+        chunks.push({ ids: b.ids.slice(i, i + size), cf: b.cf });
+      }
+    });
+
+    return chunks.reduce(function (p, chunk) {
+      return p.then(function () {
+        lease.renew();
+        return self.writeChunk(spec, chunk).then(function () {
+          ok += chunk.ids.length;
+          self.applied = self.state === 'applying' ? ok : self.applied;
+          self.undone = self.state === 'undoing' ? ok : self.undone;
+          self.renderProgress();
+        }, function (e) {
+          self.failed += chunk.ids.length;
+          self.msg('ERROR', 'Writing ' + chunk.ids.length + ' ' +
+            spec.plural.toLowerCase() + ' failed: ' + (e && e.message ? e.message : String(e)));
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      lease.release();
+      return ok;
+    }, function (e) {
+      lease.release();
+      throw e;
+    });
+  };
+
+  // Five of the seven take the whole chunk in one bulk mutation. Studio and Tag have
+  // no `custom_fields` on their bulk input, so they arrive here one id at a time
+  // (`runWrites` chunks them that way) and go out as single updates - sequentially,
+  // for the same reason everything else here is sequential: a hundred parallel writes
+  // against a Stash that is also serving the page is not a kindness.
+  Run.prototype.writeChunk = function (spec, chunk) {
+    if (spec.bulk) {
+      return gqlRequest('mutation CFBE_' + spec.bulk + '($input: ' + spec.bulkInput + '!) { ' +
+        spec.bulk + '(input: $input) { id } }',
+      { input: { ids: chunk.ids, custom_fields: chunk.cf } });
+    }
+    return gqlRequest('mutation CFBE_' + spec.single + '($input: ' + spec.singleInput +
+      '!) { ' + spec.single + '(input: $input) { id } }',
+    { input: { id: chunk.ids[0], custom_fields: chunk.cf } });
+  };
+
+  // After a write the list box shows what happened rather than what was there: the
+  // listing it replaces described the library before the write, and leaving it up
+  // would be the dialog's own stalest possible claim.
+  Run.prototype.renderChanges = function (planned, reversed) {
+    var lines = this.changes.map(function (c) {
+      var from = c.had ? valueText(c.before) : '(none)';
+      var to = c.remove ? '(removed)' : valueText(c.after);
+      return reversed
+        ? c.label + ' - ' + c.name + ' - ' + to + ' -> ' + from
+        : c.label + ' - ' + c.name + ' - ' + from + ' -> ' + to;
+    });
+    this.listEl.value = lines.join('\n');
+    if (planned) {
+      this.msg('INFO', 'Applied "' + planned.mode + '" on field "' + planned.name + '" to ' +
+        this.changes.length + ' ' + this.spec.plural.toLowerCase() + '.');
+    } else {
+      this.msg('INFO', 'Reversed ' + this.changes.length + ' change(s).');
+    }
+  };
+
+  Run.prototype.close = function () {
+    if (this.backdrop && this.backdrop.parentNode) {
+      this.backdrop.parentNode.removeChild(this.backdrop);
+    }
+    _active = null;
+  };
+
+  // ── Ticking ───────────────────────────────────────────────────────────────
+  //
+  // Stash is a SPA, so there is no page load to hang this off: the tick re-derives
+  // whether the menu item should exist from the route, the open menu and the
+  // selection, and every signal below is just a reason to run it again.
+  //
+  // A MutationObserver as well as the timer, because the dropdown is mounted the
+  // instant the user opens it and has to carry our item before they read it - a
+  // one-second poll would show the menu without it about half the time.
+  var _tickTimer = null;
+
+  function scheduleTick() {
+    if (_tickTimer) return;
+    _tickTimer = setTimeout(function () {
+      _tickTimer = null;
+      try { menuTick(); } catch (e) { console.error('[cfbe] tick failed', e); }
+    }, OBSERVE_MS);
+  }
+
+  var _observing = false;
+  function startObserver() {
+    if (_observing || typeof MutationObserver === 'undefined') return;
+    var root = document.getElementById('root') || document.body;
+    if (!root) return;
+    _observing = true;
+    var observer = new MutationObserver(scheduleTick);
+    observer.observe(root, { childList: true, subtree: true });
+  }
+
+  function tick() {
+    try { menuTick(); } catch (e) { console.error('[cfbe] tick failed', e); }
+  }
+
+  if (window.addEventListener) {
+    window.addEventListener('load', function () { tick(); startObserver(); });
+    window.addEventListener('popstate', function () { setTimeout(tick, 300); });
+  }
+  setInterval(tick, TICK_MS);
+  tick();
+  startObserver();
+}());

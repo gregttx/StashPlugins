@@ -3,9 +3,11 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.0.0.** This file is both the design and the map of the code — the
+**Status: implemented at 2.0.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.0.1 is a README line.** A fourth plugin, `GTTx Custom Fields Bulk Editor`, joined the repo, so the upgrade banner's "its two siblings" had become wrong. The README ships in `files:`, which is why a prose fix took a patch digit; nothing in the script changed but the constant.
 
 **2.0.0 is a rename, not a rewrite.** The plugin is now `GTTx Normalize Parent Tags` everywhere
 its display name appears — `.yml`, `manifest`, `PLUGIN_NAME` — so the three plugins in this repo
@@ -14,7 +16,7 @@ so because the name is what the user searches the settings page for, and because
 match in §2 and §5b now compares against a different string. Nothing else changed: the folder,
 the plugin **id**, every setting key and every storage slot are untouched, so an upgrade keeps its
 configuration. `PLUGIN_SHORT_NAME` arrived with it — the same string here, since this name already
-fits in a dialog title — so that all three plugins' dialog heads read from one expression. See
+fits in a dialog title — so that every plugin's dialog head reads from one expression. See
 "Cross-plugin cooperation: one name prefix" in the repo-root `CLAUDE.md`.
 
 Two things in here are deliberately *not* implemented, and should stay that way until there is
@@ -1097,7 +1099,7 @@ looking at its own.
 **A third plugin, `PropagateTagsAndPerformers`, now runs the same check against us** (1.7.6's
 counterpart in that plugin, `checkHierarchySibling`), for the same reason: its eleven tag paths are
 exactly as exposed to Prune/Roll Up as this plugin's merge is. `coop()` here gained a `declares`
-field at the same version, purely for shape-consistency with the other two plugins' shared object —
+field at the same version, purely for shape-consistency with the other plugins' shared object —
 this plugin has no relationship-copy paths to publish into it, and nothing reads its absence as
 anything other than "declares nothing." See "Cross-plugin cooperation: the `declares` registry" in
 the repo-root CLAUDE.md for why that registry does *not* also carry this section's collision: it

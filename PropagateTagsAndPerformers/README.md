@@ -251,8 +251,9 @@ __GTTx__.StashPluginCoop.debugButtons = true
 Each button reports whether it is shown or hidden and why, prefixed `[ptp2re gate]`, on the next tick —
 no reload, no navigation, no setting to change. It works on the page you are already looking at,
 which is the point: since 0.13.2 the answer is restated from what the plugin already knows rather
-than only when it next re-checks. One switch covers both this plugin and its sibling, since they
-draw buttons into the same rows. Set it to `false`, or reload the page, to turn it off again.
+than only when it next re-checks. One switch covers every plugin in this repo that draws a control
+into Stash's own UI — two of them share these very rows, and "why is this missing" is rarely a
+question about only one. Set it to `false`, or reload the page, to turn it off again.
 
 **Each button copies its own path and nothing else** (0.16.0). With both the performer and studio
 paths enabled on a scene, "Copy all Tags from all Performers" copies the performers' tags and
@@ -467,6 +468,10 @@ amber for the same reason.
   since eleven of these thirteen paths add tags, the task dialog also warns when NormalizeParentTags'
   **Auto Prune** or **Auto Roll Up on Entity Updates** is on — naming which, and what it would do to
   what this run adds — exactly as `MergePerformerTagsToScenes`' own dialog already does.
+- **`CustomFieldsBulkEditor`** does not overlap at all: it edits *custom fields*, which nothing here
+  reads or writes, and it puts its control in the list view's "..." menu rather than in an entity's
+  action row. The one thing they share is the lease — this plugin's automatic modes stand down while
+  that one is applying, and its dialog says so if you open it while a run here is writing.
 
 ## Licence
 

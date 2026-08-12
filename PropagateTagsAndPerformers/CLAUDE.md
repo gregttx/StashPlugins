@@ -5,10 +5,12 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.0.0.** Every step in the table below has landed, so the version left the
+**Status: released, 1.0.1.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**1.0.1 is two README lines.** A fourth plugin, `GTTx Custom Fields Bulk Editor`, joined the repo: the debug switch is no longer shared with one sibling but with every plugin here that draws a control into Stash's UI, and "Relationship to the other plugins in this repo" was listing two of three. The README ships in `files:`, which is why a prose fix took a patch digit; nothing in the script changed but the constant.
 
 **1.0.0 is also a rename.** The display name is now `GTTx Propagate Tags and Performers to Related
 Entities`, in the `.yml`, the `manifest` and `PLUGIN_NAME`, and `PLUGIN_SHORT_NAME` with it —
@@ -554,7 +556,7 @@ worth reacting to.
 
 Ported from both siblings and deliberately identical to them: same head with a backup warning and an
 id legend, same monospace log with a rendered tail, same footer, same `scanning|ready|applying|
-undoing|done` state machine. The overlapping CSS is byte-identical across all three and
+undoing|done` state machine. The overlapping CSS is byte-identical across every plugin here and
 `tests/style.test.js` fails on any drift — see the repo-root CLAUDE.md.
 
 **Before the planner runs it reviews the configuration.** Worth keeping separate from §4a, because
@@ -1407,7 +1409,7 @@ of it apply unchanged:
   the save; and the source-button eviction narrowed to what was written, via an `entity` responder
   that can answer per id — the flat form served one object for every id, so the old check was
   asserting that an *unwritten* group is evicted.
-- **`style.test.js`** — the CSS this plugin shares with its two siblings.
+- **`style.test.js`** — the CSS this plugin shares with its three siblings.
 
 **Every check here was confirmed against a deliberately broken copy before being trusted.** The
 0.9.0 through 0.12.0 additions were confirmed the coarser way, against the pre-fix source via `SRC=`,

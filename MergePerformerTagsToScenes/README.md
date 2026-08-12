@@ -4,8 +4,9 @@
 >
 > Only the display name changed. The folder, the plugin id and every setting keep their names, so
 > an update carries your configuration over; what moves is where the plugin sits in Stash's
-> alphabetical plugin list. The `GTTx ` prefix collects it with its two siblings —
-> `GTTx Normalize Parent Tags` and `GTTx Propagate Tags and Performers to Related Entities` — which
+> alphabetical plugin list. The `GTTx ` prefix collects it with its siblings —
+> `GTTx Normalize Parent Tags`, `GTTx Propagate Tags and Performers to Related Entities` and
+> `GTTx Custom Fields Bulk Editor` — which
 > are developed together and are meant to be updated together.
 
 > ## ⚠ Back up your database before the first library-wide run

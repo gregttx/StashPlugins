@@ -5,8 +5,10 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.0.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.0.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.0.1 is a README line.** A fourth plugin, `GTTx Custom Fields Bulk Editor`, joined the repo, so the upgrade banner's "its two siblings" had become wrong. The README ships in `files:`, which is why a prose fix took a patch digit; nothing in the script changed but the constant.
 
 **2.0.0 is a rename, not a rewrite.** The display name is now `GTTx Merge Performer Tags To
 Scenes`, in the `.yml`, the `manifest` and `PLUGIN_NAME` alike, and `PLUGIN_SHORT_NAME` follows it
@@ -366,9 +368,9 @@ The full reasoning is in §6 of that plugin's CLAUDE.md and is not repeated. Wha
 side:
 
 - **The CSS is shared.** `.tipped`, `.tip`, `.tipbox`, `.tipped.tip-open .tipbox`,
-  `.desc-collapsed`, `.desc-toggle` are now defined by both plugins, so `tests/style.test.js`
-  compares them with the prefix stripped and fails on any difference. Change both together or
-  neither — this is the same rule that already governs the dialog chrome.
+  `.desc-collapsed`, `.desc-toggle` are now defined by every plugin here that has a settings
+  page, so `tests/style.test.js` compares them with the prefix stripped and fails on any
+  difference. Change them all together or none of them — this is the same rule that already governs the dialog chrome.
 - **The tooltip is a built element, not a native `title`.** A `title`'s font size, position and
   delay all belong to the browser, and it opens below-right of the pointer, under the arrow that
   summoned it. Stash's own `<h3 title>` slot is left empty on purpose: a `title` there would put
@@ -763,9 +765,9 @@ left on the mark or the name to double up with it), a focusable mark, all three 
 and closing the same box, and `pointer-events:none` pinned by name. Twelve of them fail against
 1.10.5.
 
-`style.test.js` needs no harness at all: it reads both plugins' CSS strings as text and fails on any
-rule the two dialogs define differently. Since 1.11.0 that includes the settings-page tooltip
-rules, which are the same in both plugins by design. The shared-chrome rule it enforces is in the repo-root
+`style.test.js` needs no harness at all: it reads every plugin's CSS string as text and fails on any
+rule two or more of the dialogs define differently. Since 1.11.0 that includes the settings-page
+tooltip rules, which are the same in every plugin that has a settings page by design. The shared-chrome rule it enforces is in the repo-root
 CLAUDE.md.
 
 `staging.test.js` is the most exposed, because it *models* `useTagsEdit` rather than calling it.

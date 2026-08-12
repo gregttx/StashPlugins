@@ -3,7 +3,7 @@
 *GTTx Propagate Tags and Performers to Related Entities* — short prefix `ptp2re`. See D6.
 
 **Status: DONE — all nine steps resolved (eight built, one retired), and the plugin is at 1.0.0**
-(last checked 2026-08-16). The version left the 0.x range because every step in this plan has
+(last checked 2026-08-11). The version left the 0.x range because every step in this plan has
 landed: the major digit was always the claim that the plugin is finished and worth installing. All eight decisions are settled (§4) and every open question is closed
 (§6). The library-wide task is complete for **all thirteen paths**, both automatic modes work, this
 plugin cooperates with both siblings (step 7), and manual buttons with staging sit on and work

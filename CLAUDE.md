@@ -40,6 +40,31 @@ All Stash data access goes through `POST /graphql`. The helper `gqlRequest(query
 
 The plugins have no build step, no bundler, and no runtime dependencies. A plugin folder is installed by copying it as-is.
 
+## The manifest `date:` is read off the clock, never derived from the last one
+
+Each plugin's `manifest` carries `date: "YYYY-MM-DD HH:MM:SS"` beside its `version:`. Read it from
+the machine, in the same edit as the version bump:
+
+```bash
+NOW="$(date '+%Y-%m-%d %H:%M:%S')" && sed -i "s/^date: \".*\"/date: \"$NOW\"/" <Plugin>/manifest
+```
+
+**Local time, the same clock `git commit` stamps** — so a release date and the commit that shipped
+it agree. Do not substitute the date from the session context: that one is UTC, and for most of the
+user's working day it is already tomorrow. On 2026-08-11 at 19:22 PDT the context said 2026-08-12,
+which is how a "correct" date landed a day early.
+
+**Never take the newest `date:` already in the repo and nudge it forward.** That was the actual
+failure: a session, reluctant to move a release date backwards, read the previous manifest instead
+of the clock and added to it. The next session read *that* and added again, so three manifests
+reached 2026-08-14 and then 2026-08-16 while the real date was 2026-08-11. An error seeded this way
+never decays — it compounds once per release.
+
+**A date moving backwards is not a problem to work around; it is the correction.** It means the
+earlier release date was wrong, and the clock is the only thing that decides. Nothing reads this
+field programmatically — Stash's source index shows it, and Stash compares `version:`, not dates —
+so the sole cost of a wrong one is a user seeing a plugin dated in the future and doubting the rest.
+
 ## Cross-plugin cooperation: the bulk-edit lease
 
 Two kinds of plugin in this repo collide by design. **Reactive** plugins watch `window.fetch` for

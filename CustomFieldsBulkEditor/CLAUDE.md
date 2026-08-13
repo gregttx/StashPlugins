@@ -10,7 +10,9 @@ first real evidence any of it works: the menu item, the dialog and the entity ty
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
 value filter's "is empty" mode (§5b) **are** — both requested from live use and confirmed working
-there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
+there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. §10 is
+confirmed too, at 0.3.2: the description collapses behind **Show more** with the README linked under
+it, and no task description is touched. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
 2026-08-13 are closed at 0.1.2 (§3).
 
@@ -492,12 +494,13 @@ is the only route, which is why:
   silently — the description simply renders as Stash rendered it before, which is the right way for
   it to fail but says nothing.
 
-**Both settings panels are built from the same two classes, and that is what §10 gets wrong if it
-searches the group.** Settings → Plugins puts our `h3` and the description in one `.setting` header
-row. Settings → Tasks heads its group with the plugin name *as well*, and gives every task row an
-`h3` of its own with a `.sub-heading` under it — so "a `.sub-heading` somewhere inside the group"
-finds a *task's* description. Live on 2026-08-13, `cfbe-own-group` was on the Tasks group and the
-task description was the thing being split and collapsed.
+**A plugin's own description and its task descriptions use the same two classes, and that is what
+§10 gets wrong if it searches the group.** Our `h3` and the plugin description sit in one `.setting`
+header row; a *task* row carries an `h3` of its own (the task name) with a `.sub-heading` under it
+(the task description) — so "a `.sub-heading` somewhere inside the group" finds a task's. Live on
+2026-08-13, `cfbe-own-group` landed on a group whose only description was a task's, and that task
+description was the thing being split and collapsed. The group carrying our heading is also
+`collapsible`, which is worth knowing before assuming what is in the DOM at any moment.
 
 `ownParts()` therefore requires the description to be **in the same `.setting` row as our own
 heading**, and returns the group and that description together, in one walk. A group whose heading

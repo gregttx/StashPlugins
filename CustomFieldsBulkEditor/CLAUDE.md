@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.3.1 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.3.2 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -18,7 +18,7 @@ list views that had the same cause (§2); the undercounted tag and studio select
 fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (§5a), and
 0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b), which 0.2.5
 had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
-0.3.0 is the library-wide task (§12) and 0.3.1 its paged read. 161 automated checks cover the plugin, and the suite still
+0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10. 162 automated checks cover the plugin, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -491,6 +491,25 @@ is the only route, which is why:
 - If Stash ever restyles that panel, this is the first thing here to break, and it will break
   silently — the description simply renders as Stash rendered it before, which is the right way for
   it to fail but says nothing.
+
+**Both settings panels are built from the same two classes, and that is what §10 gets wrong if it
+searches the group.** Settings → Plugins puts our `h3` and the description in one `.setting` header
+row. Settings → Tasks heads its group with the plugin name *as well*, and gives every task row an
+`h3` of its own with a `.sub-heading` under it — so "a `.sub-heading` somewhere inside the group"
+finds a *task's* description. Live on 2026-08-13, `cfbe-own-group` was on the Tasks group and the
+task description was the thing being split and collapsed.
+
+`ownParts()` therefore requires the description to be **in the same `.setting` row as our own
+heading**, and returns the group and that description together, in one walk. A group whose heading
+is ours but whose header carries no description is not ours to decorate. This replaced
+`ownSettingGroup()` and a 0.3.0 guard that asked only whether the group contained a `.sub-heading`
+anywhere — which the Tasks group does.
+
+**The first attempt at this was aimed at the wrong half.** 0.3.0 saw the Tasks group being decorated
+and concluded the panel had *no* description; the guard it added ("skip a group with no
+`.sub-heading`") was therefore true of a page that does not exist, and changed nothing live. The
+evidence that corrected it was a console dump of the actual group — which is the rule in the
+repo-root `CLAUDE.md`: ask the page what it is before reasoning about what to do with it.
 
 **Everything is re-added rather than tracked**, on the same tick as the menu, because React
 re-renders the panel and drops what we put in it. `splitDescription` is idempotent (once the

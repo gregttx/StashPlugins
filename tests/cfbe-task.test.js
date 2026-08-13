@@ -46,8 +46,20 @@ function mountTasksPage(body, opts) {
     h3.textContent = heading;
     head.appendChild(h3);
     group.appendChild(head);
+    // A task row as PluginTasks renders it, read off a live Stash 2026-08-13: its own
+    // h3 for the task name and a `.sub-heading` for the task description - the same
+    // two classes the Plugins panel uses for the plugin's own name and description,
+    // in a different arrangement. That collision is the whole reason the settings
+    // decoration has to anchor on the header row rather than on the group.
     const row = h.makeElement('div');
     row.className = 'setting';
+    const rowHead = h.makeElement('h3');
+    rowHead.textContent = label;
+    const rowDesc = h.makeElement('div');
+    rowDesc.className = 'sub-heading';
+    rowDesc.textContent = 'Open the same dialog on every entity.\n\nNothing is written until you press Apply.';
+    row.appendChild(rowHead);
+    row.appendChild(rowDesc);
     const btn = h.makeElement('button');
     btn.className = 'btn btn-secondary';
     btn.textContent = label;
@@ -331,6 +343,10 @@ openTask()
       !h.hasClass(btns.ourGroup, 'cfbe-own-group') &&
         !btns.ourGroup.descendants().some((n) => h.hasClass(n, 'cfbe-readme')),
       btns.ourGroup.className);
+    h.check('and the task description is not split, collapsed or given a toggle',
+      !btns.ourGroup.descendants().some((n) => h.hasClass(n, 'cfbe-p') ||
+        h.hasClass(n, 'cfbe-desc-collapsed') || h.hasClass(n, 'cfbe-desc-toggle')),
+      btns.ourGroup.descendants().map((n) => n.className || n.tagName).join(' '));
     h.check('and its heading still says only the plugin name',
       btns.ourGroup.querySelector('h3').textContent === PLUGIN_NAME,
       btns.ourGroup.querySelector('h3').textContent);

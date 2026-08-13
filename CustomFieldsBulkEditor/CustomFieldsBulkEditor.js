@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.3.1';
+  var PLUGIN_VERSION = '0.3.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -1630,13 +1630,31 @@
     return t === PLUGIN_NAME;
   }
 
-  function ownSettingGroup() {
+  // The group and the description, found in one walk from our own heading - and the
+  // description is required to be **in the same `.setting` row as that heading**.
+  //
+  // **Both panels build the same shapes out of the same classes**, which is why
+  // nothing looser works. Settings → Plugins puts our h3 and the description in one
+  // header row. Settings → Tasks heads its group with the plugin name too, and gives
+  // every *task* row an h3 of its own with a `.sub-heading` under it - so "a
+  // `.sub-heading` somewhere in the group" finds a task's description and decorates
+  // the wrong panel. Confirmed live 2026-08-13: `cfbe-own-group` was landing on the
+  // Tasks group, whose only description is the task's.
+  //
+  // A group with no header description of ours is not ours to decorate, and returning
+  // nothing is the whole of the fix.
+  function ownParts() {
     var heads = document.querySelectorAll ? document.querySelectorAll('h3') : [];
     for (var i = 0; i < heads.length; i++) {
       if (!headingIsOurs(heads[i].textContent)) continue;
       var node = heads[i];
+      var header = null;
       for (var d = 0; node && d < 10; d++, node = node.parentElement) {
-        if (hasClass(node, 'setting-group')) return node;
+        if (!header && hasClass(node, 'setting')) header = node;
+        if (!hasClass(node, 'setting-group')) continue;
+        var sub = header ? byClass(header, 'sub-heading') : null;
+        if (sub) return { group: node, sub: sub };
+        break;    // our heading, but no description beside it: keep looking
       }
     }
     return null;
@@ -1654,9 +1672,7 @@
   // Stash puts the text back on every re-render of this panel, so this runs on every
   // tick and re-splits when it has to. Idempotent: once the children are ours there
   // is no text node left to split.
-  function splitDescription(group) {
-    var sub = byClass(group, 'sub-heading');
-    if (!sub) return;
+  function splitDescription(sub) {
     var kids = sub.childNodes || [];
     if (kids.length && hasClass(kids[0], 'cfbe-p')) return;   // already ours
     var text = sub.textContent || '';
@@ -1683,9 +1699,7 @@
   // The toggle is a `<button>` rather than a span: `SettingGroup`'s `onDivClick`
   // walks up from the event target and returns early only for `a` and `button`, so
   // anything else would fold the whole group on click.
-  function collapseDescription(group) {
-    var sub = byClass(group, 'sub-heading');
-    if (!sub) return;
+  function collapseDescription(sub) {
     var kids = sub.childNodes || [];
     var paras = 0;
     for (var i = 0; i < kids.length; i++) if (hasClass(kids[i], 'cfbe-p')) paras++;
@@ -1710,37 +1724,26 @@
   // Under the description, which is inside the group header and so shows whether or
   // not the group is expanded. The fallbacks are for a Stash that renders no
   // sub-heading (an empty description) or no header row at all.
-  // Always under the description, because `settingsTick` refuses a group that has
-  // none. The fallbacks this had - the header box, then the group itself - are what
-  // put the link inside the *heading* of the Tasks-page group, so they are gone with
-  // the case that reached them.
-  function readmeLinkSlot(group) {
-    var sub = byClass(group, 'sub-heading');
+  // Always under the description, which `ownParts` has already found and required.
+  // The fallbacks this had - the header box, then the group itself - are what put the
+  // link inside the *heading* of a group with no description of ours, so they are gone
+  // with the case that reached them.
+  function readmeLinkSlot(sub) {
     return { parent: sub.parentNode, before: sub.nextSibling };
   }
 
   // Re-added rather than tracked: React re-renders this panel and drops anything we
   // put in it. Keyed on the id, so a re-render that kept it makes no second one.
   function settingsTick() {
-    var group = ownSettingGroup();
-    if (!group) return;
-    // **Settings → Tasks renders a group headed with the plugin name too**, and the
-    // heading is all these two panels have in common - so `ownSettingGroup` finds
-    // both, and this one is only about the *description*. Decorating the task group
-    // put the README link inside its heading box, and `ownTaskName` reads that
-    // heading: one tick after the page loaded, the task button stopped being ours.
-    // Found by `tests/cfbe-task.test.js` before it ever ran in a Stash.
-    //
-    // A description is the structural difference, not a route check: `?tab=` is
-    // Stash's to change and a group with nothing to describe has nothing here to do
-    // either way.
-    if (!byClass(group, 'sub-heading')) return;
+    var parts = ownParts();
+    if (!parts) return;
+    var group = parts.group;
     injectStyle();
     if (!hasClass(group, 'cfbe-own-group')) {
       group.className = ((group.className || '') + ' cfbe-own-group').replace(/^\s+/, '');
     }
-    splitDescription(group);
-    collapseDescription(group);   // after the split: it counts the .cfbe-p divs
+    splitDescription(parts.sub);
+    collapseDescription(parts.sub);   // after the split: it counts the .cfbe-p divs
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'cfbe-readme', 'CustomFieldsBulkEditor/README.md');
     link.id = README_LINK_ID;
@@ -1748,7 +1751,7 @@
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.title = 'Open this plugin\'s documentation';
-    var slot = readmeLinkSlot(group);
+    var slot = readmeLinkSlot(parts.sub);
     slot.parent.insertBefore(link, slot.before);
   }
 

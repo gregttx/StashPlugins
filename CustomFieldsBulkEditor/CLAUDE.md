@@ -5,10 +5,10 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.3.0 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.3.1 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
-what is *not* verified is the table view, an aliased route, an Apply, and all of §12. The pills (§5a) and the
+what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
 value filter's "is empty" mode (§5b) **are** — both requested from live use and confirmed working
 there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
@@ -18,7 +18,7 @@ list views that had the same cause (§2); the undercounted tag and studio select
 fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (§5a), and
 0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b), which 0.2.5
 had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
-0.3.0 is the library-wide task (§12). 156 automated checks cover the plugin, and the suite still
+0.3.0 is the library-wide task (§12) and 0.3.1 its paged read. 161 automated checks cover the plugin, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -558,6 +558,16 @@ same text `ownTaskName` reads. One tick after the page loaded, the task button w
 being ours. The guard is structural, not a route check: a group with no description has nothing
 here to do, and `?tab=` is Stash's to rename. The fallbacks that reached the heading are gone with
 the case that reached them.
+
+**The read is paged, and that is a UI decision rather than a data one.** It shipped as one
+`per_page: -1` query per type, which is this repo's convention and is correct - and on the user's
+own library, 155,012 entities, it left the dialog showing nothing for fifteen seconds and then
+jumped to the final number. Reported as looking hung. **A progress counter can only count what has
+arrived**, so the read has to arrive in pieces; `count` rides along on every page, which is what
+makes the line a fraction rather than a tally. `READ_PAGE` at 5,000 is the trade: 31 round trips for
+that type and a line that moves several times a second, where 1,000 would add 155 round trips of
+latency to a read the user has already been told is slow. The delay itself was explicitly *not* the
+complaint.
 
 **No type picker, deliberately.** The task's scope is the library; per-type work is what the
 list-view menu item already does, on a list the user has already narrowed with Stash's own filters.

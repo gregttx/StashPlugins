@@ -14,12 +14,15 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
-> ## 0.3.0 — a task for the whole library
+> ## 0.3.1 — a task for the whole library
 >
 > Settings → **Tasks → Plugin Tasks** now has **Edit Custom Fields Across the Whole Library...**,
 > which opens the same dialog over every Scene, Image, Gallery, Performer, Studio, Group and Tag
 > you have, instead of over a selection. Same listing, same filters, same Apply and Undo — each
 > line names its own type, since there are seven of them in there at once.
+>
+> A large library takes a while to read — the counter names the type it is on and counts up as it
+> goes, so you can see it working.
 >
 > ## 0.2.5 — finding the empty ones
 >
@@ -76,7 +79,8 @@ whole selection — or the whole library — carries, and **one write across it*
 For the whole library, go to **Settings → Tasks → Plugin Tasks** and press
 **Edit Custom Fields Across the Whole Library...** — the amber button under this plugin's name. It
 opens the same dialog on everything, with no selecting to do. Reading a large library takes a
-moment; the counter counts up as each type answers.
+while — 155,000 entities is about fifteen seconds — and the counter says which type it is on and how
+far through it is while you wait.
 
 **Press Escape** at any point to close the dialog, exactly as Cancel or Close would. While a write
 is actually in flight it does nothing — there is no Cancel to reach at that moment, and Stop is not

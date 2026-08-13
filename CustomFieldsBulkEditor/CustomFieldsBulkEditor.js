@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.3.0';
+  var PLUGIN_VERSION = '0.3.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -58,6 +58,7 @@
   var PLUGIN_BTN_VARIANT = 'btn-warning';
 
   var CHUNK_SIZE   = 100;   // entity ids per read alias batch and per bulk mutation
+  var READ_PAGE    = 5000;  // entities per page of the task's whole-library read
   var LEASE_TTL_MS = 300000;
   var UNDO_ARM_MS  = 4000;  // how long Undo stays armed for its second click
   var TICK_MS      = 1000;
@@ -773,6 +774,9 @@
     // Set by checkVersion when the running script is not the one Stash has installed.
     this.stale = false;
     this.undoArmed = 0;
+    // Which type the whole-library read is on, and how far into it: the progress line
+    // is the only thing saying a 15-second read is moving at all.
+    this.loadingWhat = '';
     this.state = 'loading';
     this.build();
   }
@@ -1068,9 +1072,19 @@
     });
   };
 
-  // The task's read: one query per type, all of it in one round trip. `per_page: -1`
-  // is the repo's convention for "everything", and it is what the by-id batching above
-  // cannot express - that one needs the ids first, and the task has none.
+  // The task's read: one query per type, paged. `per_page: -1` is the repo's
+  // convention for "everything" and is what this asked for first - but a library of
+  // 155,000 entities answers that in one 15-second silence, with a dialog that looks
+  // hung and a counter that goes from nothing to the final number. Reported live.
+  //
+  // **A progress counter can only count what has arrived**, so the read has to arrive
+  // in pieces. `count` comes back with every page, which is what makes the line a
+  // fraction rather than a tally, and it costs nothing extra to ask for.
+  //
+  // `READ_PAGE` is the whole trade: smaller pages update the line more often and cost
+  // one round trip each. 5,000 puts a 155,000-entity type at 31 requests and a line
+  // that moves several times a second - a thousand would be 155 round trips of
+  // latency added to a read the user has already been told is slow.
   //
   // **The query name and the field it returns are both derivable.** `find<Plural>`
   // for all seven, and the list inside it is named by the same plural segment the
@@ -1084,17 +1098,32 @@
   Run.prototype.loadAll = function (spec) {
     var self = this;
     var query = 'find' + spec.plural;
-    return gqlRequest('query CFBE_ReadAll { ' + query + '(filter: { per_page: -1 }) { ' +
-      spec.key + ' { id ' + spec.fields + ' custom_fields } } }', null).then(function (data) {
-      var list = (data && data[query] && data[query][spec.key]) || [];
-      list.forEach(function (ent) {
-        self.entities.push({
-          spec: spec, id: String(ent.id), display: displayName(ent) || 'untitled',
-          fields: ent.custom_fields || {},
+    var read = 0;
+
+    function page(n) {
+      return gqlRequest('query CFBE_ReadAll { ' + query + '(filter: { per_page: ' +
+        READ_PAGE + ', page: ' + n + ' }) { count ' + spec.key + ' { id ' + spec.fields +
+        ' custom_fields } } }', null).then(function (data) {
+        var res = (data && data[query]) || {};
+        var list = res[spec.key] || [];
+        list.forEach(function (ent) {
+          self.entities.push({
+            spec: spec, id: String(ent.id), display: displayName(ent) || 'untitled',
+            fields: ent.custom_fields || {},
+          });
         });
+        read += list.length;
+        self.loadingWhat = spec.plural.toLowerCase() + ' - ' + read +
+          (typeof res.count === 'number' ? ' of ' + res.count : '');
+        self.renderProgress();
+        // A short page is the last one. A last page that happens to be exactly full
+        // costs one more query returning nothing, which is cheaper than trusting
+        // `count` to agree with what a concurrent edit leaves in the list.
+        if (list.length >= READ_PAGE) return page(n + 1);
       });
-      self.renderProgress();
-    }, function (e) {
+    }
+
+    return page(1).then(null, function (e) {
       self.msg('ERROR', 'Reading ' + spec.plural.toLowerCase() + ' failed: ' +
         (e && e.message ? e.message : String(e)) + ' They are not in this listing, ' +
         'and nothing here will write to them.');
@@ -1281,8 +1310,9 @@
       // The task has no denominator until every type has answered, so it counts up
       // rather than towards - and names the type it is on, since one of the seven can
       // be most of the wait on a large library.
-      summary = 'Loading. ' + this.entities.length +
-        (this.spec ? ' of ' + this.ids.length + ' read' : ' read so far');
+      summary = this.spec
+        ? 'Loading. ' + this.entities.length + ' of ' + this.ids.length + ' read'
+        : 'Loading ' + (this.loadingWhat || '') + '. ' + this.entities.length + ' read so far';
     } else if (this.state === 'applying') {
       summary = 'Applying. ' + this.applied + ' of ' + this.changes.length + ' entity change(s) written';
     } else if (this.state === 'undoing') {

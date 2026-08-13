@@ -71,8 +71,24 @@ function responder(opts) {
       const type = /find(\w+)\(filter/.exec(q);
       const key = type ? type[1].toLowerCase() : null;
       if (opts.failType && key === opts.failType) return { errors: [{ message: 'read boom' }] };
+      // Paged, like Stash's own: the plugin asks for a page at a time so the counter
+      // can move, and a fixture that ignored `page` would answer a second request
+      // with the first page again and loop forever.
+      const per = Number(/per_page:\s*(\d+)/.exec(q)[1]);
+      // `\b` matters: `per_page` contains `page`, and an unanchored match reads the
+      // page size as the page number and answers every request with nothing.
+      const page = Number(/\bpage:\s*(\d+)/.exec(q)[1]);
+      // Read *before* answering, so what it records is what the dialog was showing
+      // while this page was still in flight - which is the whole point of paging.
+      if (opts.watch && opts.watch.env) {
+        opts.watch.seen.push((one(opts.watch.env.body, 'cfbe-progress') || {}).textContent || '');
+      }
+      const all = lib[key] || [];
       const data = {};
-      data['find' + type[1]] = { [key]: JSON.parse(JSON.stringify(lib[key] || [])) };
+      data['find' + type[1]] = {
+        count: all.length,
+        [key]: JSON.parse(JSON.stringify(all.slice((page - 1) * per, page * per))),
+      };
       return { data };
     }
     const mut = /mutation CFBE_(\w+)\(/.exec(q);
@@ -93,6 +109,7 @@ function start(opts) {
     pathname: (opts && opts.pathname) || '/settings?tab=tasks',
     respond: responder(opts),
   });
+  if (opts && opts.watch) opts.watch.env = env;
   h.run(env.ctx, SRC);
   return env;
 }
@@ -105,7 +122,7 @@ const reads = (calls) => calls.filter((c) => /CFBE_ReadAll/.test(c.query || ''))
 
 // Clicking the task button is a `document` click in capture phase, which is where the
 // plugin listens: React's own handler is on a descendant of document and never runs.
-function clickTask(env, btn) {
+function clickTask(env, btn, turns) {
   let defaulted = false;
   let stopped = false;
   h.fire(env.ctx.document, 'click', {
@@ -113,14 +130,15 @@ function clickTask(env, btn) {
     preventDefault() { defaulted = true; },
     stopPropagation() { stopped = true; },
   });
-  return h.flush().then(() => ({ defaulted, stopped }));
+  return h.flush(turns).then(() => ({ defaulted, stopped }));
 }
 
 function openTask(opts) {
   const env = start(opts);
   const btns = mountTasksPage(env.body, opts);
   env.tick();
-  return clickTask(env, btns.ours).then((ev) => {
+  // Every page of every type is its own promise turn, so the default flush is short.
+  return clickTask(env, btns.ours, 400).then((ev) => {
     env.btns = btns;
     env.ev = ev;
     return env;
@@ -145,10 +163,12 @@ openTask()
     // One query per type, not one per entity and not one filtered query per page.
     h.check('every supported type is read, one query each', reads(env.calls).length === 7,
       String(reads(env.calls).length));
-    h.check('and each asks for all of it in one round trip',
-      reads(env.calls).every((c) => /per_page:\s*-1/.test(c.query || '')));
+    h.check('and each asks for a page at a time, with the total beside it',
+      reads(env.calls).every((c) => /per_page:\s*\d+/.test(c.query || '') &&
+        /\bpage:\s*\d+/.test(c.query || '') && /{\s*count\s/.test(c.query || '')),
+      reads(env.calls)[0] && reads(env.calls)[0].query);
     h.check('the query and its result field are both the plural segment',
-      /findGalleries\(filter[^)]*\)\s*{\s*galleries\s*{/.test(
+      /findGalleries\(filter[^)]*\)\s*{\s*count\s+galleries\s*{/.test(
         reads(env.calls).map((c) => c.query).join(' ')),
       reads(env.calls).map((c) => (c.query || '').slice(0, 60)).join(' | '));
 
@@ -243,6 +263,34 @@ openTask()
         !w.some((c) => /Scene|Performer/.test(c.query)),
         w.map((c) => (c.query || '').slice(0, 40)).join(' | '));
     });
+  })
+
+  // A library too big for one page. Reported live: 155,000 entities read as one query
+  // per type left the dialog silent for 15 seconds and then jumped straight to the
+  // final number, which reads as hung. The counter can only count what has arrived.
+  .then(() => {
+    const many = [];
+    for (let i = 0; i < 5001; i++) many.push({ id: String(i + 1), name: 'T' + i, custom_fields: {} });
+    const watch = { seen: [] };
+    return openTask({ library: Object.assign({}, LIBRARY, { tags: many }), watch })
+      .then((env) => {
+        const tagReads = reads(env.calls).filter((c) => /findTags/.test(c.query));
+        h.check('a type larger than one page is read in pages', tagReads.length === 2,
+          String(tagReads.length));
+        h.check('and the second page asks for the second page',
+          /\bpage:\s*2\b/.test(tagReads[1].query), tagReads[1].query.slice(0, 80));
+        // The line the user watches, sampled while the last page was still in flight.
+        const mid = watch.seen[watch.seen.length - 1];
+        h.check('the counter has already moved before the read finishes',
+          /Loading tags - 5000 of 5001\. 5004 read so far/.test(mid), mid);
+        h.check('and it names the type it is on, not just a number',
+          watch.seen.some((t) => /Loading scenes/.test(t)) &&
+          watch.seen.some((t) => /Loading tags/.test(t)),
+          watch.seen.join(' | '));
+        h.check('every entity is still there when it finishes',
+          /5005 entities read/.test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
+          (one(env.body, 'cfbe-progress') || {}).textContent);
+      });
   })
 
   // One type refusing its read must not take the other six with it, and must say so.

@@ -249,6 +249,33 @@ m8.tick();
 h.check('a list nested under another entity is still that list',
   menuItems(m8.body).length === 1);
 
+// Four list views whose URL does not name what they list, all reported live or found
+// beside the one that was. A detail page's tabs go through `useTabKey`, which puts the
+// tab key in the path, and three of those keys are not the plural of the type; a
+// gallery's images tab is routed by hand and carries no segment at all. All four render
+// the same `Filtered*List` with the same "..." menu, so all four have to resolve.
+[['/galleries/12', 'images', "a gallery's own image list"],
+ ['/galleries/12/add', 'images', "a gallery's add-images list"],
+ ['/groups/12/subgroups', 'groups', 'a group\'s subgroups'],
+ ['/studios/12/childstudios', 'studios', "a studio's child studios"],
+ ['/performers/12/appearswith', 'performers', 'the performers one appears with'],
+].forEach(([pathname, type, what]) => {
+  const env = start({ pathname });
+  mountMenu(env.body);
+  mountCard(env.body, type, '1', true);
+  env.tick();
+  h.check(what + ' is a ' + type + ' list', menuItems(env.body).length === 1,
+    pathname + ' -> ' + menuItems(env.body).length + ' item(s)');
+});
+
+// The alias is on the whole path, not on the tail: `add` is far too common a segment
+// to hand to an entity type on sight.
+const m8b = start({ pathname: '/scenes/12/add' });
+mountMenu(m8b.body);
+mountCard(m8b.body, 'images', '1', true);
+m8b.tick();
+h.check('and an unrelated /add is not one of them', menuItems(m8b.body).length === 0);
+
 // The route says which type is listed, and the link pattern says which link on a
 // card is the card's own - a scene card also links to its studio and its performers.
 const m9 = start({ pathname: '/scenes' });

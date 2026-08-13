@@ -509,43 +509,21 @@ Promise.resolve()
       branchOf(env, centred(env)).indexOf('Other (6)') !== -1, rows(env).join(' | '));
   })
 
-  // ── Export ───────────────────────────────────────────────────────────────
-  .then(() => {
-    const copied = [];
-    return open({ clipboard: { writeText: (t) => { copied.push(t); return Promise.resolve(); } } })
-      .then(({ env }) => {
-        btn(env, 'Copy as DOT').click();
-        return h.flush(5).then(() => {
-          const dot = copied[0] || '';
-          h.check('DOT exports the whole hierarchy by default',
-            dot.indexOf('digraph tags {') === 0 && dot.indexOf('}') !== -1 &&
-            dot.indexOf('"1" [label="Root"];') !== -1, dot.slice(0, 120));
-          h.check('with an edge per parent, both of a diamond included',
-            dot.indexOf('"2" -> "3";') !== -1 && dot.indexOf('"6" -> "3";') !== -1, dot);
-          h.check('and no edge to a tag outside the export',
-            dot.split('\n').filter((l) => l.indexOf('->') !== -1).length === 5, dot);
-        });
-      });
-  })
+  // ── The footer ───────────────────────────────────────────────────────────
 
-  .then(() => {
-    const copied = [];
-    return open({ clipboard: { writeText: (t) => { copied.push(t); return Promise.resolve(); } } })
-      .then(({ env }) => {
-        btn(env, 'Expand all').click();
-        rowFor(env, 'Mid').click();
-        btn(env, 'Copy as Mermaid').click();
-        return h.flush(5).then(() => {
-          const mmd = copied[0] || '';
-          // Mid's neighbourhood is Root (ancestor), Leaf and Skip (descendants).
-          h.check('Mermaid exports the selection when there is one',
-            mmd.indexOf('graph LR') === 0 && mmd.indexOf('t2[') !== -1 &&
-            mmd.indexOf('t1[') !== -1 && mmd.indexOf('t3[') !== -1 &&
-            mmd.indexOf('t7[') === -1, mmd);
-          h.check('and drops edges whose other end is not in the selection',
-            mmd.indexOf('t6 --> t3') === -1, mmd);
-        });
-      });
+  // Copy as DOT and Copy as Mermaid were removed at 2.2.0: the graphs they produced
+  // were unreadable at real library size, which is the same reason this dialog draws
+  // a tree rather than a node-link graph. Pinned so a reintroduction has to argue
+  // with that rather than slip back in.
+  .then(() => open()).then(({ env }) => {
+    h.check('the viewer offers no graph export',
+      btn(env, 'Copy as DOT') === null && btn(env, 'Copy as Mermaid') === null);
+    h.check('and its footer is the four controls that are left',
+      env.body.descendants().filter((n) => h.hasClass(n, 'npt-foot'))[0]
+        .childNodes.map((n) => n.textContent).join(' | ') ===
+        'Expand all | Collapse all | Load counts | Close',
+      env.body.descendants().filter((n) => h.hasClass(n, 'npt-foot'))[0]
+        .childNodes.map((n) => n.textContent).join(' | '));
   })
 
   // ── Counts ───────────────────────────────────────────────────────────────
@@ -561,7 +539,29 @@ Promise.resolve()
       h.check('counts appear on the rows that have them',
         r.some((l) => l.indexOf('Root (1)') !== -1 && l.indexOf('12 scenes · 3 performers') !== -1),
         r.join(' | '));
+      // It shipped saying 'Counts loaded' - a status, on the one control whose caption
+      // is read to find out whether pressing it again is worth anything. It is: the
+      // click re-fetches.
+      h.check('and the button now offers the re-fetch rather than reporting a status',
+        btn(env, 'Refresh counts') !== null && btn(env, 'Counts loaded') === null);
+      // Guarded so a source without the caption reports the check above rather than
+      // aborting the chain on it.
+      const again = btn(env, 'Refresh counts');
+      if (again) again.click();
+      return h.flush(50).then(() => {
+        h.check('which is what a second click does',
+          !!again && env.calls.filter((c) => /NPTTagCounts/.test(c.query || '')).length === 2);
+      });
     });
+  })
+
+  // The one control here that costs a query, so it says what it will fetch before it
+  // is pressed - including the depth, which is the number people misread.
+  .then(() => open()).then(({ env }) => {
+    const t = btn(env, 'Load counts').title || '';
+    h.check('the counts button explains itself on hover',
+      t.indexOf('scenes, images, galleries and performers') !== -1 &&
+      t.indexOf('not for it plus everything under it') !== -1, t);
   })
 
   .then(() => open({ failCounts: true })).then(({ env, d }) => {
@@ -570,6 +570,8 @@ Promise.resolve()
       h.check('a failed count query is reported and leaves the tree usable',
         d().progress.indexOf('Counts could not be loaded') === 0 && rows(env).length === 4,
         d().progress);
+      h.check('and the button goes back to offering the load it never made',
+        btn(env, 'Counts failed') !== null && btn(env, 'Refresh counts') === null);
     });
   })
 
@@ -587,7 +589,7 @@ Promise.resolve()
     drive(find, 'leaf');
     drive(filter, 'leaf');
     (find.handlers.keydown || []).forEach((fn) => fn({ key: 'Enter' }));
-    ['Expand all', 'Collapse all', 'Load counts', 'Copy as DOT', 'Copy as Mermaid']
+    ['Expand all', 'Collapse all', 'Load counts']
       .forEach((label) => btn(env, label).click());
 
     return h.flush(10).then(() => {

@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '2.1.0';
+  var PLUGIN_VERSION = '2.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1091,9 +1091,10 @@
     return b;
   }
 
-  // Copy `text`, reporting on `btn` and restoring `label` after two seconds. Both
-  // copy buttons in this plugin - the log's and the viewer's two exports - go through
-  // here; they differ only in what they say when it works.
+  // Copy `text`, reporting on `btn` and restoring `label` after two seconds. The log's
+  // Copy button - the only one left since the viewer's two exports went - goes through
+  // here. It stays parameterised on the button and the label because that costs
+  // nothing and is what a second caller would need.
   //
   // Stash is commonly served over plain HTTP on a LAN, where the async clipboard API
   // is not available at all, so the textarea + execCommand path is the fallback rather
@@ -1839,10 +1840,15 @@
   // hundred nodes, and drawing one needs a layout engine this repo has nowhere to
   // put: no build step, no bundler, no runtime dependencies. A tag DAG is also
   // *mostly* a forest, so the tree is the honest shape - and the handful of tags
-  // with several parents are marked rather than hidden. Copy as DOT / Mermaid is
-  // there for anyone who does want a drawn graph, in a tool built for it.
+  // with several parents are marked rather than hidden. It shipped with Copy as DOT
+  // and Copy as Mermaid beside that, for anyone who did want a drawn graph in a tool
+  // built for it; 2.2.0 removed them, because the graphs they produced were not
+  // legible either.
 
   var TREE_ROW_CAP = 4000;   // rows rendered at once by a search; see renderSearch
+
+  var COUNTS_LABEL = 'Load counts';
+  var REFRESH_COUNTS_LABEL = 'Refresh counts';
 
   function TreeView(taskName) {
     this.taskName = taskName;
@@ -1934,19 +1940,19 @@
     var foot = el('div', 'npt-foot');
     this.expandBtn = button('Expand all', 'npt-expand');
     this.collapseBtn = button('Collapse all', 'npt-collapse');
-    this.countsBtn = button('Load counts', 'npt-counts');
-    this.dotBtn = button('Copy as DOT', 'npt-dot');
-    this.mmdBtn = button('Copy as Mermaid', 'npt-mmd');
+    this.countsBtn = button(COUNTS_LABEL, 'npt-counts');
+    this.countsBtn.title = 'Fetch how many scenes, images, galleries and performers ' +
+      'carry each tag, and show them as a badge on every row. One query over the whole ' +
+      'tag list, so it is asked for rather than loaded with the tree; counts are for the ' +
+      'tag itself, not for it plus everything under it. Click again to re-fetch.';
     this.closeBtn = button('Close', 'npt-close');
 
     this.expandBtn.addEventListener('click', function () { self.expandAll(true); });
     this.collapseBtn.addEventListener('click', function () { self.expandAll(false); });
     this.countsBtn.addEventListener('click', function () { self.loadCounts(); });
-    this.dotBtn.addEventListener('click', function () { self.copyGraph('dot'); });
-    this.mmdBtn.addEventListener('click', function () { self.copyGraph('mermaid'); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
 
-    [this.expandBtn, this.collapseBtn, this.countsBtn, this.dotBtn, this.mmdBtn, this.closeBtn]
+    [this.expandBtn, this.collapseBtn, this.countsBtn, this.closeBtn]
       .forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
@@ -2400,6 +2406,11 @@
   // depth: 0 is passed explicitly - the count is for the tag itself, not for it plus
   // everything under it, and relying on the server's default would leave the number
   // ambiguous.
+  //
+  // The button says what a click *does*, before and after: 'Load counts' while there
+  // are none, 'Refresh counts' once there are. It shipped saying 'Counts loaded' -
+  // a status, on the one control whose caption a user reads to find out whether it is
+  // still worth pressing, and pressing it does still fetch them again.
   TreeView.prototype.loadCounts = function () {
     var self = this;
     if (!this.ready() || this._countsBusy) return;
@@ -2420,84 +2431,24 @@
         if (t.performer_count) parts.push(t.performer_count + ' performers');
         self.counts[t.id] = parts.length ? parts.join(' · ') : 'unused';
       });
-      self.countsBtn.textContent = 'Counts loaded';
+      self.countsBtn.textContent = REFRESH_COUNTS_LABEL;
       self._countsBusy = false;
       self.render();
     }, function (e) {
       self.countsBtn.textContent = 'Counts failed';
       self._countsBusy = false;
       self.progressEl.textContent = 'Counts could not be loaded: ' + (e && e.message ? e.message : e);
-      setTimeout(function () { self.countsBtn.textContent = 'Load counts'; }, 3000);
+      setTimeout(function () {
+        self.countsBtn.textContent = self.counts ? REFRESH_COUNTS_LABEL : COUNTS_LABEL;
+      }, 3000);
     });
   };
 
-  // ── Export ────────────────────────────────────────────────────────────────
-
-  // With a tag selected, exports that tag's neighbourhood - ancestors, descendants
-  // and the edges between them - which is the part that is actually legible as a
-  // drawn graph. With nothing selected, the whole DAG.
-  TreeView.prototype.exportIds = function () {
-    var g = this.graph, ids = [], id;
-    if (this.selected && g.byId[this.selected]) {
-      var set = {}, k;
-      set[this.selected] = true;
-      var anc = g.ancestorsOf(this.selected);
-      for (k in anc) if (hasOwn(anc, k)) set[k] = true;
-      this.descendantsOf(this.selected).forEach(function (d) { set[d] = true; });
-      for (k in set) if (hasOwn(set, k)) ids.push(k);
-      return this.sortIds(ids);
-    }
-    for (id in g.byId) if (hasOwn(g.byId, id)) ids.push(id);
-    return this.sortIds(ids);
-  };
-
-  function dotEscape(s) {
-    return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  }
-
-  TreeView.prototype.graphText = function (kind) {
-    var g = this.graph;
-    var ids = this.exportIds();
-    var inSet = {};
-    ids.forEach(function (id) { inSet[id] = true; });
-    var out = [];
-
-    if (kind === 'mermaid') {
-      out.push('graph LR');
-      ids.forEach(function (id) {
-        out.push('  t' + id + '["' + dotEscape((g.byId[id] || {}).name) + ' (' + id + ')"]');
-      });
-      ids.forEach(function (id) {
-        g.parentsOf(id).forEach(function (pid) {
-          if (hasOwn(inSet, pid)) out.push('  t' + pid + ' --> t' + id);
-        });
-      });
-      return out.join('\n');
-    }
-
-    out.push('digraph tags {');
-    out.push('  rankdir=LR;');
-    out.push('  node [shape=box];');
-    ids.forEach(function (id) {
-      out.push('  "' + id + '" [label="' + dotEscape((g.byId[id] || {}).name) + '"];');
-    });
-    ids.forEach(function (id) {
-      g.parentsOf(id).forEach(function (pid) {
-        if (hasOwn(inSet, pid)) out.push('  "' + pid + '" -> "' + id + '";');
-      });
-    });
-    out.push('}');
-    return out.join('\n');
-  };
-
-  TreeView.prototype.copyGraph = function (kind) {
-    if (!this.ready()) return;
-    copyToClipboard(
-      this.graphText(kind),
-      kind === 'mermaid' ? this.mmdBtn : this.dotBtn,
-      kind === 'mermaid' ? 'Copy as Mermaid' : 'Copy as DOT',
-      'Copied ' + (this.selected ? 'selection' : 'whole hierarchy'));
-  };
+  // The graph exports (Copy as DOT / Copy as Mermaid) were removed at 2.2.0. They
+  // emitted valid Graphviz and Mermaid for the selection or the whole DAG, and the
+  // drawn result was unreadable at real library size - which is the same reason this
+  // dialog is a tree and not a node-link graph in the first place. Reintroducing them
+  // needs an answer to legibility, not another output format.
 
   // ── Auto normalize on entity updates ──────────────────────────────────────
   //

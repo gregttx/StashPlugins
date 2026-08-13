@@ -3,9 +3,11 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.1.0.** This file is both the design and the map of the code — the
+**Status: implemented at 2.2.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.2.0 is the viewer's footer.** The two graph exports are gone (§5a), `Load counts` gained a tooltip and now says `Refresh counts` once it has loaded them. All three were live feedback on 2.1.0; the exports are the only capability ever removed from this plugin, and §5a records why so it is not re-added on the same reasoning that put it there.
 
 **2.1.0 adds Escape to the dialogs.** Every dialog here now closes on Escape, through whichever of Cancel/Close its footer is showing rather than around the footer - so the key does nothing mid-write, where both are hidden and Stop is the only way out. The head's backup line was reworded to "Backing up your database before proceeding is recommended." at the same version, in all four plugins; the sentence stating what Undo cannot reach is unchanged. Both dialogs, the run and the hierarchy viewer.
 
@@ -511,8 +513,10 @@ that one left alone, where are the diamonds* — against the same graph they run
 drawing one needs a layout engine this repo has nowhere to put: no build step, no bundler, no
 runtime dependencies, and a plugin folder is copied as-is. A tag DAG is also *mostly a forest*, so
 a tree is the honest shape and the handful of multi-parent tags are marked rather than hidden.
-**Copy as DOT / Copy as Mermaid** exists for anyone who does want a drawn graph, in a tool built
-for it.
+It shipped with **Copy as DOT / Copy as Mermaid** beside that, for anyone who did want a drawn
+graph in a tool built for it. **2.2.0 removed them**, on live feedback: at real library size the
+drawn result was unreadable too, so the escape hatch let out into the same hairball the tree exists
+to avoid. Reintroducing them needs an answer to legibility, not another output format.
 
 How the DAG survives being drawn as a tree:
 
@@ -598,6 +602,14 @@ passed **explicitly**: the count is for the tag itself rather than for it plus e
 it, and the server's default for an omitted `depth` is not documented in the schema — an ambiguous
 number on screen is worse than no number.
 
+**The button says what a click does, before and after** (2.2.0). It read `Counts loaded` once they
+had — a *status*, on the one control whose caption is read to decide whether pressing it again is
+worth anything, and pressing it does re-fetch. It is `Refresh counts` now, and a failure falls back
+to whichever of the two the dialog is actually in. Being the only control here that costs a query,
+it is also the only one carrying a `title`: what it fetches, that it is one query over the whole
+tag list, and that the numbers exclude descendants — the `depth: 0` fact above is the one users
+misread, and it was nowhere on screen.
+
 **Find and Filter are two gestures, not one control with a mode.** Find *navigates*: it opens the
 path to the match through the same primary parents the tree draws it under, selects it, and centres
 the row (`scrollIntoView({ block: 'center' })`, with a manual `scrollTop` fallback). Filter
@@ -616,11 +628,6 @@ you: it is a way to stop searching, not an undo.
 deliberately different: the box locates a tag a human is looking for, and nobody types a namespace
 marker's exact case to find one. The filters decide what gets written, where matching loosely would
 protect or skip tags by accident — see §4.
-
-**The export follows the selection.** With a tag selected it emits that tag's neighbourhood
-(ancestors + descendants + the edges among them), which is the part that is legible when drawn;
-with nothing selected, the whole DAG. Edges whose other end is outside the exported set are
-dropped, or the output references nodes it never declares.
 
 ## 5b. Auto mode (1.1.0)
 
@@ -1131,8 +1138,9 @@ cover:
 - **The hierarchy viewer** (`normalize-tree`) — that it issues no mutation and nothing beyond the
   settings and tag queries, that a diamond appears under both parents with exactly one of them the
   repeat, that cyclic tags are still reachable, that badges and the inspector name the filter
-  actually configured, the DOT/Mermaid exports including edge pruning at the selection boundary,
-  counts being fetched only on demand and pinned to `depth: 0`, and the filter box - matching
+  actually configured, the footer holding four controls and no graph export,
+  counts being fetched only on demand and pinned to `depth: 0`, the button then offering the
+  re-fetch rather than reporting a status, and its tooltip saying what the query costs, and the filter box - matching
   case-insensitively anywhere in a name, with its clear icon appearing only while there is
   something to clear - and the find bar, which opens the path to a match, selects and centres it,
   counts and cycles through matches with Enter, and clears an active filter on the way. The jumps

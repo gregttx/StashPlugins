@@ -712,6 +712,35 @@ Tests cover the plugin's own logic and its assumptions about Stash's markup and 
 
 When fixing a bug, check the new test fails against the unfixed plugin before trusting it: `SRC=/path/to/old.js node tests/<suite>.test.js`.
 
+## Reference: a list view's URL does not always name what it lists
+
+Read off `stashapp/stash` `develop`, 2026-08-13, when `CustomFieldsBulkEditor` 0.1.1 fixed the four
+places it was wrong. Any plugin here that decides what page it is on from the path needs this;
+today only `CustomFieldsBulkEditor` does.
+
+Most list views end in the plural of what they hold — `/scenes`, `/performers/12/scenes`,
+`/tags/9/images` — which is why reading the last segment works at all. Five do not:
+
+| URL | Lists |
+|---|---|
+| `/galleries/<id>` | Images |
+| `/galleries/<id>/add` | Images |
+| `/groups/<id>/subgroups` | Groups |
+| `/studios/<id>/childstudios` | Studios |
+| `/performers/<id>/appearswith` | Performers |
+
+The mechanism, which is what makes the list predictable rather than a set of one-offs: a detail
+page's tabs go through `useTabKey` (`Shared/DetailsPage/Tabs.tsx`), which puts the tab key straight
+into the path as `<base>/<tabKey>` — so the segment is a *tab name*, and three of them are not the
+plural of what the tab shows. `Gallery.tsx` is the exception to even that: it routes its right-hand
+tabs by hand to `/galleries/<id>` and `/galleries/<id>/add`, so its images tab has no segment of its
+own at all. All five render the same `Filtered*List` component as the top-level list, with the same
+"..." menu and the same selection, so a plugin that works on one works on all of them once it can
+name them.
+
+**Match the whole path, not the tail.** `add` on its own is far too common a segment to map to an
+entity type on sight.
+
 ## Reference: custom fields in Stash
 
 Findings from reading `stashapp/stash` `graphql/schema/types/*` on `main`, 2026-08-04. Verify

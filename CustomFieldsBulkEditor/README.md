@@ -14,15 +14,16 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
-> ## 0.1.0 — in use, with one known gap
+> ## 0.1.1 — in use, with the gallery gap closed
 >
 > The version number is the honest one. The plugin works in a real Stash — the menu item, the dialog
-> and the write have all been exercised — but **one list view is known not to offer the menu: the
-> Images tab inside a gallery.** Every other list does. That is being diagnosed and needs one detail
-> off a running instance rather than another guess; see [troubleshooting](#troubleshooting) if you
-> hit it somewhere else too.
+> and the write have all been exercised. 0.1.1 fixes the one list view that was known not to offer
+> the menu, **a gallery's own Images tab**, along with three more that had the same cause and had not
+> been noticed: a gallery's **Add Images**, a group's **Sub-Groups**, a studio's **Child Studios**
+> and a performer's **Appears With**. Their URLs do not name what they list, and the plugin read the
+> URL. See [troubleshooting](#troubleshooting) if a list still comes up empty-handed.
 >
-> It will reach 1.0.0 when that gap is closed and the rest has been walked through, not before.
+> It will reach 1.0.0 once the rest has been walked through in a live instance, not before.
 
 Stash stores custom fields on seven kinds of entity and lets you edit them **one record at a time**.
 Its API has no such limit. This plugin adds the two things that are missing: a **view** of what a
@@ -131,9 +132,8 @@ the list-view menu.
 
 ## Troubleshooting
 
-**The menu item is not there.** Known not to appear on a gallery's own **Images** tab (see the
-banner at the top). Anywhere else, type this in the browser console (F12 → Console) and open the
-menu again:
+**The menu item is not there.** Type this in the browser console (F12 → Console) and open the menu
+again:
 
 ```js
 __GTTx__.StashPluginCoop.debugButtons = true
@@ -142,6 +142,10 @@ __GTTx__.StashPluginCoop.debugButtons = true
 Every GTTx plugin that draws a control into Stash's own UI answers to that one switch. This one will
 say which of the three conditions is not met — not a list view, no open menu, or nothing selected —
 on the next tick. Set it back to `false` to stop.
+
+If it says **not a list view** on a page that plainly is one, that is the bug 0.1.1 fixed for four of
+them: the plugin works out what a list holds from the URL, and a few of Stash's lists live at a URL
+that names something else. Report the page's address (the `/…` part) and it can be added.
 
 **The version in the settings page is not the one the console printed.** The settings page reads the
 manifest, which goes current the moment plugins are reloaded; the console line comes from inside the

@@ -5,23 +5,20 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.1.0 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.1.1 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
-being used. What is *not* verified is still §8's table, and one live gap is open — **the "..." menu
-on a gallery's own Images tab draws nothing**, reported 2026-08-12 and not yet diagnosed, because
-`listType()` reads the last path segment and nobody has read that page's actual `pathname` off the
-running instance. Do not guess a fix for it; ask for the URL. (§2.)
+being used. What is *not* verified is still §8's table. The gallery-images gap reported 2026-08-12
+is **closed** at 0.1.1, along with three more list views that had the same cause (§2).
 
 0.1.0 is the settings-page description (§10) and Escape (§11), both new capability rather than
-fixes. 79 automated checks cover the plugin, and the suite still reproduces Stash's markup **from
-notes** — it can only confirm the plugin is consistent with what it was told.
+fixes; 0.1.1 is §2's route fix. 86 automated checks cover the plugin, and the suite still reproduces
+Stash's markup **from notes** — it can only confirm the plugin is consistent with what it was told.
 
 **The major digit is a claim to the user that the thing works, and only a live click can support
 it.** This shipped at 1.0.0 first, on the reasoning that the feature was complete and indivisible;
 that reasoning is about the *code*, and the digit is about the *user*. See "A new plugin starts at
 0.0.1" in the repo-root `CLAUDE.md`. From here: a patch per fix, a minor per verified capability,
-1.0.0 when §8's table has been walked in a real Stash **and the gallery-images gap above is
-closed** — a plugin with a list view it silently does nothing on is not finished.
+1.0.0 when §8's table has been walked in a real Stash.
 
 **It is the smallest plugin here by a wide margin, and that is the design.** No settings, no tasks,
 no automatic mode, no fetch wrapper. It has one entry point that *does* anything, and until the user
@@ -58,23 +55,40 @@ rule is why there is no route table** — `listType()` is a `split('/').pop()` a
 and `BulkTagUpdateInput` carry no `custom_fields`. `writeChunk` branches on it and loops `single`
 instead. Nothing else about those two differs.
 
-**Open, reported live 2026-08-12: a gallery's own Images tab gets no menu item.** The images list
-inside a gallery is reachable and selectable, and nothing appears. The likeliest cause is that the
-URL there is not `…/images` — if it is `/galleries/123` with the tab in React state, `listType()`
-returns `null` and the plugin correctly concludes it is not on a list view. **It has deliberately
-not been fixed by guessing**, and the two obvious fixes are both worse than the bug:
+**`ROUTE_ALIASES` is the exception list, and 0.1.1 is what earned it.** Reported live: a gallery's
+own Images tab drew no menu item. The cause is that its URL is not `…/images` — Stash's detail-page
+tabs go through `useTabKey`, which writes the tab into the path as `<base>/<tabKey>`, and three tab
+keys are not the plural of what the tab lists; a gallery is worse still, since `Gallery.tsx` routes
+its right-hand tabs by hand and its images tab has **no segment of its own at all**. Four views, one
+cause:
 
-- *Loosen `listType`* — there is nothing to loosen. A path with no plural segment carries no type.
-- *Infer the type from the checked rows instead* — genuinely ambiguous. `rowEntityId` climbs to the
-  first ancestor linking to exactly one id **of the type it is given**, and a scene card links to
-  its studio and its performers as well as itself, so probing every type against the rows would
-  match several. The URL is what disambiguates today, which is exactly what is missing here.
+| URL | Lists |
+| --- | --- |
+| `/galleries/<id>` | Images |
+| `/galleries/<id>/add` | Images |
+| `/groups/<id>/subgroups` | Groups |
+| `/studios/<id>/childstudios` | Studios |
+| `/performers/<id>/appearswith` | Performers |
 
-So the next step is one line off the running instance — `window.location.pathname` on that page,
-plus what `__GTTx__.StashPluginCoop.debugButtons = true` prints — and then a rule written against
-what Stash actually renders. This is the repo's own standing lesson (*"ask the page what it is
-before reasoning about what to do with it"*), and this plugin has no live-verified footholds to
-spend on a guess.
+**Read off `stashapp/stash` `develop`, 2026-08-13** — `Gallery.tsx`, `Group.tsx`, `Studio.tsx`,
+`Performer.tsx` and `Shared/DetailsPage/Tabs.tsx` — not inferred from the one page that was
+reported. All five render the same `Filtered*List` as the top-level list, with the same "..." menu
+and the same selection, which is what makes one alias table the whole fix. That sweep is also what
+says the list is complete for today's Stash: every other tab key *is* the plural it lists, and
+`/tags/<id>/markers` correctly resolves to nothing.
+
+**Matched on the whole path, never on the tail.** `add` alone is far too common a segment to hand to
+an entity type on sight, and the type it would be handed to is the one that then gets written.
+
+**The rejected fix, kept because it will be proposed again: infer the type from the checked rows.**
+Genuinely ambiguous — `rowEntityId` climbs to the first ancestor linking to exactly one id **of the
+type it is given**, and a scene card links to its studio and its performers as well as itself, so
+probing every type against the rows matches several. The URL is what disambiguates, which is why the
+fix is to teach it four more URLs rather than to stop reading it.
+
+**A URL this table does not know still fails safe**: `listType()` returns `null`, no item is drawn,
+and `debugButtons` says "not a list view" — which is the line the README now tells the user to
+report.
 
 ## 3. Turning a selection into ids
 
@@ -250,8 +264,9 @@ lines come from the tick.
   selection, absent without one, absent with nothing selected, removed when the selection is
   emptied, not duplicated by a second tick, found by the signal fallback when the id is missing and
   *not* found in a dropdown that is neither, refused for a table's select-all checkbox, refused on
-  the marker list and on a detail page, offered on a list nested under another entity, and not
-  confused by a card's links to other entity types. The dialog: the head, the legend, one aliased
+  the marker list and on a detail page, offered on a list nested under another entity, offered on
+  each of the five routes whose URL does not name what they list and refused on an unrelated
+  `/add`, and not confused by a card's links to other entity types. The dialog: the head, the legend, one aliased
   by-id query for the whole selection, the listing's shape and order, an entity with no fields
   contributing no line, the counters, both filters, Apply held back until a field name is given, and
   no mutation before it. Then each mode's write — Add skipping what already has the key, Overwrite

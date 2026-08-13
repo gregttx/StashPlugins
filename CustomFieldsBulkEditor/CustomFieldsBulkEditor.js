@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.1.0';
+  var PLUGIN_VERSION = '0.1.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -382,9 +382,33 @@
   // The last path segment names the type: `/scenes`, `/performers/12/scenes` and
   // `/tags/9/images` all end in the list they show, and a detail page (`/scenes/12`)
   // or the marker list (`/scenes/markers`) ends in something that is not a key here.
+  //
+  // Four list views are exceptions, and 0.1.1 is the release that stopped missing
+  // them - the reported symptom was a gallery's own image list drawing no menu item.
+  // A detail page's tabs go through `useTabKey`, which puts the tab in the URL as
+  // `<base>/<tabKey>`, and three tab keys are not the plural of what they list; a
+  // gallery is worse still, since `Gallery.tsx` routes its right-hand tabs by hand to
+  // `/galleries/<id>` and `/galleries/<id>/add`, so the images tab has no segment of
+  // its own at all. All four render the same `Filtered*List` as the top-level list,
+  // with the same "..." menu and the same selection. Read off stashapp/stash
+  // `develop` (Gallery.tsx, Group.tsx, Studio.tsx, Performer.tsx), 2026-08-13.
+  //
+  // Matched on the whole path rather than the tail: `add` on its own is far too
+  // common a segment to hand to an entity type on sight.
+  var ROUTE_ALIASES = [
+    [/^\/galleries\/\d+(?:\/add)?$/, 'images'],       // a gallery's images, and add-images
+    [/^\/groups\/\d+\/subgroups$/, 'groups'],
+    [/^\/studios\/\d+\/childstudios$/, 'studios'],
+    [/^\/performers\/\d+\/appearswith$/, 'performers'],
+  ];
+
   function listType() {
-    var path = String((window.location && window.location.pathname) || '');
-    var seg = path.replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop();
+    var path = String((window.location && window.location.pathname) || '')
+      .replace(/[?#].*$/, '').replace(/\/+$/, '');
+    for (var i = 0; i < ROUTE_ALIASES.length; i++) {
+      if (ROUTE_ALIASES[i][0].test(path)) return ROUTE_ALIASES[i][1];
+    }
+    var seg = path.split('/').pop();
     return hasOwn(ENTITIES, seg) ? seg : null;
   }
 

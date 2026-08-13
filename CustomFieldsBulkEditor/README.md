@@ -14,10 +14,13 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
-> ## 0.2.4 — finding the empty ones
+> ## 0.2.5 — finding the empty ones
 >
 > The version number is the honest one. The plugin works in a real Stash — the menu item, the dialog
-> and the write have all been exercised. **Filter by Value now has a mode beside it**: leave it on
+> and the write have all been exercised. **If you installed 0.2.4, replace it**: its `.yml` had an
+> unescaped quote, which stopped Stash loading the plugin at all.
+>
+> **Filter by Value now has a mode beside it**: leave it on
 > *contains*, or switch it to **is empty** to list only the fields set to nothing. An empty box means
 > "no filter", so it could never ask that — and the query is a control rather than something typed
 > in, so no value you might actually have can be mistaken for it.

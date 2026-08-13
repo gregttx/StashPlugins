@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.2.4 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.2.5 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. What is *not* verified is still §8's table, and now also the pills (§5a) — requested
 from live use, and already the subject of two reports, the second of which is what found the right
@@ -15,7 +15,9 @@ list views that had the same cause (§2); the undercounted tag and studio select
 
 0.1.0 is the settings-page description (§10) and Escape (§11), both new capability rather than
 fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (§5a), and
-0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b). 119 automated checks cover the plugin, and the suite still
+0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b), which 0.2.5
+had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all.
+123 automated checks cover the plugin, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -300,6 +302,10 @@ these inputs paint their own background, so the browser's disabled look does not
 **"is not empty" is deliberately absent.** Nobody has asked for it, and it is one more entry in the
 options array the day somebody does. Note that `contains` with an empty box does *not* cover it —
 that is no filter at all, and the empty ones show along with everything else.
+
+**0.2.4 did not load at all, and the reason is worth more than the feature.** The sentence added to the `.yml` description named the new mode in quotes, and that description is a double-quoted YAML scalar — which ends at the first unescaped quote. Stash could not parse the manifest, so it dropped the **whole plugin**, not the description. Every other quote in that string is `\"`; the two new ones were not, because they arrived through a `sed` and nothing read the result. `tests/version.test.js` now strips each backslash escape and fails on any quote still standing — a check that costs one line and catches the class. The reason the suite was silent before is that its description regex is greedy, so both files still captured the same broken string and the mismatch check passed.
+
+**The check is the escape, not a YAML parse.** There is no YAML library here and adding one would make the check optional the way `jsdom` makes `placement` optional — skipped on exactly the machine that needed it.
 
 **The name filter gets no mode.** A custom-field key is never the empty string, so it would have one
 useful setting.

@@ -71,6 +71,16 @@ PLUGINS.forEach((name) => {
       declaredDescription(read(name, 'manifest')),
     'yml: ' + String(declaredDescription(read(name, name + '.yml'))).slice(0, 60) +
     ' / manifest: ' + String(declaredDescription(read(name, 'manifest'))).slice(0, 60));
+  // A double-quoted YAML scalar ends at the first *unescaped* quote, and what Stash
+  // drops when its yml will not parse is the whole plugin, not the description. CFBE
+  // 0.2.4 shipped with a bare pair around "is empty" and stopped loading; the greedy
+  // capture above still matched both files identically, so every other check passed.
+  // Remove each backslash escape, and any quote still standing is one that ends it.
+  const unescapedQuote = (s) => (String(s || '').replace(/\\./g, '')).indexOf('"') !== -1;
+  h.check(name + ' escapes every quote inside its description',
+    !unescapedQuote(declaredDescription(read(name, name + '.yml'))) &&
+      !unescapedQuote(declaredDescription(read(name, 'manifest'))),
+    String(declaredDescription(read(name, name + '.yml'))).slice(0, 120));
   h.check(name + ' keeps the raw URL out of its description',
     !/https?:\/\//.test(declaredDescription(read(name, name + '.yml')) || ''),
     (declaredDescription(read(name, name + '.yml')) || '').slice(0, 120));

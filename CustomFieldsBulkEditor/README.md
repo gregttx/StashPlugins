@@ -14,7 +14,7 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
-> ## 0.3.1 — a task for the whole library
+> ## 0.3.2 — a task for the whole library
 >
 > Settings → **Tasks → Plugin Tasks** now has **Edit Custom Fields Across the Whole Library...**,
 > which opens the same dialog over every Scene, Image, Gallery, Performer, Studio, Group and Tag
@@ -23,6 +23,11 @@
 >
 > A large library takes a while to read — the counter names the type it is on and counts up as it
 > goes, so you can see it working.
+>
+> 0.3.2 stops this plugin reformatting **its own task's description** on the Tasks page. That panel
+> heads its group with the plugin name and describes each task the same way the plugin list
+> describes a plugin, so the summary-and-**Show more** treatment meant for the plugin list was being
+> applied there too.
 >
 > ## 0.2.5 — finding the empty ones
 >

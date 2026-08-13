@@ -5,14 +5,15 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.3.2 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.4.0 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
 value filter's "is empty" mode (§5b) **are** — both requested from live use and confirmed working
 there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. §10 is
 confirmed too, at 0.3.2: the description collapses behind **Show more** with the README linked under
-it, and no task description is touched. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
+it, and no task description is touched. §13's five additions came out of that same live task run and
+are unverified. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
 2026-08-13 are closed at 0.1.2 (§3).
 
@@ -20,7 +21,8 @@ list views that had the same cause (§2); the undercounted tag and studio select
 fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (§5a), and
 0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b), which 0.2.5
 had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
-0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10. 162 automated checks cover the plugin, and the suite still
+0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10; 0.4.0 is
+§13, five things the task dialog wanted once it held a whole library. 173 automated checks cover the plugin across its two suites, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -442,15 +444,20 @@ lines come from the tick.
   grey, the paint idempotent across ticks, and a click on theirs neither opening our dialog nor
   being interfered with. The click: `preventDefault` *and* `stopPropagation`, and nothing resembling
   `runPluginTask` reaching the server. The read: one query per type, seven of them, each asking
-  `per_page: -1`, with `findGalleries { galleries }` pinning that the query name and its result
-  field are both derived from the plural. The dialog: a head naming the library rather than a
+  for a page at a time with `count` beside it, with `findGalleries { galleries }` pinning that the
+  query name and its result field are both derived from the plural, and the progress line sampled
+  *inside* the responder so what it records is what the dialog showed while a page was in flight. The dialog: a head naming the library rather than a
   selection, one listing holding three types with each line naming its own, entity pills linking to
   the right type per row, and counters that count entities. The write: scenes in one bulk mutation,
   performers in their own, studios and tags one at a time, and no type's ids ever handed to another
   type's mutation — the same assertion again for Undo. The filtered scope with scene 1, performer 1
   and tag 1 all present, which is the check that pins type-plus-id keying. One type refusing its
   read reported while the other six still list. And the group on the Tasks page left undecorated,
-  which is §12's bug.
+  which is §12's bug. Since 0.4.0, the type filter (§13): offered here and *not* on a selection run,
+  every supported type in it with All first, narrowing the listing to one type and the counter
+  following it. `cfbe.test.js` covers the other four: the summary line after a read, the
+  action tally after an Apply, Copy log carrying the counters, the messages and the listing, and
+  Rescan re-reading while leaving the pending Undo in the footer.
 - **`style.test.js`** — the CSS this plugin shares with its three siblings: the dialog chrome and
   the description rules in full, plus the check that a plugin declaring no settings styles no
   setting rows.
@@ -591,6 +598,69 @@ that type and a line that moves several times a second, where 1,000 would add 15
 latency to a read the user has already been told is slow. The delay itself was explicitly *not* the
 complaint.
 
-**No type picker, deliberately.** The task's scope is the library; per-type work is what the
-list-view menu item already does, on a list the user has already narrowed with Stash's own filters.
-If one is ever wanted, it is a third `<select>` beside Operation and Apply-to, not a second dialog.
+**"No type picker, deliberately" lasted one live run.** This section argued that per-type work is
+what the list-view menu item already does, on a list the user has already narrowed with Stash's own
+filters. That is true and it missed the point: the menu item narrows *before* you can see what the
+library carries, and the whole reason to open the task is to look at all seven at once first. The
+filter is §13.
+
+It also guessed the wrong control — "a third `<select>` beside Operation and Apply-to". It belongs
+in the **filter row**, because it filters the listing rather than the write; that it also narrows a
+write is *Apply to → Filtered list only* doing its existing job, which is exactly how the other two
+filters already reach the write.
+
+## 13. What a whole library made the dialog want (0.4.0)
+
+Five things, reported together after the first live task run over 155,012 entities. Four are about
+a listing too big to read and one is a layout bug that only a small window shows.
+
+**A filter by entity type, on a task run only.** `this.typeFilter` is built in `build()` behind
+`if (!this.spec)` and read back through `this.typeFilter ? .value : ''`, so a selection run has no
+control and `filtered()` needs no branch. A selection is one type by construction — six of the
+seven options would empty the list and the seventh would do nothing. It leads the filter row rather
+than trailing it: it is the coarsest of the three, and the one a user reaches for first.
+
+**One `[INFO]` line naming every custom field found, with a count.** The listing says what each
+entity carries; nothing said what the *selection* carries, and at 155,012 entities that is the only
+question the screen cannot answer by being scrolled. `tally(items, key)` returns `a x12, b x3` and
+is used twice: over the rows for the read (`summarise()`, re-emitted on every Rescan), and over the
+**changes** for an Apply or Undo (`Added x1, Replaced x2`). Counted off `this.changes`, never off
+the rendered rows — `LIST_RENDER_CAP` stops the listing at 1000 lines and the summary is precisely
+the thing that has to be right about a write bigger than the screen. The `x250` form is the one the
+head's own legend already declares, so it needed no explaining.
+
+**Copy log**, the same button the three siblings have, over a listing rather than a log. It takes
+the counters, the message strip and every line — from `listText`, built beside the nodes in
+`fillList` and **uncapped**, so a copy carries what the render cap left off the screen. That is the
+whole reason it is not a `textContent` read of the list element. `fillList` therefore takes a third
+argument, a text builder per item, and `changeSides(c, reversed)` was factored out so the node, the
+text and the tally cannot disagree about which side of a change holds a field.
+
+**Rescan, and an Undo that stays.** An undone run used to clear `this.changes`, which hid Undo and
+left **Close** as the only button in the footer — the reported complaint. Two changes, and the
+second is the one that matters:
+
+- `setState` shows Undo on `this.changes.length > 0` in **any** state, not only in `applied`. A
+  Rescan returns the dialog to `listing`, and the old rule would have meant a rescan quietly threw
+  the undo away.
+- `undo()` keeps its changes. Pressing it twice re-asserts the same before-values, which is
+  idempotent; only a fresh **Apply** replaces what it will put back.
+
+`rescan()` re-enters `begin()` rather than calling a second loader — the version check and the
+lease warning belong to a read, and both live there. It clears the entities and the counters and
+leaves `changes` alone: Undo writes by id and spec, not through the entity objects the read
+replaces.
+
+**The listing sat over the `[INFO]` lines, and the cause is one CSS line nobody would guess.** A
+flex item with `overflow` other than `visible` has an **automatic minimum size of zero**, so
+`.cfbe-msgs` was the one thing in the modal's column the flex algorithm could squash to nothing —
+and it did, on any window short enough, while `.cfbe-log` beside it kept the `min-height:14rem` the
+shared chrome gives it. `flex:0 0 auto` on the strip is the fix; it stays content-sized, so an
+empty strip still costs no room.
+
+That alone would have pushed the modal past its own `max-height`, so the floor had to come down
+with it — and `.cfbe-log` is **pinned byte-identical across the four dialogs** by
+`tests/style.test.js` and is not ours to edit. `.cfbe-listwrap`, a second class on the same
+element, carries the smaller floor. A modifier beside a shared rule is the move whenever one
+plugin's copy of the chrome holds something the others' do not; editing the shared rule for a
+local need is what the pinning exists to stop.

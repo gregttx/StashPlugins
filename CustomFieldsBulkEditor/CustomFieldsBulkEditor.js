@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.3.2';
+  var PLUGIN_VERSION = '0.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -270,9 +270,16 @@
     // entities down to one node. Pills need real elements, so the node count is back
     // and `LIST_RENDER_CAP` is what keeps it bounded - the same trade the siblings
     // make with `LOG_RENDER_CAP`.
-    '.cfbe-list{width:100%;height:100%;min-height:12rem;box-sizing:border-box;overflow:auto;' +
+    '.cfbe-list{width:100%;height:100%;min-height:0;box-sizing:border-box;overflow:auto;' +
     'background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;border-radius:3px;' +
     'font-family:monospace;font-size:.8rem;line-height:1.9;padding:.35rem .5rem;}' +
+    // A modifier on the shared `.cfbe-log`, not an edit to it: that rule is pinned
+    // byte-identical across the four dialogs (`tests/style.test.js`) and its 14rem
+    // floor is right for a plain log. Here the same box holds a *second* scroller and
+    // the message strip below it, and 14rem of floor plus 6rem of messages is what
+    // pushed the modal past its own max-height on a short window - which is how the
+    // list came to sit over the [INFO] lines. Reported live at 0.3.2.
+    '.cfbe-listwrap{min-height:8rem;}' +
     '.cfbe-entry{white-space:pre-wrap;word-break:break-word;}' +
     // `display:inline`, deliberately: a selection dragged across inline-*block* pills
     // copies with line breaks nobody selected, and copying the listing as text is the
@@ -288,8 +295,13 @@
     // `selectionText` is what keeps it out of what gets copied.
     '.cfbe-none{color:#a7b6c2;font-family:sans-serif;}' +
     '.cfbe-pill-failed{background:#7a3b3b;}' +
-    '.cfbe-msgs{max-height:6rem;overflow:auto;padding:0 1rem .35rem;font-family:monospace;' +
-    'font-size:.8rem;line-height:1.35;}' +
+    // `flex:0 0 auto` is the other half of that fix, and the half that was actually
+    // wrong: a flex item with `overflow:auto` has an automatic minimum size of *zero*,
+    // so this strip was the one thing in the column the flex algorithm could squash to
+    // nothing - which it did, silently, while the list beside it kept its floor.
+    // Content-sized when there is nothing in it, so an empty strip still costs no room.
+    '.cfbe-msgs{flex:0 0 auto;max-height:6rem;overflow:auto;padding:0 1rem .35rem;' +
+    'font-family:monospace;font-size:.8rem;line-height:1.35;}' +
     '.cfbe-editor{padding:.5rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
     'flex-wrap:wrap;align-items:center;}' +
     '.cfbe-label{color:#a7b6c2;font-size:.85rem;white-space:nowrap;}' +
@@ -777,6 +789,10 @@
     // Which type the whole-library read is on, and how far into it: the progress line
     // is the only thing saying a 15-second read is moving at all.
     this.loadingWhat = '';
+    // Every line the listing holds, uncapped, as plain text - what Copy log copies.
+    // Built beside the nodes rather than read back off them, so the 1000-line render
+    // cap does not silently truncate a copied log too.
+    this.listText = [];
     this.state = 'loading';
     this.build();
   }
@@ -819,6 +835,17 @@
     this.modal.appendChild(this.progressEl);
 
     var filters = el('div', 'cfbe-search');
+    // Only on a task run: a selection is one type by construction, and a pulldown
+    // offering the six it cannot contain would be six ways to empty the list. Left
+    // null otherwise, which is what `filtered` reads.
+    if (!this.spec) {
+      var typeOpts = [['', 'All types']];
+      this.specs.forEach(function (s) { typeOpts.push([s.key, s.plural]); });
+      this.typeFilter = this.select('cfbe-filter-type', typeOpts, '');
+      this.typeFilter.addEventListener('change', function () { self.renderList(); });
+      filters.appendChild(el('span', 'cfbe-label', 'Type'));
+      filters.appendChild(this.typeFilter);
+    }
     filters.appendChild(el('span', 'cfbe-label', 'Filter by Name'));
     this.nameFilter = this.input('cfbe-filter-name');
     filters.appendChild(this.nameFilter);
@@ -842,7 +869,7 @@
     });
     this.modal.appendChild(filters);
 
-    var listWrap = el('div', 'cfbe-log');
+    var listWrap = el('div', 'cfbe-log cfbe-listwrap');
     this.listEl = el('div', 'cfbe-list');
     // The pills are markup, and a copy out of markup carries the markup with it. The
     // selection's own text is what the user sees, so that is what goes on the
@@ -896,19 +923,26 @@
     this.applyBtn.className = this.applyBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
     this.undoBtn = button('Undo', 'cfbe-undo cfbe-hidden');
     this.undoBtn.className = this.undoBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    this.rescanBtn = button('Rescan', 'cfbe-rescan cfbe-hidden');
+    this.copyBtn = button('Copy log', 'cfbe-copy');
     this.closeBtn = button('Close', 'cfbe-close cfbe-hidden');
     this.applyBtn.disabled = true;
     this.undoBtn.title = 'Put back the value each entity carried before Apply, field by field. ' +
       'Only what this dialog wrote, and only while it stays open.';
+    this.rescanBtn.title = 'Read the custom fields again and list what they are now. ' +
+      'Undo stays available; a fresh Apply is what replaces it.';
+    this.copyBtn.title = 'Copy the counters, the [INFO] lines and the whole listing as plain ' +
+      'text - including the lines the 1000-line cap leaves off the screen.';
 
     this.cancelBtn.addEventListener('click', function () { self.close(); });
     this.applyBtn.addEventListener('click', function () { self.apply(); });
     this.undoBtn.addEventListener('click', function () { self.undo(); });
+    this.rescanBtn.addEventListener('click', function () { self.rescan(); });
+    this.copyBtn.addEventListener('click', function () { self.copyLog(); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
 
-    [this.cancelBtn, this.undoBtn, this.applyBtn, this.closeBtn].forEach(function (b) {
-      foot.appendChild(b);
-    });
+    [this.cancelBtn, this.undoBtn, this.rescanBtn, this.copyBtn, this.applyBtn, this.closeBtn]
+      .forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
     wireEscape(this);
@@ -955,10 +989,15 @@
     // over it would write from a plan the user is no longer looking at.
     this.show(this.cancelBtn, !applied);
     this.show(this.applyBtn, !applied);
-    this.show(this.undoBtn, applied && this.changes.length > 0);
+    // Shown for as long as there is something to take back, in *any* state - not only
+    // in `applied`. A Rescan returns the dialog to `listing`, and hiding Undo there
+    // would mean rescanning quietly threw the undo away.
+    this.show(this.undoBtn, this.changes.length > 0);
+    this.show(this.rescanBtn, listing || applied);
     this.show(this.closeBtn, applied);
     this.cancelBtn.disabled = busy;
     this.undoBtn.disabled = busy;
+    this.rescanBtn.disabled = busy;
     this.closeBtn.disabled = busy;
     [this.modeSel, this.scopeSel, this.nameInput, this.valueInput].forEach(function (n) {
       n.disabled = !listing;
@@ -1007,11 +1046,41 @@
     this.load().then(function () {
       self.setState('listing');
       self.renderList();
+      self.summarise();
     }, function (e) {
       self.msg('ERROR', 'Reading custom fields failed: ' + (e && e.message ? e.message : String(e)));
       self.setState('listing');
       self.renderList();
+      self.summarise();
     });
+  };
+
+  // Re-read and re-list, in place. `begin()` again rather than a second loader: a
+  // rescan has to re-check the version and re-warn about someone else's lease for the
+  // same reasons the first read did, and both live there.
+  //
+  // `changes` is deliberately kept, so Undo survives a rescan - it writes by id, not
+  // through the entity objects the read has just replaced. A fresh Apply is what
+  // replaces it, which is the one thing that can.
+  Run.prototype.rescan = function () {
+    this.entities = [];
+    this.rows = [];
+    this.applied = 0;
+    this.failed = 0;
+    this.undone = 0;
+    this.loadingWhat = '';
+    this.msg('INFO', 'Rescanning.');
+    this.begin();
+  };
+
+  // The line a listing of 155,000 entities cannot give by being scrolled: every
+  // custom field name in scope, with how many entities carry it, in the `x250` form
+  // the legend describes. Emitted once per read, so a rescan restates it.
+  Run.prototype.summarise = function () {
+    var t = tally(this.rows, function (r) { return r.name; });
+    this.msg('INFO', t
+      ? 'Custom fields found: ' + t + '.'
+      : 'No custom fields on any of the ' + this.entities.length + ' ' + this.noun() + ' in scope.');
   };
 
   Run.prototype.checkVersion = function () {
@@ -1146,6 +1215,20 @@
     this.rows = rows;
   };
 
+  // `a x12, b x3` over whatever `key` names, sorted. One function for both summary
+  // lines: the read counts field names, an Apply counts Added/Replaced/Deleted.
+  function tally(items, key) {
+    var counts = {};
+    var names = [];
+    items.forEach(function (item) {
+      var k = key(item);
+      if (!hasOwn(counts, k)) { counts[k] = 0; names.push(k); }
+      counts[k]++;
+    });
+    names.sort();
+    return names.map(function (n) { return n + ' x' + counts[n]; }).join(', ');
+  }
+
   // ── Pills ─────────────────────────────────────────────────────────────────
   //
   // A line reads `<Type> {"name" (id)}: {field}🟰{value}`, and a change line is the
@@ -1259,11 +1342,36 @@
     return row;
   };
 
+  // The same line as `rowNode`, as text. The ␀ marks are left out for the reason a
+  // copied *selection* leaves them out: they stand for nothing being there, so they
+  // stand for nothing in the text either.
+  function fieldText(field) { return field ? field.name + EQ + field.value : ''; }
+
+  Run.prototype.lineText = function (r, action, before, after) {
+    var spec = r.spec || this.spec;
+    return (action ? action + ' ' : '') + spec.label + ' "' + r.display + '" (' + r.id + '): ' +
+      fieldText(before) + (action ? ARROW + fieldText(after) : '');
+  };
+
+  // Which side of a change holds a field, and what to call what happened. Read off
+  // the two sides rather than off the mode, which is what makes an undo name itself
+  // correctly: reversing an Added is a Deleted. One function, because the node, the
+  // text and the summary tally all have to agree about it.
+  function changeSides(c, reversed) {
+    var before = c.had ? { name: c.name, value: valueText(c.before) } : null;
+    var after = c.remove ? null : { name: c.name, value: valueText(c.after) };
+    if (reversed) { var swap = before; before = after; after = swap; }
+    return { before: before, after: after,
+      action: !before ? 'Added' : !after ? 'Deleted' : 'Replaced' };
+  }
+
   // One place where the cap is applied, so both the listing and the change recap say
-  // the same thing when there is more than the DOM should hold.
-  Run.prototype.fillList = function (items, build) {
+  // the same thing when there is more than the DOM should hold. `text` runs over
+  // *every* item, capped or not: Copy log is not a copy of the DOM.
+  Run.prototype.fillList = function (items, build, text) {
     var self = this;
     while (this.listEl.firstChild) this.listEl.removeChild(this.listEl.firstChild);
+    this.listText = items.map(function (item) { return text.call(self, item); });
     items.slice(0, LIST_RENDER_CAP).forEach(function (item) {
       self.listEl.appendChild(build.call(self, item));
     });
@@ -1276,10 +1384,12 @@
 
   Run.prototype.filtered = function () {
     var name = String(this.nameFilter.value || '').toLowerCase();
+    var type = this.typeFilter ? this.typeFilter.value : '';
     var empty = this.valueMode.value === 'empty';
     var value = empty ? '' : String(this.valueFilter.value || '').toLowerCase();
     return this.rows.filter(function (r) {
-      return (!name || r.name.toLowerCase().indexOf(name) !== -1) &&
+      return (!type || r.spec.key === type) &&
+        (!name || r.name.toLowerCase().indexOf(name) !== -1) &&
         (empty ? r.value === '' : (!value || r.value.toLowerCase().indexOf(value) !== -1));
     });
   };
@@ -1289,6 +1399,8 @@
     var rows = this.filtered();
     this.fillList(rows, function (r) {
       return this.rowNode(r, null, { name: r.name, value: r.value });
+    }, function (r) {
+      return this.lineText(r, null, { name: r.name, value: r.value });
     });
     this.renderProgress(rows.length);
   };
@@ -1468,9 +1580,12 @@
       self.renderChanges(null, true);
       // Back to `applied` rather than to `listing`: the listing this dialog opened
       // with describes a library it has now written to twice, and re-offering Apply
-      // over it would write from a plan nobody is looking at. Rescanning is what
-      // closing and reselecting does.
-      self.changes = [];
+      // over it would write from a plan nobody is looking at. **Rescan** is the way
+      // back to a plan, and it is in the footer beside this.
+      //
+      // `changes` is kept, so Undo stays offered until the dialog closes. Pressing it
+      // again re-asserts the same before-values, which is idempotent - it was cleared
+      // here until 0.4.0, which left an undone run with Close as its only option.
       self.setState('applied');
       self.renderProgress();
     });
@@ -1542,20 +1657,36 @@
   // would be the dialog's own stalest possible claim.
   Run.prototype.renderChanges = function (planned, reversed) {
     this.fillList(this.changes, function (c) {
-      var before = c.had ? { name: c.name, value: valueText(c.before) } : null;
-      var after = c.remove ? null : { name: c.name, value: valueText(c.after) };
-      if (reversed) { var swap = before; before = after; after = swap; }
-      // The action is read off the two sides rather than off the mode, which is what
-      // makes an undo name itself correctly: reversing an Added is a Deleted.
-      var action = !before ? 'Added' : !after ? 'Deleted' : 'Replaced';
-      return this.rowNode(c, action, before, after);
+      var s = changeSides(c, reversed);
+      return this.rowNode(c, s.action, s.before, s.after);
+    }, function (c) {
+      var s = changeSides(c, reversed);
+      return this.lineText(c, s.action, s.before, s.after);
     });
+    // Counted over every change, never over the rendered rows: the listing stops at
+    // LIST_RENDER_CAP and the summary is the thing that has to be right about a write
+    // bigger than the screen.
+    var acts = tally(this.changes, function (c) { return changeSides(c, reversed).action; });
     if (planned) {
       this.msg('INFO', 'Applied "' + planned.mode + '" on field "' + planned.name + '" to ' +
-        this.changes.length + ' ' + this.noun() + '.');
+        this.changes.length + ' ' + this.noun() + ': ' + acts + '.');
     } else {
-      this.msg('INFO', 'Reversed ' + this.changes.length + ' change(s).');
+      this.msg('INFO', 'Reversed ' + this.changes.length + ' change(s): ' + acts + '.');
     }
+  };
+
+  // The counters, the [INFO]/[WARN]/[ERROR] strip and the whole listing, as one plain
+  // block. The listing comes from `listText` rather than from the DOM, so what is
+  // copied includes the lines the render cap left off the screen.
+  Run.prototype.copyLog = function () {
+    var self = this;
+    var parts = [this.progressEl.textContent || ''];
+    var kids = this.msgEl.childNodes || [];
+    for (var i = 0; i < kids.length; i++) parts.push(kids[i].textContent || '');
+    copyToClipboard(parts.concat(this.listText || []).join('\n'), function (ok) {
+      self.copyBtn.textContent = ok ? 'Copied' : 'Copy failed';
+      setTimeout(function () { self.copyBtn.textContent = 'Copy log'; }, 2000);
+    });
   };
 
   // ── Escape ────────────────────────────────────────────────────────────────

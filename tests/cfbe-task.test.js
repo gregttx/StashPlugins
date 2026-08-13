@@ -199,6 +199,31 @@ openTask()
         (one(env.body, 'cfbe-progress') || {}).textContent || ''),
       (one(env.body, 'cfbe-progress') || {}).textContent);
     h.check('nothing is written by opening it', writes(env.calls).length === 0);
+
+    // Seven types in one listing is the one thing a selection run never has, so this
+    // is the one filter that exists only here.
+    const type = one(env.body, 'cfbe-filter-type');
+    h.check('a task run offers a filter by entity type', !!type);
+    h.check('with every supported type in it, and All first',
+      !!type && type.childNodes.map((o) => o.value).join(',') ===
+        ',scenes,images,galleries,performers,groups,studios,tags',
+      type && type.childNodes.map((o) => o.value).join(','));
+    if (type) {
+      type.value = 'tags';
+      h.fire(type, 'change');
+    }
+    h.check('choosing one narrows the listing to it',
+      lines(env.body).length === 1 && /^Tag /.test(lines(env.body)[0]),
+      lines(env.body).join(' | '));
+    h.check('and the counter counts what is left showing',
+      /1 line\(s\) listed/.test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
+      (one(env.body, 'cfbe-progress') || {}).textContent);
+    if (type) {
+      type.value = '';
+      h.fire(type, 'change');
+    }
+    h.check('All puts them all back', lines(env.body).length === 3,
+      lines(env.body).join(' | '));
     return env;
   })
 

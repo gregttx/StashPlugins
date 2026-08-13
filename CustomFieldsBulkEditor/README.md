@@ -14,6 +14,23 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.4.0 — reading the listing, and getting back out of a write
+>
+> Five things the task dialog wanted once it had 155,000 entities in it:
+>
+> - **Filter by Type**, first in the filter row, on a task run only — a selection is
+>   already one type.
+> - **An `[INFO]` summary line** naming every custom field found with a count
+>   (`colour x1204, shoot x87`), and after an Apply, what happened to them
+>   (`Added x12, Replaced x5`). Counted over the whole write, not over the lines on screen.
+> - **Copy log** — the counters, the `[INFO]` lines and the whole listing as plain text,
+>   *including* the lines the 1000-line cap leaves off the screen.
+> - **Rescan**, so a finished write can be re-read without closing the dialog, and **Undo
+>   now stays offered** until you close — an undone run used to leave Close as its only button.
+> - **The listing no longer sits over the `[INFO]` lines.** The message strip could be
+>   squashed to nothing on a short window; it and the listing are now two scrollers that
+>   keep their own space.
+>
 > ## 0.3.2 — a task for the whole library
 >
 > Settings → **Tasks → Plugin Tasks** now has **Edit Custom Fields Across the Whole Library...**,
@@ -115,8 +132,10 @@ really has; names of your own containing `␀` are ordinary text and keep it.
 Selecting lines and copying them gives you **plain text** — the pills come out as the text you see,
 with no colours to paste into anything.
 
+- **Filter by Type** appears on a task run only, since a selection is one type already. It
+  narrows the listing to one of the seven; **All types** puts them back.
 - **Filter by Name** and **Filter by Value** narrow that list as you type (case-insensitive
-  substring, both applied together).
+  substring, all of them applied together).
 - The dropdown beside **Filter by Value** switches it from *contains* to **is empty**, which lists
   only the fields set to the empty string — the one thing an empty box cannot ask for, since an
   empty box means no filter. The text box greys out: the mode is the whole query. Pair it with
@@ -127,6 +146,12 @@ with no colours to paste into anything.
   selected. Use the filters to see the rest.
 - The counters above it say how many entities were read, how many carry any custom field at all,
   how many fields that is in total, and how many lines the filters leave showing.
+- Under the list, an `[INFO]` line names **every custom field found, with a count** —
+  `Custom fields found: colour x1204, shoot x87.` That is the one question a listing of
+  155,000 lines cannot answer by being scrolled. The list and these messages are separate
+  scrollers and do not fight over the space.
+- **Copy log** copies the counters, the `[INFO]` lines and the whole listing as plain text —
+  including the lines the 1000-line cap leaves off the screen.
 - Entities carrying **no** custom fields contribute no lines, but are still counted and are still
   written to.
 
@@ -168,7 +193,11 @@ Added    Scene "Rooftop" (417): ␀ ⇒ source🟰bluray
 A **Remove** reads the other way round — `Deleted … source🟰dvd ⇒ ␀` — and after an **Undo** the
 lines are shown reversed, so undoing an *Added* reads as a *Deleted*.
 
-**Cancel** becomes **Undo** and **Apply** becomes **Close**.
+An `[INFO]` line under the list totals it: `Applied "overwrite" on field "source" to 417
+scenes: Added x12, Replaced x405.` Those counts cover the whole write, not just the lines on
+screen.
+
+**Cancel** becomes **Undo** and **Apply** becomes **Close**, with **Rescan** between them.
 
 ### Undoing an Apply
 
@@ -180,7 +209,13 @@ It asks first: the first click arms the button and shows the count (*Undo 37 cha
 performs it. The arming lapses after a few seconds.
 
 It only reaches **this dialog's own writes**, and only **while the dialog stays open**. Closing the
-dialog ends it.
+dialog ends it. Nothing else does: Undo stays in the footer after you have used it (pressing it
+again just re-asserts the same values), and it survives a **Rescan**. Only a fresh **Apply**
+replaces what it will put back.
+
+**Rescan** re-reads everything in scope and lists what it carries *now*, so you can make a second
+edit without closing and reselecting. It is offered before an Apply too, if the library has moved
+under a dialog you left open.
 
 ## What it covers
 

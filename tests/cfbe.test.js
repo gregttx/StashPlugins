@@ -179,6 +179,17 @@ const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || '
 const rows = (body) => byClass(body, 'cfbe-entry');
 const lines = (body) => rows(body).map((n) => n.textContent);
 const pills = (body, kind) => byClass(body, 'cfbe-pill-' + kind);
+// The [INFO]/[WARN]/[ERROR] strip under the listing, which is a separate scroller.
+const notes = (body) => byClass(body, 'cfbe-line').map((n) => n.textContent);
+// Guarded rather than assumed, like the settings toggle below: against a build
+// missing one of these buttons a check has to report a failure, not throw and take
+// every later check in the chain with it.
+const shown = (body, cls) => {
+  const n = one(body, cls);
+  return !!n && !h.hasClass(n, 'cfbe-hidden');
+};
+const press = (body, cls) => { const n = one(body, cls); if (n) n.click(); };
+const EQ = '🟰';
 
 // ── The menu item ───────────────────────────────────────────────────────────
 
@@ -707,8 +718,12 @@ openDialog()
           { ids: ['1'], custom_fields: { partial: { colour: 'blue' } } })) &&
         payloads.some((p) => p === JSON.stringify(
           { ids: ['2'], custom_fields: { partial: { colour: 'red' } } })), payloads.join(' | '));
-      h.check('Undo is offered only once - a second reversal has nothing to reverse',
-        h.hasClass(one(env.body, 'cfbe-undo'), 'cfbe-hidden'));
+      // Until 0.4.0 the changes were cleared here, which hid Undo and left Close as
+      // the only thing in the footer. Undo now stays offered until the dialog closes
+      // - a second press re-asserts the same before-values, which is idempotent - and
+      // Rescan is beside it, which is the way back to a plan.
+      h.check('Undo stays offered after a reversal', shown(env.body, 'cfbe-undo'));
+      h.check('and Rescan is offered with it', shown(env.body, 'cfbe-rescan'));
       // The action is read off the two sides, not off the mode, which is what makes a
       // reversed line name itself: undoing what was written onto an empty field is a
       // Deleted, and undoing an overwrite is still a Replaced.
@@ -879,6 +894,64 @@ openDialog()
   .then((env) => {
     h.fire(env.document, 'keydown', { key: 'a' });
     h.check('another key leaves the dialog alone', !!one(env.body, 'cfbe-modal'));
+  })
+
+  // ── The summary line, Copy log and Rescan ─────────────────────────────────
+  //
+  // The listing says what every entity carries, one line each; none of it says what
+  // the *selection* carries. On 155,000 entities that is the only question the screen
+  // cannot answer by being scrolled, which is what the summary line is for.
+  .then(() => openDialog())
+  .then((env) => {
+    // A selection is one type by construction, so a type pulldown here would be six
+    // ways to empty the list and one to leave it alone.
+    h.check('a selection run offers no filter by entity type',
+      !one(env.body, 'cfbe-filter-type'));
+    h.check('a read ends with one INFO line naming every field found, with counts',
+      notes(env.body).some((l) => l === '[INFO] Custom fields found: colour x2, rating x1.'),
+      notes(env.body).join(' | '));
+
+    press(env.body, 'cfbe-copy');
+    return h.flush().then(() => {
+      const copied = env.copied[env.copied.length - 1] || '';
+      h.check('Copy log takes the counters, the INFO lines and the listing',
+        /3 scenes read/.test(copied) && /Custom fields found/.test(copied) &&
+        copied.indexOf('Scene "S1" (1): colour' + EQ + 'blue') !== -1, copied);
+      h.check('and the caption says it worked',
+        !!one(env.body, 'cfbe-copy') && one(env.body, 'cfbe-copy').textContent === 'Copied');
+    });
+  })
+
+  // Counted off the changes, never off the rendered rows: the listing stops at 1000
+  // lines and this is the thing that has to be right about a write bigger than that.
+  .then(() => openDialog())
+  .then((env) => {
+    one(env.body, 'cfbe-mode').value = 'overwrite';
+    one(env.body, 'cfbe-field-name').value = 'colour';
+    one(env.body, 'cfbe-field-value').value = 'green';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => {
+      h.check('the apply summary enumerates what happened, with counts',
+        notes(env.body).some((l) => /Added x1, Replaced x2\.$/.test(l)),
+        notes(env.body).join(' | '));
+
+      const before = env.calls.filter((c) => /CFBE_Read/.test(c.query || '')).length;
+      press(env.body, 'cfbe-rescan');
+      return h.flush().then(() => {
+        h.check('Rescan reads the library again',
+          env.calls.filter((c) => /CFBE_Read/.test(c.query || '')).length === before + 1);
+        h.check('and offers a fresh plan rather than the change recap',
+          shown(env.body, 'cfbe-apply'));
+        // The one thing a rescan must not quietly do: `changes` is what Undo replays,
+        // and it writes by id rather than through the entity objects just replaced.
+        h.check('with the undo from before it still offered',
+          shown(env.body, 'cfbe-undo'));
+        h.check('and the summary restated for what was just read',
+          notes(env.body).filter((l) => /Custom fields found/.test(l)).length === 2,
+          notes(env.body).join(' | '));
+      });
+    });
   })
 
   // ── The settings page ─────────────────────────────────────────────────────

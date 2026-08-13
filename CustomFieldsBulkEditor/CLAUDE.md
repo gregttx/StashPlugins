@@ -5,14 +5,16 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.1.1 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.1.2 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. What is *not* verified is still §8's table. The gallery-images gap reported 2026-08-12
-is **closed** at 0.1.1, along with three more list views that had the same cause (§2).
+is **closed** at 0.1.1, along with three more list views that had the same cause (§2); the
+undercounted tag and studio selections reported 2026-08-13 are closed at 0.1.2 (§3).
 
 0.1.0 is the settings-page description (§10) and Escape (§11), both new capability rather than
-fixes; 0.1.1 is §2's route fix. 86 automated checks cover the plugin, and the suite still reproduces
-Stash's markup **from notes** — it can only confirm the plugin is consistent with what it was told.
+fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's. 90 automated checks cover the plugin, and the
+suite still reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent
+with what it was told.
 
 **The major digit is a claim to the user that the thing works, and only a live click can support
 it.** This shipped at 1.0.0 first, on the reasoning that the feature was complete and indivisible;
@@ -96,12 +98,31 @@ The hardest part of the plugin, and the part with the least evidence behind it. 
 selection lives in React state this plugin cannot reach, so it is read off the DOM: a **checked
 checkbox** says a row is selected, and the row's own **detail link** says which entity that is.
 
-**More than one distinct id under an ancestor means it is not a row.** `rowEntityId` climbs from the
-checkbox and stops at the first ancestor that links anywhere; one id is the answer, more than one is
-a refusal. This is not tidiness — a table view's **select-all** checkbox sits in the header, whose
+**More than one distinct id under an ancestor that is not a row means it is a container.**
+`rowEntityId` climbs from the checkbox and stops at the first ancestor that links anywhere; one id is
+the answer. This is not tidiness — a table view's **select-all** checkbox sits in the header, whose
 nearest linking ancestor is the whole table, so accepting a multi-id answer would silently widen
 every write to the entire list. A card that links to itself twice (its image and its title) still
 gives one id, which is why the rule is "one *distinct* id" rather than "one link".
+
+**But a row can carry a second id of its own type, and 0.1.2 is what that cost.** Reported live:
+selecting 1783 tags produced 583, and 1000 studios produced 562, while scenes, groups and performers
+were exact. The cause is in `TagCard.tsx` and `StudioCard.tsx` (and both list tables): a tag names
+its **parent tag** and a studio its **parent studio**, as a link of the same type the route matches
+— so every tag and studio with a parent was a two-id answer, and every one of them was refused. Two
+thirds of a real tag list, silently absent from a selection the user had just made.
+
+**The row's own id is the one it links *twice*.** `GridCard` renders `CardNavLink` at `props.url`
+for both the thumbnail and the title, and `TagListTable`/`StudioListTable` do the same with the
+image cell and the name cell; a parent gets exactly one link in either view. So a multi-id answer is
+resolved by taking the id with **strictly** the most links, and a tie is still a refusal.
+
+**That tie-break is applied only inside a row** — `<tr>`, or a `grid-card` class, both read off
+`stashapp/stash` `develop` on 2026-08-13. Counting links across a *container* would resolve a
+select-all in a studio list to a single studio, because a studio that is the parent of many others is
+linked more than any other id in that table. The multi-id refusal is what protects the whole list
+from a select-all, and the tie-break must not be able to reach it; `tests/cfbe.test.js` drives
+exactly that table.
 
 **The route filters which links count.** A scene card also links to its studio and its performers;
 `spec.route` is the type's own pattern, so only the card's own links match. Two signals — the route
@@ -266,7 +287,10 @@ lines come from the tick.
   *not* found in a dropdown that is neither, refused for a table's select-all checkbox, refused on
   the marker list and on a detail page, offered on a list nested under another entity, offered on
   each of the five routes whose URL does not name what they list and refused on an unrelated
-  `/add`, and not confused by a card's links to other entity types. The dialog: the head, the legend, one aliased
+  `/add`, not confused by a card's links to other entity types, and — since 0.1.2 — still reading a
+  card that links to its own parent (the id it links twice wins), while refusing a row whose links
+  are evenly split and refusing a select-all over a table where one id happens to be linked most.
+  The dialog: the head, the legend, one aliased
   by-id query for the whole selection, the listing's shape and order, an entity with no fields
   contributing no line, the counters, both filters, Apply held back until a field name is given, and
   no mutation before it. Then each mode's write — Add skipping what already has the key, Overwrite
@@ -290,10 +314,11 @@ lines come from the tick.
   the description rules in full, plus the check that a plugin declaring no settings styles no
   setting rows.
 
-**Every check was confirmed against a deliberately broken copy before being trusted** — six
+**Every check was confirmed against a deliberately broken copy before being trusted** — eight
 mutants: a container's many ids taken as a row, Add not refusing an existing key, the lease not
-taken, `listType` matching by prefix instead of by last segment, Undo writing one flat batch, and
-`undoing` not counting as applied for the footer. Each fails exactly the checks written for it. Use
+taken, `listType` matching by prefix instead of by last segment, Undo writing one flat batch,
+`undoing` not counting as applied for the footer, the most-linked tie-break accepting a tie, and the
+same tie-break applied outside a row. Each fails exactly the checks written for it. Use
 `SRC=/path/to/mutant.js node tests/cfbe.test.js`.
 
 What they cannot cover: §8. The suite reproduces Stash's list markup from notes, so it proves the

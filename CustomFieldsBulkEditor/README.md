@@ -14,14 +14,21 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
-> ## 0.1.1 — in use, with the gallery gap closed
+> ## 0.1.2 — in use, with the whole selection now counted
 >
 > The version number is the honest one. The plugin works in a real Stash — the menu item, the dialog
-> and the write have all been exercised. 0.1.1 fixes the one list view that was known not to offer
-> the menu, **a gallery's own Images tab**, along with three more that had the same cause and had not
-> been noticed: a gallery's **Add Images**, a group's **Sub-Groups**, a studio's **Child Studios**
-> and a performer's **Appears With**. Their URLs do not name what they list, and the plugin read the
-> URL. See [troubleshooting](#troubleshooting) if a list still comes up empty-handed.
+> and the write have all been exercised. **0.1.2 fixes a selection being read short on the tag and
+> studio lists**: a tag card names its parent tag and a studio card its parent studio, and the plugin
+> could not tell that second link from the card's own, so it skipped the card entirely. Every tag or
+> studio *with a parent* was silently missing — 1783 tags selected came through as 583. Scenes,
+> images, galleries, performers and groups were never affected. **Check the count in the dialog's
+> title against what the list says you selected**, and report it if they still disagree.
+>
+> 0.1.1 fixed the one list view that was known not to offer the menu, **a gallery's own Images tab**,
+> along with three more that had the same cause and had not been noticed: a gallery's
+> **Add Images**, a group's **Sub-Groups**, a studio's **Child Studios** and a performer's
+> **Appears With**. Their URLs do not name what they list, and the plugin read the URL. See
+> [troubleshooting](#troubleshooting) if a list still comes up empty-handed.
 >
 > It will reach 1.0.0 once the rest has been walked through in a live instance, not before.
 
@@ -146,6 +153,12 @@ on the next tick. Set it back to `false` to stop.
 If it says **not a list view** on a page that plainly is one, that is the bug 0.1.1 fixed for four of
 them: the plugin works out what a list holds from the URL, and a few of Stash's lists live at a URL
 that names something else. Report the page's address (the `/…` part) and it can be added.
+
+**If the dialog's title counts fewer than you selected**, the plugin is failing to recognise some of
+the rows. It reads the selection off the page — a ticked checkbox, and the row's own link back to
+itself — so a card laid out in a way it does not expect is skipped rather than guessed at. That is
+what 0.1.2 fixed for tags and studios, whose cards also link to their parent. Report which list, and
+the two numbers.
 
 **The version in the settings page is not the one the console printed.** The settings page reads the
 manifest, which goes current the moment plugins are reloaded; the console line comes from inside the

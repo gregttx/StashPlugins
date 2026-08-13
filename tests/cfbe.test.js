@@ -288,6 +288,61 @@ m9.tick();
 h.check('a card links to other entities too and only its own type counts',
   menuItems(m9.body).length === 1);
 
+// A card that links to a relative of its *own* type: a tag card names its parent tag
+// and a studio card its parent studio, so a bare "one distinct id" rule dropped every
+// tag and studio that has a parent - two thirds of a real tag list. The row's own link
+// is the one it renders twice (thumbnail and title); the parent gets one.
+const m10 = start({ pathname: '/tags' });
+mountMenu(m10.body);
+const card10 = mountCard(m10.body, 'tags', '7', true);
+const parent10 = h.makeElement('a');
+parent10.setAttribute('href', '/tags/2');
+card10.appendChild(parent10);
+const card10b = mountCard(m10.body, 'tags', '9', true);
+const parent10b = h.makeElement('a');
+parent10b.setAttribute('href', '/tags/7');
+card10b.appendChild(parent10b);
+m10.tick();
+h.check('a card linking to its parent of the same type is still selected',
+  menuItems(m10.body).length === 1);
+h.check('and it is the card own id that is selected, not the parent it names',
+  (menuItems(m10.body)[0] || {})._cfbeKey === 'tags:7,9',
+  (menuItems(m10.body)[0] || {})._cfbeKey);
+
+// The refusal that rule exists for is unchanged, and a row whose links are genuinely
+// ambiguous - no id linked more than any other - is still refused rather than guessed.
+const m11 = start({ pathname: '/tags' });
+mountMenu(m11.body);
+const card11 = mountCard(m11.body, 'tags', '7', true);
+[...card11.childNodes].forEach((n) => {
+  if (n.tagName === 'A' && n.getAttribute('href') === '/tags/7') card11.removeChild(n);
+});
+const tie11 = h.makeElement('a');
+tie11.setAttribute('href', '/tags/7');
+card11.appendChild(tie11);
+const tie11b = h.makeElement('a');
+tie11b.setAttribute('href', '/tags/2');
+card11.appendChild(tie11b);
+m11.tick();
+h.check('a row linking to two entities equally often is still refused',
+  menuItems(m11.body).length === 0);
+
+// And the most-linked rule is only ever applied *within a row*. A select-all header
+// resolves to the whole table, and in a studio list one studio is the parent of many
+// others - so it is linked more than any other id there. Counting links outside a row
+// would read that as "one studio selected" off a select-all.
+const m12 = start({ pathname: '/studios' });
+mountMenu(m12.body);
+const table12 = mountTable(m12.body, 'studios', ['1', '2', '3']);
+['2', '3'].forEach(() => {
+  const a = h.makeElement('a');
+  a.setAttribute('href', '/studios/1');
+  table12.appendChild(a);
+});
+m12.tick();
+h.check('a select-all is not resolved by counting links across the table',
+  menuItems(m12.body).length === 0);
+
 // ── The dialog ──────────────────────────────────────────────────────────────
 
 function openDialog(opts) {

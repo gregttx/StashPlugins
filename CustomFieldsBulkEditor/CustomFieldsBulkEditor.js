@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.1.1';
+  var PLUGIN_VERSION = '0.1.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -433,37 +433,66 @@
     });
   }
 
-  // Every distinct id of this type linked to from inside `node`. One is a row; more
-  // than one means the walk has climbed past the row into a container.
+  // Every distinct id of this type linked to from inside `node`, with how many links
+  // point at each, in first-seen order. One id is a row; more than one is either a
+  // container, or a row that links to a relative of its own type.
   function idsUnder(node, spec) {
     var seen = {};
     var out = [];
     collect(node, function (n) {
       if (n.tagName !== 'A' || !n.getAttribute) return false;
       var m = spec.route.exec(n.getAttribute('href') || '');
-      if (m && !hasOwn(seen, m[1])) { seen[m[1]] = true; out.push(m[1]); }
+      if (m) {
+        if (!hasOwn(seen, m[1])) { seen[m[1]] = { id: m[1], links: 0 }; out.push(seen[m[1]]); }
+        seen[m[1]].links++;
+      }
       return false;
     });
     return out;
   }
 
+  // A single row, as opposed to a container of them: `GridCard` puts `grid-card` on
+  // every card in every list view, and a table view's rows are `<tr>`. Both read off
+  // stashapp/stash `develop`, 2026-08-13.
+  function isRow(node) {
+    if (node.tagName === 'TR') return true;
+    return /(^|\s)grid-card(\s|$)/.test(String(node.className || ''));
+  }
+
   // A checked checkbox says "this row is selected"; the row's own detail link says
   // which entity that is. Climb from the box until an ancestor links somewhere.
   //
-  // **More than one id means this is not a row.** A table view's select-all box sits
-  // in the header, whose only ancestor carrying links is the whole table - so it
-  // resolves to every id on the page, and taking that as a selection would silently
-  // widen a write to the entire list. One distinct id is the only answer accepted;
-  // a card that links to itself twice (its image and its title) still gives one.
+  // **More than one id in something that is not a row means it is a container.** A
+  // table view's select-all box sits in the header, whose only ancestor carrying links
+  // is the whole table - so it resolves to every id on the page, and taking that as a
+  // selection would silently widen a write to the entire list.
+  //
+  // **Inside a row, more than one id means a relative of the same type**, which is why
+  // 0.1.2 exists: a tag card links to its parent tag and a studio card to its parent
+  // studio, so every tag and studio with a parent was being dropped from the selection.
+  // The row's own link is the one it renders *twice* - `GridCard` links both the
+  // thumbnail and the title at it, and both list tables do the same - while a relative
+  // gets exactly one. So the id with strictly the most links wins, and a tie is still a
+  // refusal.
   function rowEntityId(box, spec) {
     var n = box.parentNode;
     for (var depth = 0; n && depth < ROW_WALK_MAX; depth++) {
-      var ids = idsUnder(n, spec);
-      if (ids.length === 1) return ids[0];
-      if (ids.length > 1) return null;
+      var found = idsUnder(n, spec);
+      if (found.length === 1) return found[0].id;
+      if (found.length > 1) return isRow(n) ? dominantId(found) : null;
       n = n.parentNode;
     }
     return null;
+  }
+
+  function dominantId(found) {
+    var best = found[0];
+    var tied = false;
+    for (var i = 1; i < found.length; i++) {
+      if (found[i].links > best.links) { best = found[i]; tied = false; }
+      else if (found[i].links === best.links) tied = true;
+    }
+    return tied ? null : best.id;
   }
 
   function selectedIds(type) {

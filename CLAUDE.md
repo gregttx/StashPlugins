@@ -741,6 +741,25 @@ name them.
 **Match the whole path, not the tail.** `add` on its own is far too common a segment to map to an
 entity type on sight.
 
+## Reference: a row links to its own entity twice, and sometimes to a relative once
+
+Read off `stashapp/stash` `develop`, 2026-08-13, when `CustomFieldsBulkEditor` 0.1.2 fixed a
+selection being read short. Any plugin here that turns a selected row back into an id needs this.
+
+**`GridCard` links the row's own entity twice** — `CardNavLink` at `props.url` wraps the thumbnail,
+and a second one wraps the title — and every card in every list view is a `GridCard` (`grid-card`,
+beside the type's own class). `TagListTable` and `StudioListTable` do the same with the image cell
+and the name cell, in `<tr>`.
+
+**Some rows also link to a relative of their own type, exactly once**: a tag card names its parent
+tag, a studio card its parent studio, both as `/tags/<id>` and `/studios/<id>` — indistinguishable
+from the row's own link by URL shape. Scene, image, gallery, performer and group rows have no such
+link, which is why the bug looked like it was about two entity types rather than about rows.
+
+So **the count is the signal**: within one row, the id with strictly the most links is the row's
+own. **Only within one row** — across a container, a studio that is the parent of many others is the
+most-linked id in the whole table, so counting there would resolve a select-all to one studio.
+
 ## Reference: custom fields in Stash
 
 Findings from reading `stashapp/stash` `graphql/schema/types/*` on `main`, 2026-08-04. Verify

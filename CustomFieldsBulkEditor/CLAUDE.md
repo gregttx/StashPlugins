@@ -7,9 +7,9 @@ reasoning that does not belong in either.
 
 **Status: 0.2.5 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
-being used. What is *not* verified is still §8's table, and now also the pills (§5a) — requested
-from live use, and already the subject of two reports, the second of which is what found the right
-cause. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
+being used. What is *not* verified is still §8's table. The pills (§5a) and the
+value filter's "is empty" mode (§5b) **are** — both requested from live use and confirmed working
+there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
 2026-08-13 are closed at 0.1.2 (§3).
 

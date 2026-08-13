@@ -5,9 +5,10 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.2.5 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.3.0 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
-being used. What is *not* verified is still §8's table. The pills (§5a) and the
+being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
+what is *not* verified is the table view, an aliased route, an Apply, and all of §12. The pills (§5a) and the
 value filter's "is empty" mode (§5b) **are** — both requested from live use and confirmed working
 there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
@@ -16,8 +17,8 @@ list views that had the same cause (§2); the undercounted tag and studio select
 0.1.0 is the settings-page description (§10) and Escape (§11), both new capability rather than
 fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (§5a), and
 0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b), which 0.2.5
-had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all.
-123 automated checks cover the plugin, and the suite still
+had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
+0.3.0 is the library-wide task (§12). 156 automated checks cover the plugin, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -27,10 +28,11 @@ that reasoning is about the *code*, and the digit is about the *user*. See "A ne
 0.0.1" in the repo-root `CLAUDE.md`. From here: a patch per fix, a minor per verified capability,
 1.0.0 when §8's table has been walked in a real Stash.
 
-**It is the smallest plugin here by a wide margin, and that is the design.** No settings, no tasks,
-no automatic mode, no fetch wrapper. It has one entry point that *does* anything, and until the user
-opens a menu it does nothing but tick. Since 0.1.0 it also decorates its own block on the settings
-page (§10), which is presentation rather than a second entry point.
+**It is the smallest plugin here by a wide margin, and that is the design.** No settings, no
+automatic mode, no fetch wrapper. Two entry points that *do* anything since 0.3.0 — the list-view
+menu item and the task button (§12) — and both open the same dialog; until one is clicked it does
+nothing but tick. Since 0.1.0 it also decorates its own block on the settings page (§10), which is
+presentation rather than a third entry point.
 
 ---
 
@@ -433,11 +435,25 @@ lines come from the tick.
   listing and takes its `document` handler with it, does nothing at all while a write is in flight
   (with the footer state that makes that true asserted alongside it, or the check would pass for the
   wrong reason), and ignores every other key.
+- **`cfbe-task.test.js`** — the library-wide task (§12), and only what changes when a run has no
+  type of its own. The button: repainted amber, another plugin's identically labelled one left
+  grey, the paint idempotent across ticks, and a click on theirs neither opening our dialog nor
+  being interfered with. The click: `preventDefault` *and* `stopPropagation`, and nothing resembling
+  `runPluginTask` reaching the server. The read: one query per type, seven of them, each asking
+  `per_page: -1`, with `findGalleries { galleries }` pinning that the query name and its result
+  field are both derived from the plural. The dialog: a head naming the library rather than a
+  selection, one listing holding three types with each line naming its own, entity pills linking to
+  the right type per row, and counters that count entities. The write: scenes in one bulk mutation,
+  performers in their own, studios and tags one at a time, and no type's ids ever handed to another
+  type's mutation — the same assertion again for Undo. The filtered scope with scene 1, performer 1
+  and tag 1 all present, which is the check that pins type-plus-id keying. One type refusing its
+  read reported while the other six still list. And the group on the Tasks page left undecorated,
+  which is §12's bug.
 - **`style.test.js`** — the CSS this plugin shares with its three siblings: the dialog chrome and
   the description rules in full, plus the check that a plugin declaring no settings styles no
   setting rows.
 
-**Every check was confirmed against a deliberately broken copy before being trusted** — eight
+**Every check was confirmed against a deliberately broken copy before being trusted** — eleven
 mutants: a container's many ids taken as a row, Add not refusing an existing key, the lease not
 taken, `listType` matching by prefix instead of by last segment, Undo writing one flat batch,
 `undoing` not counting as applied for the footer, the most-linked tie-break accepting a tie, and the
@@ -495,3 +511,54 @@ Escape closes the dialog by clicking whichever of Cancel/Close the footer is cur
 does nothing when neither is available — mid-write, both are hidden and Stop is the dialog's only
 way out. The mechanism is shared with all three siblings and written up in the repo-root CLAUDE.md;
 this plugin's copy is byte-identical apart from the `cfbe-hidden` class name.
+
+## 12. The library-wide task (0.3.0)
+
+Requested directly: "a task to bulk edit all entities that support it, using a similar dialog".
+It is the *same* dialog, not a similar one — the whole design is that a run with no entity type of
+its own is still a `Run`.
+
+**One flag, seven specs.** `Run(type, ids)` with both null is the task: `this.spec` is null and
+`this.specs` is all seven. Everything that used to read `this.spec` now reads the spec of the
+**entity in front of it** — `loadChunk` and `loadAll` both stamp `spec` on every entity, rows and
+changes carry it forward, and `rowNode` prints `r.spec.label`. `this.spec` survives only where the
+question really is about the *run*: the head, the counters' noun (`noun()`), and the by-id read
+path a selection uses.
+
+**The read is one query per type with `per_page: -1`.** The by-id batching a selection uses cannot
+express "everything" — it needs the ids first, and the task has none. `find<Plural>` and the list
+field inside it are both derivable from `plural`/`key` for all seven, so neither needed a column in
+`ENTITIES`; if a future Stash breaks that for one type, give *that* spec an explicit field rather
+than teaching `loadAll` about exceptions. Failures are per type, so one refused query leaves the
+other six listed with a line saying which is missing — silently showing six sevenths of a library
+and calling it the library is the outcome worth avoiding.
+
+**Two places had to learn that an id is only unique within a type**, and both were correct before
+only because a run held one type:
+
+- `plan()`'s *Filtered list only* scope keyed `keep` by id, so a filtered scene 5 dragged tag 5 into
+  the write with it. Now keyed `spec.key + ':' + id`.
+- `apply()` and `undo()` built one batch of ids; the mutation is per type, and five of the seven
+  take a bulk update while two do not. Both now group by type first, and `runWrites` reads the
+  chunk size off each batch's own spec — so a task's studios go one at a time while its scenes go a
+  hundred at a time, in one pass.
+
+**The click is intercepted, never served.** A capture-phase listener on `document` matches the
+button by label *and* by the heading of its own `setting-group`, then `preventDefault` +
+`stopPropagation`. `MergePerformerTagsToScenes` has a second layer answering the `runPluginTask`
+mutation inside a `fetch` wrapper it already owns for auto-merge; this plugin has no wrapper, gains
+nothing else from one, and the failure the layer covers is visible and harmless — no dialog opens
+and Stash queues a job that does nothing. **Add the second layer if that is ever seen, not before.**
+
+**The bug this found before a live run: `settingsTick` was decorating the Tasks page.** Settings →
+Tasks renders a group headed with the plugin name too, and the heading is the *only* anchor this
+plugin has (§10). So `ownSettingGroup` matched it, `readmeLinkSlot` fell through its
+no-`.sub-heading` fallbacks to the header box, and the README link landed **inside the h3** — the
+same text `ownTaskName` reads. One tick after the page loaded, the task button would have stopped
+being ours. The guard is structural, not a route check: a group with no description has nothing
+here to do, and `?tab=` is Stash's to rename. The fallbacks that reached the heading are gone with
+the case that reached them.
+
+**No type picker, deliberately.** The task's scope is the library; per-type work is what the
+list-view menu item already does, on a list the user has already narrowed with Stash's own filters.
+If one is ever wanted, it is a third `<select>` beside Operation and Apply-to, not a second dialog.

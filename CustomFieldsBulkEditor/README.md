@@ -14,6 +14,13 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.3.0 — a task for the whole library
+>
+> Settings → **Tasks → Plugin Tasks** now has **Edit Custom Fields Across the Whole Library...**,
+> which opens the same dialog over every Scene, Image, Gallery, Performer, Studio, Group and Tag
+> you have, instead of over a selection. Same listing, same filters, same Apply and Undo — each
+> line names its own type, since there are seven of them in there at once.
+>
 > ## 0.2.5 — finding the empty ones
 >
 > The version number is the honest one. The plugin works in a real Stash — the menu item, the dialog
@@ -52,11 +59,13 @@
 
 Stash stores custom fields on seven kinds of entity and lets you edit them **one record at a time**.
 Its API has no such limit. This plugin adds the two things that are missing: a **view** of what a
-whole selection carries, and **one write across it**.
+whole selection — or the whole library — carries, and **one write across it**.
 
 ---
 
 ## Using it
+
+**Two ways in.** For a selection:
 
 1. Open any list view — Scenes, Images, Galleries, Performers, Studios, Groups or Tags — and
    **select some entities**.
@@ -64,11 +73,17 @@ whole selection carries, and **one write across it**.
 3. Pick **Custom Fields...** — the last item in the menu. It only appears while something is
    selected.
 
+For the whole library, go to **Settings → Tasks → Plugin Tasks** and press
+**Edit Custom Fields Across the Whole Library...** — the amber button under this plugin's name. It
+opens the same dialog on everything, with no selecting to do. Reading a large library takes a
+moment; the counter counts up as each type answers.
+
 **Press Escape** at any point to close the dialog, exactly as Cancel or Close would. While a write
 is actually in flight it does nothing — there is no Cancel to reach at that moment, and Stop is not
 something a stray keypress should do.
 
-The dialog opens on what your selection carries **now**:
+The dialog opens on what the entities in scope carry **now**. On a task run every line names its
+own type, because seven of them share the listing:
 
 ```
 Scene "Beach Day" (412): shoot🟰2019-07
@@ -115,7 +130,7 @@ Below the list:
 | **Operation** — Add *(default)* | Sets the field **only where it is missing**. Existing values are left alone. |
 | **Operation** — Overwrite | Sets the field on **every** entity in scope, replacing whatever was there. |
 | **Operation** — Remove | Deletes the field from every entity in scope that has it. |
-| **Apply to** — All *(default)* | Every entity you selected. |
+| **Apply to** — All *(default)* | Every entity in scope: what you selected, or the whole library on a task run. |
 | **Apply to** — Filtered list only | Only the entities still showing in the filtered list. |
 | **Custom Field name** | Required. **Apply** stays disabled until it is filled in. |
 | **Custom Field value** | May be empty — an empty string is a value like any other. Ignored by Remove. |

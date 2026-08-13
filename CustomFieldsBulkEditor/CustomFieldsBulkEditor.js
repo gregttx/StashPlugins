@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.2.5';
+  var PLUGIN_VERSION = '0.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -668,20 +668,97 @@
     menu.appendChild(item);
   }
 
+  // ── The library-wide task ─────────────────────────────────────────────────
+  //
+  // Declared in the yml so Stash renders a button for it in Settings → Tasks, and
+  // handled entirely here: the click never reaches the server, because there is no
+  // `exec` behind it and nothing server-side to run. A capture-phase listener on
+  // `document` runs before React's own handler and stops the propagation, which is
+  // what keeps PluginTasks' "added job to queue" toast from appearing over a dialog
+  // that is already open.
+  //
+  // **One layer, where `MergePerformerTagsToScenes` has two.** Its second layer
+  // answers the `runPluginTask` mutation inside a `fetch` wrapper it already has for
+  // auto-merge. This plugin has no wrapper and gains nothing else from one, and the
+  // failure it would cover is visible and harmless: if the click is not recognised,
+  // no dialog opens and Stash queues a job that does nothing. Add the second layer if
+  // that is ever seen, not before.
+  var TASK_NAME = 'Edit Custom Fields Across the Whole Library...';
+
+  // Ours only if the label matches *and* the enclosing SettingGroup is headed with
+  // our name - another plugin may declare a task called the same thing. Answered from
+  // the button's own group and stopped there: climbing past it reaches the panel
+  // holding every plugin's group, where `querySelector('h3')` answers with whichever
+  // plugin is listed first (§ownTaskName in MergePerformerTagsToScenes, 1.17.0).
+  function ownTaskName(btn) {
+    if (String(btn.textContent || '').replace(/^\s+|\s+$/g, '') !== TASK_NAME) return null;
+    var node = btn;
+    var fallback = null;
+    for (var depth = 0; node && depth < 8; depth++, node = node.parentElement) {
+      var heading = node.querySelector ? node.querySelector('h3') : null;
+      var ours = !!heading && headingIsOurs(heading.textContent);
+      if (hasClass(node, 'setting-group')) return ours ? TASK_NAME : null;
+      if (ours) fallback = TASK_NAME;
+    }
+    return fallback;
+  }
+
+  // `btn-warning` is deliberately not in the strip list - it is what we add, and the
+  // guard in `paintButton` returns before any of this once it is there.
+  var BTN_VARIANTS = /\bbtn-(secondary|primary|success|info|light|dark|link)\b/g;
+
+  function paintButton(btn, variant) {
+    if (hasClass(btn, variant)) return;                        // already ours
+    var cls = String(btn.className || '').replace(BTN_VARIANTS, '');
+    btn.className = cls.replace(/\s+/g, ' ').replace(/^ | $/g, '') + ' ' + variant;
+  }
+
+  // Re-applied every tick rather than once: React re-renders this panel and hands
+  // back a button with Stash's own classes, and `paintButton` is a no-op on one that
+  // still carries ours.
+  function paintTaskButtons() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('button') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (ownTaskName(nodes[i])) paintButton(nodes[i], PLUGIN_BTN_VARIANT);
+    }
+  }
+
+  if (document.addEventListener) {
+    document.addEventListener('click', function (event) {
+      var target = event.target;
+      var btn = target && target.closest ? target.closest('button') : null;
+      if (!btn || !ownTaskName(btn)) return;
+      if (event.preventDefault) event.preventDefault();
+      if (event.stopPropagation) event.stopPropagation();
+      startRun(null, null);
+    }, true);
+  }
+
   // ── The dialog ────────────────────────────────────────────────────────────
 
   var _active = null;
 
+  // `type` names one of the seven and `ids` is what was selected; both null is the
+  // task, which walks every type instead. The dialog is the same object either way -
+  // the difference lives in `specs`, and in every entity carrying the spec it came
+  // from rather than the run holding one for all of them.
   function startRun(type, ids) {
     if (_active) { _active.focus(); return; }
     _active = new Run(type, ids);
     _active.begin();
   }
 
+  function allSpecs() {
+    var out = [];
+    for (var k in ENTITIES) { if (hasOwn(ENTITIES, k)) out.push(ENTITIES[k]); }
+    return out;
+  }
+
   function Run(type, ids) {
     this.type = type;
-    this.spec = ENTITIES[type];
-    this.ids = ids;
+    this.spec = type ? ENTITIES[type] : null;   // null: the whole library, every type
+    this.specs = type ? [ENTITIES[type]] : allSpecs();
+    this.ids = ids || [];
     // { id, label, fields } per entity that still exists, in selection order.
     this.entities = [];
     // The listing, flattened: one per (entity, custom field).
@@ -710,8 +787,9 @@
 
     var head = el('div', 'cfbe-head');
     // A plain block, so a title too long for one line wraps rather than being clipped.
-    head.appendChild(el('div', 'cfbe-title', PLUGIN_SHORT_NAME + ' - ' + this.spec.plural +
-      ' - ' + this.ids.length + ' selected'));
+    head.appendChild(el('div', 'cfbe-title', PLUGIN_SHORT_NAME + ' - ' + (this.spec
+      ? this.spec.plural + ' - ' + this.ids.length + ' selected'
+      : 'Whole library - every entity type that carries custom fields')));
     head.appendChild(el('div', 'cfbe-warn',
       'Backing up your database before proceeding is recommended. Apply rewrites one custom field across every ' +
       'entity in scope, and Undo reverses only what this dialog wrote, only while it stays ' +
@@ -955,6 +1033,11 @@
   // seven different filter inputs.
   Run.prototype.load = function () {
     var self = this;
+    if (!this.spec) {
+      return this.specs.reduce(function (p, spec) {
+        return p.then(function () { return self.loadAll(spec); });
+      }, Promise.resolve());
+    }
     var chunks = [];
     for (var i = 0; i < this.ids.length; i += CHUNK_SIZE) {
       chunks.push(this.ids.slice(i, i + CHUNK_SIZE));
@@ -978,10 +1061,43 @@
         // than silently dropped: the count in the head came from the selection.
         if (!ent) { self.msg('WARN', spec.label + ' ' + id + ' no longer exists.'); return; }
         self.entities.push({
-          id: String(ent.id), display: displayName(ent) || 'untitled',
+          spec: spec, id: String(ent.id), display: displayName(ent) || 'untitled',
           fields: ent.custom_fields || {},
         });
       });
+    });
+  };
+
+  // The task's read: one query per type, all of it in one round trip. `per_page: -1`
+  // is the repo's convention for "everything", and it is what the by-id batching above
+  // cannot express - that one needs the ids first, and the task has none.
+  //
+  // **The query name and the field it returns are both derivable.** `find<Plural>`
+  // for all seven, and the list inside it is named by the same plural segment the
+  // table is already keyed on - so neither needs a column of its own. If a future
+  // Stash breaks that pattern for one type, give that spec an explicit field rather
+  // than teaching this function about exceptions.
+  //
+  // Failures are per type: a Stash that refuses one query still lists the other six,
+  // with a line saying which one is missing. Silently showing six sevenths of a
+  // library and calling it the library is the outcome worth avoiding.
+  Run.prototype.loadAll = function (spec) {
+    var self = this;
+    var query = 'find' + spec.plural;
+    return gqlRequest('query CFBE_ReadAll { ' + query + '(filter: { per_page: -1 }) { ' +
+      spec.key + ' { id ' + spec.fields + ' custom_fields } } }', null).then(function (data) {
+      var list = (data && data[query] && data[query][spec.key]) || [];
+      list.forEach(function (ent) {
+        self.entities.push({
+          spec: spec, id: String(ent.id), display: displayName(ent) || 'untitled',
+          fields: ent.custom_fields || {},
+        });
+      });
+      self.renderProgress();
+    }, function (e) {
+      self.msg('ERROR', 'Reading ' + spec.plural.toLowerCase() + ' failed: ' +
+        (e && e.message ? e.message : String(e)) + ' They are not in this listing, ' +
+        'and nothing here will write to them.');
     });
   };
 
@@ -994,7 +1110,8 @@
       for (var k in e.fields) { if (hasOwn(e.fields, k)) names.push(k); }
       names.sort();
       names.forEach(function (k) {
-        rows.push({ id: e.id, display: e.display, name: k, value: valueText(e.fields[k]) });
+        rows.push({ spec: e.spec, id: e.id, display: e.display,
+          name: k, value: valueText(e.fields[k]) });
       });
     });
     this.rows = rows;
@@ -1099,8 +1216,11 @@
       row.appendChild(pill('act', action));
       row.appendChild(textNode(' '));
     }
-    row.appendChild(textNode(this.spec.label + ' '));
-    row.appendChild(entityPill(this.spec, r.id, r.display));
+    // The row's own spec, not the run's: a task run has seven types in one listing,
+    // and the type word in front of a line is the only thing that says which.
+    var spec = r.spec || this.spec;
+    row.appendChild(textNode(spec.label + ' '));
+    row.appendChild(entityPill(spec, r.id, r.display));
     row.appendChild(textNode(': '));
     appendField(row, before);
     if (action) {
@@ -1144,6 +1264,12 @@
     this.renderProgress(rows.length);
   };
 
+  // What to call the things in scope. A selection run knows its one type; the task
+  // has seven and calls them entities, which is also what the counters say.
+  Run.prototype.noun = function () {
+    return this.spec ? this.spec.plural.toLowerCase() : 'entities';
+  };
+
   Run.prototype.renderProgress = function (listed) {
     var withFields = this.entities.filter(function (e) {
       for (var k in e.fields) { if (hasOwn(e.fields, k)) return true; }
@@ -1152,7 +1278,11 @@
 
     var summary;
     if (this.state === 'loading') {
-      summary = 'Loading. ' + this.entities.length + ' of ' + this.ids.length + ' read';
+      // The task has no denominator until every type has answered, so it counts up
+      // rather than towards - and names the type it is on, since one of the seven can
+      // be most of the wait on a large library.
+      summary = 'Loading. ' + this.entities.length +
+        (this.spec ? ' of ' + this.ids.length + ' read' : ' read so far');
     } else if (this.state === 'applying') {
       summary = 'Applying. ' + this.applied + ' of ' + this.changes.length + ' entity change(s) written';
     } else if (this.state === 'undoing') {
@@ -1162,7 +1292,7 @@
         (this.failed ? ', ' + this.failed + ' failed' : '') +
         (this.undone ? ', ' + this.undone + ' reversed by Undo' : '');
     } else {
-      summary = this.entities.length + ' ' + this.spec.plural.toLowerCase() + ' read, ' +
+      summary = this.entities.length + ' ' + this.noun() + ' read, ' +
         withFields + ' with custom fields, ' + this.rows.length + ' field(s) in total, ' +
         (listed == null ? this.rows.length : listed) + ' line(s) listed';
     }
@@ -1183,9 +1313,12 @@
 
     var scope = this.entities;
     if (this.scopeSel.value === 'filtered') {
+      // Keyed by type *and* id: ids are only unique within a type, and a task run has
+      // all seven in one listing - so a filtered scene 5 would otherwise carry tag 5
+      // into the write with it.
       var keep = {};
-      this.filtered().forEach(function (r) { keep[r.id] = true; });
-      scope = scope.filter(function (e) { return hasOwn(keep, e.id); });
+      this.filtered().forEach(function (r) { keep[r.spec.key + ':' + r.id] = true; });
+      scope = scope.filter(function (e) { return hasOwn(keep, e.spec.key + ':' + e.id); });
     }
 
     var changes = [];
@@ -1197,7 +1330,7 @@
       // Nothing to write where the value is already exactly what was asked for.
       if (mode !== 'remove' && has && valueText(e.fields[name]) === value) return;
       changes.push({
-        id: e.id, display: e.display, entity: e, name: name,
+        spec: e.spec, id: e.id, display: e.display, entity: e, name: name,
         had: has, before: has ? e.fields[name] : null, after: after, remove: mode === 'remove',
       });
     });
@@ -1208,7 +1341,7 @@
     var self = this;
     var planned = this.plan();
     if (!planned.changes.length) {
-      this.msg('INFO', 'Nothing to change: no ' + this.spec.plural.toLowerCase() +
+      this.msg('INFO', 'Nothing to change: no ' + this.noun() +
         ' in scope need "' + planned.name + '" ' +
         (planned.mode === 'remove' ? 'removed.' : 'set to that value.'));
       return;
@@ -1228,10 +1361,21 @@
       ? { remove: [planned.name] }
       : (function () { var p = {}; p[planned.name] = planned.value; return { partial: p }; })();
 
-    var ids = planned.changes.map(function (c) { return c.id; });
+    // One batch per entity type, because the mutation is per type: five of the seven
+    // take a bulk update and two do not, and an id means nothing without the type it
+    // belongs to. A selection run has exactly one batch, as it always did.
+    var byType = {};
+    var batches = [];
+    planned.changes.forEach(function (c) {
+      if (!hasOwn(byType, c.spec.key)) {
+        byType[c.spec.key] = { spec: c.spec, ids: [], cf: payload };
+        batches.push(byType[c.spec.key]);
+      }
+      byType[c.spec.key].ids.push(c.id);
+    });
     var label = 'Custom Fields - ' + planned.mode + ' "' + planned.name + '"';
 
-    this.runWrites([{ ids: ids, cf: payload }], label).then(function (ok) {
+    this.runWrites(batches, label).then(function (ok) {
       self.applied = ok;
       // The local copy is moved with the server's, so Undo compares against what the
       // dialog actually wrote rather than against the map it read at open.
@@ -1270,9 +1414,10 @@
     // value at all. Entities that shared a value before the apply share a mutation.
     var groups = {};
     this.changes.forEach(function (c) {
-      var key = c.had ? 'v:' + valueText(c.before) : 'absent';
+      // By type as well as by previous value, for the reason `apply` groups by type.
+      var key = c.spec.key + '|' + (c.had ? 'v:' + valueText(c.before) : 'absent');
       if (!groups[key]) {
-        groups[key] = { ids: [], cf: c.had
+        groups[key] = { spec: c.spec, ids: [], cf: c.had
           ? (function () { var p = {}; p[c.name] = c.before; return { partial: p }; })()
           : { remove: [c.name] } };
       }
@@ -1306,25 +1451,26 @@
   // so a reactive plugin is never left standing down.
   Run.prototype.runWrites = function (batches, label) {
     var self = this;
-    var spec = this.spec;
     var lease = acquireLease(label);
     var ok = 0;
 
     // One chunk per bulk mutation - or per *entity* where there is no bulk mutation,
     // so that one refused Studio is reported as one failure rather than taking the
-    // ninety-nine that were written with it out of the count.
-    var size = spec.bulk ? CHUNK_SIZE : 1;
+    // ninety-nine that were written with it out of the count. The batch carries the
+    // spec, so a task run's Studios chunk one at a time while its Scenes go a hundred
+    // at a time, in the same pass.
     var chunks = [];
     batches.forEach(function (b) {
+      var size = b.spec.bulk ? CHUNK_SIZE : 1;
       for (var i = 0; i < b.ids.length; i += size) {
-        chunks.push({ ids: b.ids.slice(i, i + size), cf: b.cf });
+        chunks.push({ spec: b.spec, ids: b.ids.slice(i, i + size), cf: b.cf });
       }
     });
 
     return chunks.reduce(function (p, chunk) {
       return p.then(function () {
         lease.renew();
-        return self.writeChunk(spec, chunk).then(function () {
+        return self.writeChunk(chunk.spec, chunk).then(function () {
           ok += chunk.ids.length;
           self.applied = self.state === 'applying' ? ok : self.applied;
           self.undone = self.state === 'undoing' ? ok : self.undone;
@@ -1332,7 +1478,8 @@
         }, function (e) {
           self.failed += chunk.ids.length;
           self.msg('ERROR', 'Writing ' + chunk.ids.length + ' ' +
-            spec.plural.toLowerCase() + ' failed: ' + (e && e.message ? e.message : String(e)));
+            chunk.spec.plural.toLowerCase() + ' failed: ' +
+            (e && e.message ? e.message : String(e)));
         });
       });
     }, Promise.resolve()).then(function () {
@@ -1375,7 +1522,7 @@
     });
     if (planned) {
       this.msg('INFO', 'Applied "' + planned.mode + '" on field "' + planned.name + '" to ' +
-        this.changes.length + ' ' + this.spec.plural.toLowerCase() + '.');
+        this.changes.length + ' ' + this.noun() + '.');
     } else {
       this.msg('INFO', 'Reversed ' + this.changes.length + ' change(s).');
     }
@@ -1533,13 +1680,13 @@
   // Under the description, which is inside the group header and so shows whether or
   // not the group is expanded. The fallbacks are for a Stash that renders no
   // sub-heading (an empty description) or no header row at all.
+  // Always under the description, because `settingsTick` refuses a group that has
+  // none. The fallbacks this had - the header box, then the group itself - are what
+  // put the link inside the *heading* of the Tasks-page group, so they are gone with
+  // the case that reached them.
   function readmeLinkSlot(group) {
     var sub = byClass(group, 'sub-heading');
-    if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub.nextSibling };
-    var header = byClass(group, 'setting');
-    var box = header && header.childNodes && header.childNodes[0];
-    if (box) return { parent: box, before: null };
-    return { parent: group, before: null };
+    return { parent: sub.parentNode, before: sub.nextSibling };
   }
 
   // Re-added rather than tracked: React re-renders this panel and drops anything we
@@ -1547,6 +1694,17 @@
   function settingsTick() {
     var group = ownSettingGroup();
     if (!group) return;
+    // **Settings → Tasks renders a group headed with the plugin name too**, and the
+    // heading is all these two panels have in common - so `ownSettingGroup` finds
+    // both, and this one is only about the *description*. Decorating the task group
+    // put the README link inside its heading box, and `ownTaskName` reads that
+    // heading: one tick after the page loaded, the task button stopped being ours.
+    // Found by `tests/cfbe-task.test.js` before it ever ran in a Stash.
+    //
+    // A description is the structural difference, not a route check: `?tab=` is
+    // Stash's to change and a group with nothing to describe has nothing here to do
+    // either way.
+    if (!byClass(group, 'sub-heading')) return;
     injectStyle();
     if (!hasClass(group, 'cfbe-own-group')) {
       group.className = ((group.className || '') + ' cfbe-own-group').replace(/^\s+/, '');
@@ -1600,6 +1758,7 @@
   function tick() {
     try { menuTick(); } catch (e) { console.error('[cfbe] tick failed', e); }
     try { settingsTick(); } catch (e) { console.error('[cfbe] settings tick failed', e); }
+    try { paintTaskButtons(); } catch (e) { console.error('[cfbe] task paint failed', e); }
   }
 
   if (window.addEventListener) {

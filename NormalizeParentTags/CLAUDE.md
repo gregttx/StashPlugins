@@ -3,9 +3,11 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.0.1.** This file is both the design and the map of the code — the
+**Status: implemented at 2.1.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.1.0 adds Escape to the dialogs.** Every dialog here now closes on Escape, through whichever of Cancel/Close its footer is showing rather than around the footer - so the key does nothing mid-write, where both are hidden and Stop is the only way out. The head's backup line was reworded to "Backing up your database before proceeding is recommended." at the same version, in all four plugins; the sentence stating what Undo cannot reach is unchanged. Both dialogs, the run and the hierarchy viewer.
 
 **2.0.1 is a README line.** A fourth plugin, `GTTx Custom Fields Bulk Editor`, joined the repo, so the upgrade banner's "its two siblings" had become wrong. The README ships in `files:`, which is why a prose fix took a patch digit; nothing in the script changed but the constant.
 

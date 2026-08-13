@@ -542,4 +542,19 @@ Promise.resolve()
     h.check('a failing type does not stop the others', removals(d).length === 1, removals(d).join(' | '));
   })
 
+  // Escape acts through whichever of Cancel/Close the footer is showing rather than
+  // closing the dialog itself, so it can never reach a button that is not on offer.
+  .then(() => scan())
+  .then(({ ctx, body }) => {
+    h.check('the run dialog is up before Escape', h.dialog(body).open);
+    h.check('an open dialog listens on the document',
+      (ctx.document.handlers.keydown || []).length === 1,
+      String((ctx.document.handlers.keydown || []).length));
+    h.fire(ctx.document, 'keydown', { key: 'Escape' });
+    h.check('Escape cancels the run', !h.dialog(body).open);
+    h.check('and the key handler goes with it',
+      (ctx.document.handlers.keydown || []).length === 0,
+      String((ctx.document.handlers.keydown || []).length));
+  })
+
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

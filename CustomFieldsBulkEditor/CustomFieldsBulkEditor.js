@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.0.1';
+  var PLUGIN_VERSION = '0.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -48,6 +48,8 @@
 
   var README_URL = 'https://github.com/gregttx/StashPlugins/blob/main/CustomFieldsBulkEditor/README.md';
   var STYLE_ID   = 'cfbe-style';
+  var README_LINK_ID = 'cfbe-readme-link';
+  var DESC_TOGGLE_ID = 'cfbe-desc-toggle';
 
   // The one control this plugin draws into Stash's own UI, and the button that
   // writes, in amber. Stash's own menu items and row actions are neutral, and these
@@ -274,6 +276,27 @@
     'border-radius:3px;padding:.25rem .5rem;}' +
     '.cfbe-input{flex:1 1 10rem;min-width:8rem;}' +
     '.cfbe-readme{color:#7cc4ff;font-size:.8rem;margin-top:.35rem;display:inline-block;}' +
+    // ── The settings page ───────────────────────────────────────────────────
+    //
+    // Stash renders the description as one text node in a `.sub-heading` that is
+    // `white-space: normal`, and a description cannot carry markup - it is passed to
+    // React as a child, so any tag in it is escaped. So the blank lines are made
+    // visible by the class, and then rebuilt as divs: under `pre-wrap` a blank line
+    // is always one whole line-height and nothing in CSS can target it.
+    //
+    // Scoped to our own group, never applied to `.sub-heading` at large - another
+    // plugin's description is not ours to reflow.
+    //
+    // There are no per-setting tooltip rules here because there are no settings; see
+    // §5 of this plugin's CLAUDE.md. The three rules below are the description half
+    // of the shared design and are byte-identical with the siblings' copies.
+    '.cfbe-own-group .sub-heading{white-space:pre-wrap;}' +
+    '.cfbe-own-group .sub-heading .cfbe-p{margin:0 0 .35em;}' +
+    '.cfbe-own-group .sub-heading .cfbe-p:last-child{margin-bottom:0;}' +
+    '.cfbe-desc-collapsed .cfbe-p:not(:first-child){display:none;}' +
+    '.cfbe-desc-toggle{display:block;margin-top:.25rem;padding:0;border:0;' +
+    'background:none;color:#7cc4ff;font-size:.8rem;cursor:pointer;' +
+    'text-decoration:underline;}' +
     // The menu item, amber because it is the one thing this plugin puts into Stash's
     // own chrome and it leads to a write. Stash's `.dropdown-item` supplies the
     // padding, the hover and the layout; only the two things that are ours are set.
@@ -590,7 +613,7 @@
     head.appendChild(el('div', 'cfbe-title', PLUGIN_SHORT_NAME + ' - ' + this.spec.plural +
       ' - ' + this.ids.length + ' selected'));
     head.appendChild(el('div', 'cfbe-warn',
-      'Back up your database before proceeding. Apply rewrites one custom field across every ' +
+      'Backing up your database before proceeding is recommended. Apply rewrites one custom field across every ' +
       'entity in scope, and Undo reverses only what this dialog wrote, only while it stays ' +
       'open, and cannot account for changes made elsewhere in the meantime.'));
     head.appendChild(el('div', 'cfbe-legend',
@@ -680,6 +703,7 @@
     });
     this.modal.appendChild(foot);
 
+    wireEscape(this);
     document.body.appendChild(this.backdrop);
   };
 
@@ -1104,12 +1128,188 @@
     }
   };
 
+  // ── Escape ────────────────────────────────────────────────────────────────
+  //
+  // Escape acts through whichever of Cancel/Close the footer is actually showing,
+  // never by calling `close()` itself. The footer is the dialog's own statement of
+  // what it will let you do right now, so routing the key through it means the key
+  // can never reach a button that is hidden or disabled - and in particular does
+  // nothing mid-write, where both are hidden and Stop is the only way out. A key
+  // that quietly abandoned a run in flight would be worse than one that does nothing.
+  function escapeButton(run) {
+    var order = [run.closeBtn, run.cancelBtn];
+    for (var i = 0; i < order.length; i++) {
+      var b = order[i];
+      if (b && !b.disabled && !hasClass(b, 'cfbe-hidden')) return b;
+    }
+    return null;
+  }
+
+  // On `document`, not on the modal: the modal is not focusable, so a click into the
+  // listing or either filter box would otherwise put the key out of reach. Removed in
+  // `close()` - a dialog that has gone away must not still be answering for the page.
+  function wireEscape(run) {
+    run._onEscape = function (ev) {
+      if (!ev || (ev.key !== 'Escape' && ev.keyCode !== 27)) return;
+      var b = escapeButton(run);
+      if (!b) return;
+      if (ev.preventDefault) ev.preventDefault();
+      b.click();
+    };
+    document.addEventListener('keydown', run._onEscape);
+  }
+
+  function unwireEscape(run) {
+    if (run._onEscape && document.removeEventListener) {
+      document.removeEventListener('keydown', run._onEscape);
+    }
+    run._onEscape = null;
+  }
+
   Run.prototype.close = function () {
+    unwireEscape(this);
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);
     }
     _active = null;
   };
+
+  // ── The settings page ─────────────────────────────────────────────────────
+  //
+  // This plugin has no settings, so its block in Settings → Plugins is a heading, a
+  // description and Stash's own Enable/Disable and link buttons - nothing to
+  // configure. It still gets the siblings' description treatment, because the
+  // description is the only thing there that is ours and it is the first thing a
+  // user reads before installing: a one-line summary, the rest behind **Show more**,
+  // and a labelled link to the README under it.
+  //
+  // **The heading is the only anchor available, and that is the one thing here worth
+  // being uneasy about.** Every sibling finds its group through the
+  // `plugin-<id>-<key>` element ids Stash builds from the plugin id and a setting
+  // key - ours by construction - and keeps a heading match only as a fallback,
+  // because two of them shipped broken twice on heading text (§6 of
+  // PropagateTagsAndPerformers' CLAUDE.md). A plugin that declares no settings has no
+  // such ids to anchor on. So this is the fallback promoted to the only route, and it
+  // is why `headingIsOurs` compares *exactly* rather than by prefix.
+  function headingIsOurs(text) {
+    var t = String(text == null ? '' : text).trim();
+    if (t === PLUGIN_NAME) return true;
+    // Settings → Plugins appends the version - `${name} ${version ? `(${v})` : undefined}`
+    // - and interpolates the literal `undefined` when a plugin has no version at all.
+    t = t.replace(/\s*\([^()]*\)$/, '').replace(/\s+undefined$/, '').trim();
+    return t === PLUGIN_NAME;
+  }
+
+  function ownSettingGroup() {
+    var heads = document.querySelectorAll ? document.querySelectorAll('h3') : [];
+    for (var i = 0; i < heads.length; i++) {
+      if (!headingIsOurs(heads[i].textContent)) continue;
+      var node = heads[i];
+      for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+        if (hasClass(node, 'setting-group')) return node;
+      }
+    }
+    return null;
+  }
+
+  function byClass(root, name) {
+    if (!root || typeof root.querySelector !== 'function') return null;
+    try { return root.querySelector('.' + name) || null; } catch (e) { return null; }
+  }
+
+  function oneLine(text) {
+    return String(text == null ? '' : text).replace(/\s+/g, ' ').replace(/^ | $/g, '');
+  }
+
+  // Stash puts the text back on every re-render of this panel, so this runs on every
+  // tick and re-splits when it has to. Idempotent: once the children are ours there
+  // is no text node left to split.
+  function splitDescription(group) {
+    var sub = byClass(group, 'sub-heading');
+    if (!sub) return;
+    var kids = sub.childNodes || [];
+    if (kids.length && hasClass(kids[0], 'cfbe-p')) return;   // already ours
+    var text = sub.textContent || '';
+    if (text.indexOf('\n') === -1) return;                    // nothing to split
+    var paras = text.split(/\n{2,}/);
+    sub.textContent = '';
+    paras.forEach(function (para) {
+      var t = oneLine(para);
+      if (t) sub.appendChild(el('div', 'cfbe-p', t));
+    });
+  }
+
+  function descCollapsed(sub) { return hasClass(sub, 'cfbe-desc-collapsed'); }
+
+  function setDescCollapsed(sub, on) {
+    var cls = String(sub.className || '').replace(/\s*cfbe-desc-collapsed\b/, '');
+    sub.className = (on ? cls + ' cfbe-desc-collapsed' : cls).replace(/^\s+/, '');
+  }
+
+  // The description sits in the group *header*, outside the `<Collapse>` Stash shuts
+  // by default - so it is on screen at full height whether the group is expanded or
+  // not, and hiding paragraphs is the only thing that shortens it.
+  //
+  // The toggle is a `<button>` rather than a span: `SettingGroup`'s `onDivClick`
+  // walks up from the event target and returns early only for `a` and `button`, so
+  // anything else would fold the whole group on click.
+  function collapseDescription(group) {
+    var sub = byClass(group, 'sub-heading');
+    if (!sub) return;
+    var kids = sub.childNodes || [];
+    var paras = 0;
+    for (var i = 0; i < kids.length; i++) if (hasClass(kids[i], 'cfbe-p')) paras++;
+    if (paras < 2) return;                        // one paragraph hides nothing
+    if (document.getElementById(DESC_TOGGLE_ID)) return;
+    // A re-render drops the button and the class together, so the description returns
+    // to collapsed rather than to a half-state with no way out of it.
+    setDescCollapsed(sub, true);
+    var btn = el('button', 'cfbe-desc-toggle', 'Show more');
+    btn.id = DESC_TOGGLE_ID;
+    btn.type = 'button';
+    btn.addEventListener('click', function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+      var open = descCollapsed(sub);
+      setDescCollapsed(sub, !open);
+      btn.textContent = open ? 'Show less' : 'Show more';
+    });
+    sub.appendChild(btn);
+  }
+
+  // Under the description, which is inside the group header and so shows whether or
+  // not the group is expanded. The fallbacks are for a Stash that renders no
+  // sub-heading (an empty description) or no header row at all.
+  function readmeLinkSlot(group) {
+    var sub = byClass(group, 'sub-heading');
+    if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub.nextSibling };
+    var header = byClass(group, 'setting');
+    var box = header && header.childNodes && header.childNodes[0];
+    if (box) return { parent: box, before: null };
+    return { parent: group, before: null };
+  }
+
+  // Re-added rather than tracked: React re-renders this panel and drops anything we
+  // put in it. Keyed on the id, so a re-render that kept it makes no second one.
+  function settingsTick() {
+    var group = ownSettingGroup();
+    if (!group) return;
+    injectStyle();
+    if (!hasClass(group, 'cfbe-own-group')) {
+      group.className = ((group.className || '') + ' cfbe-own-group').replace(/^\s+/, '');
+    }
+    splitDescription(group);
+    collapseDescription(group);   // after the split: it counts the .cfbe-p divs
+    if (document.getElementById(README_LINK_ID)) return;
+    var link = el('a', 'cfbe-readme', 'CustomFieldsBulkEditor/README.md');
+    link.id = README_LINK_ID;
+    link.href = README_URL;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.title = 'Open this plugin\'s documentation';
+    var slot = readmeLinkSlot(group);
+    slot.parent.insertBefore(link, slot.before);
+  }
 
   // ── Ticking ───────────────────────────────────────────────────────────────
   //
@@ -1140,8 +1340,13 @@
     observer.observe(root, { childList: true, subtree: true });
   }
 
+  // The settings page is not observed, only ticked: this is decoration in a panel,
+  // not something that has to land before the user can click it, so the timer plus
+  // the navigation hooks are enough and cannot fight a React re-render. The menu item
+  // is the opposite case, which is why only `menuTick` is on the observer.
   function tick() {
     try { menuTick(); } catch (e) { console.error('[cfbe] tick failed', e); }
+    try { settingsTick(); } catch (e) { console.error('[cfbe] settings tick failed', e); }
   }
 
   if (window.addEventListener) {

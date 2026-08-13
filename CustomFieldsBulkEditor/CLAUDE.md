@@ -5,21 +5,28 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.0.1 — written, nothing verified.** Every line of it exists and 56 automated checks
-cover it, and *none of that is evidence it works*: the plugin's only footholds in Stash are a
-dropdown id, a checkbox and a link pattern (§8), all read from notes rather than from a running
-instance. The suite reproduces those notes, so it can only confirm the plugin is consistent with
-what it was told.
+**Status: 0.1.0 — partly verified.** The user has it installed and has reported back, which is the
+first real evidence any of it works: the menu item, the dialog and the entity types it offers are
+being used. What is *not* verified is still §8's table, and one live gap is open — **the "..." menu
+on a gallery's own Images tab draws nothing**, reported 2026-08-12 and not yet diagnosed, because
+`listType()` reads the last path segment and nobody has read that page's actual `pathname` off the
+running instance. Do not guess a fix for it; ask for the URL. (§2.)
+
+0.1.0 is the settings-page description (§10) and Escape (§11), both new capability rather than
+fixes. 79 automated checks cover the plugin, and the suite still reproduces Stash's markup **from
+notes** — it can only confirm the plugin is consistent with what it was told.
 
 **The major digit is a claim to the user that the thing works, and only a live click can support
 it.** This shipped at 1.0.0 first, on the reasoning that the feature was complete and indivisible;
 that reasoning is about the *code*, and the digit is about the *user*. See "A new plugin starts at
 0.0.1" in the repo-root `CLAUDE.md`. From here: a patch per fix, a minor per verified capability,
-1.0.0 when §8's table has been walked in a real Stash.
+1.0.0 when §8's table has been walked in a real Stash **and the gallery-images gap above is
+closed** — a plugin with a list view it silently does nothing on is not finished.
 
 **It is the smallest plugin here by a wide margin, and that is the design.** No settings, no tasks,
-no automatic mode, no fetch wrapper, no settings-page injection. It has one entry point, and until
-the user opens a menu it does nothing but tick.
+no automatic mode, no fetch wrapper. It has one entry point that *does* anything, and until the user
+opens a menu it does nothing but tick. Since 0.1.0 it also decorates its own block on the settings
+page (§10), which is presentation rather than a second entry point.
 
 ---
 
@@ -50,6 +57,24 @@ rule is why there is no route table** — `listType()` is a `split('/').pop()` a
 `bulk: null` on Studio and Tag is the schema fact from the reference table: `BulkStudioUpdateInput`
 and `BulkTagUpdateInput` carry no `custom_fields`. `writeChunk` branches on it and loops `single`
 instead. Nothing else about those two differs.
+
+**Open, reported live 2026-08-12: a gallery's own Images tab gets no menu item.** The images list
+inside a gallery is reachable and selectable, and nothing appears. The likeliest cause is that the
+URL there is not `…/images` — if it is `/galleries/123` with the tab in React state, `listType()`
+returns `null` and the plugin correctly concludes it is not on a list view. **It has deliberately
+not been fixed by guessing**, and the two obvious fixes are both worse than the bug:
+
+- *Loosen `listType`* — there is nothing to loosen. A path with no plural segment carries no type.
+- *Infer the type from the checked rows instead* — genuinely ambiguous. `rowEntityId` climbs to the
+  first ancestor linking to exactly one id **of the type it is given**, and a scene card links to
+  its studio and its performers as well as itself, so probing every type against the rows would
+  match several. The URL is what disambiguates today, which is exactly what is missing here.
+
+So the next step is one line off the running instance — `window.location.pathname` on that page,
+plus what `__GTTx__.StashPluginCoop.debugButtons = true` prints — and then a rule written against
+what Stash actually renders. This is the repo's own standing lesson (*"ask the page what it is
+before reasoning about what to do with it"*), and this plugin has no live-verified footholds to
+spend on a guess.
 
 ## 3. Turning a selection into ids
 
@@ -114,9 +139,11 @@ stylesheets with the prefixes stripped and fails on any drift.
   job (flex, scroll, monospace).
 - **A `.cfbe-msgs` strip carries the `.cfbe-line` messages** — warnings, errors, the applied recap.
   There is no Copy log button: the thing worth copying is the list, and it is already a text box.
-- **No settings page**, so none of the settings-page CSS. `tests/style.test.js` carries a
-  `settingsPage: false` flag for exactly this, *and* a positive check that such a plugin declares no
-  settings and styles none — or the flag would be hiding a drift rather than an absence.
+- **No per-setting tooltip CSS**, because there are no settings to hang one on.
+  `tests/style.test.js` carries a `settings: false` flag for exactly this, *and* a positive check
+  that such a plugin declares no settings and styles no setting rows — or the flag would be hiding a
+  drift rather than an absence. It does carry the **description** rules; see §10, and the repo-root
+  CLAUDE.md for why that half is required of every plugin here.
 
 **The state machine is four states, and the pairing is deliberate.** `loading → listing →
 applying → applied`, with `undoing` returning to `applied`. Cancel/Apply and Undo/Close never
@@ -235,8 +262,18 @@ lines come from the tick.
   version gate. Two of those read the dialog *mid-write*, which `h.HANG` is what makes possible: a
   lease only ever observed after the fact could as well never have been taken, and a footer only
   ever read after a write finishes cannot show the state that is wrong.
-- **`style.test.js`** — the CSS this plugin shares with its three siblings, plus the check that a
-  plugin declaring no settings styles none.
+  Since 0.1.0 it also covers the settings page (§10): the group found by a heading carrying the
+  version suffix, marked as ours, its description rebuilt as paragraphs and collapsed behind a
+  `<button>` toggle that expands and flips its caption, the README linked under it, an idle tick
+  producing no second copy of any of it, no queries issued at all, a one-paragraph description
+  getting no toggle but still getting its link, and — the check the anchor actually needs — a plugin
+  whose name merely *starts* with ours left alone. And Escape (§11): it closes the dialog from the
+  listing and takes its `document` handler with it, does nothing at all while a write is in flight
+  (with the footer state that makes that true asserted alongside it, or the check would pass for the
+  wrong reason), and ignores every other key.
+- **`style.test.js`** — the CSS this plugin shares with its three siblings: the dialog chrome and
+  the description rules in full, plus the check that a plugin declaring no settings styles no
+  setting rows.
 
 **Every check was confirmed against a deliberately broken copy before being trusted** — six
 mutants: a container's many ids taken as a row, Add not refusing an existing key, the lease not
@@ -247,3 +284,51 @@ taken, `listType` matching by prefix instead of by last segment, Undo writing on
 What they cannot cover: §8. The suite reproduces Stash's list markup from notes, so it proves the
 plugin does the right thing with what it is given, not that Stash still gives it that. **Click it
 once in a real instance before believing any of §3 or §4.**
+
+## 10. The settings page (0.1.0)
+
+The plugin has nothing to configure, so its block in Settings → Plugins is a heading, a description
+and Stash's own Enable/Disable and link buttons. It still gets the siblings' **description**
+treatment — a one-line summary, the rest behind a **Show more** toggle, and a labelled link to the
+README under it — because that block is the first thing a user reads before installing, and a wall
+of prose there is exactly what that design exists to fix. Requested directly; §6 of
+`NormalizeParentTags`' CLAUDE.md carries the full reasoning and is not repeated.
+
+**What is *not* ported: the per-setting tooltips.** There are no setting rows, so there is nothing
+to hover. `tests/style.test.js` splits the old one-flag settings list in two for this (§5).
+
+**The heading is the only anchor, and it is the weakest one in this repo.** Every sibling finds its
+group through the `plugin-<id>-<key>` element ids Stash builds from the plugin id and a setting key
+— ours by construction — and keeps a heading match only as a fallback, *because two of them shipped
+broken twice on heading text*. A plugin declaring no settings has no such ids. So here the fallback
+is the only route, which is why:
+
+- `headingIsOurs` compares **exactly**, after stripping the version suffix Settings → Plugins
+  appends (`GTTx Custom Fields Bulk Editor (0.1.0)`) and the literal `undefined` its template
+  interpolates for a plugin with no version. A prefix test would make
+  `GTTx Custom Fields Bulk Editor Extra` us; `tests/cfbe.test.js` drives exactly that.
+- The fixture in the suite carries the version suffix, because a bare-name match is the specific
+  bug both siblings shipped.
+- If Stash ever restyles that panel, this is the first thing here to break, and it will break
+  silently — the description simply renders as Stash rendered it before, which is the right way for
+  it to fail but says nothing.
+
+**Everything is re-added rather than tracked**, on the same tick as the menu, because React
+re-renders the panel and drops what we put in it. `splitDescription` is idempotent (once the
+children are ours there is no text node left to split), `collapseDescription` returns early once
+`#cfbe-desc-toggle` exists, and the link is keyed on its own id. A re-render therefore returns the
+description to *collapsed* rather than to a half-state with no way out.
+
+**The toggle is a `<button>`**: `SettingGroup`'s `onDivClick` walks up from the event target and
+returns early only for `a` and `button`, so a `<span>` would fold the whole group on click.
+
+**No `MutationObserver` here, unlike the menu.** The menu has to carry our item before the user
+reads it; this is decoration in a panel, so the timer plus the navigation hooks are enough and
+cannot fight a re-render. It also issues **no queries at all** — the suite pins that.
+
+## 11. Escape (0.1.0)
+
+Escape closes the dialog by clicking whichever of Cancel/Close the footer is currently showing, and
+does nothing when neither is available — mid-write, both are hidden and Stop is the dialog's only
+way out. The mechanism is shared with all three siblings and written up in the repo-root CLAUDE.md;
+this plugin's copy is byte-identical apart from the `cfbe-hidden` class name.

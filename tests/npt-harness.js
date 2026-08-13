@@ -85,6 +85,15 @@ function makeElement(tag) {
     },
     setAttribute(name, value) { this.attrs[name] = String(value); },
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
+    // Real, not a stub: the dialogs' Escape handler lives on `document` for as long
+    // as the dialog is open and is taken off in `close()`, so a no-op here would let
+    // a closed dialog go on answering the key and every check about that would pass.
+    removeEventListener(type, fn) {
+      const list = this.handlers[type];
+      if (!list) return;
+      const i = list.indexOf(fn);
+      if (i !== -1) list.splice(i, 1);
+    },
     // `currentTarget` and `target` are the node itself, as a real browser sets them on
     // a dispatched click - a handler reading the button back off its own event (the
     // scene button's caption flashing does) would otherwise crash here and nowhere else.
@@ -199,6 +208,15 @@ function makeEnv(opts) {
     },
     setAttribute(name, value) { this.attrs[name] = String(value); },
     addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
+    // Real, not a stub: the dialogs' Escape handler lives on `document` for as long
+    // as the dialog is open and is taken off in `close()`, so a no-op here would let
+    // a closed dialog go on answering the key and every check about that would pass.
+    removeEventListener(type, fn) {
+      const list = this.handlers[type];
+      if (!list) return;
+      const i = list.indexOf(fn);
+      if (i !== -1) list.splice(i, 1);
+    },
     handlers: {},
     execCommand: () => (opts.execCommand !== false),
   };
@@ -233,7 +251,12 @@ function makeEnv(opts) {
   };
   ctx.window.fetch = ctx.fetch;
 
-  return { ctx, calls, body, intervals, tick: () => intervals.forEach((fn) => fn()) };
+  // `document` alongside `body` because the dialogs' Escape handler is registered on
+  // the document rather than on any node a suite can reach through the tree.
+  return {
+    ctx, calls, body, document: ctx.document, intervals,
+    tick: () => intervals.forEach((fn) => fn()),
+  };
 }
 
 // `src` defaults to NormalizeParentTags; the merge-task suite passes the sibling's

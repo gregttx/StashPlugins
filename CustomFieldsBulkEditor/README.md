@@ -1,36 +1,32 @@
 # GTTx Custom Fields Bulk Editor
 
-> ## ⚠ Back up your database before the first run
+> ## Backing up your database first is recommended
 >
 > **Apply** rewrites one custom field across every entity you had selected — potentially your whole
-> library, if that is what you selected — and **Stash has no undo**. Stop Stash, copy
-> `stash-go.sqlite` (next to your `config.yml`) somewhere safe, start Stash again, then use the
-> plugin. Read the list before pressing Apply; that is what it is for.
+> library, if that is what you selected. The dialog's **[Undo](#undoing-an-apply)** button takes back
+> exactly what that Apply wrote, so most mistakes are one click from being reversed.
 >
-> The dialog does have an **[Undo](#undoing-an-apply)** button, but it only reaches its own writes and
-> only while it stays open. It is a way out of an Apply you regret in the moment, not a safety net —
-> the backup is the safety net.
+> Two limits are worth knowing before you rely on it: Undo only reaches **this dialog's own writes**,
+> and only **while the dialog stays open**. Close it, or reload the page, and Stash itself has no
+> undo. Read the list before pressing Apply — that is what it is for — and for a first run over a
+> large selection, stop Stash and copy `stash-go.sqlite` (next to your `config.yml`) somewhere safe.
 
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
-> ## 0.0.1 — this has never been run in a real Stash
+> ## 0.1.0 — in use, with one known gap
 >
-> The version number is the honest one. The plugin is complete and has 56 automated checks behind
-> it, but those checks reproduce Stash's markup **from notes**, so they prove the plugin is
-> self-consistent and nothing more. The three things it has to be right about — the `...` menu's
-> id, what a selected row looks like, and how a row links to its own entity — have not been read off
-> a running instance. Expect to have to report that the menu item does not appear; the
-> [troubleshooting switch](#troubleshooting) below is there to say which of the three failed.
+> The version number is the honest one. The plugin works in a real Stash — the menu item, the dialog
+> and the write have all been exercised — but **one list view is known not to offer the menu: the
+> Images tab inside a gallery.** Every other list does. That is being diagnosed and needs one detail
+> off a running instance rather than another guess; see [troubleshooting](#troubleshooting) if you
+> hit it somewhere else too.
 >
-> It will reach 1.0.0 when that has been walked through in a live Stash, not before.
+> It will reach 1.0.0 when that gap is closed and the rest has been walked through, not before.
 
 Stash stores custom fields on seven kinds of entity and lets you edit them **one record at a time**.
 Its API has no such limit. This plugin adds the two things that are missing: a **view** of what a
 whole selection carries, and **one write across it**.
-
-It is a front-end-only plugin with **no settings and no tasks**. It does nothing at all until you
-open a menu.
 
 ---
 
@@ -41,6 +37,10 @@ open a menu.
 2. Open the **"..."** menu at the top of the list (just right of the trash icon).
 3. Pick **Custom Fields...** — the last item in the menu. It only appears while something is
    selected.
+
+**Press Escape** at any point to close the dialog, exactly as Cancel or Close would. While a write
+is actually in flight it does nothing — there is no Cancel to reach at that moment, and Stop is not
+something a stray keypress should do.
 
 The dialog opens on what your selection carries **now**:
 
@@ -131,8 +131,9 @@ the list-view menu.
 
 ## Troubleshooting
 
-**The menu item is not there.** Type this in the browser console (F12 → Console) and open the menu
-again:
+**The menu item is not there.** Known not to appear on a gallery's own **Images** tab (see the
+banner at the top). Anywhere else, type this in the browser console (F12 → Console) and open the
+menu again:
 
 ```js
 __GTTx__.StashPluginCoop.debugButtons = true

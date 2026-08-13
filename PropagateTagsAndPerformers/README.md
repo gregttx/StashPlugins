@@ -127,6 +127,13 @@ If that is not what you want, two things help:
 Under the **task** this is not a concern: one run applies each direction once, in a fixed order.
 The hazard is the automatic modes, where each write triggers the other.
 
+The dialog says so when it finds a pair enabled, in **one** note however many pairs are on — with
+both pairs enabled it used to print the same explanation twice (fixed in 1.1.0).
+
+**Press Escape** to close the dialog, exactly as Cancel or Close would. While a write is actually
+in flight it does nothing — there is no Cancel to reach at that moment, and Stop is not something a
+stray keypress should do.
+
 ## Order matters, and it is fixed
 
 The paths cascade. Copying marker tags onto scenes *before* copying scene tags onto groups means

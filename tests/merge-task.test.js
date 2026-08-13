@@ -1058,4 +1058,19 @@ Promise.resolve()
     });
   })
 
+  // Escape acts through whichever of Cancel/Close the footer is showing rather than
+  // closing the dialog itself, so it can never reach a button that is not on offer.
+  .then(() => open())
+  .then(({ env, d }) => {
+    h.check('the task dialog is up before Escape', d().open);
+    h.check('an open dialog listens on the document',
+      (env.ctx.document.handlers.keydown || []).length === 1,
+      String((env.ctx.document.handlers.keydown || []).length));
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('Escape cancels the run', !d().open);
+    h.check('and the key handler goes with it',
+      (env.ctx.document.handlers.keydown || []).length === 0,
+      String((env.ctx.document.handlers.keydown || []).length));
+  })
+
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

@@ -13,15 +13,20 @@ const fs = require('fs');
 const path = require('path');
 const h = require('./npt-harness');
 
-// `settingsPage: false` is not an exemption granted to a plugin that skimped: it
-// says the plugin declares no `settings:` at all, so Stash renders no group for it,
-// so there is no description to split, no per-setting tooltip to open and no toggle
-// to colour. Those rules would be dead CSS naming ids that never exist.
+// `settings: false` is not an exemption granted to a plugin that skimped: it says the
+// plugin declares no `settings:` at all, so Stash renders no *setting rows* for it -
+// no per-setting tooltip to open, no toggle to colour. Those rules would be dead CSS
+// naming ids that never exist.
+//
+// It does still get a group, a heading and a **description**, which is the first thing
+// a user reads before installing anything, so the description half of the shared design
+// is required of every plugin here regardless. Splitting the old one-flag SETTINGS list
+// in two is what makes both halves checkable rather than one waived wholesale.
 const PLUGINS = [
-  { name: 'NormalizeParentTags', prefix: 'npt', decl: 'var CSS =', settingsPage: true },
-  { name: 'MergePerformerTagsToScenes', prefix: 'cpt2s', decl: 'var TASK_CSS =', settingsPage: true },
-  { name: 'PropagateTagsAndPerformers', prefix: 'ptp2re', decl: 'var CSS =', settingsPage: true },
-  { name: 'CustomFieldsBulkEditor', prefix: 'cfbe', decl: 'var CSS =', settingsPage: false },
+  { name: 'NormalizeParentTags', prefix: 'npt', decl: 'var CSS =', settings: true },
+  { name: 'MergePerformerTagsToScenes', prefix: 'cpt2s', decl: 'var TASK_CSS =', settings: true },
+  { name: 'PropagateTagsAndPerformers', prefix: 'ptp2re', decl: 'var CSS =', settings: true },
+  { name: 'CustomFieldsBulkEditor', prefix: 'cfbe', decl: 'var CSS =', settings: false },
 ];
 
 // The CSS is a run of single-quoted fragments joined with +. Pull the block out,
@@ -68,31 +73,39 @@ parsed.forEach((p) => {
 const CHROME = ['.backdrop', '.modal', '.head', '.title', '.warn', '.note', '.legend',
   '.progress', '.log', '.line', '.foot', '.hidden'];
 
-// The settings-page rules, shared since NormalizeParentTags 1.7.5 and
+// The group *description* rules, shared since NormalizeParentTags 1.7.5 and
 // MergePerformerTagsToScenes 1.11.0. Same rule as the chrome: one design, one
-// stylesheet, three copies of it.
-const SETTINGS = ['.own-group .sub-heading', '.tipped', '.tip', '.tipbox',
-  '.tipped.tip-open .tipbox', '.desc-collapsed .p:not(:first-child)', '.desc-toggle'];
+// stylesheet, four copies of it. Required of every plugin here - every one has a
+// description, whether or not it has anything to configure.
+const DESCRIPTION = ['.own-group .sub-heading',
+  '.desc-collapsed .p:not(:first-child)', '.desc-toggle'];
+
+// The per-*setting* tooltip: one box per setting row, opened from the mark, the
+// name or the summary. Only a plugin that has setting rows can have these.
+const SETTING_TIPS = ['.tipped', '.tip', '.tipbox', '.tipped.tip-open .tipbox'];
 
 parsed.forEach((p) => {
   h.check(p.plugin.name + ' defines the shared dialog chrome',
     CHROME.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
     CHROME.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
-  if (!p.plugin.settingsPage) return;
-  h.check(p.plugin.name + ' defines the shared settings-page rules',
-    SETTINGS.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
-    SETTINGS.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
+  h.check(p.plugin.name + ' defines the shared description rules',
+    DESCRIPTION.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
+    DESCRIPTION.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
+  if (!p.plugin.settings) return;
+  h.check(p.plugin.name + ' defines the shared per-setting tooltip rules',
+    SETTING_TIPS.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
+    SETTING_TIPS.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
 });
 
-// A plugin with no settings must not carry the rules for them either: a stylesheet
-// that styles a group Stash never renders is dead weight nobody would notice, and
-// the flag above would then be hiding a real drift rather than a real absence.
-parsed.filter((p) => !p.plugin.settingsPage).forEach((p) => {
-  h.check(p.plugin.name + ' declares no settings and styles none',
-    SETTINGS.every((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)) &&
+// A plugin with no settings must not carry the per-setting rules either: a stylesheet
+// that styles rows Stash never renders is dead weight nobody would notice, and the
+// flag above would then be hiding a real drift rather than a real absence.
+parsed.filter((p) => !p.plugin.settings).forEach((p) => {
+  h.check(p.plugin.name + ' declares no settings and styles no setting rows',
+    SETTING_TIPS.every((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)) &&
       !/\nsettings:/.test(fs.readFileSync(
         path.join(__dirname, '..', p.plugin.name, p.plugin.name + '.yml'), 'utf8')),
-    SETTINGS.filter((s) => Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'yml has settings:');
+    SETTING_TIPS.filter((s) => Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'yml has settings:');
 });
 
 // Any selector two or more of them define is shared by construction, and every one

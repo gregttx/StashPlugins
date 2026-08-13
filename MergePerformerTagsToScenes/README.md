@@ -134,6 +134,8 @@ and none of them has an undo. Back up your database before a first library-wide 
 
 ## Review before saving in Scene Edit tab manual merge
 
+**Press Escape** to close the dialog, exactly as Cancel or Close would. While a write is actually in flight it does nothing - there is no Cancel to reach at that moment, and Stop is not something a stray keypress should do.
+
 **"Copy all Tags from all Performers"** stops short of saving by default. The performer tags are dropped into the scene's own tag box, Stash's **Save** button lights up, and nothing is written until you press it. You can remove any tag you don't want first, and Cancel discards the lot.
 
 Because nothing is saved, there is also no refresh and no jump back to the Edit tab — the tags simply appear in the box you're already looking at. The button reports what it did without changing width: *"Added 2"* then *"Save pending"*, or *"No changes"*, or *"Scene excluded"*.

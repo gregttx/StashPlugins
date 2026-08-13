@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '2.0.1';
+  var PLUGIN_VERSION = '2.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1264,7 +1264,7 @@
     // instruction keeps the position it has always had and the limits are stated
     // beside it rather than left to be discovered.
     head.appendChild(el('div', 'npt-warn',
-      'Back up your database before proceeding. Undo only reverses what this dialog wrote, ' +
+      'Backing up your database before proceeding is recommended. Undo only reverses what this dialog wrote, ' +
       'only while it stays open, and cannot account for changes made elsewhere in the meantime.'));
     // Every name in this log carries a number in brackets and it is always a Stash
     // id, never a count - the counts in the log are written as `x250` or spelled out.
@@ -1307,6 +1307,7 @@
       this.rescanBtn, this.closeBtn].forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
+    wireEscape(this);
     document.body.appendChild(this.backdrop);
   };
 
@@ -1778,7 +1779,48 @@
     copyToClipboard(this.lines.join('\n'), this.copyBtn, 'Copy log', 'Copied');
   };
 
+  // ── Escape ────────────────────────────────────────────────────────────────
+  //
+  // Escape acts through whichever of Cancel/Close the footer is actually showing,
+  // never by calling `close()` itself. The footer is the dialog's own statement of
+  // what it will let you do right now, so routing the key through it means the key
+  // can never reach a button that is hidden or disabled - and in particular does
+  // nothing mid-write, where both are hidden and Stop is the only way out. A key
+  // that quietly abandoned a run in flight would be worse than one that does nothing.
+  // The hierarchy viewer has only a Close, which this reads without a second copy.
+  function escapeButton(run) {
+    var order = [run.closeBtn, run.cancelBtn];
+    for (var i = 0; i < order.length; i++) {
+      var b = order[i];
+      if (b && !b.disabled && !hasClass(b, 'npt-hidden')) return b;
+    }
+    return null;
+  }
+
+  // On `document`, not on the modal: the modal is not focusable, so a click into the
+  // log or either of the viewer's boxes would otherwise put the key out of reach.
+  // Removed in `close()` - a dialog that has gone away must not still answer for the
+  // page, and the viewer and a run can be open one after the other.
+  function wireEscape(run) {
+    run._onEscape = function (ev) {
+      if (!ev || (ev.key !== 'Escape' && ev.keyCode !== 27)) return;
+      var b = escapeButton(run);
+      if (!b) return;
+      if (ev.preventDefault) ev.preventDefault();
+      b.click();
+    };
+    document.addEventListener('keydown', run._onEscape);
+  }
+
+  function unwireEscape(run) {
+    if (run._onEscape && document.removeEventListener) {
+      document.removeEventListener('keydown', run._onEscape);
+    }
+    run._onEscape = null;
+  }
+
   Run.prototype.close = function () {
+    unwireEscape(this);
     this.disarmUndo();
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
     if (this.backdrop && this.backdrop.parentNode) {
@@ -1908,6 +1950,7 @@
       .forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
+    wireEscape(this);
     document.body.appendChild(this.backdrop);
     this.checkVersion();
     this.load();
@@ -2046,6 +2089,7 @@
   };
 
   TreeView.prototype.close = function () {
+    unwireEscape(this);
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);
     }

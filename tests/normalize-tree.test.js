@@ -599,4 +599,19 @@ Promise.resolve()
     });
   })
 
+  // The viewer has only a Close, which the same handler reads without a second copy
+  // of it - the run dialog's Cancel simply is not there to find.
+  .then(() => open())
+  .then(({ env, d }) => {
+    h.check('the viewer is up before Escape', d().open);
+    h.check('an open dialog listens on the document',
+      (env.ctx.document.handlers.keydown || []).length === 1,
+      String((env.ctx.document.handlers.keydown || []).length));
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('Escape closes the viewer', !d().open);
+    h.check('and the key handler goes with it',
+      (env.ctx.document.handlers.keydown || []).length === 0,
+      String((env.ctx.document.handlers.keydown || []).length));
+  })
+
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

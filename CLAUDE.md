@@ -639,12 +639,47 @@ stylesheet: each carries its own CSS string, `CSS` in `NormalizeParentTags`, `TA
 `MergePerformerTagsToScenes`, `CSS` in `PropagateTagsAndPerformers`, `CSS` in
 `CustomFieldsBulkEditor`.
 
-**A plugin with no `settings:` carries none of the settings-page rules, and that is checked
-positively.** `CustomFieldsBulkEditor` declares no settings at all, so Stash renders no group for
-it: there is no description to split, no per-setting tooltip to open and no toggle to colour, and
-those rules would be dead CSS naming ids that never exist. `tests/style.test.js` carries a
-`settingsPage: false` flag for it — paired with a check that it declares no settings *and* defines
-none of those selectors, or the flag would be excusing a drift instead of recording an absence.
+**The settings-page rules are two halves, and only one of them is optional.** This shipped as one
+list waived wholesale for a plugin with no `settings:`, on the reasoning that Stash renders no group
+for such a plugin. That reasoning was wrong about the half that matters most: **every plugin gets a
+group, a heading and a description**, whether or not it has anything to configure, and the
+description is the first thing a user reads before installing. So `tests/style.test.js` splits them:
+
+- **`DESCRIPTION`** — `.own-group .sub-heading`, `.desc-collapsed .p:not(:first-child)`,
+  `.desc-toggle`. Required of **all four** plugins. This is the summary-plus-**Show more** design,
+  and `CustomFieldsBulkEditor` 0.1.0 is when the fourth plugin stopped being the exception to it.
+- **`SETTING_TIPS`** — `.tipped`, `.tip`, `.tipbox`, `.tipped.tip-open .tipbox`. The per-*setting*
+  hover box, so only a plugin with setting rows can have one. `CustomFieldsBulkEditor` carries a
+  `settings: false` flag, paired with a check that it declares no settings *and* defines none of
+  these — or the flag would be excusing a drift instead of recording an absence.
+
+**A settings-less plugin has no `plugin-<id>-<key>` ids to anchor on, so the heading is its only
+route in.** Every other plugin here finds its group through those ids and keeps `headingIsOurs` as a
+fallback, precisely because two of them shipped broken twice on heading text. `CustomFieldsBulkEditor`
+has that fallback promoted to the only route, which is why its `headingIsOurs` compares **exactly**
+rather than by prefix and why `tests/cfbe.test.js`'s fixture carries the version suffix Stash
+appends. It is the one anchor in this repo with nothing behind it; treat it accordingly.
+
+**Escape closes every dialog, through the footer rather than around it.** Added at
+`NormalizeParentTags` 2.1.0 / `MergePerformerTagsToScenes` 2.1.0 / `PropagateTagsAndPerformers`
+1.1.0 / `CustomFieldsBulkEditor` 0.1.0, and duplicated byte-identically in all four like everything
+else here. `escapeButton(run)` returns whichever of `closeBtn`/`cancelBtn` is currently **visible
+and enabled**, and the key clicks it; a null answer does nothing. That indirection is the whole
+design: the footer is the dialog's own statement of what it will let you do right now, so the key
+can never reach a button that is hidden or disabled — and in particular does nothing **mid-write**,
+where both are hidden and Stop is the only way out. A key that quietly abandoned a run in flight
+would be worse than one that does nothing. The listener goes on `document` (the modal is not
+focusable, so a click into a log or an input would otherwise put the key out of reach) and is
+removed in `close()`, which is why `tests/npt-harness.js` implements a real `removeEventListener`
+rather than a stub — a no-op there would let a closed dialog go on answering the key with every
+check about it still passing.
+
+**"Back up your database before proceeding." is now "Backing up your database before proceeding is
+recommended."**, in all four dialog heads, at the user's request. The sentence after it is
+unchanged and still states what Undo cannot reach — own writes, open dialog, blind to concurrent
+changes. This is a change of register, not of advice: it is still the first line of every head, and
+the standing rule that the backup instruction must not be edited out for brevity (§1 of
+`NormalizeParentTags`' CLAUDE.md) is unaffected.
 
 **Keep the overlapping rules byte-identical.** They drifted once — the modal was `#202b33` in one
 and `#30404d` in the other, with a `font-size` and a `z-index` to match — because the second dialog

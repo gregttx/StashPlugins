@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '2.0.1';
+  var PLUGIN_VERSION      = '2.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1300,7 +1300,7 @@
     // it takes back what this dialog itself added - and it is not a restore, so the
     // backup instruction stays and its limits are stated beside it.
     head.appendChild(taskEl('div', 'cpt2s-warn',
-      'The merge only ever adds tags. Back up your database before the first run: Undo reverses ' +
+      'The merge only ever adds tags. Backing up your database before proceeding is recommended: Undo reverses ' +
       'what this dialog added, only while it stays open, and cannot account for changes made ' +
       'elsewhere in the meantime.'));
     // Same legend as NormalizeParentTags', because the log lines are the same shape:
@@ -1344,6 +1344,7 @@
       this.rescanBtn, this.closeBtn].forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
+    wireEscape(this);
     document.body.appendChild(this.backdrop);
     this.begin();
   };
@@ -2161,7 +2162,46 @@
     }
   };
 
+  // ── Escape ────────────────────────────────────────────────────────────────
+  //
+  // Escape acts through whichever of Cancel/Close the footer is actually showing,
+  // never by calling `close()` itself. The footer is the dialog's own statement of
+  // what it will let you do right now, so routing the key through it means the key
+  // can never reach a button that is hidden or disabled - and in particular does
+  // nothing mid-write, where both are hidden and Stop is the only way out. A key
+  // that quietly abandoned a run in flight would be worse than one that does nothing.
+  function escapeButton(run) {
+    var order = [run.closeBtn, run.cancelBtn];
+    for (var i = 0; i < order.length; i++) {
+      var b = order[i];
+      if (b && !b.disabled && !hasClass(b, 'cpt2s-hidden')) return b;
+    }
+    return null;
+  }
+
+  // On `document`, not on the modal: the modal is not focusable, so a click into the
+  // log would otherwise put the key out of reach. Removed in `close()` - a dialog that
+  // has gone away must not still be answering for the page.
+  function wireEscape(run) {
+    run._onEscape = function (ev) {
+      if (!ev || (ev.key !== 'Escape' && ev.keyCode !== 27)) return;
+      var b = escapeButton(run);
+      if (!b) return;
+      if (ev.preventDefault) ev.preventDefault();
+      b.click();
+    };
+    document.addEventListener('keydown', run._onEscape);
+  }
+
+  function unwireEscape(run) {
+    if (run._onEscape && document.removeEventListener) {
+      document.removeEventListener('keydown', run._onEscape);
+    }
+    run._onEscape = null;
+  }
+
   TaskRun.prototype.close = function () {
+    unwireEscape(this);
     this.disarmUndo();
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
     if (this.backdrop && this.backdrop.parentNode) {

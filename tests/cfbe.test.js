@@ -93,6 +93,28 @@ function mountTable(body, type, ids) {
   return table;
 }
 
+// One plugin's block in Settings → Plugins, as SettingsPluginsPanel builds it: a
+// `.setting-group` box whose header carries the heading and the description, with the
+// version appended to the heading - which is the detail a bare-name match misses.
+function mountSettingGroup(body, heading, description) {
+  const group = h.makeElement('div');
+  group.className = 'setting-group';
+  const header = h.makeElement('div');
+  header.className = 'setting';
+  const box = h.makeElement('div');
+  const h3 = h.makeElement('h3');
+  h3.textContent = heading;
+  const sub = h.makeElement('div');
+  sub.className = 'sub-heading';
+  sub.textContent = description;
+  box.appendChild(h3);
+  box.appendChild(sub);
+  header.appendChild(box);
+  group.appendChild(header);
+  body.appendChild(group);
+  return group;
+}
+
 // ── The fake library ────────────────────────────────────────────────────────
 
 const SCENES = {
@@ -258,7 +280,7 @@ openDialog()
         (one(env.body, 'cfbe-title') || {}).textContent || ''),
       (one(env.body, 'cfbe-title') || {}).textContent);
     h.check('the backup instruction leads the head',
-      /Back up your database/.test((one(env.body, 'cfbe-warn') || {}).textContent || ''));
+      /Backing up your database before proceeding is recommended\./.test((one(env.body, 'cfbe-warn') || {}).textContent || ''));
     h.check('the legend says a bracketed number is an id',
       /Stash id/.test((one(env.body, 'cfbe-legend') || {}).textContent || ''));
 
@@ -544,6 +566,124 @@ openDialog()
     h.check('and the head says why',
       /has 9\.9\.9 installed/.test((one(env.body, 'cfbe-note') || {}).textContent || ''),
       (one(env.body, 'cfbe-note') || {}).textContent);
+  })
+
+  // Escape goes through the footer rather than straight to `close()`, so it can only
+  // ever do what a visible, enabled button already offers. Three states, and the
+  // middle one is the reason it is written that way.
+  .then(() => openDialog())
+  .then((env) => {
+    h.check('an open dialog listens on the document',
+      (env.document.handlers.keydown || []).length === 1,
+      String((env.document.handlers.keydown || []).length));
+    h.fire(env.document, 'keydown', { key: 'Escape' });
+    h.check('Escape closes the dialog from the listing', !one(env.body, 'cfbe-modal'));
+    h.check('and takes its key handler off the document with it',
+      (env.document.handlers.keydown || []).length === 0,
+      String((env.document.handlers.keydown || []).length));
+  })
+
+  // Mid-write both Cancel and Close are hidden and there is nothing to press, so the
+  // key must do nothing at all. A dialog that vanished here would leave a write it
+  // started running with nothing on screen accounting for it.
+  .then(() => openDialog({ hangAfter: 0 }))
+  .then((env) => {
+    one(env.body, 'cfbe-field-name').value = 'colour';
+    one(env.body, 'cfbe-field-value').value = 'green';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => {
+      h.check('Cancel is showing but disabled while a write is in flight',
+        !h.hasClass(one(env.body, 'cfbe-cancel'), 'cfbe-hidden') &&
+        one(env.body, 'cfbe-cancel').disabled === true);
+      h.fire(env.document, 'keydown', { key: 'Escape' });
+      h.check('so Escape does nothing at all there', !!one(env.body, 'cfbe-modal'));
+    });
+  })
+
+  // And a key that is not Escape is not a way out either - the handler is on the
+  // whole document, so every keystroke in either filter box reaches it.
+  .then(() => openDialog())
+  .then((env) => {
+    h.fire(env.document, 'keydown', { key: 'a' });
+    h.check('another key leaves the dialog alone', !!one(env.body, 'cfbe-modal'));
+  })
+
+  // ── The settings page ─────────────────────────────────────────────────────
+  //
+  // This plugin declares no settings, so the `plugin-<id>-<key>` element ids every
+  // sibling anchors on do not exist and the heading is the only route in. That is the
+  // anchor two plugins here shipped broken on twice, so the fixture is Stash's real
+  // shape - the version suffix appended to the heading included - and the negatives
+  // below matter as much as the positives.
+  .then(() => {
+    const env = start({ pathname: '/settings?tab=plugins' });
+    const group = mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (0.1.0)',
+      'Summary line.\n\nSecond paragraph.\n\nThird paragraph.');
+    env.tick();
+    const sub = group.descendants().filter((n) => h.hasClass(n, 'sub-heading'))[0];
+    const paras = sub.childNodes.filter((n) => h.hasClass(n, 'cfbe-p'));
+
+    h.check('the group is marked as ours', h.hasClass(group, 'cfbe-own-group'));
+    h.check('the description is rebuilt as paragraphs', paras.length === 3,
+      String(paras.length));
+    h.check('the summary is the first of them',
+      (paras[0] || {}).textContent === 'Summary line.', (paras[0] || {}).textContent);
+    h.check('it starts collapsed', h.hasClass(sub, 'cfbe-desc-collapsed'));
+
+    const toggle = env.body.descendants().filter((n) => n.id === 'cfbe-desc-toggle')[0];
+    h.check('a Show more toggle is offered', !!toggle && toggle.textContent === 'Show more');
+    // A <button>, because SettingGroup's onDivClick returns early only for `a` and
+    // `button` - anything else folds the whole group on click.
+    h.check('and it is a button', !!toggle && toggle.tagName === 'BUTTON');
+    // Guarded rather than assumed: against a build with no toggle these have to
+    // report a failure, not crash the run and take every later check with them.
+    if (toggle) toggle.click();
+    h.check('clicking it expands the description',
+      !!toggle && !h.hasClass(sub, 'cfbe-desc-collapsed'));
+    h.check('and the caption follows', !!toggle && toggle.textContent === 'Show less');
+    if (toggle) toggle.click();
+    h.check('clicking again collapses it', !!toggle && h.hasClass(sub, 'cfbe-desc-collapsed'));
+
+    const link = env.body.descendants().filter((n) => n.id === 'cfbe-readme-link')[0];
+    h.check('the README is linked under the description', !!link &&
+      /CustomFieldsBulkEditor\/README\.md$/.test(link.href || ''), link && link.href);
+
+    // React re-renders this panel on any change and drops what we put in it, so the
+    // tick puts it back - and must not produce a second copy of anything.
+    env.tick();
+    env.tick();
+    h.check('an idle tick adds no second toggle',
+      env.body.descendants().filter((n) => n.id === 'cfbe-desc-toggle').length === 1);
+    h.check('nor a second README link',
+      env.body.descendants().filter((n) => n.id === 'cfbe-readme-link').length === 1);
+    h.check('nor re-splits the paragraphs',
+      sub.childNodes.filter((n) => h.hasClass(n, 'cfbe-p')).length === 3);
+    h.check('and the settings page issues no queries at all', env.calls.length === 0,
+      env.calls.map((c) => (c.query || '').slice(0, 30)).join(' | '));
+  })
+
+  // Exactly, never by prefix: a plugin whose name merely starts with ours is not us.
+  .then(() => {
+    const env = start({ pathname: '/settings?tab=plugins' });
+    const group = mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor Extra (1.0.0)',
+      'Someone else.\n\nAnd their detail.');
+    env.tick();
+    h.check('another plugin group is left alone', !h.hasClass(group, 'cfbe-own-group'));
+    h.check('and gets no toggle of ours',
+      env.body.descendants().filter((n) => n.id === 'cfbe-desc-toggle').length === 0);
+  })
+
+  // A one-paragraph description hides nothing, so a toggle would open on a click to
+  // show what is already there.
+  .then(() => {
+    const env = start({ pathname: '/settings?tab=plugins' });
+    mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (0.1.0)', 'Just the one line.');
+    env.tick();
+    h.check('a one-paragraph description gets no toggle',
+      env.body.descendants().filter((n) => n.id === 'cfbe-desc-toggle').length === 0);
+    h.check('but is still linked to its README',
+      env.body.descendants().filter((n) => n.id === 'cfbe-readme-link').length === 1);
   })
 
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

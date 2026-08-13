@@ -73,6 +73,8 @@ left exactly as they are — only which tags sit on which entity changes.
 
 Running a task opens a dialog that works in two phases.
 
+**Press Escape** to close the dialog, exactly as Cancel or Close would. While a write is actually in flight it does nothing - there is no Cancel to reach at that moment, and Stop is not something a stray keypress should do.
+
 **Phase 1 — review.** The plugin scans every enabled entity type and shows you a running count
 and a log of every change it *would* make:
 

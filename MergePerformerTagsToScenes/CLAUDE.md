@@ -5,8 +5,10 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.0.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.1.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.1.0 adds Escape to the dialogs.** Every dialog here now closes on Escape, through whichever of Cancel/Close its footer is showing rather than around the footer - so the key does nothing mid-write, where both are hidden and Stop is the only way out. The head's backup line was reworded to "Backing up your database before proceeding is recommended." at the same version, in all four plugins; the sentence stating what Undo cannot reach is unchanged.
 
 **2.0.1 is a README line.** A fourth plugin, `GTTx Custom Fields Bulk Editor`, joined the repo, so the upgrade banner's "its two siblings" had become wrong. The README ships in `files:`, which is why a prose fix took a patch digit; nothing in the script changed but the constant.
 

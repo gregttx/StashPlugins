@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '1.0.1';
+  var PLUGIN_VERSION = '1.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1445,7 +1445,7 @@
     // instruction leads and the limits are stated beside it rather than left to be
     // discovered.
     head.appendChild(el('div', 'ptp2re-warn',
-      'Back up your database before proceeding. This only ever adds tags and performers, but ' +
+      'Backing up your database before proceeding is recommended. This only ever adds tags and performers, but ' +
       'Undo reverses only what this dialog wrote, only while it stays open, and cannot account ' +
       'for changes made elsewhere in the meantime.'));
     // Every name in this log carries a number in brackets and it is always a Stash
@@ -1490,6 +1490,7 @@
       this.rescanBtn, this.closeBtn].forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
+    wireEscape(this);
     document.body.appendChild(this.backdrop);
   };
 
@@ -1684,13 +1685,20 @@
         : 'Enabled, in the order they run: ' +
           paths.map(function (p) { return pathLabel(p); }).join('; ') + '.');
 
+      // One note however many pairs are on, because only the names differ between
+      // them: a second copy of the same three sentences is a paragraph the user has
+      // already read, and with both pairs enabled it put ~300 identical characters
+      // on screen twice.
       var both = pairedBoth(paths);
-      both.forEach(function (p) {
-        self.note('Both directions of a reversible pair are enabled (' + pathLabel(p) +
-          ' and ' + pathLabel(pathById(p.pair)) + '). Applied together they drive every ' +
-          'member to the same set of tags. That is what running both directions means, not ' +
-          'a fault - but disable one, or turn on "common tags only", if it is not what you want.');
-      });
+      if (both.length) {
+        self.note('Both directions of ' +
+          (both.length === 1 ? 'a reversible pair are' : both.length + ' reversible pairs are') +
+          ' enabled (' + both.map(function (p) {
+            return pathLabel(p) + ' and ' + pathLabel(pathById(p.pair));
+          }).join(', ') + '). Applied together they drive every member to the same set of ' +
+          'tags. That is what running both directions means, not a fault - but disable one, ' +
+          'or turn on "common tags only", if it is not what you want.');
+      }
 
       self.checkDeclaredOverlap(paths);
       self.checkHierarchySibling(loaded.all[NPT_ID]);
@@ -2558,7 +2566,46 @@
     }
   };
 
+  // ── Escape ────────────────────────────────────────────────────────────────
+  //
+  // Escape acts through whichever of Cancel/Close the footer is actually showing,
+  // never by calling `close()` itself. The footer is the dialog's own statement of
+  // what it will let you do right now, so routing the key through it means the key
+  // can never reach a button that is hidden or disabled - and in particular does
+  // nothing mid-write, where both are hidden and Stop is the only way out. A key
+  // that quietly abandoned a run in flight would be worse than one that does nothing.
+  function escapeButton(run) {
+    var order = [run.closeBtn, run.cancelBtn];
+    for (var i = 0; i < order.length; i++) {
+      var b = order[i];
+      if (b && !b.disabled && !hasClass(b, 'ptp2re-hidden')) return b;
+    }
+    return null;
+  }
+
+  // On `document`, not on the modal: the modal is not focusable, so a click into the
+  // log would otherwise put the key out of reach. Removed in `close()` - a dialog that
+  // has gone away must not still be answering for the page.
+  function wireEscape(run) {
+    run._onEscape = function (ev) {
+      if (!ev || (ev.key !== 'Escape' && ev.keyCode !== 27)) return;
+      var b = escapeButton(run);
+      if (!b) return;
+      if (ev.preventDefault) ev.preventDefault();
+      b.click();
+    };
+    document.addEventListener('keydown', run._onEscape);
+  }
+
+  function unwireEscape(run) {
+    if (run._onEscape && document.removeEventListener) {
+      document.removeEventListener('keydown', run._onEscape);
+    }
+    run._onEscape = null;
+  }
+
   Run.prototype.close = function () {
+    unwireEscape(this);
     this.disarmUndo();
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
     if (this.backdrop && this.backdrop.parentNode) {

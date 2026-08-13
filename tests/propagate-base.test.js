@@ -197,7 +197,7 @@ Promise.resolve()
     // be allowed to read as a substitute for the backup, so the instruction leads
     // and the limits are stated beside it rather than left to be discovered.
     h.check('the head leads with the backup instruction',
-      /^Back up your database before proceeding\./.test(warn), warn);
+      /^Backing up your database before proceeding is recommended\./.test(warn), warn);
     h.check('and states what Undo cannot reach',
       /only what this dialog wrote/.test(warn) && /only while it stays open/.test(warn), warn);
     h.check('the log opens by saying nothing will be written yet',
@@ -261,6 +261,40 @@ Promise.resolve()
 
   .then(() => open({ settings: { e1TagsScenesToGroups: true } })).then(({ d }) => {
     h.check('one half of a pair warns about nothing', !/reversible pair/.test(d.note), d.note);
+  })
+
+  // Two pairs on is still one note. The explanation is identical for every pair and
+  // only the names differ, so repeating it puts the same three sentences on screen
+  // twice - which is what shipped, and what a user reading the head had to wade past.
+  .then(() => open({
+    settings: {
+      e1TagsScenesToGroups: true, b4TagsGroupsToScenes: true,
+      c1TagsImagesToGalleries: true, d1TagsGalleriesToImages: true,
+    },
+  })).then(({ d }) => {
+    h.check('two pairs are one note, not two',
+      (d.note.match(/Applied together/g) || []).length === 1, d.note);
+    h.check('and it counts them and names all four directions',
+      /2 reversible pairs are enabled/.test(d.note) &&
+      /Tags: Images → Galleries and Tags: Galleries → Images/.test(d.note) &&
+      /Tags: Scenes → Groups and Tags: Groups → Scenes/.test(d.note), d.note);
+  })
+
+  // ── Escape ────────────────────────────────────────────────────────────────
+  //
+  // Routed through the footer's own Cancel/Close rather than straight to `close()`,
+  // so the key can never reach a button the dialog is not currently offering.
+  .then(() => open()).then(({ env, d }) => {
+    h.check('the dialog is up before Escape', d.open);
+    h.check('an open dialog listens on the document',
+      (env.ctx.document.handlers.keydown || []).length === 1,
+      String((env.ctx.document.handlers.keydown || []).length));
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('Escape cancels the run',
+      !h.dialog(env.ctx.document.body, PREFIX).open);
+    h.check('and the key handler goes with it',
+      (env.ctx.document.handlers.keydown || []).length === 0,
+      String((env.ctx.document.handlers.keydown || []).length));
   })
 
   // ── Declared-path overlap (the N-way registry) ────────────────────────────

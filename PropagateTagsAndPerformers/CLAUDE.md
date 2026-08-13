@@ -5,10 +5,12 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.0.1.** Every step in the table below has landed, so the version left the
+**Status: released, 1.1.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**1.1.0 adds Escape to the dialogs.** Every dialog here now closes on Escape, through whichever of Cancel/Close its footer is showing rather than around the footer - so the key does nothing mid-write, where both are hidden and Stop is the only way out. The head's backup line was reworded to "Backing up your database before proceeding is recommended." at the same version, in all four plugins; the sentence stating what Undo cannot reach is unchanged. 1.1.0 also folds the reversible-pair warning into one note however many pairs are enabled - with both pairs on it printed the same three sentences twice.
 
 **1.0.1 is two README lines.** A fourth plugin, `GTTx Custom Fields Bulk Editor`, joined the repo: the debug switch is no longer shared with one sibling but with every plugin here that draws a control into Stash's UI, and "Relationship to the other plugins in this repo" was listing two of three. The README ships in `files:`, which is why a prose fix took a patch digit; nothing in the script changed but the constant.
 

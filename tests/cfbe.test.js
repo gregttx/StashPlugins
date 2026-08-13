@@ -159,11 +159,14 @@ function responder(opts) {
 
 function start(opts) {
   opts = opts || {};
+  const copied = [];
   const env = h.makeEnv({
     quiet: true,
     pathname: opts.pathname || '/scenes',
     respond: responder(opts),
+    clipboard: { writeText: (t) => { copied.push(t); return Promise.resolve(); } },
   });
+  env.copied = copied;
   h.run(env.ctx, SRC);
   return env;
 }
@@ -172,8 +175,10 @@ const byClass = (body, cls) => body.descendants().filter((n) => h.hasClass(n, cl
 const one = (body, cls) => byClass(body, cls)[0] || null;
 const menuItems = (body) => byClass(body, 'cfbe-menu-item');
 const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || ''));
-const lines = (body) => String((one(body, 'cfbe-list') || {}).value || '')
-  .split('\n').filter((l) => l !== '');
+// The listing is a stack of pill rows since 0.2.0, so a "line" is a row's own text.
+const rows = (body) => byClass(body, 'cfbe-entry');
+const lines = (body) => rows(body).map((n) => n.textContent);
+const pills = (body, kind) => byClass(body, 'cfbe-pill-' + kind);
 
 // ── The menu item ───────────────────────────────────────────────────────────
 
@@ -372,10 +377,26 @@ openDialog()
 
     const got = lines(env.body);
     h.check('every custom field of every selected entity is listed', got.length === 3, got.join(' | '));
-    h.check('a line reads entity - field - value',
-      got[0] === 'Scene "S1" (1) - colour - blue', got[0]);
+    h.check('a line reads type, entity, field name and value',
+      got[0] === 'Scene "S1" (1): colour🟰blue', got[0]);
     h.check('fields are listed in name order within an entity',
-      got[1] === 'Scene "S1" (1) - rating - 5', got[1]);
+      got[1] === 'Scene "S1" (1): rating🟰5', got[1]);
+
+    // The three pill kinds, and the three different things a click does.
+    const ent = pills(env.body, 'ent')[0];
+    h.check('the entity pill links to that entity detail page',
+      ent && ent.href === '/scenes/1', ent && ent.href);
+    h.check('and opens it in a new tab', ent && ent.target === '_blank' &&
+      /noopener/.test(ent.rel || ''));
+    h.check('a listing line has no action pill - nothing has happened yet',
+      pills(env.body, 'act').length === 0);
+    const cf = pills(env.body, 'cf');
+    h.check('the field name and value are each their own copyable pill',
+      cf.length === 6 && cf[0].textContent === 'colour' && cf[1].textContent === 'blue',
+      cf.length + ' ' + cf.map((p) => p.textContent).join(','));
+    cf[1].click();
+    h.check('clicking a field pill copies its own text, not the line',
+      env.copied[env.copied.length - 1] === 'blue', JSON.stringify(env.copied));
     h.check('an entity carrying no custom fields contributes no line',
       !got.some((l) => /\(3\)/.test(l)), got.join(' | '));
     h.check('the counters name the selection, the fields and what is on screen',
@@ -404,6 +425,112 @@ openDialog()
     h.check('clearing a filter restores the whole list', lines(env.body).length === 3);
   })
 
+  // Copying a selection out of the list. The mark stands for nothing being there, so
+  // it stands for nothing in the text - and it is dropped as an *element*, never by
+  // stripping its character, since an entity name is free to contain that character
+  // and this user's names are full of Unicode marks.
+  //
+  // The browser halves are faked: a `Selection` whose range clones to a fragment the
+  // test builds. That checks this plugin's own reading of a fragment, which is the
+  // half that can be wrong here.
+  .then(() => openDialog())
+  .then((env) => {
+    const span = (cls, text) => {
+      const n = h.makeElement('span');
+      if (cls) n.className = cls;
+      n.textContent = text;
+      return n;
+    };
+    const entry = (kids) => {
+      const d = h.makeElement('div');
+      d.className = 'cfbe-entry';
+      kids.forEach((k) => d.appendChild(k));
+      return d;
+    };
+    const frag = (kids) => ({
+      childNodes: kids,
+      querySelectorAll: (sel) => kids.reduce((acc, k) => acc.concat(
+        [k].concat(k.descendants ? k.descendants() : [])
+          .filter((n) => h.hasClass(n, String(sel).replace('.', '')))), []),
+    });
+    const fire = (kids, text) => {
+      const data = {};
+      env.ctx.window.getSelection = () => ({
+        toString: () => text,
+        rangeCount: 1,
+        getRangeAt: () => ({ cloneContents: () => frag(kids) }),
+      });
+      h.fire(one(env.body, 'cfbe-list'), 'copy', {
+        clipboardData: { setData: (kind, v) => { data[kind] = v; } },
+      });
+      return data;
+    };
+
+    const line = (name) => entry([
+      span(null, 'Tag '), span('cfbe-pill cfbe-pill-ent', '"' + name + '" (7)'),
+      span(null, ': '), span('cfbe-none', '␀'),
+    ]);
+    const copied = fire([line('a'), line('b')]);
+    h.check('a copied selection leaves the mark out of the text',
+      copied['text/plain'] === 'Tag "a" (7): \nTag "b" (7): ', JSON.stringify(copied['text/plain']));
+    h.check('one line per entry, and no break inside one',
+      (copied['text/plain'] || '').split('\n').length === 2);
+    h.check('and goes on the clipboard as HTML too, or a rich editor pastes the pills back',
+      copied['text/html'] === 'Tag "a" (7): \nTag "b" (7): ');
+
+    // The character is only ever removed with the element that carries it: a name
+    // holding the same character keeps it.
+    const own = entry([span('cfbe-pill cfbe-pill-ent', '"␀ tag" (7)'), span('cfbe-none', '␀')]);
+    h.check('a name containing the mark character keeps it',
+      fire([own])['text/plain'] === '"␀ tag" (7)');
+
+    // A selection inside one line arrives as the pills themselves, with no entry
+    // among them - joining those with newlines would break a line into its pills.
+    h.check('a selection within one line stays one line',
+      fire([span(null, 'colour'), span(null, '🟰'), span(null, 'red')])['text/plain'] ===
+      'colour🟰red');
+
+    delete env.ctx.window.getSelection;
+    return env;
+  })
+
+  // A field that is set *to nothing* is a real thing to store, and it used to render
+  // as a pill with nothing in it - the complaint that sent 0.2.2. It gets the same
+  // mark the absent side gets, and still copies as the empty string it is.
+  .then(() => openDialog({
+    entities: { 1: { id: '1', title: 'S1', custom_fields: { colour: '' } } },
+    select: ['1'],
+  }))
+  .then((env) => {
+    h.check('an empty value is marked rather than left blank',
+      pills(env.body, 'cf').length === 2 && !!one(env.body, 'cfbe-none'),
+      String(pills(env.body, 'cf').length));
+    h.check('and the mark sits inside the value pill, not instead of it',
+      (one(env.body, 'cfbe-none') || {}).parentNode === pills(env.body, 'cf')[1]);
+    pills(env.body, 'cf')[1].click();
+    h.check('clicking it copies the empty string, never the mark',
+      env.copied.length === 1 && env.copied[0] === '', JSON.stringify(env.copied));
+  })
+
+  // The cap the pills cost: one node per line is back, so a listing longer than the
+  // DOM should hold is cut off with a line saying so - and the scope is untouched.
+  .then(() => {
+    const many = { custom_fields: {}, id: '1', title: 'S1' };
+    for (let i = 0; i < 1200; i++) many.custom_fields['f' + (1000 + i)] = 'v';
+    return openDialog({ entities: { 1: many }, select: ['1'] });
+  })
+  .then((env) => {
+    const got = lines(env.body);
+    h.check('a listing longer than the render cap stops at it', got.length === 1001,
+      String(got.length));
+    h.check('and the last line says how many are not shown',
+      /and 200 more line\(s\) not shown/.test(got[1000]), got[1000]);
+    h.check('the counters still describe the whole listing',
+      /1200 field\(s\) in total, 1200 line\(s\) listed/
+        .test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
+      (one(env.body, 'cfbe-progress') || {}).textContent);
+  })
+
   // Add: the mode that refuses to overwrite. Scene 1 and 2 already carry `colour`,
   // so only the one without it is written.
   .then(() => openDialog())
@@ -426,7 +553,22 @@ openDialog()
     h.check('the write goes through the entity own bulk mutation',
       /bulkSceneUpdate/.test((w[0] || {}).query || ''));
     h.check('the list is replaced by what changed',
-      lines(env.body)[0] === 'Scene "S3" (3) - colour - (none) -> green', lines(env.body)[0]);
+      lines(env.body)[0] === 'Added Scene "S3" (3): ␀ ⇒ colour🟰green', lines(env.body)[0]);
+    // ∅ rendered as an empty box live: the list font is monospace and the glyph is
+    // not in it. It is the one mark on the line that is not a pill, so it has nothing
+    // else to sit in - hence its own class, out of the monospace stack.
+    h.check('the empty-set mark is its own element, not a pill',
+      !!one(env.body, 'cfbe-none') && !h.hasClass(one(env.body, 'cfbe-none'), 'cfbe-pill'),
+      (one(env.body, 'cfbe-none') || {}).className);
+    // Real text, so a drag across the line highlights it like everything else; what
+    // keeps it out of a copy is `selectionText` dropping the element, checked below.
+    h.check('and is real text, so a selection can highlight it',
+      (one(env.body, 'cfbe-none') || {}).textContent === '␀',
+      JSON.stringify((one(env.body, 'cfbe-none') || {}).textContent));
+    h.check('the action pill says what happened and is not a link or a copy',
+      (pills(env.body, 'act')[0] || {}).textContent === 'Added' &&
+      !(pills(env.body, 'act')[0] || {}).handlers.click,
+      (pills(env.body, 'act')[0] || {}).textContent);
     h.check('Cancel becomes Undo and Apply becomes Close',
       h.hasClass(one(env.body, 'cfbe-cancel'), 'cfbe-hidden') &&
       h.hasClass(one(env.body, 'cfbe-apply'), 'cfbe-hidden') &&
@@ -468,6 +610,8 @@ openDialog()
       JSON.stringify(w[0].variables) === JSON.stringify(
         { input: { ids: ['1', '2'], custom_fields: { remove: ['colour'] } } }),
       JSON.stringify(w[0].variables));
+    h.check('a removal reads as Deleted, with nothing on the right',
+      lines(env.body)[0] === 'Deleted Scene "S1" (1): colour🟰blue ⇒ ␀', lines(env.body)[0]);
   })
 
   // "Filtered list only" is the entity set the filters leave showing, which is the
@@ -528,6 +672,15 @@ openDialog()
           { ids: ['2'], custom_fields: { partial: { colour: 'red' } } })), payloads.join(' | '));
       h.check('Undo is offered only once - a second reversal has nothing to reverse',
         h.hasClass(one(env.body, 'cfbe-undo'), 'cfbe-hidden'));
+      // The action is read off the two sides, not off the mode, which is what makes a
+      // reversed line name itself: undoing what was written onto an empty field is a
+      // Deleted, and undoing an overwrite is still a Replaced.
+      h.check('an undone overwrite reads as Replaced, the other way round',
+        lines(env.body)[0] === 'Replaced Scene "S1" (1): colour🟰green ⇒ colour🟰blue',
+        lines(env.body)[0]);
+      h.check('an undone addition reads as Deleted',
+        lines(env.body)[2] === 'Deleted Scene "S3" (3): colour🟰green ⇒ ␀',
+        lines(env.body)[2]);
     });
   })
 

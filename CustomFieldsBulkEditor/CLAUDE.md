@@ -5,16 +5,19 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.1.2 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.2.3 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
-being used. What is *not* verified is still §8's table. The gallery-images gap reported 2026-08-12
-is **closed** at 0.1.1, along with three more list views that had the same cause (§2); the
-undercounted tag and studio selections reported 2026-08-13 are closed at 0.1.2 (§3).
+being used. What is *not* verified is still §8's table, and now also the pills (§5a) — requested
+from live use, and already the subject of two reports, the second of which is what found the right
+cause. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
+list views that had the same cause (§2); the undercounted tag and studio selections reported
+2026-08-13 are closed at 0.1.2 (§3).
 
 0.1.0 is the settings-page description (§10) and Escape (§11), both new capability rather than
-fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's. 90 automated checks cover the plugin, and the
-suite still reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent
-with what it was told.
+fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (§5a), and
+0.2.1–0.2.3 the empty-marker rounds. 112 automated checks cover the plugin, and the suite still
+reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
+was told.
 
 **The major digit is a claim to the user that the thing works, and only a live click can support
 it.** This shipped at 1.0.0 first, on the reasoning that the feature was complete and indivisible;
@@ -167,11 +170,12 @@ stylesheets with the prefixes stripped and fails on any drift.
 
 **Two things it does not share, and one it half-shares.**
 
-- **No `.log` of rendered lines — the listing is a `<textarea>.`** The siblings cap what they render
-  (`LOG_RENDER_CAP`) because one node per line stops responding at six figures; a textarea is one
-  node for any number of lines, and it is selectable and copyable with nothing to press, which is
-  what the request asked for. `.cfbe-log` is the wrapper around it, so the shared rule still does its
-  job (flex, scroll, monospace).
+- **No `.log` of rendered lines — the listing is a stack of `.cfbe-entry` pill lines.** It was a
+  `<textarea>` until 0.2.0, for a reason worth keeping in view: a textarea is *one* node for any
+  number of lines, where the siblings have to cap what they render (`LOG_RENDER_CAP`) because one
+  node per line stops responding at six figures. Pills are markup, so that cost is back and
+  `LIST_RENDER_CAP` is the same answer — see §5a. `.cfbe-log` is still the wrapper, so the shared
+  rule still does its job (flex, scroll, monospace).
 - **A `.cfbe-msgs` strip carries the `.cfbe-line` messages** — warnings, errors, the applied recap.
   There is no Copy log button: the thing worth copying is the list, and it is already a text box.
 - **No per-setting tooltip CSS**, because there are no settings to hang one on.
@@ -190,6 +194,88 @@ lives in a list the dialog is covering.
 **The version gate is the only warning here that blocks**, exactly as in the siblings, and **Undo is
 never gated on it**: stranding the user with changes they cannot take back is worse than the
 mismatch. Everything else (another plugin's lease) is stated and carried on with.
+
+## 5a. The pill listing (0.2.0)
+
+Requested from live use, and the shape is the request's: a line is
+`<Type> {"name" (id)}: {field}🟰{value}`, and after a write the same line with an action pill in
+front and a before ⇒ after. **Three pill kinds, three behaviours, and the kinds are what the
+behaviours are for** — `.cfbe-pill-act` states what happened and does nothing, `.cfbe-pill-ent` is
+an `<a>` to that entity's detail page in a new tab, `.cfbe-pill-cf` copies its own text.
+
+**The line class is `.cfbe-entry`, not `.cfbe-row`.** `NormalizeParentTags` defines `.npt-row` for
+the hierarchy viewer's tree, which is a different thing with different rules, and
+`tests/style.test.js` compares selectors with the prefixes stripped — so the obvious name would have
+been pinned against a rule it has nothing to do with. Same reason two dialogs may not both call
+something `.cfbe-list` unless they mean it.
+
+**The action is read off the two sides, never off the mode.** `!before ? 'Added' : !after ?
+'Deleted' : 'Replaced'` — which is what makes an undo name itself correctly rather than repeating
+the word the apply used. Reversing an Added is a Deleted, and `renderChanges` swaps the sides for
+an undo, so one expression covers both directions.
+
+**The empty marker (`␀`) marks two different things, and took three rounds to get right.**
+
+The report was "∅ is not shown — it is replaced by an empty pill", and 0.2.1 read it as a missing
+glyph (the marker was `∅` then): the list is `font-family: monospace`, so `.cfbe-none` took that one span out of the monospace
+stack. **That was the wrong diagnosis, and the evidence to reject it was already on the page** — the
+user's own entity names contain ∅ (their tag taxonomy is built out of Unicode marks), and those
+render in this dialog, in these pills, in that font. A character rendering elsewhere on the same
+line is the check to make *before* blaming a font.
+
+The actual cause is that ∅ was only ever drawn where a field is **absent**, and an **empty value**
+is a different thing that was drawn as a pill with nothing in it — which is what an empty pill is.
+Both now get the mark: `appendField` for the absent side, `copyPill` for a value or name that is the
+empty string.
+
+**The mark was `content:` on an empty span for one version, and 0.2.3 is what that cost.** Drawing
+it in CSS made the guarantee structural — a mark on the screen and nothing in the string, so a
+copied line carries the value the entity really has. But **generated content cannot be selected**:
+dragging across a line painted no highlight over the mark, so the selection looked like it had a
+hole in it. Reported live, and it is the right trade to reverse: the mark is real text again, and
+the guarantee moved into `selectionText`.
+
+**`selectionText` drops the mark *elements*, never the mark's character.** It clones the selected
+range, removes every `.cfbe-none` in the clone, and reads the text back. Stripping the character
+from the string would have been three characters shorter and wrong: an entity name is free to
+contain it, and **this user's names are full of Unicode marks** — which is also why changing `NONE`
+stays a one-line change. `tests/cfbe.test.js` pins that with a name holding the mark character, and
+the character-stripping mutant fails exactly that check and nothing else.
+
+`cloneContents` keeps the ancestors of a partial selection, so a multi-row selection arrives as one
+`.cfbe-entry` per line and a within-one-row selection as the pills themselves — hence the newline
+between entries only. Joining every child with one would break a single line into its pills.
+
+**The character is the user's to choose, and they chose `␀` (U+2400).** It was `∅` (U+2205), which
+they found too close to a zero at this size. `⦰` (U+29B0) was offered in the same message and
+declined: the character was never the problem, and it is the rarest glyph of the three. The `title`
+is what says which of the two meanings a mark carries.
+
+**`display:inline` on the pills, not `inline-block`.** A selection dragged across inline-*block*
+elements copies with line breaks nobody selected, and copying the listing as text is why the list
+exists. Vertical padding is 0 for the neighbouring reason: on an inline box it would overlap the
+line above rather than grow the line.
+
+**The copy handler is on the list, and rewrites both flavours.** A copy out of markup carries the
+markup, so the `copy` listener puts `getSelection().toString()` on the clipboard as `text/plain`
+*and* as an escaped `text/html` — without the second, a rich editor pastes the pills back with their
+colours. This is the one thing here that the test suite cannot reach: the harness has no selection.
+
+**A pill click with a live selection does nothing**, because a drag-select that happens to end
+inside a pill fires a click, and copying the pill there would take the clipboard off the selection
+the user just made. A plain click has already collapsed the selection by the time it arrives, so the
+guard costs nothing in the normal case.
+
+**`copyToClipboard` is the siblings' function, minus the caption swap.** Stash is commonly served
+over plain HTTP on a LAN, where `navigator.clipboard` does not exist at all, so the
+textarea + `execCommand` path is the fallback rather than a legacy branch. A pill reports by
+flashing a class for 900ms; it must not rename itself, because its text is the thing being copied.
+
+**`LIST_RENDER_CAP` is what the pills cost.** One node per line is back — six or so, in fact — so
+the listing is cut at 1000 rows with a line saying how many are not shown. **The cap is on the
+render, never on the scope**: the counters and every write still describe the whole listing, and the
+overflow line says so, because a user who reads "1000 lines" and applies to 5000 entities has been
+lied to by the dialog.
 
 ## 6. The three modes, and the one distinction the data allows
 

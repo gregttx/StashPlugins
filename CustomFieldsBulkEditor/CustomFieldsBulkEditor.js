@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.1.2';
+  var PLUGIN_VERSION = '0.2.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -63,6 +63,10 @@
   var TICK_MS      = 1000;
   var OBSERVE_MS   = 100;   // a burst of DOM mutations coalesced into one tick
   var ROW_WALK_MAX = 8;     // ancestors climbed from a checkbox looking for its row
+  var LIST_RENDER_CAP = 1000;  // listing rows put in the DOM; all of them stay in memory
+  var EQ = '🟰';  // the name-value separator, U+1F7F0
+  var NONE = '␀';      // "no field here": what an Add starts from, a Delete ends at, U+2400
+  var ARROW = ' ⇒ ';
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
@@ -260,13 +264,29 @@
     'display:flex;gap:.5rem;align-items:center;}' +
     // ── This dialog's own ───────────────────────────────────────────────────
     //
-    // The list is a real <textarea>, not a stack of divs: it is what makes the
-    // listing selectable and copyable with no button to press, and a selection of
-    // several thousand entities is one node here rather than one node per line - the
-    // very cost that made every sibling dialog cap what it renders.
-    '.cfbe-list{width:100%;height:100%;min-height:12rem;box-sizing:border-box;resize:none;' +
+    // The list was a <textarea> until 0.2.0, which is what made it selectable and
+    // copyable with nothing to press and kept a selection of several thousand
+    // entities down to one node. Pills need real elements, so the node count is back
+    // and `LIST_RENDER_CAP` is what keeps it bounded - the same trade the siblings
+    // make with `LOG_RENDER_CAP`.
+    '.cfbe-list{width:100%;height:100%;min-height:12rem;box-sizing:border-box;overflow:auto;' +
     'background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;border-radius:3px;' +
-    'font-family:monospace;font-size:.8rem;line-height:1.35;padding:.35rem .5rem;}' +
+    'font-family:monospace;font-size:.8rem;line-height:1.9;padding:.35rem .5rem;}' +
+    '.cfbe-entry{white-space:pre-wrap;word-break:break-word;}' +
+    // `display:inline`, deliberately: a selection dragged across inline-*block* pills
+    // copies with line breaks nobody selected, and copying the listing as text is the
+    // reason this list exists at all. Vertical padding is 0 for the same reason it
+    // would otherwise overlap the line above.
+    '.cfbe-pill{display:inline;border-radius:3px;padding:0 .3rem;background:#30404d;}' +
+    '.cfbe-pill-act{background:#394b59;color:#a7b6c2;}' +
+    '.cfbe-pill-ent{background:#2c4a63;color:#7cc4ff;text-decoration:none;}' +
+    '.cfbe-pill-cf{cursor:pointer;}' +
+    '.cfbe-pill-ent:hover,.cfbe-pill-cf:hover{background:#425a6b;}' +
+    '.cfbe-pill-copied{background:#3f6b46;}' +
+    // Real text, so it takes the selection highlight like the rest of the line;
+    // `selectionText` is what keeps it out of what gets copied.
+    '.cfbe-none{color:#a7b6c2;font-family:sans-serif;}' +
+    '.cfbe-pill-failed{background:#7a3b3b;}' +
     '.cfbe-msgs{max-height:6rem;overflow:auto;padding:0 1rem .35rem;font-family:monospace;' +
     'font-size:.8rem;line-height:1.35;}' +
     '.cfbe-editor{padding:.5rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
@@ -365,8 +385,31 @@
       (ent.folder && ent.folder.basename) || null;
   }
 
-  function entityLabel(spec, ent) {
-    return spec.label + ' "' + (displayName(ent) || 'untitled') + '" (' + ent.id + ')';
+  // Stash is commonly served over plain HTTP on a LAN, where the async clipboard API
+  // is not available at all, so the textarea + execCommand path is the fallback rather
+  // than a legacy branch. Same shape as the siblings' Copy log button, minus the
+  // caption swap: a pill reports by flashing, not by renaming itself.
+  function copyToClipboard(text, done) {
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        if (ta.select) ta.select();
+        var ok = document.execCommand ? document.execCommand('copy') : false;
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) {
+        return false;
+      }
+    }
+    var nav = window.navigator;
+    if (nav && nav.clipboard && nav.clipboard.writeText) {
+      nav.clipboard.writeText(text).then(function () { done(true); },
+        function () { done(fallback()); });
+      return;
+    }
+    done(fallback());
   }
 
   // Custom field values are an arbitrary JSON `Map`, so anything that is not already
@@ -672,7 +715,11 @@
     head.appendChild(el('div', 'cfbe-legend',
       'Reading the list: the number in brackets after a name is that entity\'s Stash id - ' +
       'Scene "My Scene" (123) is the scene with id 123. Counts are written as x250, never in ' +
-      'brackets. A line reads: entity - field name - field value.'));
+      'brackets. A line reads: entity: field name ' + EQ + ' field value, and after Apply, ' +
+      'what changed as before ' + ARROW.replace(/^\s+|\s+$/g, '') + ' after. ' + NONE +
+      ' marks nothing there - either no such field, or a field set to an empty value; it is a ' +
+      'mark on the screen only, and copies as nothing. Click an entity to open it in a new tab; ' +
+      'click a field name or value to copy it. Selecting lines and copying gives plain text.'));
     this.noteEl = el('div', 'cfbe-note', '');
     head.appendChild(this.noteEl);
     var link = el('a', 'cfbe-readme', 'Plugin README');
@@ -698,8 +745,18 @@
     this.modal.appendChild(filters);
 
     var listWrap = el('div', 'cfbe-log');
-    this.listEl = el('textarea', 'cfbe-list');
-    this.listEl.readOnly = true;
+    this.listEl = el('div', 'cfbe-list');
+    // The pills are markup, and a copy out of markup carries the markup with it. The
+    // selection's own text is what the user sees, so that is what goes on the
+    // clipboard - as `text/html` too, or a rich editor would paste the pills back.
+    this.listEl.addEventListener('copy', function (ev) {
+      var text = window.getSelection ? selectionText(window.getSelection()) : '';
+      if (!text || !ev || !ev.clipboardData) return;
+      ev.clipboardData.setData('text/plain', text);
+      ev.clipboardData.setData('text/html',
+        text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+      if (ev.preventDefault) ev.preventDefault();
+    });
     listWrap.appendChild(this.listEl);
     this.modal.appendChild(listWrap);
 
@@ -905,7 +962,7 @@
         // than silently dropped: the count in the head came from the selection.
         if (!ent) { self.msg('WARN', spec.label + ' ' + id + ' no longer exists.'); return; }
         self.entities.push({
-          id: String(ent.id), label: entityLabel(spec, ent),
+          id: String(ent.id), display: displayName(ent) || 'untitled',
           fields: ent.custom_fields || {},
         });
       });
@@ -921,10 +978,135 @@
       for (var k in e.fields) { if (hasOwn(e.fields, k)) names.push(k); }
       names.sort();
       names.forEach(function (k) {
-        rows.push({ id: e.id, label: e.label, name: k, value: valueText(e.fields[k]) });
+        rows.push({ id: e.id, display: e.display, name: k, value: valueText(e.fields[k]) });
       });
     });
     this.rows = rows;
+  };
+
+  // ── Pills ─────────────────────────────────────────────────────────────────
+  //
+  // A line reads `<Type> {"name" (id)}: {field}🟰{value}`, and a change line is the
+  // same with an action pill in front and a before ⇒ after. Three kinds, three
+  // behaviours: the action pill says what happened and does nothing, the entity pill
+  // is a link to that entity, and a field name or value copies itself.
+  function textNode(s) { return el('span', null, s); }
+
+  // Real text, not `content:` on an empty span, and that is the second thing this
+  // mark has been through. Generated content cannot be selected: it paints no
+  // highlight when the user drags across the line, so a line with a mark in it looked
+  // like it had a hole in the selection. Selectable is worth more than the guarantee
+  // the empty span bought, because the guarantee can be had another way - see
+  // `selectionText`, which drops the mark *elements* from what gets copied.
+  function noneNode(title) {
+    var n = el('span', 'cfbe-none', NONE);
+    n.title = title;
+    return n;
+  }
+
+  // What a copy out of the list should say: the values the entities really have, with
+  // the marks left out - they stand for nothing being there, so they stand for nothing
+  // in the text either.
+  //
+  // Read off a *clone* of the selected range with the mark elements removed, never by
+  // stripping the mark's character out of the string: an entity name is free to
+  // contain that character, and this user's names are full of Unicode marks. Changing
+  // `NONE` therefore stays a one-line change, which is what it was.
+  //
+  // `cloneContents` keeps the ancestors of a partial selection, so a multi-row
+  // selection arrives as one `.cfbe-entry` per line and a within-one-row selection as
+  // the pills themselves - which is why the newline goes in only between entries.
+  function selectionText(sel) {
+    var plain = sel ? String(sel) : '';
+    if (!plain || !sel.rangeCount || !sel.getRangeAt) return plain;
+    var frag;
+    try { frag = sel.getRangeAt(0).cloneContents(); } catch (e) { return plain; }
+    if (!frag || !frag.querySelectorAll || !frag.childNodes) return plain;
+    var marks = frag.querySelectorAll('.cfbe-none');
+    for (var i = 0; i < marks.length; i++) {
+      if (marks[i].parentNode) marks[i].parentNode.removeChild(marks[i]);
+    }
+    var out = '';
+    for (var j = 0; j < frag.childNodes.length; j++) {
+      var kid = frag.childNodes[j];
+      if (j && hasClass(kid, 'cfbe-entry')) out += '\n';
+      out += kid.textContent || '';
+    }
+    return out;
+  }
+
+  function pill(kind, text) { return el('span', 'cfbe-pill cfbe-pill-' + kind, text); }
+
+  function entityPill(spec, id, display) {
+    var a = el('a', 'cfbe-pill cfbe-pill-ent', '"' + display + '" (' + id + ')');
+    a.href = '/' + spec.key + '/' + id;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.title = 'Open this ' + spec.label.toLowerCase() + ' in a new tab';
+    return a;
+  }
+
+  // An empty name or value is a real thing to store, and it was rendering as a pill
+  // with nothing in it - indistinguishable from a bug, and the actual complaint that
+  // sent this round. It gets the same ∅ the absent side gets, for the same reason and
+  // by the same mechanism: the pill's *text* stays empty, so a click still copies the
+  // empty string and a selection still reads it as one.
+  function copyPill(text) {
+    var p = pill('cf', text === '' ? null : text);
+    if (text === '') p.appendChild(noneNode('empty - this field is set, to nothing'));
+    p.title = 'Click to copy';
+    p.addEventListener('click', function () {
+      // A drag-select that ends inside a pill fires a click, and copying the pill
+      // there would take the clipboard off the selection the user just made. A plain
+      // click has already collapsed any selection by the time it arrives.
+      if (window.getSelection && String(window.getSelection())) return;
+      var base = 'cfbe-pill cfbe-pill-cf';
+      copyToClipboard(text, function (ok) {
+        p.className = base + (ok ? ' cfbe-pill-copied' : ' cfbe-pill-failed');
+        setTimeout(function () { p.className = base; }, 900);
+      });
+    });
+    return p;
+  }
+
+  // A field side of a line: the pair, or ∅ where there is no field on that side.
+  function appendField(row, field) {
+    if (!field) { row.appendChild(noneNode('no field here')); return; }
+    row.appendChild(copyPill(field.name));
+    row.appendChild(textNode(EQ));
+    row.appendChild(copyPill(field.value));
+  }
+
+  Run.prototype.rowNode = function (r, action, before, after) {
+    var row = el('div', 'cfbe-entry');
+    if (action) {
+      row.appendChild(pill('act', action));
+      row.appendChild(textNode(' '));
+    }
+    row.appendChild(textNode(this.spec.label + ' '));
+    row.appendChild(entityPill(this.spec, r.id, r.display));
+    row.appendChild(textNode(': '));
+    appendField(row, before);
+    if (action) {
+      row.appendChild(textNode(ARROW));
+      appendField(row, after);
+    }
+    return row;
+  };
+
+  // One place where the cap is applied, so both the listing and the change recap say
+  // the same thing when there is more than the DOM should hold.
+  Run.prototype.fillList = function (items, build) {
+    var self = this;
+    while (this.listEl.firstChild) this.listEl.removeChild(this.listEl.firstChild);
+    items.slice(0, LIST_RENDER_CAP).forEach(function (item) {
+      self.listEl.appendChild(build.call(self, item));
+    });
+    if (items.length > LIST_RENDER_CAP) {
+      this.listEl.appendChild(el('div', 'cfbe-entry cfbe-INFO',
+        '... and ' + (items.length - LIST_RENDER_CAP) + ' more line(s) not shown. ' +
+        'Filter to narrow the list; every one of them is still in scope.'));
+    }
   };
 
   Run.prototype.filtered = function () {
@@ -939,9 +1121,9 @@
   Run.prototype.renderList = function () {
     this.buildRows();
     var rows = this.filtered();
-    this.listEl.value = rows.map(function (r) {
-      return r.label + ' - ' + r.name + ' - ' + r.value;
-    }).join('\n');
+    this.fillList(rows, function (r) {
+      return this.rowNode(r, null, { name: r.name, value: r.value });
+    });
     this.renderProgress(rows.length);
   };
 
@@ -998,7 +1180,7 @@
       // Nothing to write where the value is already exactly what was asked for.
       if (mode !== 'remove' && has && valueText(e.fields[name]) === value) return;
       changes.push({
-        id: e.id, label: e.label, entity: e, name: name,
+        id: e.id, display: e.display, entity: e, name: name,
         had: has, before: has ? e.fields[name] : null, after: after, remove: mode === 'remove',
       });
     });
@@ -1165,14 +1347,15 @@
   // listing it replaces described the library before the write, and leaving it up
   // would be the dialog's own stalest possible claim.
   Run.prototype.renderChanges = function (planned, reversed) {
-    var lines = this.changes.map(function (c) {
-      var from = c.had ? valueText(c.before) : '(none)';
-      var to = c.remove ? '(removed)' : valueText(c.after);
-      return reversed
-        ? c.label + ' - ' + c.name + ' - ' + to + ' -> ' + from
-        : c.label + ' - ' + c.name + ' - ' + from + ' -> ' + to;
+    this.fillList(this.changes, function (c) {
+      var before = c.had ? { name: c.name, value: valueText(c.before) } : null;
+      var after = c.remove ? null : { name: c.name, value: valueText(c.after) };
+      if (reversed) { var swap = before; before = after; after = swap; }
+      // The action is read off the two sides rather than off the mode, which is what
+      // makes an undo name itself correctly: reversing an Added is a Deleted.
+      var action = !before ? 'Added' : !after ? 'Deleted' : 'Replaced';
+      return this.rowNode(c, action, before, after);
     });
-    this.listEl.value = lines.join('\n');
     if (planned) {
       this.msg('INFO', 'Applied "' + planned.mode + '" on field "' + planned.name + '" to ' +
         this.changes.length + ' ' + this.spec.plural.toLowerCase() + '.');

@@ -14,10 +14,20 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
-> ## 0.1.2 — in use, with the whole selection now counted
+> ## 0.2.3 — the listing is pills now
 >
 > The version number is the honest one. The plugin works in a real Stash — the menu item, the dialog
-> and the write have all been exercised. **0.1.2 fixes a selection being read short on the tag and
+> and the write have all been exercised. **`␀` marks "nothing there"** — either no such field, or a
+> field set to an empty value, which used to come out as a pill with nothing in it. It highlights
+> with the rest of the line when you select it, and it is left out of what you copy: you get the
+> empty value the entity really has, and a name of your own containing `␀` keeps it.
+>
+> **0.2.0 rebuilt the list out of clickable pills**: an
+> entity opens in a new tab, a field name or value copies itself, and copying a selection of lines
+> still gives you plain text. Long listings are cut at 1000 lines on screen — the last line says how
+> many are not shown, and it changes nothing about what Apply writes.
+>
+> 0.1.2 fixed **a selection being read short on the tag and
 > studio lists**: a tag card names its parent tag and a studio card its parent studio, and the plugin
 > could not tell that second link from the card's own, so it skipped the card entirely. Every tag or
 > studio *with a parent* was silently missing — 1783 tags selected came through as 583. Scenes,
@@ -53,15 +63,32 @@ something a stray keypress should do.
 The dialog opens on what your selection carries **now**:
 
 ```
-Scene "Beach Day" (412) - shoot - 2019-07
-Scene "Beach Day" (412) - source - dvd
-Scene "Rooftop" (417) - shoot - 2021-02
+Scene "Beach Day" (412): shoot🟰2019-07
+Scene "Beach Day" (412): source🟰dvd
+Scene "Rooftop" (417): shoot🟰2021-02
 ```
+
+Each of those coloured boxes is a **pill**, and clicking one does something:
+
+| Pill | Click |
+| --- | --- |
+| `"Beach Day" (412)` | Opens that entity's page in a **new tab**. |
+| `shoot`, `2019-07` | **Copies** that text to the clipboard. The pill flashes green. |
+| `Added`, `Replaced`, `Deleted` *(after Apply)* | Nothing. It is a label. |
+
+**`␀` means nothing is there** — either no such field, or a field set to an empty value. Hover it to
+see which. It is dropped from anything you copy, so a copied line carries the empty value the entity
+really has; names of your own containing `␀` are ordinary text and keep it.
+
+Selecting lines and copying them gives you **plain text** — the pills come out as the text you see,
+with no colours to paste into anything.
 
 - **Filter by Name** and **Filter by Value** narrow that list as you type (case-insensitive
   substring, both applied together).
-- The list is a plain text box: scroll it, select it, copy it. There is no export button because
-  there does not need to be one.
+- Scroll it, select it, copy it — there is no export button because there does not need to be one.
+- Very long listings stop at **1000 lines on screen**, with a last line saying how many are not
+  shown. Only the display is capped: the counters, Apply and Undo all still cover everything you
+  selected. Use the filters to see the rest.
 - The counters above it say how many entities were read, how many carry any custom field at all,
   how many fields that is in total, and how many lines the filters leave showing.
 - Entities carrying **no** custom fields contribute no lines, but are still counted and are still
@@ -94,12 +121,16 @@ asked for are not written to at all.
 
 ## After Apply
 
-The list is replaced by exactly what changed, one line per entity:
+The list is replaced by exactly what changed, one line per entity, with what happened in front and
+`␀` for the side where there is nothing:
 
 ```
-Scene "Beach Day" (412) - source - dvd -> bluray
-Scene "Rooftop" (417) - source - (none) -> bluray
+Replaced Scene "Beach Day" (412): source🟰dvd ⇒ source🟰bluray
+Added    Scene "Rooftop" (417): ␀ ⇒ source🟰bluray
 ```
+
+A **Remove** reads the other way round — `Deleted … source🟰dvd ⇒ ␀` — and after an **Undo** the
+lines are shown reversed, so undoing an *Added* reads as a *Deleted*.
 
 **Cancel** becomes **Undo** and **Apply** becomes **Close**.
 

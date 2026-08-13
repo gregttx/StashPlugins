@@ -1,9 +1,9 @@
 id: CustomFieldsBulkEditor
 name: GTTx Custom Fields Bulk Editor
 metadata:
-  description: "View and bulk edit custom fields across a whole selection. Select anything in an entity list (Scenes, Images, Galleries, Performers, Studios, Groups or Tags), open the \"...\" menu and pick \"Custom Fields...\".\n\nThe dialog lists every custom field the selection carries - one line per entity and field - with filters on the field name and the value.\n\nOne field is written at a time, in one of three ways: Add sets it only where it is missing, Overwrite sets it everywhere, Remove deletes it. The write covers either the whole selection or only the lines the filters leave showing.\n\nNothing is written until you press Apply. Afterwards the list shows exactly what changed and Undo puts the previous values back, field by field, while the dialog stays open.\n\nScene markers are not offered: they are the one selectable entity in Stash with no custom fields at all.\n\nRequires Stash 0.31.0 or newer."
-version: 0.1.2
-date: "2026-08-13 08:15:05"
+  description: "View and bulk edit custom fields across a whole selection. Select anything in an entity list (Scenes, Images, Galleries, Performers, Studios, Groups or Tags), open the \"...\" menu and pick \"Custom Fields...\".\n\nThe dialog lists every custom field the selection carries - one line per entity and field - with filters on the field name and the value. Click an entity to open it in a new tab, or a field name or value to copy it; copying a selection of lines gives plain text.\n\nOne field is written at a time, in one of three ways: Add sets it only where it is missing, Overwrite sets it everywhere, Remove deletes it. The write covers either the whole selection or only the lines the filters leave showing.\n\nNothing is written until you press Apply. Afterwards the list shows exactly what changed and Undo puts the previous values back, field by field, while the dialog stays open.\n\nScene markers are not offered: they are the one selectable entity in Stash with no custom fields at all.\n\nRequires Stash 0.31.0 or newer."
+version: 0.2.3
+date: "2026-08-13 11:02:22"
 requires: []
 files:
 - CustomFieldsBulkEditor.js

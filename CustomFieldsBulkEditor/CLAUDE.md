@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.2.3 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.2.4 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. What is *not* verified is still §8's table, and now also the pills (§5a) — requested
 from live use, and already the subject of two reports, the second of which is what found the right
@@ -15,7 +15,7 @@ list views that had the same cause (§2); the undercounted tag and studio select
 
 0.1.0 is the settings-page description (§10) and Escape (§11), both new capability rather than
 fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (§5a), and
-0.2.1–0.2.3 the empty-marker rounds. 112 automated checks cover the plugin, and the suite still
+0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b). 119 automated checks cover the plugin, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -276,6 +276,37 @@ the listing is cut at 1000 rows with a line saying how many are not shown. **The
 render, never on the scope**: the counters and every write still describe the whole listing, and the
 overflow line says so, because a user who reads "1000 lines" and applies to 5000 entities has been
 lied to by the dialog.
+
+## 5b. "is empty" is a mode, not a word you type (0.2.4)
+
+**An empty filter box means "no filter", so it can never be how you ask for the empty ones** —
+typing nothing is how you ask for everything. Reported live: "an empty value in the filter shows
+everything." The query needs a spelling of its own.
+
+**Every in-band spelling is ambiguous, and the ambiguity is not theoretical.** This shipped first as
+"type `␀` on its own into either box", reusing §5a's marker, and was rejected within the hour: it
+cannot tell a value that *is* `␀` from one that is empty. `""`, `<empty>`, `NULL` all fail the same
+way — **any sentinel a text box can carry is also a value somebody is allowed to have**, and this
+user's values are full of Unicode marks. The fixture in `tests/cfbe.test.js` gives one entity
+`rating: '␀'` for exactly that reason: the check that the marker is ordinary text under *contains*
+is what stops the ambiguous design being reintroduced.
+
+**So the mode is a `<select>` beside the box** — `contains` (default) and `is empty` — and
+`filtered()` branches on it rather than on the text. Out of band, so nothing typed can be mistaken
+for it. The box is `disabled` in `is empty` mode: the mode is the whole query, and a live box would
+read as a second condition that is silently not applied. `.cfbe-input:disabled{opacity:.5}` because
+these inputs paint their own background, so the browser's disabled look does not show through.
+
+**"is not empty" is deliberately absent.** Nobody has asked for it, and it is one more entry in the
+options array the day somebody does. Note that `contains` with an empty box does *not* cover it —
+that is no filter at all, and the empty ones show along with everything else.
+
+**The name filter gets no mode.** A custom-field key is never the empty string, so it would have one
+useful setting.
+
+**It reaches the write through the door that already exists.** "Apply to → Filtered list only" is
+defined as the entities the filters leave showing, so "set this on exactly the ones that have
+nothing" needed no code in §7 at all.
 
 ## 6. The three modes, and the one distinction the data allows
 

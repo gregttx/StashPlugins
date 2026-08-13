@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.2.3';
+  var PLUGIN_VERSION = '0.2.4';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -295,6 +295,10 @@
     '.cfbe-input,.cfbe-select{background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
     'border-radius:3px;padding:.25rem .5rem;}' +
     '.cfbe-input{flex:1 1 10rem;min-width:8rem;}' +
+    // The value box is disabled while the mode is the whole query, and these inputs
+    // set their own background and colour, so the browser's own disabled look does not
+    // show through.
+    '.cfbe-input:disabled{opacity:.5;}' +
     '.cfbe-readme{color:#7cc4ff;font-size:.8rem;margin-top:.35rem;display:inline-block;}' +
     // ── The settings page ───────────────────────────────────────────────────
     //
@@ -737,10 +741,22 @@
     this.nameFilter = this.input('cfbe-filter-name');
     filters.appendChild(this.nameFilter);
     filters.appendChild(el('span', 'cfbe-label', 'Filter by Value'));
+    // The mode is a control of its own rather than something typed into the box, because
+    // any sentinel the box could carry is also a value somebody is allowed to have.
+    this.valueMode = this.select('cfbe-filter-mode', [
+      ['contains', 'contains'], ['empty', 'is empty'],
+    ], 'contains');
+    filters.appendChild(this.valueMode);
     this.valueFilter = this.input('cfbe-filter-value');
     filters.appendChild(this.valueFilter);
     [this.nameFilter, this.valueFilter].forEach(function (i) {
       i.addEventListener('input', function () { self.renderList(); });
+    });
+    this.valueMode.addEventListener('change', function () {
+      // Nothing to type in when the mode is the whole query, and a box left enabled
+      // would read as a second condition that is silently not applied.
+      self.valueFilter.disabled = self.valueMode.value !== 'contains';
+      self.renderList();
     });
     this.modal.appendChild(filters);
 
@@ -1111,10 +1127,11 @@
 
   Run.prototype.filtered = function () {
     var name = String(this.nameFilter.value || '').toLowerCase();
-    var value = String(this.valueFilter.value || '').toLowerCase();
+    var empty = this.valueMode.value === 'empty';
+    var value = empty ? '' : String(this.valueFilter.value || '').toLowerCase();
     return this.rows.filter(function (r) {
       return (!name || r.name.toLowerCase().indexOf(name) !== -1) &&
-        (!value || r.value.toLowerCase().indexOf(value) !== -1);
+        (empty ? r.value === '' : (!value || r.value.toLowerCase().indexOf(value) !== -1));
     });
   };
 

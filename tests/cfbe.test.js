@@ -512,6 +512,43 @@ openDialog()
       env.copied.length === 1 && env.copied[0] === '', JSON.stringify(env.copied));
   })
 
+  // Finding those empty ones. The query is a *mode*, not something typed into the box,
+  // since any sentinel a box could carry is also a value somebody is allowed to have -
+  // and the one that reads as the obvious sentinel here is a value in this fixture.
+  .then(() => openDialog({
+    entities: {
+      1: { id: '1', title: 'S1', custom_fields: { colour: '', rating: '␀' } },
+      2: { id: '2', title: 'S2', custom_fields: { colour: 'red' } },
+    },
+    select: ['1', '2'],
+  }))
+  .then((env) => {
+    const mode = one(env.body, 'cfbe-filter-mode');
+    const valueFilter = one(env.body, 'cfbe-filter-value');
+    h.check('the value filter defaults to the substring match it has always been',
+      mode && mode.value === 'contains' && valueFilter.disabled !== true,
+      mode && mode.value);
+    mode.value = 'empty';
+    h.fire(mode, 'change');
+    h.check('"is empty" lists only the values that are the empty string',
+      lines(env.body).length === 1 && /colour/.test(lines(env.body)[0]),
+      lines(env.body).join(' | '));
+    h.check('a value that merely looks like the mark is not one of them',
+      !/rating/.test(lines(env.body).join(' | ')), lines(env.body).join(' | '));
+    h.check('and the box is disabled, since the mode is the whole query',
+      valueFilter.disabled === true);
+    h.check('the counters follow the filtered list',
+      /1 line\(s\) listed/.test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
+      (one(env.body, 'cfbe-progress') || {}).textContent);
+    valueFilter.value = '␀';
+    mode.value = 'contains';
+    h.fire(mode, 'change');
+    h.check('back on "contains", the mark is ordinary text to search for',
+      lines(env.body).length === 1 && /rating/.test(lines(env.body)[0]),
+      lines(env.body).join(' | '));
+    h.check('and the box is usable again', valueFilter.disabled === false);
+  })
+
   // The cap the pills cost: one node per line is back, so a listing longer than the
   // DOM should hold is cut off with a line saying so - and the scope is untouched.
   .then(() => {

@@ -14,10 +14,15 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
-> ## 0.2.3 — the listing is pills now
+> ## 0.2.4 — finding the empty ones
 >
 > The version number is the honest one. The plugin works in a real Stash — the menu item, the dialog
-> and the write have all been exercised. **`␀` marks "nothing there"** — either no such field, or a
+> and the write have all been exercised. **Filter by Value now has a mode beside it**: leave it on
+> *contains*, or switch it to **is empty** to list only the fields set to nothing. An empty box means
+> "no filter", so it could never ask that — and the query is a control rather than something typed
+> in, so no value you might actually have can be mistaken for it.
+>
+> **`␀` marks "nothing there"** — either no such field, or a
 > field set to an empty value, which used to come out as a pill with nothing in it. It highlights
 > with the rest of the line when you select it, and it is left out of what you copy: you get the
 > empty value the entity really has, and a name of your own containing `␀` keeps it.
@@ -85,6 +90,10 @@ with no colours to paste into anything.
 
 - **Filter by Name** and **Filter by Value** narrow that list as you type (case-insensitive
   substring, both applied together).
+- The dropdown beside **Filter by Value** switches it from *contains* to **is empty**, which lists
+  only the fields set to the empty string — the one thing an empty box cannot ask for, since an
+  empty box means no filter. The text box greys out: the mode is the whole query. Pair it with
+  **Apply to → Filtered list only** to write a value onto exactly the entities that have none.
 - Scroll it, select it, copy it — there is no export button because there does not need to be one.
 - Very long listings stop at **1000 lines on screen**, with a last line saying how many are not
   shown. Only the display is capped: the counters, Apply and Undo all still cover everything you

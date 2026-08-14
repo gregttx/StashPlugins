@@ -14,6 +14,12 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.7.3 — the dropdowns look like Stash's
+>
+> The four dropdowns in the dialog — the entity-type and value-mode filters, the write
+> mode and **Apply to** — now carry the stacked ▲/▼ marker Stash puts on its own
+> dropdowns, instead of whichever single chevron the browser happened to draw.
+>
 > ## 0.7.2 — the log follows itself again
 >
 > The list scrolls to its newest line when one is written, as the other three GTTx

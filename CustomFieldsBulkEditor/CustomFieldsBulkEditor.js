@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.7.2';
+  var PLUGIN_VERSION = '0.7.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -335,6 +335,17 @@
     '.cfbe-input,.cfbe-select{background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
     'border-radius:3px;padding:.25rem .5rem;}' +
     '.cfbe-input{flex:1 1 10rem;min-width:8rem;}' +
+    // Stash marks its own dropdowns with a stacked ▲/▼ (Settings - Logs - Log Level);
+    // a bare <select> gets whatever single chevron the browser draws. `appearance:none`
+    // removes that one and the pair goes back as a background image, inline as a data
+    // URI so the plugin stays a folder copy with no assets beside it. Quotes inside the
+    // SVG are percent-encoded rather than escaped, so the CSS string stays readable.
+    '.cfbe-select{-webkit-appearance:none;-moz-appearance:none;appearance:none;' +
+    'padding-right:1.4rem;background-repeat:no-repeat;background-position:right .4rem center;' +
+    'background-image:url("data:image/svg+xml;charset=utf-8,' +
+    '%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%278%27 height=%2716%27%3E' +
+    '%3Cpath fill=%27%23a7b6c2%27 d=%27M4 3l3 4H1z%27/%3E' +
+    '%3Cpath fill=%27%23a7b6c2%27 d=%27M4 13l-3-4h6z%27/%3E%3C/svg%3E");}' +
     // The value box is disabled while the mode is the whole query, and these inputs
     // set their own background and colour, so the browser's own disabled look does not
     // show through.

@@ -1,7 +1,7 @@
 name: GTTx Custom Fields Bulk Editor
 description: "View and bulk edit custom fields across a whole selection, or across the whole library. Select anything in an entity list (Scenes, Images, Galleries, Performers, Studios, Groups or Tags), open the \"...\" menu and pick \"Custom Fields...\" - or run the task in Settings - Tasks - Plugin Tasks to cover every entity of all seven types at once.\n\nThe dialog lists every custom field the entities in scope carry - one line per entity and field - with filters on the entity type, the field name and the value, the value filter also offering \"is empty\". An [INFO] line names every custom field found, with a count. Click an entity to open it in a new tab, or a field name or value to copy it; copying a selection of lines gives plain text.\n\nOne field is written at a time, in one of three ways: Add sets it only where it is missing, Overwrite sets it everywhere, Remove deletes it. The write covers either everything in scope or only the lines the filters leave showing.\n\nNothing is written until you press Apply. Afterwards the list shows exactly what changed and Undo puts the previous values back, field by field, and stays offered while the dialog is open. Rescan re-reads without closing, and Copy log takes the counters, the messages and the whole listing as plain text.\n\nScene markers are not offered: they are the one selectable entity in Stash with no custom fields at all.\n\nRequires Stash 0.31.0 or newer."
 url: "https://github.com/gregttx/StashPlugins/blob/main/CustomFieldsBulkEditor/README.md"
-version: 0.4.3
+version: 0.4.4
 ui:
   javascript:
     - CustomFieldsBulkEditor.js

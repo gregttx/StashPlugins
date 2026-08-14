@@ -382,6 +382,16 @@ openDialog()
     h.check('the legend says a bracketed number is an id',
       /number in brackets after the entity name is its id/.test(
         (one(env.body, 'cfbe-legend') || {}).textContent || ''));
+    // The legend quotes the list, so its ␀ has to be drawn the way the list draws
+    // one. The mark is a span rather than a character in the legend's own string,
+    // and the font comes from the rule the list's own marks are in - a second
+    // declaration of the same face is a second thing to keep in step.
+    const legendMark = byClass(one(env.body, 'cfbe-legend') || h.makeElement('div'), 'cfbe-nonemark');
+    h.check('and its ␀ is a span of its own',
+      legendMark.length === 1 && legendMark[0].textContent === '␀',
+      legendMark.map((n) => n.textContent).join('|'));
+    h.check('drawn by the same rule as the list’s marks, font only',
+      /\.cfbe-none,\.cfbe-nonemark\{font-family:[^;}]+;\}/.test(require('fs').readFileSync(SRC, 'utf8')));
 
     h.check('the selection is read in one aliased by-id query, not one per entity',
       env.calls.filter((c) => /CFBE_Read/.test(c.query || '')).length === 1,

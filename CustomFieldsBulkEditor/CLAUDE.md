@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.4.3 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.4.4 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -22,7 +22,7 @@ fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (�
 0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b), which 0.2.5
 had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
 0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10; 0.4.0 is
-§13, five things the task dialog wanted once it held a whole library. 173 automated checks cover the plugin across its two suites, and the suite still
+§13, five things the task dialog wanted once it held a whole library. 175 automated checks cover the plugin across its two suites, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -692,3 +692,27 @@ local need is what the pinning exists to stop.
 **"Selecting lines and copying gives plain text" left the legend but not the plugin.** It is still
 true, still documented in `README.md`, and was the one sentence there describing something the user
 cannot see from the screen — which is an argument for the README carrying it, not the head.
+
+## 15. The legend's ␀ is drawn by the list's own rule
+
+0.4.4. `.cfbe-none` sets `font-family:sans-serif` because the mark sits in a monospace
+line and a monospace face draws U+2400 as a wide box; the legend, which is not
+monospace, quoted the same character out of a plain string and got whatever the head's
+face makes of it. The two are the same mark and had to look it.
+
+**One rule, two selectors** — `.cfbe-none,.cfbe-nonemark{font-family:...}` with the
+colour left on `.cfbe-none` alone. A second declaration of the same face is a second
+thing to keep in step, and the legend keeps its own colour and size: the ask was the
+font and only the font.
+
+**The legend is spans now, with no text of its own.** It was one string, and a mark
+inside a string cannot be styled. The shape is `rowNode`'s — a div holding spans, the
+two plain ones unclassed so they inherit everything the legend sets.
+
+**Text-then-append is what the harness cannot see.** The first cut set the legend's
+`textContent` and appended the mark after it, which is correct in a browser and reads
+*short* in `tests/npt-harness.js`: its `textContent` getter returns `_text` when it is
+set and ignores the children beneath it. The existing legend check went red, which is
+the good outcome — a fixture that had answered with the whole string suddenly answering
+with two-thirds of it. Building from spans avoids it entirely, and is the shape the rest
+of this dialog already uses.

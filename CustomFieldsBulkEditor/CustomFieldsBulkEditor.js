@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.4.3';
+  var PLUGIN_VERSION = '0.4.4';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -293,7 +293,12 @@
     '.cfbe-pill-copied{background:#3f6b46;}' +
     // Real text, so it takes the selection highlight like the rest of the line;
     // `selectionText` is what keeps it out of what gets copied.
-    '.cfbe-none{color:#a7b6c2;font-family:sans-serif;}' +
+    // One rule for both, so the legend's ␀ cannot drift from the list's. The mark is
+    // the one character in a monospace line that a monospace face renders as a box of
+    // its own; the legend is not monospace, but it quotes the list, so the two have to
+    // agree. Font only - the legend keeps its own colour and size.
+    '.cfbe-none,.cfbe-nonemark{font-family:sans-serif;}' +
+    '.cfbe-none{color:#a7b6c2;}' +
     '.cfbe-pill-failed{background:#7a3b3b;}' +
     // `flex:0 0 auto` is the other half of that fix, and the half that was actually
     // wrong: a flex item with `overflow:auto` has an automatic minimum size of *zero*,
@@ -813,13 +818,21 @@
     head.appendChild(el('div', 'cfbe-warn',
       'Backing up your database before proceeding is recommended. Undo only reverses what this dialog wrote, ' +
       'while it stays open, and cannot account for changes made elsewhere in the meantime.'));
-    head.appendChild(el('div', 'cfbe-legend',
+    // Built from spans rather than one string, so the ␀ can carry `cfbe-nonemark` and
+    // render in the same face the list draws it in. The two plain spans are unclassed
+    // and inherit everything the legend sets; the legend itself gets no text of its own,
+    // the same shape `rowNode` uses for a line.
+    var legend = el('div', 'cfbe-legend');
+    legend.appendChild(el('span', null,
       'Reading the list: the number in brackets after the entity name is its id. The rest of ' +
       'the line reads: entity: field name ' + EQ + ' field value, and after Apply, ' +
-      'what changed as before ' + ARROW.replace(/^\s+|\s+$/g, '') + ' after. ' + NONE +
+      'what changed as before ' + ARROW.replace(/^\s+|\s+$/g, '') + ' after. '));
+    legend.appendChild(el('span', 'cfbe-nonemark', NONE));
+    legend.appendChild(el('span', null,
       ' marks nothing there - either no such field, or a field set to an empty value; it is a ' +
       'mark on the screen only, and copies as nothing. Click an entity to open it in a new tab; ' +
       'click a field name or value to copy it. Counts are written with prefix "x".'));
+    head.appendChild(legend);
     this.noteEl = el('div', 'cfbe-note', '');
     head.appendChild(this.noteEl);
     this.modal.appendChild(head);

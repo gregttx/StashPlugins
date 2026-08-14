@@ -176,10 +176,17 @@ const one = (body, cls) => byClass(body, cls)[0] || null;
 const menuItems = (body) => byClass(body, 'cfbe-menu-item');
 const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || ''));
 // The listing is a stack of pill rows since 0.2.0, so a "line" is a row's own text.
-const rows = (body) => byClass(body, 'cfbe-entry');
+// Since 0.5.0 the log keeps every listing it has drawn, one `.cfbe-block` each, so
+// "the list" is the last of them - the one describing the library as of now.
+const lastBlock = (body) => byClass(body, 'cfbe-block').pop() || null;
+const rows = (body) => {
+  const b = lastBlock(body);
+  return b ? b.descendants().filter((n) => h.hasClass(n, 'cfbe-entry')) : [];
+};
 const lines = (body) => rows(body).map((n) => n.textContent);
 const pills = (body, kind) => byClass(body, 'cfbe-pill-' + kind);
-// The [INFO]/[WARN]/[ERROR] strip under the listing, which is a separate scroller.
+// The [INFO]/[WARN]/[ERROR] lines, now in the log beside the listings rather than in
+// a strip of their own.
 const notes = (body) => byClass(body, 'cfbe-line').map((n) => n.textContent);
 // Guarded rather than assumed, like the settings toggle below: against a build
 // missing one of these buttons a check has to report a failure, not throw and take
@@ -445,6 +452,11 @@ openDialog()
     valueFilter.value = '';
     h.fire(valueFilter, 'input');
     h.check('clearing a filter restores the whole list', lines(env.body).length === 3);
+    // A re-filter restates what is in scope now rather than logging a new listing:
+    // one block per keystroke would be a history of nothing.
+    h.check('and filtering rewrites the listing in place, adding no second one',
+      byClass(env.body, 'cfbe-block').length === 1,
+      String(byClass(env.body, 'cfbe-block').length));
   })
 
   // Copying a selection out of the list. The mark stands for nothing being there, so
@@ -611,8 +623,17 @@ openDialog()
       JSON.stringify((w[0] || {}).variables));
     h.check('the write goes through the entity own bulk mutation',
       /bulkSceneUpdate/.test((w[0] || {}).query || ''));
-    h.check('the list is replaced by what changed',
+    h.check('what changed is listed under what was there',
       lines(env.body)[0] === 'Added Scene "S3" (3): ␀ ⇒ colour🟰green', lines(env.body)[0]);
+    // One growing scroller, in the order things happened: the listing as it was read,
+    // then the [INFO] line saying what was done to it, then what changed. The old
+    // `.cfbe-msgs` strip is gone, so a message has nowhere else to be.
+    const log = one(env.body, 'cfbe-list');
+    const kinds = (log ? log.childNodes : []).map((n) =>
+      h.hasClass(n, 'cfbe-block') ? 'block' : (n.textContent || '').slice(0, 6));
+    h.check('the earlier listing stays above it, in the one scroller',
+      !one(env.body, 'cfbe-msgs') &&
+      kinds.join(' ') === 'block [INFO] block [INFO]', kinds.join(' | '));
     // ∅ rendered as an empty box live: the list font is monospace and the glyph is
     // not in it. It is the one mark on the line that is not a pill, so it has nothing
     // else to sit in - hence its own class, out of the monospace stack.
@@ -928,6 +949,11 @@ openDialog()
       h.check('Copy log takes the counters, the INFO lines and the listing',
         /3 scenes read/.test(copied) && /Custom fields found/.test(copied) &&
         copied.indexOf('Scene "S1" (1): colour' + EQ + 'blue') !== -1, copied);
+      // In the order the log has them, not counters-then-strip-then-list: the copy is
+      // the log, and the log is chronological.
+      h.check('and copies them in the order they happened',
+        copied.indexOf('Scene "S1" (1): colour' + EQ + 'blue') <
+          copied.indexOf('Custom fields found'), copied);
       h.check('and the caption says it worked',
         !!one(env.body, 'cfbe-copy') && one(env.body, 'cfbe-copy').textContent === 'Copied');
     });

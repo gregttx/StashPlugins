@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.4.5';
+  var PLUGIN_VERSION = '0.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -283,10 +283,9 @@
     'font-family:monospace;font-size:.8rem;line-height:1.9;padding:.35rem .5rem;}' +
     // A modifier on the shared `.cfbe-log`, not an edit to it: that rule is pinned
     // byte-identical across the four dialogs (`tests/style.test.js`) and its 14rem
-    // floor is right for a plain log. Here the same box holds a *second* scroller and
-    // the message strip below it, and 14rem of floor plus 6rem of messages is what
-    // pushed the modal past its own max-height on a short window - which is how the
-    // list came to sit over the [INFO] lines. Reported live at 0.3.2.
+    // floor is right for a plain log. This box holds the whole session - listings and
+    // messages together - so a floor tall enough to push the modal past its own
+    // max-height on a short window costs the dialog more than it buys the list.
     '.cfbe-listwrap{min-height:8rem;}' +
     '.cfbe-entry{white-space:pre-wrap;word-break:break-word;}' +
     // `display:inline`, deliberately: a selection dragged across inline-*block* pills
@@ -308,13 +307,6 @@
     '.cfbe-none,.cfbe-nonemark{font-family:sans-serif;}' +
     '.cfbe-none{color:#a7b6c2;}' +
     '.cfbe-pill-failed{background:#7a3b3b;}' +
-    // `flex:0 0 auto` is the other half of that fix, and the half that was actually
-    // wrong: a flex item with `overflow:auto` has an automatic minimum size of *zero*,
-    // so this strip was the one thing in the column the flex algorithm could squash to
-    // nothing - which it did, silently, while the list beside it kept its floor.
-    // Content-sized when there is nothing in it, so an empty strip still costs no room.
-    '.cfbe-msgs{flex:0 0 auto;max-height:6rem;overflow:auto;padding:0 1rem .35rem;' +
-    'font-family:monospace;font-size:.8rem;line-height:1.35;}' +
     '.cfbe-editor{padding:.5rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
     'flex-wrap:wrap;align-items:center;}' +
     '.cfbe-label{color:#a7b6c2;font-size:.85rem;white-space:nowrap;}' +
@@ -899,9 +891,6 @@
     listWrap.appendChild(this.listEl);
     this.modal.appendChild(listWrap);
 
-    this.msgEl = el('div', 'cfbe-msgs');
-    this.modal.appendChild(this.msgEl);
-
     var ops = el('div', 'cfbe-editor');
     this.modeSel = this.select('cfbe-mode', [
       ['add', 'Add'], ['overwrite', 'Overwrite'], ['remove', 'Remove'],
@@ -1035,9 +1024,19 @@
       ? this.noteEl.textContent + ' ' + message : message;
   };
 
+  // Into the listing itself, at the end, so a message sits where it happened rather
+  // than in a strip of its own that has to be read against the list beside it. One
+  // box, one scrollbar, one order of events - and nothing here ever clears it, so the
+  // whole session is still there when the dialog closes.
   Run.prototype.msg = function (kind, message) {
-    this.msgEl.appendChild(el('div', 'cfbe-line cfbe-' + kind, '[' + kind + '] ' + message));
-    if (typeof this.msgEl.scrollHeight === 'number') this.msgEl.scrollTop = this.msgEl.scrollHeight;
+    this.listEl.appendChild(el('div', 'cfbe-line cfbe-' + kind, '[' + kind + '] ' + message));
+    this.scrollList();
+  };
+
+  Run.prototype.scrollList = function () {
+    if (typeof this.listEl.scrollHeight === 'number') {
+      this.listEl.scrollTop = this.listEl.scrollHeight;
+    }
   };
 
   Run.prototype.begin = function () {
@@ -1083,6 +1082,9 @@
     this.failed = 0;
     this.undone = 0;
     this.loadingWhat = '';
+    // A new listing rather than a rewrite of the one on screen: it is a fresh read of
+    // a library that may have moved, and the log says so between the two.
+    this.blockEl = null;
     this.msg('INFO', 'Rescanning.');
     this.begin();
   };
@@ -1381,16 +1383,27 @@
 
   // One place where the cap is applied, so both the listing and the change recap say
   // the same thing when there is more than the DOM should hold. `text` runs over
-  // *every* item, capped or not: Copy log is not a copy of the DOM.
+  // *every* item, capped or not: Copy log is not a copy of the DOM, and it hangs on
+  // the block rather than on the run so an earlier block can still be copied whole.
+  //
+  // A listing goes into a block of its own, appended after whatever the log already
+  // holds. Re-filtering rewrites the current block in place - it restates what is in
+  // scope *now*, and one new listing per keystroke is not a history of anything -
+  // while a rescan or a write clears `blockEl` first and so starts another.
   Run.prototype.fillList = function (items, build, text) {
     var self = this;
-    while (this.listEl.firstChild) this.listEl.removeChild(this.listEl.firstChild);
-    this.listText = items.map(function (item) { return text.call(self, item); });
+    var block = this.blockEl;
+    if (!block) {
+      block = this.blockEl = el('div', 'cfbe-block');
+      this.listEl.appendChild(block);
+    }
+    while (block.firstChild) block.removeChild(block.firstChild);
+    block._text = items.map(function (item) { return text.call(self, item); });
     items.slice(0, LIST_RENDER_CAP).forEach(function (item) {
-      self.listEl.appendChild(build.call(self, item));
+      block.appendChild(build.call(self, item));
     });
     if (items.length > LIST_RENDER_CAP) {
-      this.listEl.appendChild(el('div', 'cfbe-entry cfbe-INFO',
+      block.appendChild(el('div', 'cfbe-entry cfbe-INFO',
         '... and ' + plural(items.length - LIST_RENDER_CAP, 'more line') + ' not shown. ' +
         'Filter to narrow the list; every one of them is still in scope.'));
     }
@@ -1666,10 +1679,11 @@
     { input: { id: chunk.ids[0], custom_fields: chunk.cf } });
   };
 
-  // After a write the list box shows what happened rather than what was there: the
-  // listing it replaces described the library before the write, and leaving it up
-  // would be the dialog's own stalest possible claim.
+  // After a write the log gains what happened, under the listing that described the
+  // library before it. The older block is not a claim about now - it is what was
+  // there, with the [INFO] line saying what was done to it in between.
   Run.prototype.renderChanges = function (planned, reversed) {
+    this.blockEl = null;
     this.fillList(this.changes, function (c) {
       var s = changeSides(c, reversed);
       return this.rowNode(c, s.action, s.before, s.after);
@@ -1689,15 +1703,17 @@
     }
   };
 
-  // The counters, the [INFO]/[WARN]/[ERROR] strip and the whole listing, as one plain
-  // block. The listing comes from `listText` rather than from the DOM, so what is
-  // copied includes the lines the render cap left off the screen.
+  // The counters, then the log in the order it happened: every message as itself, and
+  // every listing from the text built beside its nodes rather than from the DOM, so
+  // what is copied includes the lines the render cap left off the screen.
   Run.prototype.copyLog = function () {
     var self = this;
     var parts = [this.progressEl.textContent || ''];
-    var kids = this.msgEl.childNodes || [];
-    for (var i = 0; i < kids.length; i++) parts.push(kids[i].textContent || '');
-    copyToClipboard(parts.concat(this.listText || []).join('\n'), function (ok) {
+    var kids = this.listEl.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      parts = kids[i]._text ? parts.concat(kids[i]._text) : parts.concat([kids[i].textContent || '']);
+    }
+    copyToClipboard(parts.join('\n'), function (ok) {
       self.copyBtn.textContent = ok ? 'Copied' : 'Copy failed';
       setTimeout(function () { self.copyBtn.textContent = 'Copy log'; }, 2000);
     });

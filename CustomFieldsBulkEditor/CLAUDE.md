@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.4.5 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.5.0 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -29,7 +29,8 @@ fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (�
 0.2.1–0.2.3 the empty-marker rounds and 0.2.4 the value filter's "is empty" mode (§5b), which 0.2.5
 had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
 0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10; 0.4.0 is
-§13, five things the task dialog wanted once it held a whole library. 175 automated checks cover the plugin across its two suites, and the suite still
+§13, five things the task dialog wanted once it held a whole library; 0.5.0 is §16, one log in the
+order things happened. 178 automated checks cover the plugin across its two suites, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -191,8 +192,9 @@ stylesheets with the prefixes stripped and fails on any drift.
   node per line stops responding at six figures. Pills are markup, so that cost is back and
   `LIST_RENDER_CAP` is the same answer — see §5a. `.cfbe-log` is still the wrapper, so the shared
   rule still does its job (flex, scroll, monospace).
-- **A `.cfbe-msgs` strip carries the `.cfbe-line` messages** — warnings, errors, the applied recap.
-  There is no Copy log button: the thing worth copying is the list, and it is already a text box.
+- **The `.cfbe-line` messages are in the listing, not beside it** — warnings, errors, the applied
+  recap, each appended where it happened. They had a `.cfbe-msgs` strip of their own until 0.5.0;
+  see §16 for why one box beat two.
 - **No per-setting tooltip CSS**, because there are no settings to hang one on.
   `tests/style.test.js` carries a `settings: false` flag for exactly this, *and* a positive check
   that such a plugin declares no settings and styles no setting rows — or the flag would be hiding a
@@ -464,7 +466,11 @@ lines come from the tick.
   every supported type in it with All first, narrowing the listing to one type and the counter
   following it. `cfbe.test.js` covers the other four: the summary line after a read, the
   action tally after an Apply, Copy log carrying the counters, the messages and the listing, and
-  Rescan re-reading while leaving the pending Undo in the footer.
+  Rescan re-reading while leaving the pending Undo in the footer. Since 0.5.0 both suites read the
+  **last `.cfbe-block`** rather than every `.cfbe-entry` in the body, the log now keeping every
+  listing it has drawn (§16); three checks in `cfbe.test.js` pin that — the block/message order
+  after a write, filtering rewriting the current block instead of logging a second one, and Copy
+  log coming out chronological.
 - **`style.test.js`** — the CSS this plugin shares with its three siblings: the dialog chrome and
   the description rules in full, plus the check that a plugin declaring no settings styles no
   setting rows.
@@ -637,11 +643,13 @@ the thing that has to be right about a write bigger than the screen. The `x250` 
 head's own legend already declares, so it needed no explaining.
 
 **Copy log**, the same button the three siblings have, over a listing rather than a log. It takes
-the counters, the message strip and every line — from `listText`, built beside the nodes in
-`fillList` and **uncapped**, so a copy carries what the render cap left off the screen. That is the
-whole reason it is not a `textContent` read of the list element. `fillList` therefore takes a third
-argument, a text builder per item, and `changeSides(c, reversed)` was factored out so the node, the
-text and the tally cannot disagree about which side of a change holds a field.
+the counters and then the log in order — every message as itself, every listing from the text built
+beside its nodes in `fillList` and **uncapped**, so a copy carries what the render cap left off the
+screen. That is the whole reason it is not a `textContent` read of the list element. `fillList`
+therefore takes a third argument, a text builder per item, and `changeSides(c, reversed)` was
+factored out so the node, the text and the tally cannot disagree about which side of a change holds
+a field. Since 0.5.0 that text hangs on the block rather than on the run (§16), so an earlier
+listing is still copied whole after a later one has been drawn.
 
 **Rescan, and an Undo that stays.** An undone run used to clear `this.changes`, which hid Undo and
 left **Close** as the only button in the footer — the reported complaint. Two changes, and the
@@ -664,6 +672,11 @@ flex item with `overflow` other than `visible` has an **automatic minimum size o
 and it did, on any window short enough, while `.cfbe-log` beside it kept the `min-height:14rem` the
 shared chrome gives it. `flex:0 0 auto` on the strip is the fix; it stays content-sized, so an
 empty strip still costs no room.
+
+**0.5.0 retired the strip rather than the fix** (§16): with the messages inside the listing there is
+one scroller, so nothing in the column can be squashed by the other. The lesson survives its own
+element — a flex item with `overflow` set is the thing to suspect whenever a box disappears on a
+short window.
 
 That alone would have pushed the modal past its own `max-height`, so the floor had to come down
 with it — and `.cfbe-log` is **pinned byte-identical across the four dialogs** by
@@ -723,3 +736,45 @@ set and ignores the children beneath it. The existing legend check went red, whi
 the good outcome — a fixture that had answered with the whole string suddenly answering
 with two-thirds of it. Building from spans avoids it entirely, and is the shape the rest
 of this dialog already uses.
+
+## 16. One log, in the order things happened (0.5.0)
+
+At the user's ask: put the `[INFO]` lines **into** the listing, chronologically, use **one**
+scroller, and keep adding to it until the dialog exits. Three sentences, and each one removes
+something rather than adding it.
+
+**The strip is gone, not moved.** `.cfbe-msgs` and `this.msgEl` are deleted; `msg()` appends its
+line straight into `this.listEl`. Two boxes meant two scrollbars over one sequence of events, and
+the reader had to interleave them by eye — which is also what made §13's squashed-strip bug
+possible at all. There is nothing left to squash.
+
+**A listing is a `.cfbe-block` inside the log, and the log is never cleared.** `fillList` used to
+empty `listEl`; now it fills `this.blockEl`, creating and appending one when there is none. The
+distinction that makes this work is between a *restatement* and an *event*:
+
+- **Re-filtering restates.** `renderList` reuses the current block, so typing in a filter rewrites
+  the listing in place. One block per keystroke would be a history of nothing.
+- **A rescan or a write is an event.** `rescan()` and `renderChanges()` clear `blockEl` first, so
+  each starts a block of its own under the `[INFO]` line that announced it.
+
+So an Apply now reads: the listing as it was, the line saying what was done to it, and what
+changed — where it used to *replace* the listing and leave only the last of the three. The old
+justification for replacing (a pre-write listing is the dialog's stalest possible claim) is
+answered by position rather than by deletion: the older block is above, with the write between
+them, and nothing above the newest block claims to be now.
+
+**`listText` moved onto the block as `_text`.** One `this.listText` could only ever describe the
+newest listing, and Copy log now copies the whole log. A plain JS property on the node, like
+`_coopOwner` in the siblings — nothing serialises it, and `copyLog` walking `listEl.childNodes`
+reads either a block's `_text` or a message's `textContent` with no third case.
+
+**The render cap is unchanged and still per listing.** `LIST_RENDER_CAP` bounds what one block
+draws; a session that rescans ten times holds ten capped blocks, which is the point of keeping
+them. If that ever needs a ceiling of its own, cap the number of *blocks* — the text a dropped
+block would take with it is the only thing that decision costs.
+
+**`tests/cfbe.test.js` and `tests/cfbe-task.test.js` read the last block**, not every
+`.cfbe-entry` in the body, which is the one change the accumulation forced on them: after an Apply
+the pre-apply listing is still in the DOM and "the list" means the newest one. Three checks pin the
+behaviour — the block/message order after a write, that filtering adds no second block, and that
+Copy log comes out chronological.

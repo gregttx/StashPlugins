@@ -14,6 +14,18 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.5.0 — one log, in the order things happened
+>
+> The `[INFO]`, `[WARN]` and `[ERROR]` lines are no longer a strip of their own under the
+> listing. They are **in the listing**, where they happened, so there is **one box and one
+> scrollbar** instead of two competing for a short window.
+>
+> The log also **keeps everything until you close the dialog**. A Rescan or an Apply adds
+> its listing under the one before it rather than replacing it, so what a write changed is
+> read against what was there, with the `[INFO]` line saying what was done in between.
+> Typing in a filter still rewrites the listing in place — that is a restatement of what is
+> in scope now, not something that happened.
+>
 > ## 0.4.0 — reading the listing, and getting back out of a write
 >
 > Five things the task dialog wanted once it had 155,000 entities in it:
@@ -146,12 +158,12 @@ with no colours to paste into anything.
   selected. Use the filters to see the rest.
 - The counters above it say how many entities were read, how many carry any custom field at all,
   how many fields that is in total, and how many lines the filters leave showing.
-- Under the list, an `[INFO]` line names **every custom field found, with a count** —
+- After the listing, an `[INFO]` line names **every custom field found, with a count** —
   `Custom fields found: colour x1204, shoot x87.` That is the one question a listing of
-  155,000 lines cannot answer by being scrolled. The list and these messages are separate
-  scrollers and do not fight over the space.
-- **Copy log** copies the counters, the `[INFO]` lines and the whole listing as plain text —
-  including the lines the 1000-line cap leaves off the screen.
+  155,000 lines cannot answer by being scrolled. Messages sit in the same box as the listing,
+  in the order they happened, and nothing is cleared until you close the dialog.
+- **Copy log** copies the counters and then the whole log in that same order — every message
+  and every listing, including the lines the 1000-line cap leaves off the screen.
 - Entities carrying **no** custom fields contribute no lines, but are still counted and are still
   written to.
 
@@ -182,8 +194,8 @@ asked for are not written to at all.
 
 ## After Apply
 
-The list is replaced by exactly what changed, one line per entity, with what happened in front and
-`␀` for the side where there is nothing:
+Exactly what changed is listed under what was there, one line per entity, with what happened in
+front and `␀` for the side where there is nothing:
 
 ```
 Replaced Scene "Beach Day" (412): source🟰dvd ⇒ source🟰bluray
@@ -193,7 +205,7 @@ Added    Scene "Rooftop" (417): ␀ ⇒ source🟰bluray
 A **Remove** reads the other way round — `Deleted … source🟰dvd ⇒ ␀` — and after an **Undo** the
 lines are shown reversed, so undoing an *Added* reads as a *Deleted*.
 
-An `[INFO]` line under the list totals it: `Applied "overwrite" on field "source" to 417
+An `[INFO]` line after it totals it: `Applied "overwrite" on field "source" to 417
 scenes: Added x12, Replaced x405.` Those counts cover the whole write, not just the lines on
 screen.
 

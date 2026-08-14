@@ -128,7 +128,13 @@ function start(opts) {
 
 const byClass = (body, cls) => body.descendants().filter((n) => h.hasClass(n, cls));
 const one = (body, cls) => byClass(body, cls)[0] || null;
-const lines = (body) => byClass(body, 'cfbe-entry').map((n) => n.textContent);
+// The log keeps every listing it has drawn, so "the list" is the last block in it -
+// the one describing the library as of now.
+const lastBlock = (body) => byClass(body, 'cfbe-block').pop() || null;
+const lines = (body) => {
+  const b = lastBlock(body);
+  return b ? b.descendants().filter((n) => h.hasClass(n, 'cfbe-entry')).map((n) => n.textContent) : [];
+};
 const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || ''));
 const reads = (calls) => calls.filter((c) => /CFBE_ReadAll/.test(c.query || ''));
 

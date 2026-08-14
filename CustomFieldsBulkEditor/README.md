@@ -14,6 +14,21 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.6.0 — every skip says why, and a summary is copyable
+>
+> **An Apply that leaves an entity alone now says so, with the reason.** The one worth
+> seeing is `Add` over a field that is already set: it never overwrites, so those entities
+> were dropped from the write in silence. They are a `[WARN]` now, tallying the values that
+> were kept (`Kept: blue x12, red x3.`) and pointing at **Overwrite**. Two more are `[INFO]`,
+> because nothing was refused — the field already holds the value you asked for, or a
+> **Remove** found nothing to remove.
+>
+> **The names in a summary line are click-to-copy**, the same pills the listing has always
+> had. They are what gets typed into **Field name** next, and a mistyped key is a bulk edit
+> against the wrong field.
+>
+> **The dialog is wider** — in all four GTTx plugins, not just this one.
+>
 > ## 0.5.0 — one log, in the order things happened
 >
 > The `[INFO]`, `[WARN]` and `[ERROR]` lines are no longer a strip of their own under the
@@ -160,7 +175,8 @@ with no colours to paste into anything.
   how many fields that is in total, and how many lines the filters leave showing.
 - After the listing, an `[INFO]` line names **every custom field found, with a count** —
   `Custom fields found: colour x1204, shoot x87.` That is the one question a listing of
-  155,000 lines cannot answer by being scrolled. Messages sit in the same box as the listing,
+  155,000 lines cannot answer by being scrolled. Every name in it **copies itself when
+  clicked**, like the names in the listing. Messages sit in the same box as the listing,
   in the order they happened, and nothing is cleared until you close the dialog.
 - **Copy log** copies the counters and then the whole log in that same order — every message
   and every listing, including the lines the 1000-line cap leaves off the screen.
@@ -191,6 +207,14 @@ guess that `5` was meant as a number.
 
 **Nothing is written until you press Apply.** Entities that already carry exactly the value you
 asked for are not written to at all.
+
+**Every entity Apply passes over is accounted for**, before it writes anything:
+
+| Line | Why |
+| --- | --- |
+| `[WARN] Skipped 12 scenes: "colour" is already set there to another value, and "Add" never overwrites. Kept: blue x9, red x3. Use "Overwrite" to replace them.` | The one that used to be silent. Those entities keep what they had. |
+| `[INFO] Skipped 4 scenes: "colour" is already "blue" there, so there is nothing to write.` | Not a refusal — the field already holds what you asked for. |
+| `[INFO] Skipped 7 scenes: "colour" is not set there, so there is nothing to remove.` | A **Remove** over entities that never had the field. |
 
 ## After Apply
 

@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.5.0';
+  var PLUGIN_VERSION = '0.6.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -251,7 +251,7 @@
     '.cfbe-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
     'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
     '.cfbe-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
-    'width:min(56rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
+    'width:min(80rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
     '.cfbe-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
     '.cfbe-title{font-size:1.1rem;font-weight:600;}' +
     '.cfbe-warn{color:#ffb648;margin-top:.35rem;}' +
@@ -1028,9 +1028,32 @@
   // than in a strip of its own that has to be read against the list beside it. One
   // box, one scrollbar, one order of events - and nothing here ever clears it, so the
   // whole session is still there when the dialog closes.
+  //
+  // The text goes in as a child node rather than as the line's own `textContent`, so
+  // that a caller can append pills after it - setting text and then appending would
+  // drop one or the other depending on whose DOM you are in. Returns the line for
+  // exactly that.
   Run.prototype.msg = function (kind, message) {
-    this.listEl.appendChild(el('div', 'cfbe-line cfbe-' + kind, '[' + kind + '] ' + message));
+    var line = el('div', 'cfbe-line cfbe-' + kind);
+    line.appendChild(textNode('[' + kind + '] ' + message));
+    this.listEl.appendChild(line);
     this.scrollList();
+    return line;
+  };
+
+  // A tally inside a message line, with every name a click-to-copy pill: these are the
+  // strings that get typed into Field name and Value next, and retyping one by hand is
+  // how a bulk edit reaches the wrong key.
+  Run.prototype.tallyMsg = function (kind, lead, t, tail) {
+    var line = this.msg(kind, lead);
+    t.forEach(function (pair, i) {
+      if (i) line.appendChild(textNode(', '));
+      line.appendChild(copyPill(pair[0]));
+      line.appendChild(textNode(' x' + pair[1]));
+    });
+    line.appendChild(textNode(tail == null ? '.' : tail));
+    this.scrollList();
+    return line;
   };
 
   Run.prototype.scrollList = function () {
@@ -1094,9 +1117,12 @@
   // the legend describes. Emitted once per read, so a rescan restates it.
   Run.prototype.summarise = function () {
     var t = tally(this.rows, function (r) { return r.name; });
-    this.msg('INFO', t
-      ? 'Custom fields found: ' + t + '.'
-      : 'No custom fields on any of the ' + this.entities.length + ' ' + this.noun() + ' in scope.');
+    if (!t.length) {
+      this.msg('INFO', 'No custom fields on any of the ' + this.entities.length + ' ' +
+        this.noun() + ' in scope.');
+      return;
+    }
+    this.tallyMsg('INFO', 'Custom fields found: ', t);
   };
 
   Run.prototype.checkVersion = function () {
@@ -1231,8 +1257,11 @@
     this.rows = rows;
   };
 
-  // `a x12, b x3` over whatever `key` names, sorted. One function for both summary
-  // lines: the read counts field names, an Apply counts Added/Replaced/Deleted.
+  // `[['a', 12], ['b', 3]]` over whatever `key` names, sorted. One function for every
+  // summary line: the read counts field names, an Apply counts Added/Replaced/Deleted,
+  // a skipped Add counts the values it left alone. Pairs rather than the joined string
+  // it returned until 0.6.0, because a name in a summary is worth a copy pill and a
+  // string cannot carry one - `tallyText` is the same line where plain text will do.
   function tally(items, key) {
     var counts = {};
     var names = [];
@@ -1242,7 +1271,11 @@
       counts[k]++;
     });
     names.sort();
-    return names.map(function (n) { return n + ' x' + counts[n]; }).join(', ');
+    return names.map(function (n) { return [n, counts[n]]; });
+  }
+
+  function tallyText(t) {
+    return t.map(function (pair) { return pair[0] + ' x' + pair[1]; }).join(', ');
   }
 
   // ── Pills ─────────────────────────────────────────────────────────────────
@@ -1490,25 +1523,60 @@
       scope = scope.filter(function (e) { return hasOwn(keep, e.spec.key + ':' + e.id); });
     }
 
+    // Three reasons an entity in scope gets no change, all of them worth a line: they
+    // are the difference between "it worked" and "it did nothing to half of these",
+    // and the dialog said the same thing either way until 0.6.0. The order matters -
+    // an "Add" over a key that already holds the asked-for value is *unchanged*, not
+    // *refused*, so the equal-value test runs first for every mode that writes one.
     var changes = [];
+    var skipped = { present: [], unchanged: [], absent: [] };
     scope.forEach(function (e) {
       var has = hasOwn(e.fields, name);
-      if (mode === 'add' && has) return;
-      if (mode === 'remove' && !has) return;
-      var after = mode === 'remove' ? null : value;
-      // Nothing to write where the value is already exactly what was asked for.
-      if (mode !== 'remove' && has && valueText(e.fields[name]) === value) return;
+      var now = has ? valueText(e.fields[name]) : null;
+      if (mode === 'remove') {
+        if (!has) { skipped.absent.push(e); return; }
+      } else if (has && now === value) {
+        skipped.unchanged.push(e); return;
+      } else if (mode === 'add' && has) {
+        skipped.present.push({ value: now }); return;
+      }
       changes.push({
         spec: e.spec, id: e.id, display: e.display, entity: e, name: name,
-        had: has, before: has ? e.fields[name] : null, after: after, remove: mode === 'remove',
+        had: has, before: has ? e.fields[name] : null,
+        after: mode === 'remove' ? null : value, remove: mode === 'remove',
       });
     });
-    return { mode: mode, name: name, value: value, changes: changes };
+    return { mode: mode, name: name, value: value, changes: changes, skipped: skipped };
+  };
+
+  // What a value looks like inside a sentence, where an empty one has to say so.
+  function quoted(value) { return value === '' ? 'empty' : '"' + value + '"'; }
+
+  Run.prototype.reportSkips = function (planned) {
+    var s = planned.skipped;
+    var noun = ' ' + this.noun() + ': "' + planned.name + '" ';
+    if (s.present.length) {
+      this.tallyMsg('WARN', 'Skipped ' + s.present.length + noun +
+        'is already set there to another value, and "Add" never overwrites. Kept: ',
+      tally(s.present, function (r) { return r.value; }),
+      '. Use "Overwrite" to replace them.');
+    }
+    if (s.unchanged.length) {
+      this.msg('INFO', 'Skipped ' + s.unchanged.length + noun + 'is already ' +
+        quoted(planned.value) + ' there, so there is nothing to write.');
+    }
+    // An INFO rather than a WARN, for the reason the one above it is: nothing was
+    // refused, the end state asked for is already the one on the entity.
+    if (s.absent.length) {
+      this.msg('INFO', 'Skipped ' + s.absent.length + noun +
+        'is not set there, so there is nothing to remove.');
+    }
   };
 
   Run.prototype.apply = function () {
     var self = this;
     var planned = this.plan();
+    this.reportSkips(planned);
     if (!planned.changes.length) {
       this.msg('INFO', 'Nothing to change: no ' + this.noun() +
         ' in scope need "' + planned.name + '" ' +
@@ -1694,7 +1762,7 @@
     // Counted over every change, never over the rendered rows: the listing stops at
     // LIST_RENDER_CAP and the summary is the thing that has to be right about a write
     // bigger than the screen.
-    var acts = tally(this.changes, function (c) { return changeSides(c, reversed).action; });
+    var acts = tallyText(tally(this.changes, function (c) { return changeSides(c, reversed).action; }));
     if (planned) {
       this.msg('INFO', 'Applied "' + planned.mode + '" on field "' + planned.name + '" to ' +
         this.changes.length + ' ' + this.noun() + ': ' + acts + '.');

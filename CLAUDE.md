@@ -702,6 +702,14 @@ of them separate less on the lighter panel. Changing the modal means re-tuning t
 them together or not at all. Both greys are Blueprint and both look native, which is exactly why
 the drift went unnoticed for four months.
 
+**`width:min(80rem,94vw)` is the modal width**, raised from `56rem` at the user's request across
+all four plugins in one release (`NormalizeParentTags` 2.2.3 / `MergePerformerTagsToScenes` 2.1.3 /
+`PropagateTagsAndPerformers` 1.1.3 / `CustomFieldsBulkEditor` 0.6.0). It is one of the pinned
+overlapping rules, so it is not a per-plugin judgement: these dialogs hold monospace log lines that
+name an entity, an id and two values, and the wrap they were taking at 784px was the complaint. The
+`94vw` half is what keeps it honest on a narrow window and is the reason the change is a one-token
+edit rather than a layout question.
+
 ## Tests
 
 `node tests/run.js` (or `npm test`) runs the suites in `tests/`. They evaluate a plugin inside a `vm` context holding a hand-rolled browser and drive it by answering its GraphQL requests — see `tests/README.md`.

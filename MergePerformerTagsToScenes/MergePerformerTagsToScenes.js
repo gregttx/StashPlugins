@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '2.1.2';
+  var PLUGIN_VERSION      = '2.1.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -908,7 +908,7 @@
     '.cpt2s-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
     'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
     '.cpt2s-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
-    'width:min(56rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
+    'width:min(80rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
     '.cpt2s-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
     '.cpt2s-title{font-size:1.1rem;font-weight:600;}' +
     '.cpt2s-warn{color:#ffb648;margin-top:.35rem;}' +

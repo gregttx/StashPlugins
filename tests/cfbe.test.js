@@ -184,10 +184,20 @@ const rows = (body) => {
   return b ? b.descendants().filter((n) => h.hasClass(n, 'cfbe-entry')) : [];
 };
 const lines = (body) => rows(body).map((n) => n.textContent);
-const pills = (body, kind) => byClass(body, 'cfbe-pill-' + kind);
+// Scoped to the listing, since 0.6.0 put copy pills into the summary lines too - the
+// pills a check about a *row* is asking about are the ones in the block it drew.
+const pills = (body, kind) => {
+  const b = lastBlock(body);
+  return b ? b.descendants().filter((n) => h.hasClass(n, 'cfbe-pill-' + kind)) : [];
+};
 // The [INFO]/[WARN]/[ERROR] lines, now in the log beside the listings rather than in
 // a strip of their own.
 const notes = (body) => byClass(body, 'cfbe-line').map((n) => n.textContent);
+// The copy pills inside one of those lines, by its index in `notes`.
+const msgPills = (body, i) => {
+  const line = byClass(body, 'cfbe-line')[i];
+  return line ? line.descendants().filter((n) => h.hasClass(n, 'cfbe-pill-cf')) : [];
+};
 // Guarded rather than assumed, like the settings toggle below: against a build
 // missing one of these buttons a check has to report a failure, not throw and take
 // every later check in the chain with it.
@@ -633,7 +643,15 @@ openDialog()
       h.hasClass(n, 'cfbe-block') ? 'block' : (n.textContent || '').slice(0, 6));
     h.check('the earlier listing stays above it, in the one scroller',
       !one(env.body, 'cfbe-msgs') &&
-      kinds.join(' ') === 'block [INFO] block [INFO]', kinds.join(' | '));
+      kinds.join(' ') === 'block [INFO] [WARN] block [INFO]', kinds.join(' | '));
+    // 0.6.0: the two entities Add refused are said out loud, with the values it left
+    // in place - the whole of what used to be a silent skip.
+    h.check('an Add that refuses to overwrite says so, and why',
+      /^\[WARN\] Skipped 2 scenes: "colour" is already set there to another value, and "Add" never overwrites\. Kept: /
+        .test(notes(env.body)[1]), notes(env.body)[1]);
+    h.check('and tallies the values it kept, each a copy pill',
+      /Kept: blue x1, red x1\. Use "Overwrite" to replace them\.$/.test(notes(env.body)[1]) &&
+      msgPills(env.body, 1).length === 2, notes(env.body)[1]);
     // ∅ rendered as an empty box live: the list font is monospace and the glyph is
     // not in it. It is the one mark on the line that is not a pill, so it has nothing
     // else to sit in - hence its own class, out of the monospace stack.
@@ -692,6 +710,48 @@ openDialog()
       JSON.stringify(w[0].variables));
     h.check('a removal reads as Deleted, with nothing on the right',
       lines(env.body)[0] === 'Deleted Scene "S1" (1): colour🟰blue ⇒ ␀', lines(env.body)[0]);
+    h.check('and the entity with no such field to remove is accounted for',
+      notes(env.body)[1] === '[INFO] Skipped 1 scenes: "colour" is not set there, ' +
+        'so there is nothing to remove.', notes(env.body)[1]);
+  })
+
+  // 0.6.0: an entity already holding the asked-for value is *unchanged*, not refused,
+  // so it reads as an INFO whichever mode asked for it - and Add reaching one of those
+  // takes this line rather than the WARN above.
+  .then(() => openDialog())
+  .then((env) => {
+    one(env.body, 'cfbe-field-name').value = 'colour';
+    one(env.body, 'cfbe-field-value').value = 'blue';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => env);
+  })
+  .then((env) => {
+    h.check('a value already equal to the one asked for is an INFO, not a warning',
+      notes(env.body)[2] === '[INFO] Skipped 1 scenes: "colour" is already "blue" there, ' +
+        'so there is nothing to write.', notes(env.body)[2]);
+    h.check('and the entity holding another value is still the warning',
+      /^\[WARN\] Skipped 1 scenes: "colour" is already set there to another value/
+        .test(notes(env.body)[1]), notes(env.body)[1]);
+  })
+
+  // The case that used to be a bare "Nothing to change": the reason comes first now.
+  .then(() => openDialog({
+    entities: { 1: { id: '1', title: 'S1', custom_fields: { colour: 'blue' } } },
+    select: ['1'],
+  }))
+  .then((env) => {
+    one(env.body, 'cfbe-field-name').value = 'colour';
+    one(env.body, 'cfbe-field-value').value = 'blue';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => env);
+  })
+  .then((env) => {
+    h.check('a skip is reported even when it leaves nothing to write at all',
+      /^\[INFO\] Skipped 1 scenes/.test(notes(env.body)[1]) &&
+      /^\[INFO\] Nothing to change/.test(notes(env.body)[2]) &&
+      writes(env.calls).length === 0, notes(env.body).join(' | '));
   })
 
   // "Filtered list only" is the entity set the filters leave showing, which is the
@@ -942,6 +1002,15 @@ openDialog()
     h.check('a read ends with one INFO line naming every field found, with counts',
       notes(env.body).some((l) => l === '[INFO] Custom fields found: colour x2, rating x1.'),
       notes(env.body).join(' | '));
+    // Since 0.6.0 the names in it are the same click-to-copy pill the listing gives
+    // them: they are what gets typed into Field name next.
+    const named = msgPills(env.body, 0);
+    h.check('every name in it is a copy pill',
+      named.map((p) => p.textContent).join(',') === 'colour,rating',
+      named.map((p) => p.textContent).join(','));
+    named[1].click();
+    h.check('and clicking one copies just that name',
+      env.copied[env.copied.length - 1] === 'rating', JSON.stringify(env.copied));
 
     press(env.body, 'cfbe-copy');
     return h.flush().then(() => {

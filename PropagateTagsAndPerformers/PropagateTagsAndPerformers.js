@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '1.1.2';
+  var PLUGIN_VERSION = '1.1.3';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -679,7 +679,7 @@
     '.ptp2re-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
     'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
     '.ptp2re-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
-    'width:min(56rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
+    'width:min(80rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
     '.ptp2re-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
     '.ptp2re-title{font-size:1.1rem;font-weight:600;}' +
     '.ptp2re-warn{color:#ffb648;margin-top:.35rem;}' +

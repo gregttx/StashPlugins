@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.5.0 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.6.0 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -13,7 +13,8 @@ value filter's "is empty" mode (§5b) **are** — both requested from live use a
 there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. §10 is
 confirmed too, at 0.3.2: the description collapses behind **Show more** with the README linked under
 it, and no task description is touched. §13's five additions came out of that same live task run and
-are unverified. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
+are unverified, as are §14–§17 — every one of them a text, layout or logging change asked for from
+live use and shipped without a live click behind it. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
 2026-08-13 are closed at 0.1.2 (§3).
 
@@ -30,7 +31,8 @@ fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (�
 had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
 0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10; 0.4.0 is
 §13, five things the task dialog wanted once it held a whole library; 0.5.0 is §16, one log in the
-order things happened. 178 automated checks cover the plugin across its two suites, and the suite still
+order things happened, and 0.6.0 is §17, every skip saying why. 186 automated checks cover the
+plugin across its two suites, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -778,3 +780,40 @@ block would take with it is the only thing that decision costs.
 the pre-apply listing is still in the DOM and "the list" means the newest one. Three checks pin the
 behaviour — the block/message order after a write, that filtering adds no second block, and that
 Copy log comes out chronological.
+
+## 17. Every skip says why, and a summary copies itself (0.6.0)
+
+**A plan that drops an entity in silence reads as "it worked".** `plan()` had three `return`s and
+the dialog said nothing about any of them; the one that actually costs the user is `Add` over a key
+that is already set, which is *most of the selection* on a second run and produced a write of three
+entities out of four hundred with no explanation. `plan()` now returns `skipped` beside `changes`,
+and `apply()` calls `reportSkips` **before** the "Nothing to change" check — so the empty plan, the
+case with least to say for itself, is exactly the one that now says the most.
+
+**Refused and unchanged are different things, and the order of the tests is what tells them
+apart.** `Add` over a key already holding the asked-for value used to fall into the "already
+present" branch, because that test came first. It now runs *after* the equal-value test, for every
+mode that writes: an entity already carrying `colour🟰blue` when you ask for `colour🟰blue` was not
+refused, it was already right. So `present` is a **WARN** naming "Overwrite" as the way through,
+while `unchanged` and `absent` (a Remove finding nothing to remove) are **INFO** — nothing was
+denied there.
+
+**A skip line counts, it does not list.** `s.present` holds `{value:}` and nothing else, tallied
+into `Kept: blue x9, red x3.`; a per-entity line would be a second listing of up to 155,000 rows
+appended to a log that keeps everything (§16). The tally is the shape §13 already chose for the
+same question.
+
+**`tally` returns pairs now, and that is the whole of the copy-pill change.** A name in a summary
+is what gets typed into **Field name** next, and a string cannot carry a pill. So `tally` returns
+`[[name, count], …]`, `tallyText` joins it where plain text will do (the Applied recap, whose names
+are `Added`/`Replaced`/`Deleted` and worth copying to nobody), and `tallyMsg` builds the line with
+`copyPill` — the same pill, the same click, the same 900ms flash as the listing's.
+
+**`msg()` puts its text in a child node and returns the line.** Setting `textContent` and then
+appending would drop one or the other — the harness's `appendChild` nulls `_text`, and mixing the
+two in a real DOM is no clearer. One shape, so a caller that wants to append can.
+
+**Test-side, `pills()` is scoped to the last block** for the reason `lines()` already was: a check
+about a *row's* pills means the ones in the listing, and the summary now has its own. `msgPills`
+is the counterpart for a message line. Six checks cover the three reasons, the pills in both kinds
+of line, and that a skip is reported even when nothing is left to write.

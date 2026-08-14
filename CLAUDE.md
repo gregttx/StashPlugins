@@ -741,6 +741,16 @@ the gap is simply closed rather than held open.
 drift that has happened once, on the one plugin that has now been corrected; pin the others if a
 second footer ever moves.
 
+**The *position* harmonised; the *caption* deliberately did not.** Three plugins say **Proceed** and
+`CustomFieldsBulkEditor` says **Apply**, and that is the "specific reason" clause of the rule, not an
+oversight left behind by 0.7.1. The two words name two different actions: the siblings enumerate
+every change into the log first, so Proceed means *write the plan above*, and the button is disabled
+until there is one. `CustomFieldsBulkEditor`'s log lists what the entities carry **now** — its
+`plan()` runs inside `apply()`, on the click — so the press is the plan and the write together, which
+is what Apply says and Proceed would misdescribe. It also pairs with the **Apply to** select beside
+it, which is the control deciding what that one press covers. Do not rename either side for
+symmetry; a shared word here would flatten a real difference in what pressing the button commits to.
+
 ## Tests
 
 `node tests/run.js` (or `npm test`) runs the suites in `tests/`. They evaluate a plugin inside a `vm` context holding a hand-rolled browser and drive it by answering its GraphQL requests — see `tests/README.md`.

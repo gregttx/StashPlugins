@@ -869,6 +869,12 @@ for the button positions to be harmonised "unless there is a specific reason". T
 record here — this footer was built before the three had converged on anything and its order was
 never argued for — so the majority order wins and the smaller diff is on this side.
 
+**The caption stays "Apply" — that one *is* the specific reason.** A sibling's Proceed writes the
+plan already enumerated in its log, and is disabled until there is one. Here the log lists what the
+entities carry now and `plan()` runs inside `apply()`, so the press is the plan and the write at
+once — Apply describes that and Proceed would not. It also pairs with the **Apply to** select
+directly above, which is what decides how far that press reaches.
+
 **The one gap is Stop, and it is a real absence rather than an omission to fill.** A write here is
 one bulk mutation per batch with the whole footer disabled for the duration, so there is no state in
 which a Stop could be pressed. Apply therefore takes Proceed's leading position and the rest follow

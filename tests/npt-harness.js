@@ -315,10 +315,16 @@ function check(name, cond, extra) {
   else { failures++; console.log('  FAIL  ' + name + (extra ? '\n        ' + extra : '')); }
 }
 
+// The plugins' own `plural(n, one, many)`, in the harness for the same reason: a
+// count is known where it is printed, so "1 check(s) passed" was never right.
+function plural(n, one, many) {
+  return n + ' ' + (n === 1 ? one : (many || one + 's'));
+}
+
 function finish() {
   console.log(failures === 0
-    ? '\n' + passes + ' check(s) passed.'
-    : '\n' + failures + ' of ' + (failures + passes) + ' check(s) FAILED.');
+    ? '\n' + plural(passes, 'check') + ' passed.'
+    : '\n' + failures + ' of ' + plural(failures + passes, 'check') + ' FAILED.');
   process.exit(failures === 0 ? 0 : 1);
 }
 
@@ -432,6 +438,6 @@ const HANG = { __hang: true };
 module.exports = {
   SRC, PLUGIN_ID, TASK_PRUNE, TASK_ROLLUP, TAGS, HANG,
   makeEnv, run, startTask, flush, dialog, hasClass, makeElement, fire,
-  check, finish, makeResponder, bulkCalls, entityUpdate,
+  check, finish, plural, makeResponder, bulkCalls, entityUpdate,
   results: () => failures,
 };

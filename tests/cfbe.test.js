@@ -281,7 +281,7 @@ h.check('a list nested under another entity is still that list',
   mountCard(env.body, type, '1', true);
   env.tick();
   h.check(what + ' is a ' + type + ' list', menuItems(env.body).length === 1,
-    pathname + ' -> ' + menuItems(env.body).length + ' item(s)');
+    pathname + ' -> ' + h.plural(menuItems(env.body).length, 'item'));
 });
 
 // The alias is on the whole path, not on the tail: `add` is far too common a segment

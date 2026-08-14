@@ -94,12 +94,18 @@ function check(name, cond, extra) {
   else { failures++; console.log('  FAIL  ' + name + (extra ? '\n        ' + extra : '')); }
 }
 
+// The plugins' own `plural(n, one, many)`, in the harness for the same reason: a
+// count is known where it is printed, so "1 check(s) passed" was never right.
+function plural(n, one, many) {
+  return n + ' ' + (n === 1 ? one : (many || one + 's'));
+}
+
 // Prints the tally and exits non-zero on any failure, so a runner can just watch
 // the exit code.
 function finish() {
   console.log(failures === 0
-    ? '\n' + passes + ' check(s) passed.'
-    : '\n' + failures + ' of ' + (failures + passes) + ' check(s) FAILED.');
+    ? '\n' + plural(passes, 'check') + ' passed.'
+    : '\n' + failures + ' of ' + plural(failures + passes, 'check') + ' FAILED.');
   process.exit(failures === 0 ? 0 : 1);
 }
 
@@ -162,6 +168,6 @@ function responder(overrides) {
 const sceneUpdates = (calls) => calls.filter((c) => c.query && /\bsceneUpdate\b/.test(c.query) && c.query.indexOf('mutation') === 0);
 
 module.exports = {
-  SRC, makeEnv, run, flush, check, finish, responder, sceneUpdates,
+  SRC, makeEnv, run, flush, check, finish, plural, responder, sceneUpdates,
   results: () => failures,
 };

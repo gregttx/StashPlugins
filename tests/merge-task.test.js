@@ -1001,7 +1001,7 @@ Promise.resolve()
           'GTTx Merge Performer Tags To Scenes - Copy Tags to all Scenes - from Performer "Ann" (1)',
           (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent);
         h.check('and writes nothing before Proceed', sceneUpdates(env.calls).length === 0,
-          sceneUpdates(env.calls).length + ' write(s)');
+          h.plural(sceneUpdates(env.calls).length, 'write'));
         h.check('the plan lists the one scene that needs the tag',
           d.lines.filter((l) => l.indexOf('[MERGE]') === 0).length === 1,
           d.lines.join(' | '));
@@ -1039,7 +1039,7 @@ Promise.resolve()
       return h.flush(150).then(() => {
         const d = h.dialog(env.body, 'cpt2s');
         h.check('the scene click opens the dialog rather than merging', d.open &&
-          sceneUpdates(env.calls).length === 0, sceneUpdates(env.calls).length + ' write(s)');
+          sceneUpdates(env.calls).length === 0, h.plural(sceneUpdates(env.calls).length, 'write'));
         h.check('the plan names the performer the tag comes from',
           d.lines.some((l) => /^\[MERGE\] Performer .*Ann/.test(l)), d.lines.join(' | '));
         // The other half of `scopeLabel` - a scene is named through `sceneLogLabel`,

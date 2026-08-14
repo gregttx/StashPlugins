@@ -1237,7 +1237,7 @@ function nodeListLikeContainer() {
     const d = review(env);
     h.check('a click with nowhere to stage opens the review dialog instead', d.open);
     h.check('and writes nothing before Proceed', writes(env.calls).length === 0,
-      writes(env.calls).length + ' write(s)');
+      h.plural(writes(env.calls).length, 'write'));
     h.check('the plan lists the one change', d.lines.some((l) => /^\[TAG\].*Blonde/.test(l)),
       d.lines.join(' | '));
     await proceed(env);
@@ -1313,7 +1313,7 @@ function nodeListLikeContainer() {
     h.check('and raises no alert about a form control', !env.ctx._alert, env.ctx._alert);
     await proceed(env);
     h.check('and writes once the plan is approved', writes(env.calls).length === 1,
-      writes(env.calls).length + ' write(s)');
+      h.plural(writes(env.calls).length, 'write'));
   }
   {
     const { env } = start({
@@ -1993,7 +1993,7 @@ function nodeListLikeContainer() {
     await h.flush(80);
     h.check('the source button reviews rather than writing - there is no staging here, ' +
       'so the dialog is the only place a plan can be read', review(env).open &&
-      writes(env.calls).length === 0, writes(env.calls).length + ' write(s)');
+      writes(env.calls).length === 0, h.plural(writes(env.calls).length, 'write'));
     // 0.18.1: the short plugin name, the caption with its "..." taken back off - it
     // promises a dialog on a button and is punctuation in the middle of a sentence
     // here - and the entity named rather than numbered.

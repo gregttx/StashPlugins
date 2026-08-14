@@ -270,6 +270,12 @@ const root = () => win.document.getElementById('root');
 const btn = () => win.document.querySelector(BTN);
 
 let failures = 0;
+// The plugins' own `plural(n, one, many)`, in the harness for the same reason: a
+// count is known where it is printed, so "1 check(s) passed" was never right.
+function plural(n, one, many) {
+  return n + ' ' + (n === 1 ? one : (many || one + 's'));
+}
+
 let passes = 0;
 function check(name, cond, extra) {
   if (cond) { passes++; console.log('  PASS  ' + name); }
@@ -642,8 +648,8 @@ function check(name, cond, extra) {
     painted + ' -> ' + ourTask.className);
 
   console.log(failures === 0
-    ? '\n' + passes + ' check(s) passed.'
-    : '\n' + failures + ' of ' + (failures + passes) + ' check(s) FAILED.');
+    ? '\n' + plural(passes, 'check') + ' passed.'
+    : '\n' + failures + ' of ' + plural(failures + passes, 'check') + ' FAILED.');
   win.close();
   process.exit(failures === 0 ? 0 : 1);
 })();

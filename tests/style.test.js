@@ -165,14 +165,14 @@ parsed.filter((p) => p.plugin.settingsPage).forEach((p) => {
   while ((m = SETTING_ID.exec(Object.keys(p.rules).join(' '))) !== null) named.push(m);
 
   h.check(p.plugin.name + ' colours at least one setting toggle', named.length > 0,
-    String(named.length) + ' selector(s)');
+    h.plural(named.length, 'selector'));
   h.check(p.plugin.name + ' names itself in every toggle selector',
     named.every((x) => x[1] === p.plugin.name),
     named.filter((x) => x[1] !== p.plugin.name).map((x) => x[0]).join(' ') || 'all match');
   h.check(p.plugin.name + ' colours only settings its yml declares',
     named.every((x) => keys.indexOf(x[2]) !== -1),
     named.filter((x) => keys.indexOf(x[2]) === -1).map((x) => x[2]).join(' ') ||
-      'all ' + keys.length + ' key(s) known');
+      'all ' + h.plural(keys.length, 'key') + ' known');
 });
 
 // ── Two words the plugins do not say ────────────────────────────────────────
@@ -181,7 +181,13 @@ parsed.filter((p) => p.plugin.settingsPage).forEach((p) => {
 //
 // "Stash id" is Stash's own name for a *stash-box* identifier - what `stash_ids`
 // holds - so every head and legend here calling the local database id one was a
-// claim about a metadata provider that had never been consulted. And a `(s)` in
+// claim about a metadata provider that had never been consulted.
+//
+// No plugin here reads `stash_ids` yet. When one does, it says `stash-id`,
+// hyphenated (root CLAUDE.md), which is what lets this stay a flat string search
+// rather than something that has to tell the two meanings apart by context.
+//
+// And a `(s)` in
 // generated text sits next to the very count that decides it, so it never carried
 // information; `plural(n, one, many)` is what replaced it, byte-identical in all
 // four the way `coopObject` is.

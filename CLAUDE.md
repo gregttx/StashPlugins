@@ -719,8 +719,16 @@ is the identifier a **stash-box** (a metadata provider — StashDB and friends) 
 it is what `stash_ids` holds on a scene or performer, and what "Submit to Stash-box" matches on. It
 is not the number in the URL. Every dialog head, log legend and README here used to call the local
 database id a "Stash id" — the number in brackets after a name — which read as a claim about a
-provider that had never been consulted. They all say **id** now, plainly, and nothing here uses the
-phrase "Stash id" for anything but a stash-box identifier. The plural is `ids`.
+provider that had never been consulted. They all say **id** now, plainly. The plural is `ids`.
+
+**When a plugin here does start using the real thing, it is spelled `stash-id`, hyphenated.** No
+plugin reads `stash_ids` today, so the phrase is currently absent from the repo entirely, and
+`tests/style.test.js` enforces exactly that by searching each plugin's source for the string
+`Stash id` — a check that only works while the correct term is spelled differently. The hyphen is
+what keeps it working: `stash-id` / `stash-ids` never matches, so a plugin that legitimately shows a
+stash-box identifier can say so without the guard against the old misuse having to be weakened, or
+turned into something that has to distinguish the two by context. It also matches how `stash-box`
+itself is written throughout, which is the term the id comes from.
 
 **A count is known where it is printed, so print the word that agrees with it.** `3 scene(s)`,
 `1 child(ren)` and `2 error(s)` were everywhere, and the parenthesis was never carrying information

@@ -30,4 +30,4 @@ if (failed.length) {
   console.log('FAILED: ' + failed.join(', '));
   process.exit(1);
 }
-console.log('All ' + suites.length + ' suite(s) passed.');
+console.log('All ' + suites.length + (suites.length === 1 ? ' suite' : ' suites') + ' passed.');

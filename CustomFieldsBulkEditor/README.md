@@ -14,6 +14,20 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.7.2 — the log follows itself again
+>
+> The list scrolls to its newest line when one is written, as the other three GTTx
+> dialogs do. It was setting the scroll on the inner box while the outer one held the
+> scrollbar, so the newest line could land below the fold after an **Apply** or a
+> **Rescan**. Filtering still leaves the view where it is — a jump to the bottom of the
+> list while you are typing a filter is not a help.
+>
+> Two things that look like the same kind of difference are deliberate and stay:
+> **Undo** remains offered after you press it (it puts back each entity's previous
+> value, so pressing it again re-asserts the same values — only a fresh Apply replaces
+> what it will put back), and **Rescan** is offered while the listing is up, because a
+> Rescan brings you back to that listing and would otherwise work only once.
+>
 > ## 0.7.1 — the footer sits where the other three plugins' footers sit
 >
 > **Apply** has moved to the **left** end of the row, where its siblings put **Proceed**,

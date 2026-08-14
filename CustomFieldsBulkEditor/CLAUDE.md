@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.7.1 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.7.2 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -13,7 +13,7 @@ value filter's "is empty" mode (§5b) **are** — both requested from live use a
 there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. §10 is
 confirmed too, at 0.3.2: the description collapses behind **Show more** with the README linked under
 it, and no task description is touched. §13's five additions came out of that same live task run and
-are unverified, as are §14–§19 — every one of them a text, layout or logging change asked for from
+are unverified, as are §14–§20 — every one of them a text, layout or logging change asked for from
 live use and shipped without a live click behind it. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
 2026-08-13 are closed at 0.1.2 (§3).
@@ -32,8 +32,9 @@ had to reissue after an unescaped quote in its own `.yml` stopped Stash loading 
 0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10; 0.4.0 is
 §13, five things the task dialog wanted once it held a whole library; 0.5.0 is §16, one log in the
 order things happened, 0.6.0 is §17, every skip saying why, 0.7.0 is §18, the first setting, and
-0.7.1 is §19, the footer in the siblings' order.
-202 automated checks cover the plugin across its two suites, and the suite still
+0.7.1 is §19, the footer in the siblings' order, and 0.7.2 is §20, the last line
+of the log back on screen.
+203 automated checks cover the plugin across its two suites, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -884,3 +885,39 @@ in sequence; nothing is left holding a place for a button that does not exist.
 DOM order. The other three are not pinned the same way — the check would be four copies of one
 literal, and the drift it guards against is what this section just corrected on the one plugin that
 had it. Pin theirs if a second footer ever moves.
+
+## 20. The last line, and the two habits that stay this plugin's own (0.7.2)
+
+Three differences from the siblings, reported together from live use. One was a bug and two are
+answers to a question the siblings never had to ask.
+
+**The scroll: two boxes, and only one of them was moved.** `scrollList()` set `scrollTop` on
+`.cfbe-list`, which is where every sibling's log lives — except that theirs *is* the scroller
+(`.npt-log` is `flex:1 1 auto; overflow:auto` and holds the lines directly) while this dialog wraps
+its list in `.cfbe-log.cfbe-listwrap` and puts `.cfbe-list` inside it. Which of the two actually
+overflows depends on whether the inner box's `height:100%` resolves, and against a flex parent whose
+own height comes from a `max-height` it does not: the inner box grows to fit instead, nothing
+overflows it, and the assignment is a no-op on a box that cannot move while the wrapper holds the
+scrollbar. Both are set now. This is the repo-root lesson about `.edit-buttons` in another form —
+**a declaration that lands on the wrong element looks exactly like a value that did not work**.
+
+**The scroll hangs off `msg()`, not off the listing.** `fillList` deliberately does not scroll: it
+also runs on every keystroke in the filters, and jumping to the end of the list while someone is
+typing one would be worse than not moving at all. Every path that appends a *new* block ends in a
+message — `summarise()` after a read, the recap line after an Apply or an Undo — so the last line is
+reached that way. A future path that appends a block and says nothing would not scroll, and would
+need its own call rather than a rule in `fillList`.
+
+**Undo stays after being pressed, and that is a mechanism difference, not a preference.** A sibling
+consumes its undo record — `NormalizeParentTags` splices each reversed batch out of `undoable` as it
+goes, so a full undo empties it and the button hides itself, with anything left over keeping it shown
+and the log saying how many changes are still applied. Here `undo()` rebuilds its batches from
+`changes`, which nothing empties, and writes each entity's `before` value back: a *restore*, not the
+reversal of a delta, so pressing it twice re-asserts the same values and there is nothing to hide.
+Only a fresh Apply replaces what it will put back. §7 has the rest.
+
+**Rescan is offered in `listing`, where a sibling offers it only in `done`.** Their equivalent state
+is `ready`, which holds a plan their scan has just produced — rescanning there would re-run the read
+you are looking at, and Cancel is the way out. This dialog's `listing` holds *data* rather than a
+plan, and a Rescan returns it to `listing`: hiding the button there would make it single-use, and
+after a first rescan there would be no way to ask again.

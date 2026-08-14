@@ -1079,8 +1079,17 @@ openDialog()
         notes(env.body).join(' | '));
 
       const before = env.calls.filter((c) => /CFBE_Read/.test(c.query || '')).length;
+      // Both boxes, because this is the one dialog of the four with two of them, and
+      // which one carries the overflow depends on a `height:100%` no test here can
+      // resolve. Zeroed first: a check that a scroll *happened* is worth more than one
+      // that a number is still what it was.
+      const list = one(env.body, 'cfbe-list');
+      [list, list.parentNode].forEach((box) => { box.scrollHeight = 4200; box.scrollTop = 0; });
       press(env.body, 'cfbe-rescan');
       return h.flush().then(() => {
+        h.check('a new line scrolls the list and its wrapper to the bottom',
+          list.scrollTop === 4200 && list.parentNode.scrollTop === 4200,
+          list.scrollTop + ' / ' + list.parentNode.scrollTop);
         h.check('Rescan reads the library again',
           env.calls.filter((c) => /CFBE_Read/.test(c.query || '')).length === before + 1);
         h.check('and offers a fresh plan rather than the change recap',

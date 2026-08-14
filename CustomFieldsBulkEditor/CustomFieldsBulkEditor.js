@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.7.1';
+  var PLUGIN_VERSION = '0.7.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -1123,10 +1123,17 @@
     return line;
   };
 
+  // Both boxes, because this dialog is the only one of the four with two of them: the
+  // siblings' `.<prefix>-log` is itself the scroller, while here it is a wrapper around
+  // `.cfbe-list`. Which of the two actually scrolls depends on whether the inner box's
+  // `height:100%` resolves - against a flex parent whose own height comes from a
+  // `max-height` it is not definite, the inner one grows instead and the wrapper is
+  // what has the overflow. Scrolling the one that cannot move costs nothing; scrolling
+  // only the wrong one leaves the last line off screen.
   Run.prototype.scrollList = function () {
-    if (typeof this.listEl.scrollHeight === 'number') {
-      this.listEl.scrollTop = this.listEl.scrollHeight;
-    }
+    [this.listEl, this.listEl.parentNode].forEach(function (box) {
+      if (box && typeof box.scrollHeight === 'number') box.scrollTop = box.scrollHeight;
+    });
   };
 
   Run.prototype.begin = function () {

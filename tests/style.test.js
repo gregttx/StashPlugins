@@ -16,17 +16,22 @@ const h = require('./npt-harness');
 // `settings: false` is not an exemption granted to a plugin that skimped: it says the
 // plugin declares no `settings:` at all, so Stash renders no *setting rows* for it -
 // no per-setting tooltip to open, no toggle to colour. Those rules would be dead CSS
-// naming ids that never exist.
+// naming ids that never exist. All four carry settings since
+// `CustomFieldsBulkEditor` 0.7.0, so nothing sets it to false today.
 //
 // It does still get a group, a heading and a **description**, which is the first thing
 // a user reads before installing anything, so the description half of the shared design
 // is required of every plugin here regardless. Splitting the old one-flag SETTINGS list
 // in two is what makes both halves checkable rather than one waived wholesale.
 const PLUGINS = [
-  { name: 'NormalizeParentTags', prefix: 'npt', decl: 'var CSS =', settings: true },
-  { name: 'MergePerformerTagsToScenes', prefix: 'cpt2s', decl: 'var TASK_CSS =', settings: true },
-  { name: 'PropagateTagsAndPerformers', prefix: 'ptp2re', decl: 'var CSS =', settings: true },
-  { name: 'CustomFieldsBulkEditor', prefix: 'cfbe', decl: 'var CSS =', settings: false },
+  { name: 'NormalizeParentTags', prefix: 'npt', decl: 'var CSS =', settings: true, toggles: true },
+  { name: 'MergePerformerTagsToScenes', prefix: 'cpt2s', decl: 'var TASK_CSS =', settings: true, toggles: true },
+  { name: 'PropagateTagsAndPerformers', prefix: 'ptp2re', decl: 'var CSS =', settings: true, toggles: true },
+  // Settings since 0.7.0, and `toggles: false` is not the flag above with a second
+  // name: its one setting chooses what a run *covers*, which keeps Stash's blue by the
+  // repo-root rule ("marking everything would mark nothing"). There is nothing here
+  // that writes on its own to paint amber.
+  { name: 'CustomFieldsBulkEditor', prefix: 'cfbe', decl: 'var CSS =', settings: true, toggles: false },
 ];
 
 // The CSS is a run of single-quoted fragments joined with +. Pull the block out,
@@ -99,7 +104,9 @@ parsed.forEach((p) => {
 
 // A plugin with no settings must not carry the per-setting rules either: a stylesheet
 // that styles rows Stash never renders is dead weight nobody would notice, and the
-// flag above would then be hiding a real drift rather than a real absence.
+// flag above would then be hiding a real drift rather than a real absence. No plugin
+// here qualifies since CustomFieldsBulkEditor 0.7.0 - it is kept for the next one that
+// ships without settings, which is a shape this repo has had twice.
 parsed.filter((p) => !p.plugin.settings).forEach((p) => {
   h.check(p.plugin.name + ' declares no settings and styles no setting rows',
     SETTING_TIPS.every((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)) &&
@@ -152,7 +159,9 @@ parsed.forEach((p) => {
 // list here would make every future setting an edit in two files for no gain.
 const SETTING_ID = /#plugin-([A-Za-z]+)-([A-Za-z0-9]+)/g;
 
-parsed.filter((p) => p.plugin.settingsPage).forEach((p) => {
+// `toggles`, not `settings`: this filter read `p.plugin.settingsPage` until 0.7.0 -
+// a key no entry has ever carried, so every check below it silently ran over nothing.
+parsed.filter((p) => p.plugin.toggles).forEach((p) => {
   const yml = fs.readFileSync(
     path.join(__dirname, '..', p.plugin.name, p.plugin.name + '.yml'), 'utf8');
   // The `settings:` block, as `key:` at one indent level under it.

@@ -115,6 +115,25 @@ function mountSettingGroup(body, heading, description) {
   return group;
 }
 
+// One setting row inside that group, as Stash builds it: the `plugin-<id>-<key>` id on
+// the switch itself, an h3 for the name and a `.sub-heading` for the description.
+function mountSettingRow(group, key, description) {
+  const row = h.makeElement('div');
+  row.className = 'setting';
+  const h3 = h.makeElement('h3');
+  h3.textContent = key;
+  const sub = h.makeElement('div');
+  sub.className = 'sub-heading';
+  sub.textContent = description;
+  const input = h.makeElement('input');
+  input.id = 'plugin-CustomFieldsBulkEditor-' + key;
+  row.appendChild(h3);
+  row.appendChild(sub);
+  row.appendChild(input);
+  group.appendChild(row);
+  return { row, h3, sub, input };
+}
+
 // ── The fake library ────────────────────────────────────────────────────────
 
 const SCENES = {
@@ -443,6 +462,11 @@ openDialog()
         .test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
       (one(env.body, 'cfbe-progress') || {}).textContent);
 
+    // The one setting scopes the task; a selection is exactly what was picked, so this
+    // dialog does not wait on a settings read before it opens.
+    h.check('a selection run reads no settings',
+      !env.calls.some((c) => /configuration/.test(c.query || '')),
+      env.calls.map((c) => (c.query || '').slice(0, 30)).join(' | '));
     h.check('nothing is written by opening the dialog', writes(env.calls).length === 0);
     h.check('Apply is held back until a field name is given',
       one(env.body, 'cfbe-apply').disabled === true);
@@ -1112,6 +1136,54 @@ openDialog()
       sub.childNodes.filter((n) => h.hasClass(n, 'cfbe-p')).length === 3);
     h.check('and the settings page issues no queries at all', env.calls.length === 0,
       env.calls.map((c) => (c.query || '').slice(0, 30)).join(' | '));
+  })
+
+  // The per-setting hover box, which this plugin has had a use for only since 0.7.0
+  // gave it a setting. Same design as the three siblings, same three triggers.
+  .then(() => {
+    const env = start({ pathname: '/settings?tab=plugins' });
+    const group = mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (0.7.0)',
+      'Summary line.\n\nSecond paragraph.');
+    const two = mountSettingRow(group, 'a1SkipImagesInTask',
+      'Leave Images out of the library-wide task.\n\nImages are usually the most numerous type.');
+    env.tick();
+
+    const kids = two.sub.childNodes;
+    const summary = kids.filter((n) => h.hasClass(n, 'cfbe-sum'))[0];
+    const mark = kids.filter((n) => h.hasClass(n, 'cfbe-tip'))[0];
+    const box = kids.filter((n) => h.hasClass(n, 'cfbe-tipbox'))[0];
+    h.check('a setting row keeps only its first paragraph on the page',
+      !!summary && summary.textContent === 'Leave Images out of the library-wide task.',
+      summary && summary.textContent);
+    h.check('the rest moves into a built box rather than a native title',
+      !!box && /most numerous/.test(box.textContent) && !mark.title && !two.h3.title,
+      box && box.textContent);
+    h.check('the mark is focusable, so the box is reachable without a mouse',
+      !!mark && mark.tabIndex === 0, mark && String(mark.tabIndex));
+    [['the mark', mark], ['the summary', summary], ['the setting name', two.h3]]
+      .forEach(([what, node]) => {
+        h.fire(node, 'mouseenter');
+        const opened = h.hasClass(two.sub, 'cfbe-tip-open');
+        h.fire(node, 'mouseleave');
+        h.check('hovering ' + what + ' opens and closes the box',
+          opened && !h.hasClass(two.sub, 'cfbe-tip-open'), 'opened ' + opened);
+      });
+    env.tick();
+    h.check('an idle tick builds no second box',
+      two.sub.childNodes.filter((n) => h.hasClass(n, 'cfbe-tipbox')).length === 1,
+      String(two.sub.childNodes.length));
+  })
+
+  // A one-paragraph setting hides nothing, so nothing is built for it.
+  .then(() => {
+    const env = start({ pathname: '/settings?tab=plugins' });
+    const group = mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (0.7.0)',
+      'Summary line.\n\nSecond paragraph.');
+    const one = mountSettingRow(group, 'a1SkipImagesInTask', 'Just the one line.');
+    env.tick();
+    h.check('a one-paragraph setting is left alone',
+      one.sub.childNodes.length === 0 && !h.hasClass(one.sub, 'cfbe-tipped'),
+      one.sub.className + ' / ' + one.sub.childNodes.length + ' children');
   })
 
   // Exactly, never by prefix: a plugin whose name merely starts with ours is not us.

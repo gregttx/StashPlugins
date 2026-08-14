@@ -649,12 +649,16 @@ description is the first thing a user reads before installing. So `tests/style.t
   `.desc-toggle`. Required of **all four** plugins. This is the summary-plus-**Show more** design,
   and `CustomFieldsBulkEditor` 0.1.0 is when the fourth plugin stopped being the exception to it.
 - **`SETTING_TIPS`** — `.tipped`, `.tip`, `.tipbox`, `.tipped.tip-open .tipbox`. The per-*setting*
-  hover box, so only a plugin with setting rows can have one. `CustomFieldsBulkEditor` carries a
-  `settings: false` flag, paired with a check that it declares no settings *and* defines none of
-  these — or the flag would be excusing a drift instead of recording an absence.
+  hover box, so only a plugin with setting rows can have one. `CustomFieldsBulkEditor` carried a
+  `settings: false` flag until its 0.7.0 gave it a first setting, paired with a check that such a
+  plugin declares no settings *and* defines none of these — or the flag would be excusing a drift
+  instead of recording an absence. All four carry the rules today; the flag is kept for the next
+  settings-less plugin, a shape this repo has had twice.
 
 **A settings-less plugin has no `plugin-<id>-<key>` ids to anchor on, so the heading is its only
-route in.** Every other plugin here finds its group through those ids and keeps `headingIsOurs` as a
+route in** — and a plugin whose only id sits in a *setting row* is no better off when what it has to
+find is the group header's own description, which is why `CustomFieldsBulkEditor` still enters by
+the heading at 0.7.0. Every other plugin here finds its group through those ids and keeps `headingIsOurs` as a
 fallback, precisely because two of them shipped broken twice on heading text. `CustomFieldsBulkEditor`
 has that fallback promoted to the only route, which is why its `headingIsOurs` compares **exactly**
 rather than by prefix and why `tests/cfbe.test.js`'s fixture carries the version suffix Stash
@@ -702,9 +706,9 @@ of them separate less on the lighter panel. Changing the modal means re-tuning t
 them together or not at all. Both greys are Blueprint and both look native, which is exactly why
 the drift went unnoticed for four months.
 
-**`width:min(80rem,94vw)` is the modal width**, raised from `56rem` at the user's request across
-all four plugins in one release (`NormalizeParentTags` 2.2.3 / `MergePerformerTagsToScenes` 2.1.3 /
-`PropagateTagsAndPerformers` 1.1.3 / `CustomFieldsBulkEditor` 0.6.0). It is one of the pinned
+**`width:min(100rem,94vw)` is the modal width**, raised from `56rem` to `80rem` and then by another
+quarter at the user's request, each time across all four plugins in one release
+(`NormalizeParentTags` 2.2.3 then 2.2.4, and its siblings alongside). It is one of the pinned
 overlapping rules, so it is not a per-plugin judgement: these dialogs hold monospace log lines that
 name an entity, an id and two values, and the wrap they were taking at 784px was the complaint. The
 `94vw` half is what keeps it honest on a narrow window and is the reason the change is a one-token

@@ -14,6 +14,19 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.7.0 — the first setting: **Skip Images in the Whole-Library Task**
+>
+> Settings → Plugins now has one switch for this plugin. Turn it on and the library-wide
+> task covers the other six types only — images are usually the most numerous thing in a
+> library by a wide margin, and reading them can be most of the wait. It is **off by
+> default**, and the dialog says so in an `[INFO]` line when it is on, rather than leaving
+> a type quietly missing.
+>
+> It has no effect on a selection: the **"..."** menu acts on exactly what you selected,
+> image lists included.
+>
+> **The dialogs are wider again** — 100rem, up from 80 — in all four GTTx plugins.
+>
 > ## 0.6.0 — every skip says why, and a summary is copyable
 >
 > **An Apply that leaves an entity alone now says so, with the reason.** The one worth
@@ -263,6 +276,18 @@ under a dialog you left open.
 **Scene markers are not offered.** They are the one selectable entity in Stash that has no
 `custom_fields` field at all, so the marker list (`/scenes/markers`) shows no menu item. That is a
 schema fact, not a gap in this plugin.
+
+## Settings
+
+One switch, in Settings → Plugins:
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| **Skip Images in the Whole-Library Task** | off | Leaves Images out of the library-wide task, so it covers the other six types only. Images are usually the most numerous type by a wide margin, and reading them can be most of the wait. The dialog says in an `[INFO]` line when it is on. |
+
+It is read when you press the task button, so flipping it and running the task in the same session
+does what it says. It does not affect a selection — the **"..."** menu acts on exactly what you
+selected, image lists included.
 
 ## Cooperating with the other GTTx plugins
 

@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.6.0';
+  var PLUGIN_VERSION = '0.7.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -72,6 +72,13 @@
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
   }
+
+  // The one setting this plugin has, and the first it has ever had. It scopes the
+  // *task* only - a selection is exactly what the user picked - and it is off by
+  // default, so an install that never opens the settings page behaves as it always did.
+  // Stash stores an unset BOOLEAN as absent, which is the same thing as false here.
+  var DEFAULTS = { a1SkipImagesInTask: false };
+  var SKIP_IMAGES_NAME = 'Skip Images in the Whole-Library Task';
 
   // "3 changes", "1 change" - the count is always known where it is printed, so the
   // "(s)" these dialogs used to write everywhere was never carrying information. An
@@ -238,6 +245,21 @@
       });
   }
 
+  // `configuration { plugins }` cannot be scoped to one plugin, so every other
+  // plugin's settings arrive in the same response - which is what the sibling plugins'
+  // cross-checks read, for free. Nothing here needs them yet.
+  function loadSettings() {
+    return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
+      var raw = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
+      var s = {};
+      for (var k in DEFAULTS) {
+        if (!hasOwn(DEFAULTS, k)) continue;
+        s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (raw[k] || '');
+      }
+      return s;
+    });
+  }
+
   // ── Styles ────────────────────────────────────────────────────────────────
 
   var CSS =
@@ -251,7 +273,7 @@
     '.cfbe-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
     'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
     '.cfbe-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
-    'width:min(80rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
+    'width:min(100rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
     '.cfbe-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
     '.cfbe-title{font-size:1.1rem;font-weight:600;}' +
     '.cfbe-warn{color:#ffb648;margin-top:.35rem;}' +
@@ -329,9 +351,9 @@
     // Scoped to our own group, never applied to `.sub-heading` at large - another
     // plugin's description is not ours to reflow.
     //
-    // There are no per-setting tooltip rules here because there are no settings; see
-    // §5 of this plugin's CLAUDE.md. The three rules below are the description half
-    // of the shared design and are byte-identical with the siblings' copies.
+    // The three rules below are the description half of the shared design, and the
+    // four after them the per-setting half - byte-identical with the siblings' copies,
+    // and required of this plugin from 0.7.0, which is when it got its first setting.
     '.cfbe-own-group .sub-heading{white-space:pre-wrap;}' +
     '.cfbe-own-group .sub-heading .cfbe-p{margin:0 0 .35em;}' +
     '.cfbe-own-group .sub-heading .cfbe-p:last-child{margin-bottom:0;}' +
@@ -339,6 +361,23 @@
     '.cfbe-desc-toggle{display:block;margin-top:.25rem;padding:0;border:0;' +
     'background:none;color:#7cc4ff;font-size:.8rem;cursor:pointer;' +
     'text-decoration:underline;}' +
+    // The per-setting hover box: a summary on the row, the rest behind a ⓘ that opens
+    // from the mark, the summary or the setting's own name. Stash's `title` slot cannot
+    // be sized, placed or opened from the keyboard, which is why this exists.
+    '.cfbe-tipped{position:relative;}' +
+    '.cfbe-tip{margin-left:.35rem;cursor:pointer;opacity:.65;font-style:normal;' +
+    'font-size:1.05em;}' +
+    '.cfbe-tip:hover,.cfbe-tip:focus{opacity:1;outline:none;}' +
+    // pointer-events:none is load-bearing, not tidiness. Opened from the setting's
+    // name the box lands over the h3, so a box that took the pointer would fire
+    // mouseleave on the name, close, hand the pointer back to the name, and reopen -
+    // a flicker loop for as long as it is hovered.
+    '.cfbe-tipbox{display:none;position:absolute;left:0;bottom:calc(100% + .35rem);' +
+    'z-index:1500;width:max-content;max-width:100%;padding:.5rem .65rem;' +
+    'background:#202b33;color:#d6dee4;border:1px solid #425a6b;border-radius:3px;' +
+    'font-size:.92rem;line-height:1.45;white-space:pre-wrap;pointer-events:none;' +
+    'box-shadow:0 2px 10px rgba(0,0,0,.55);}' +
+    '.cfbe-tipped.cfbe-tip-open .cfbe-tipbox{display:block;}' +
     // The menu item, amber because it is the one thing this plugin puts into Stash's
     // own chrome and it leads to a write. Stash's `.dropdown-item` supplies the
     // padding, the hover and the layout; only the two things that are ours are set.
@@ -760,22 +799,46 @@
   // task, which walks every type instead. The dialog is the same object either way -
   // the difference lives in `specs`, and in every entity carrying the spec it came
   // from rather than the run holding one for all of them.
+  // A selection opens immediately: no setting reaches it, so there is nothing to wait
+  // for. The task reads the settings **at the click** rather than at load, so flipping
+  // the switch and pressing the button in the same page session does what it says. A
+  // read that fails is not a reason not to run - the defaults are the behaviour this
+  // plugin had before the setting existed.
+  var _opening = false;
+
   function startRun(type, ids) {
     if (_active) { _active.focus(); return; }
-    _active = new Run(type, ids);
+    if (type) { openRun(type, ids, DEFAULTS); return; }
+    if (_opening) return;                      // a second click inside the round trip
+    _opening = true;
+    var go = function (s) { _opening = false; openRun(null, null, s); };
+    loadSettings().then(go, function () { go(DEFAULTS); });
+  }
+
+  function openRun(type, ids, settings) {
+    if (_active) { _active.focus(); return; }
+    _active = new Run(type, ids, settings);
     _active.begin();
   }
 
-  function allSpecs() {
+  // Images are optional in the whole-library task and nowhere else: they are usually
+  // the most numerous type by a wide margin, so on a large library they are most of the
+  // read - and a selection is exactly what the user picked, image lists included.
+  function allSpecs(settings) {
     var out = [];
-    for (var k in ENTITIES) { if (hasOwn(ENTITIES, k)) out.push(ENTITIES[k]); }
+    for (var k in ENTITIES) {
+      if (!hasOwn(ENTITIES, k)) continue;
+      if (k === 'images' && settings.a1SkipImagesInTask) continue;
+      out.push(ENTITIES[k]);
+    }
     return out;
   }
 
-  function Run(type, ids) {
+  function Run(type, ids, settings) {
     this.type = type;
+    this.settings = settings || DEFAULTS;
     this.spec = type ? ENTITIES[type] : null;   // null: the whole library, every type
-    this.specs = type ? [ENTITIES[type]] : allSpecs();
+    this.specs = type ? [ENTITIES[type]] : allSpecs(this.settings);
     this.ids = ids || [];
     // { id, label, fields } per entity that still exists, in selection order.
     this.entities = [];
@@ -1065,6 +1128,13 @@
   Run.prototype.begin = function () {
     var self = this;
     this.setState('loading');
+
+    // Said rather than assumed, for the reason every skip in `reportSkips` is: a type
+    // missing from a whole-library run is otherwise indistinguishable from a bug.
+    if (!this.spec && this.settings.a1SkipImagesInTask) {
+      this.msg('INFO', 'Images are left out of this run: "' + SKIP_IMAGES_NAME +
+        '" is on in this plugin\'s settings.');
+    }
 
     // Someone else's lease, held right now. Ours is taken in apply(). It is advisory
     // and this is a manual action, so it does not block - but two plugins rewriting
@@ -1961,6 +2031,95 @@
     return { parent: sub.parentNode, before: sub.nextSibling };
   }
 
+  // ── The per-setting hover box ──────────────────────────────────────────────
+  //
+  // Copied from the siblings, function for function, because there is no module
+  // between these plugins - see the shared-dialog-chrome note in the repo-root
+  // CLAUDE.md. The summary stays on the row and everything after the first blank line
+  // goes into a box opened from the ⓘ, the summary or the setting's own name.
+  var TIP_MARK = 'ⓘ';                       // circled Latin small letter i
+
+  // SettingsPluginsPanel.tsx gives every plugin setting an id built from the plugin id
+  // and the setting key - `plugin-CustomFieldsBulkEditor-a1SkipImagesInTask`. That is
+  // ours by construction: no version suffix, no localisation, nothing formatted for
+  // display. From 0.7.0 this plugin finally has one of those to anchor on; `ownParts`
+  // still goes in by the heading, because it needs the description beside it.
+  function settingElement(key) {
+    return document.getElementById('plugin-' + PLUGIN_ID + '-' + key);
+  }
+
+  // The `.setting` row a given setting lives in. `settingElement` returns the input
+  // itself - Stash puts the id on the Form.Switch, not on the row. ' setting ' is
+  // matched with its spaces so that "setting-group" is not mistaken for it.
+  function settingRow(key) {
+    var node = settingElement(key);
+    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (hasClass(node, 'setting')) return node;
+    }
+    return null;
+  }
+
+  function setTipOpen(sub, on) {
+    var cls = String(sub.className || '').replace(/\s*cfbe-tip-open\b/, '');
+    sub.className = (on ? cls + ' cfbe-tip-open' : cls).replace(/^\s+/, '');
+  }
+
+  // The row is passed rather than the .sub-heading, and the current one looked up per
+  // event: an <h3> is Stash's element and survives the re-renders that replace
+  // everything we put in the row, so a captured reference would go stale. The flag is
+  // what stops a second pair of listeners landing on it each time we rebuild.
+  function tipTrigger(node, row) {
+    if (!node || node._cfbeTipWired) return;
+    node._cfbeTipWired = true;
+    var toggle = function (on) {
+      var sub = byClass(row, 'sub-heading');
+      if (sub) setTipOpen(sub, on);
+    };
+    node.addEventListener('mouseenter', function () { toggle(true); });
+    node.addEventListener('mouseleave', function () { toggle(false); });
+    node.addEventListener('focus', function () { toggle(true); });
+    node.addEventListener('blur', function () { toggle(false); });
+  }
+
+  function tipSetting(key) {
+    var row = settingRow(key);
+    if (!row) return;
+    var sub = byClass(row, 'sub-heading');
+    if (!sub) return;
+    var kids = sub.childNodes || [];
+    if (kids.length && hasClass(kids[0], 'cfbe-sum')) return;   // already ours
+    var text = sub.textContent || '';
+    var cut = text.indexOf('\n\n');
+    if (cut === -1) return;                                     // nothing to hide
+    var summary = oneLine(text.slice(0, cut));
+    var detail = text.slice(cut + 2).split(/\n{2,}/).map(oneLine)
+      .filter(function (p) { return !!p; }).join('\n\n');
+    if (!summary || !detail) return;
+    sub.textContent = '';
+    if (!hasClass(sub, 'cfbe-tipped')) {
+      sub.className = ((sub.className || '') + ' cfbe-tipped').replace(/^\s+/, '');
+    }
+    var sum = el('span', 'cfbe-sum', summary);
+    sub.appendChild(sum);
+    // tabIndex, so the box can be reached and read without a mouse. The box is a
+    // sibling of the mark rather than a child: as a child it would sit inside an
+    // inline span and inherit its clipping and stacking.
+    var mark = el('span', 'cfbe-tip', TIP_MARK);
+    mark.tabIndex = 0;
+    sub.appendChild(mark);
+    sub.appendChild(el('span', 'cfbe-tipbox', detail));
+    tipTrigger(mark, row);
+    tipTrigger(sum, row);
+    var h3 = row.querySelector ? row.querySelector('h3') : null;
+    if (h3) tipTrigger(h3, row);
+  }
+
+  function tipSettings() {
+    for (var k in DEFAULTS) {
+      if (hasOwn(DEFAULTS, k)) tipSetting(k);
+    }
+  }
+
   // Re-added rather than tracked: React re-renders this panel and drops anything we
   // put in it. Keyed on the id, so a re-render that kept it makes no second one.
   function settingsTick() {
@@ -1973,6 +2132,7 @@
     }
     splitDescription(parts.sub);
     collapseDescription(parts.sub);   // after the split: it counts the .cfbe-p divs
+    tipSettings();                    // the setting rows, which are not in the header
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'cfbe-readme', 'CustomFieldsBulkEditor/README.md');
     link.id = README_LINK_ID;

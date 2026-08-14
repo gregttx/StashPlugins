@@ -79,6 +79,12 @@ function responder(opts) {
   return (req) => {
     const q = req.query || '';
     if (/CFBEPluginVersion/.test(q)) return { data: { plugins: [] } };
+    // Every plugin's settings in one map, the way Stash answers it. The task reads this
+    // on the click, so a fixture with no `settings` answers "all defaults".
+    if (/configuration/.test(q)) {
+      return { data: { configuration: { plugins:
+        opts.settings ? { CustomFieldsBulkEditor: opts.settings } : {} } } };
+    }
     if (/CFBE_ReadAll/.test(q)) {
       const type = /find(\w+)\(filter/.exec(q);
       const key = type ? type[1].toLowerCase() : null;
@@ -137,6 +143,12 @@ const lines = (body) => {
 };
 const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || ''));
 const reads = (calls) => calls.filter((c) => /CFBE_ReadAll/.test(c.query || ''));
+const notes = (body) => byClass(body, 'cfbe-line').map((n) => n.textContent);
+const readTypes = (calls) =>
+  reads(calls).map((c) => (/find(\w+)\(/.exec(c.query || '') || [])[1]).join(' ');
+// One image carrying a field, so a run that skips Images is missing something visible.
+const WITH_IMAGE = Object.assign({}, LIBRARY,
+  { images: [{ id: '1', title: 'I1', custom_fields: { colour: 'teal' } }] });
 
 // Clicking the task button is a `document` click in capture phase, which is where the
 // plugin listens: React's own handler is on a descendant of document and never runs.
@@ -345,6 +357,38 @@ openTask()
     h.check('and the rest of the library still lists',
       lines(env.body).length === 2 && !lines(env.body).some((l) => /^Tag /.test(l)),
       lines(env.body).join(' | '));
+  })
+
+  // 0.7.0's one setting, read on the click. It scopes this run and nothing else.
+  .then(() => openTask({ library: WITH_IMAGE, settings: { a1SkipImagesInTask: true } }))
+  .then((env) => {
+    h.check('with Skip Images on, six types are read and Images is not one of them',
+      reads(env.calls).length === 6 && !/Images/.test(readTypes(env.calls)),
+      readTypes(env.calls));
+    h.check('so an image carrying a field is not in the listing',
+      lines(env.body).length === 3 && !lines(env.body).some((l) => /^Image /.test(l)),
+      lines(env.body).join(' | '));
+    // A type simply missing from a whole-library run reads as a bug, which is the same
+    // reason every skipped entity says why since 0.6.0.
+    h.check('and the log says why, before the read starts',
+      notes(env.body)[0] === '[INFO] Images are left out of this run: ' +
+        '"Skip Images in the Whole-Library Task" is on in this plugin\'s settings.',
+      notes(env.body)[0]);
+    const type = one(env.body, 'cfbe-filter-type');
+    h.check('the type filter offers only what the run covers',
+      !!type && type.childNodes.map((o) => o.value).join(',') ===
+        ',scenes,galleries,performers,groups,studios,tags',
+      type && type.childNodes.map((o) => o.value).join(','));
+  })
+
+  // The control: the same library with the setting off, which is the default.
+  .then(() => openTask({ library: WITH_IMAGE }))
+  .then((env) => {
+    h.check('with it off the image is read and listed like any other type',
+      reads(env.calls).length === 7 && lines(env.body).some((l) => /^Image "I1" \(1\)/.test(l)),
+      lines(env.body).join(' | '));
+    h.check('and nothing is said about images being left out',
+      !notes(env.body).some((l) => /left out/.test(l)), notes(env.body).join(' | '));
   })
 
   // The button itself: ours amber, somebody else's identically labelled one left

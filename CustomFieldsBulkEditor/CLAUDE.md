@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.6.0 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.7.0 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -13,7 +13,7 @@ value filter's "is empty" mode (§5b) **are** — both requested from live use a
 there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. §10 is
 confirmed too, at 0.3.2: the description collapses behind **Show more** with the README linked under
 it, and no task description is touched. §13's five additions came out of that same live task run and
-are unverified, as are §14–§17 — every one of them a text, layout or logging change asked for from
+are unverified, as are §14–§18 — every one of them a text, layout or logging change asked for from
 live use and shipped without a live click behind it. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
 2026-08-13 are closed at 0.1.2 (§3).
@@ -31,8 +31,8 @@ fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (�
 had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
 0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10; 0.4.0 is
 §13, five things the task dialog wanted once it held a whole library; 0.5.0 is §16, one log in the
-order things happened, and 0.6.0 is §17, every skip saying why. 186 automated checks cover the
-plugin across its two suites, and the suite still
+order things happened, 0.6.0 is §17, every skip saying why, and 0.7.0 is §18, the first setting.
+200 automated checks cover the plugin across its two suites, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -42,7 +42,7 @@ that reasoning is about the *code*, and the digit is about the *user*. See "A ne
 0.0.1" in the repo-root `CLAUDE.md`. From here: a patch per fix, a minor per verified capability,
 1.0.0 when §8's table has been walked in a real Stash.
 
-**It is the smallest plugin here by a wide margin, and that is the design.** No settings, no
+**It is the smallest plugin here by a wide margin, and that is the design.** One setting, no
 automatic mode, no fetch wrapper. Two entry points that *do* anything since 0.3.0 — the list-view
 menu item and the task button (§12) — and both open the same dialog; until one is clicked it does
 nothing but tick. Since 0.1.0 it also decorates its own block on the settings page (§10), which is
@@ -197,11 +197,11 @@ stylesheets with the prefixes stripped and fails on any drift.
 - **The `.cfbe-line` messages are in the listing, not beside it** — warnings, errors, the applied
   recap, each appended where it happened. They had a `.cfbe-msgs` strip of their own until 0.5.0;
   see §16 for why one box beat two.
-- **No per-setting tooltip CSS**, because there are no settings to hang one on.
-  `tests/style.test.js` carries a `settings: false` flag for exactly this, *and* a positive check
-  that such a plugin declares no settings and styles no setting rows — or the flag would be hiding a
-  drift rather than an absence. It does carry the **description** rules; see §10, and the repo-root
-  CLAUDE.md for why that half is required of every plugin here.
+- **The per-setting tooltip CSS is here since 0.7.0**, which is when the plugin got its first
+  setting to hang one on — four rules, byte-identical with the siblings' copies (§18). It carried
+  only the **description** rules before that, under `tests/style.test.js`'s `settings: false` flag;
+  no plugin here sets that flag today. See §10, and the repo-root CLAUDE.md for why the description
+  half is required of every plugin regardless.
 
 **The state machine is four states, and the pairing is deliberate.** `loading → listing →
 applying → applied`, with `undoing` returning to `applied`. Cancel/Apply and Undo/Close never
@@ -473,9 +473,11 @@ lines come from the tick.
   listing it has drawn (§16); three checks in `cfbe.test.js` pin that — the block/message order
   after a write, filtering rewriting the current block instead of logging a second one, and Copy
   log coming out chronological.
-- **`style.test.js`** — the CSS this plugin shares with its three siblings: the dialog chrome and
-  the description rules in full, plus the check that a plugin declaring no settings styles no
-  setting rows.
+- **`style.test.js`** — the CSS this plugin shares with its three siblings: the dialog chrome, the
+  description rules and, since 0.7.0, the per-setting tooltip rules. Its `toggles` flag is what
+  keeps this plugin out of the coloured-toggle checks: its one setting chooses what a run *covers*,
+  which is Stash's blue by the repo-root rule. That flag was `settingsPage` — a key no entry ever
+  carried, so every check under it ran over nothing until 0.7.0 noticed.
 
 **Every check was confirmed against a deliberately broken copy before being trusted** — eleven
 mutants: a container's many ids taken as a row, Add not refusing an existing key, the lease not
@@ -490,21 +492,24 @@ once in a real instance before believing any of §3 or §4.**
 
 ## 10. The settings page (0.1.0)
 
-The plugin has nothing to configure, so its block in Settings → Plugins is a heading, a description
-and Stash's own Enable/Disable and link buttons. It still gets the siblings' **description**
-treatment — a one-line summary, the rest behind a **Show more** toggle, and a labelled link to the
+The plugin had nothing to configure until 0.7.0 (§18), so its block in Settings → Plugins was a
+heading, a description and Stash's own Enable/Disable and link buttons. It gets the siblings'
+**description** treatment — a one-line summary, the rest behind a **Show more** toggle, and a labelled link to the
 README under it — because that block is the first thing a user reads before installing, and a wall
 of prose there is exactly what that design exists to fix. Requested directly; §6 of
 `NormalizeParentTags`' CLAUDE.md carries the full reasoning and is not repeated.
 
-**What is *not* ported: the per-setting tooltips.** There are no setting rows, so there is nothing
-to hover. `tests/style.test.js` splits the old one-flag settings list in two for this (§5).
+**The per-setting tooltips were the one part not ported, until there was a setting row to hover.**
+`tests/style.test.js` splits the old one-flag settings list in two, which is what let this plugin
+carry one half and not the other (§5); 0.7.0 brought the other half with the setting.
 
-**The heading is the only anchor, and it is the weakest one in this repo.** Every sibling finds its
-group through the `plugin-<id>-<key>` element ids Stash builds from the plugin id and a setting key
-— ours by construction — and keeps a heading match only as a fallback, *because two of them shipped
-broken twice on heading text*. A plugin declaring no settings has no such ids. So here the fallback
-is the only route, which is why:
+**The heading is still the only anchor `ownParts` has, and it is the weakest one in this repo.**
+Every sibling finds its group through the `plugin-<id>-<key>` element ids Stash builds from the
+plugin id and a setting key — ours by construction — and keeps a heading match only as a fallback,
+*because two of them shipped broken twice on heading text*. This plugin had no such ids until
+0.7.0, and now has exactly one: `tipSetting` uses it, but `ownParts` cannot, because what it has to
+find is the **group header's own description**, and the id points into a setting row instead. So the
+fallback is still the only route in, which is why:
 
 - `headingIsOurs` compares **exactly**, after stripping the version suffix Settings → Plugins
   appends (`GTTx Custom Fields Bulk Editor (0.1.0)`) and the literal `undefined` its template
@@ -817,3 +822,36 @@ two in a real DOM is no clearer. One shape, so a caller that wants to append can
 about a *row's* pills means the ones in the listing, and the summary now has its own. `msgPills`
 is the counterpart for a message line. Six checks cover the three reasons, the pills in both kinds
 of line, and that a skip is reported even when nothing is left to write.
+
+## 18. The first setting (0.7.0)
+
+**`a1SkipImagesInTask`, one BOOLEAN, off by default.** Asked for from live use, where the task read
+155,012 entities and images were most of them. It scopes the **task** and nothing else: a selection
+is exactly what the user picked, and an image list is one of the places the menu item is opened
+from, so a setting that quietly emptied that selection would be wrong twice over.
+
+**Read at the click, not at load.** `startRun` splits: a typed run opens immediately, and the task
+chains one `configuration { plugins }` query and opens after it. A setting read at load would mean
+flipping the switch and pressing the button in the same page session does the old thing — the
+failure mode nobody would report as a bug, they would just conclude the setting does nothing. The
+cost is one round trip before a dialog that is about to make dozens, and `_opening` guards the gap
+so a double click cannot open two dialogs. **A failed read runs with `DEFAULTS`**, because the
+defaults are exactly the behaviour this plugin had before the setting existed.
+
+**`allSpecs(settings)` is where it lands**, so the whole run is shaped by the spec list it was built
+with: the read, the type filter's options and every counter follow from `this.specs` and needed no
+knowledge of the setting. **And `begin()` says it out loud** — a type simply missing from a
+whole-library run reads as a bug, which is the same reason every skipped entity says why since §17.
+
+**It also cost the settings-page half this plugin had skipped.** No settings meant no setting rows,
+so `tests/style.test.js`'s `SETTING_TIPS` were legitimately absent (§5). One setting brings all
+four rules and the `TIP_MARK`/`settingElement`/`settingRow`/`tipSetting` machinery with it, copied
+function for function from the siblings — there is no module between these plugins, and the
+alternative to copying is drift. `ownParts` is unchanged and still enters by the heading: the id
+now exists, but it points into a *setting row*, and what `ownParts` has to find is the group
+header's own description.
+
+**What the setting is not: coloured.** The repo-root rule paints amber the settings that make a
+plugin write on its own; this one chooses what a run *covers*, which keeps Stash's blue. That is
+what `tests/style.test.js`'s new `toggles` flag records — and fixing the filter it replaced
+(`settingsPage`, a key no entry ever carried) is how the dead check under it was found.

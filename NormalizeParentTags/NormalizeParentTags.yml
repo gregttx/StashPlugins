@@ -1,7 +1,7 @@
 name: GTTx Normalize Parent Tags
 description: "Makes tag hierarchies explicit on your entities, in either direction.\n\nPrune removes any tag that another tag on the same entity already implies. Roll Up adds every ancestor, recursively, of the tags already there. A third task browses the hierarchy read-only.\n\nAll three run from Settings - Tasks - Plugin Tasks. The two that write list every change first: nothing lands until you press Proceed, and Undo reverses the run while the dialog stays open.\n\nEither direction can also run automatically as Stash saves each entity. Those two settings write silently - no dialog, no review, no undo.\n\nEntity types are opt-in and all off until you enable them below.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. \n\nRequires Stash 0.31.0 or newer."
 url: "https://github.com/gregttx/StashPlugins/blob/main/NormalizeParentTags/README.md"
-version: 2.2.3
+version: 2.2.4
 ui:
   javascript:
     - NormalizeParentTags.js

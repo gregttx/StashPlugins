@@ -345,7 +345,7 @@ Promise.resolve()
     // 1 (Hair Colour) goes from both scenes, 2 (Blonde) only from the one that
     // also has Platinum. Sorted by name: Blonde before Hair Colour.
     h.check('the review ends with every tag it plans to touch',
-      last === '[INFO] 2 tag(s) to remove: "Blonde" (2) x1, "Hair Colour" (1) x2', last);
+      last === '[INFO] 2 tags to remove: "Blonde" (2) x1, "Hair Colour" (1) x2', last);
   })
 
   .then(() => scan({
@@ -353,7 +353,7 @@ Promise.resolve()
   }, h.TASK_ROLLUP)).then(({ d }) => {
     const last = d.lines[d.lines.length - 1];
     h.check('roll up summarises what it plans to add',
-      last === '[INFO] 3 tag(s) to add: "Blonde" (2) x1, "Hair Colour" (1) x1, "Rare" (6) x1', last);
+      last === '[INFO] 3 tags to add: "Blonde" (2) x1, "Hair Colour" (1) x1, "Rare" (6) x1', last);
   })
 
   .then(() => scan({
@@ -387,7 +387,7 @@ Promise.resolve()
   })).then(({ d, calls }) => {
     const last = d.lines[d.lines.length - 1];
     h.check('the summary is ordered the way Stash orders tags',
-      last === '[INFO] 4 tag(s) to remove: "Zed" (10) x1, "beta" (13) x1, ' +
+      last === '[INFO] 4 tags to remove: "Zed" (10) x1, "beta" (13) x1, ' +
         '"Volume 2" (12) x1, "volume 10" (11) x1', last);
     const tq = calls.filter((c) => /NPTTags/.test(c.query || ''))[0] || {};
     h.check('the tag query asks for sort_name',

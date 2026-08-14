@@ -422,7 +422,7 @@ openDialog()
     h.check('an entity carrying no custom fields contributes no line',
       !got.some((l) => /\(3\)/.test(l)), got.join(' | '));
     h.check('the counters name the selection, the fields and what is on screen',
-      /3 scenes read, 2 with custom fields, 3 field\(s\) in total, 3 line\(s\) listed/
+      /3 scenes read, 2 with custom fields, 3 fields in total, 3 lines listed/
         .test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
       (one(env.body, 'cfbe-progress') || {}).textContent);
 
@@ -560,7 +560,7 @@ openDialog()
     h.check('and the box is disabled, since the mode is the whole query',
       valueFilter.disabled === true);
     h.check('the counters follow the filtered list',
-      /1 line\(s\) listed/.test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
+      /1 line listed/.test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
       (one(env.body, 'cfbe-progress') || {}).textContent);
     valueFilter.value = '␀';
     mode.value = 'contains';
@@ -583,9 +583,9 @@ openDialog()
     h.check('a listing longer than the render cap stops at it', got.length === 1001,
       String(got.length));
     h.check('and the last line says how many are not shown',
-      /and 200 more line\(s\) not shown/.test(got[1000]), got[1000]);
+      /and 200 more lines not shown/.test(got[1000]), got[1000]);
     h.check('the counters still describe the whole listing',
-      /1200 field\(s\) in total, 1200 line\(s\) listed/
+      /1200 fields in total, 1200 lines listed/
         .test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
       (one(env.body, 'cfbe-progress') || {}).textContent);
   })
@@ -712,7 +712,7 @@ openDialog()
       h.check('the first Undo click arms rather than writing',
         writes(env.calls).length === before);
       h.check('the armed caption states the scope rather than asking generically',
-        /3 change\(s\)\?/.test(one(env.body, 'cfbe-undo').textContent || ''),
+        /3 changes\?/.test(one(env.body, 'cfbe-undo').textContent || ''),
         one(env.body, 'cfbe-undo').textContent);
       one(env.body, 'cfbe-undo').click();
       return h.flush();
@@ -847,7 +847,7 @@ openDialog()
         byClass(env.body, 'cfbe-ERROR').length === 1,
         byClass(env.body, 'cfbe-line').map((n) => n.textContent).join(' | '));
       h.check('and is not counted as applied',
-        /0 entity change\(s\) written, 1 failed/.test(
+        /0 entity changes written, 1 failed/.test(
           (one(env.body, 'cfbe-progress') || {}).textContent || ''),
         (one(env.body, 'cfbe-progress') || {}).textContent);
     });

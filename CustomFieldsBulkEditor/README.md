@@ -205,7 +205,7 @@ screen.
 was one, and removing the field again where there was not. It is a field-by-field inverse, not a
 restore of the whole record, so an unrelated edit made in between is not reverted.
 
-It asks first: the first click arms the button and shows the count (*Undo 37 change(s)?*), the second
+It asks first: the first click arms the button and shows the count (*Undo 37 changes?*), the second
 performs it. The arming lapses after a few seconds.
 
 It only reaches **this dialog's own writes**, and only **while the dialog stays open**. Closing the

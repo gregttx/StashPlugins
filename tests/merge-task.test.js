@@ -186,7 +186,7 @@ const merges = (d) => d().lines.filter((l) => l.indexOf('[MERGE]') === 0);
 // The hoverable segments of a recap line: only the tags with something to say beyond
 // the caption carry a title, and nothing else about the line changes.
 const recapLine = (env, verb) => env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-line') &&
-  n.textContent.indexOf('tag(s) ' + verb + ':') !== -1)[0] || null;
+  n.textContent.indexOf(' ' + verb + ':') !== -1)[0] || null;
 const recapSpans = (env, verb) => {
   const line = recapLine(env, verb);
   return line ? line.descendants() : [];
@@ -206,13 +206,13 @@ Promise.resolve()
     // Every name in those lines carries a bracketed id, and the closing recap puts
     // one beside a count. The head is where that notation gets explained.
     h.check('the head explains the ids in the log',
-      d().legend.indexOf('Stash id') !== -1 && d().legend.indexOf('x250') !== -1, d().legend);
+      d().legend.indexOf('id') !== -1 && d().legend.indexOf('x250') !== -1, d().legend);
     h.check('the review lists what it would write, tag by tag',
-      d().lines.some((l) => l.indexOf('Performer "Ann" (1) - Scene "S102" (102) - 1 tag(s): "Blonde" (10)') !== -1),
+      d().lines.some((l) => l.indexOf('Performer "Ann" (1) - Scene "S102" (102) - 1 tag: "Blonde" (10)') !== -1),
       d().lines.join(' | '));
     h.check('the review totals are reported',
-      d().progress.indexOf('3 scene(s) to update') !== -1 &&
-      d().progress.indexOf('3 tag assignment(s) to add') !== -1, d().progress);
+      d().progress.indexOf('3 scenes to update') !== -1 &&
+      d().progress.indexOf('3 tag assignments to add') !== -1, d().progress);
 
     d().button('Proceed').click();
     return h.flush(200).then(() => {
@@ -226,11 +226,11 @@ Promise.resolve()
         !env.calls.some((c) => /findScenes/.test(c.query || '') &&
           c.variables.scene_filter.performers.value[0] === '3'));
       h.check('each written scene is logged with the performers it came from',
-        d().lines.some((l) => l.indexOf('[MERGE] Scene "S102" (102) - 1 tag(s) added - from Performer "Ann" (1)') === 0),
+        d().lines.some((l) => l.indexOf('[MERGE] Scene "S102" (102) - 1 tag added - from Performer "Ann" (1)') === 0),
         d().lines.join(' | '));
       h.check('the totals are reported',
-        d().progress.indexOf('3 scene(s) updated') !== -1 &&
-        d().progress.indexOf('3 tag assignment(s) added') !== -1, d().progress);
+        d().progress.indexOf('3 scenes updated') !== -1 &&
+        d().progress.indexOf('3 tag assignments added') !== -1, d().progress);
       h.check('the run ends with Close and Rescan, not Proceed',
         d().visible('Close') && d().visible('Rescan') && !d().visible('Proceed'));
       // The plan predates the writes, so a finished run is not a settled library.
@@ -273,7 +273,7 @@ Promise.resolve()
           sceneUpdates(env.calls).some((c) => c.variables.input.id === '104'));
         h.check('a scene that failed is not counted as merged',
           !d().lines.some((l) => l.indexOf('[MERGE] Scene "S102"') === 0), d().lines.join(' | '));
-        h.check('the error count is reported', d().progress.indexOf('error(s)') !== -1, d().progress);
+        h.check('the error count is reported', d().progress.indexOf('1 error') !== -1, d().progress);
       });
     })
 
@@ -290,8 +290,8 @@ Promise.resolve()
       scenes: { 1: [shared], 2: [shared] },
     }).then(({ env, d }) => {
       h.check('a scene wanted by two performers is planned once',
-        d().progress.indexOf('1 scene(s) to update') !== -1 &&
-        d().progress.indexOf('2 tag assignment(s) to add') !== -1, d().progress);
+        d().progress.indexOf('1 scene to update') !== -1 &&
+        d().progress.indexOf('2 tag assignments to add') !== -1, d().progress);
       d().button('Proceed').click();
       return h.flush(200).then(() => {
         const writes = sceneUpdates(env.calls);
@@ -338,7 +338,7 @@ Promise.resolve()
         written >= 5 && written < 40, 'wrote ' + written);
       h.check('and what was written stays reported as written',
         d().progress.indexOf('stopped early') !== -1 &&
-        d().progress.indexOf(written + ' scene(s) updated') !== -1, d().progress);
+        d().progress.indexOf(written + ' scenes updated') !== -1, d().progress);
       h.check('Stop leaves the dialog closable', d().visible('Close') && !d().visible('Stop'));
     });
   })
@@ -396,13 +396,13 @@ Promise.resolve()
       const planned = d().lines[d().lines.length - 1];
       // Zed lands on both scenes; the other two only on the one missing them.
       h.check('the review ends with every tag it would add, per scene',
-        planned === '[INFO] 3 tag(s) to add: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1',
+        planned === '[INFO] 3 tags to add: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1',
         planned);
       d().button('Proceed').click();
       return h.flush(200).then(() => {
         const applied = d().lines[d().lines.length - 1];
         h.check('and the apply ends with what was actually written',
-          applied === '[INFO] 3 tag(s) added: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1',
+          applied === '[INFO] 3 tags added: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1',
           applied);
       });
     });
@@ -447,7 +447,7 @@ Promise.resolve()
       recapSpans(env, 'to add').map((n) => n.className).join('|'));
     h.check('and the line itself is unchanged as text',
       d().lines[d().lines.length - 1] ===
-        '[INFO] 2 tag(s) to add: "Blonde" (10) x1, "Tattoo" (11) x2',
+        '[INFO] 2 tags to add: "Blonde" (10) x1, "Tattoo" (11) x2',
       d().lines[d().lines.length - 1]);
   })
 
@@ -456,7 +456,7 @@ Promise.resolve()
   .then(() => open({ failTagDetail: true })).then(({ d }) => {
     const planned = d().lines[d().lines.length - 1];
     h.check('a failed detail query still leaves the recap',
-      planned === '[INFO] 2 tag(s) to add: "Blonde" (10) x1, "Tattoo" (11) x2', planned);
+      planned === '[INFO] 2 tags to add: "Blonde" (10) x1, "Tattoo" (11) x2', planned);
     h.check('and says nothing about it',
       !d().lines.some((l) => l.indexOf('[ERROR]') === 0), d().lines.join(' | '));
   })
@@ -468,7 +468,7 @@ Promise.resolve()
       return h.flush(200).then(() => {
         const applied = d().lines[d().lines.length - 1];
         h.check('a failed scene is not counted in the recap',
-          applied === '[INFO] 2 tag(s) added: "Blonde" (10) x1, "Tattoo" (11) x1', applied);
+          applied === '[INFO] 2 tags added: "Blonde" (10) x1, "Tattoo" (11) x1', applied);
       });
     })
 
@@ -501,7 +501,7 @@ Promise.resolve()
         // The fake server does not apply what it is told, so the second pass finds
         // the same three scenes - the point is that it finds three and not six.
         h.check('Rescan starts the plan over rather than adding to it',
-          d().progress.indexOf('Review complete. 3 scene(s) to update') === 0, d().progress);
+          d().progress.indexOf('Review complete. 3 scenes to update') === 0, d().progress);
         h.check('and does not claim to be hiding lines it no longer has',
           d().progress.indexOf('showing the last') === -1, d().progress);
       });
@@ -597,10 +597,10 @@ Promise.resolve()
       d().button('Undo').click();
       return h.flush(5).then(() => {
         h.check('the first click only arms, naming the scope',
-          bulkSceneUpdates(env.calls).length === 0 && d().visible('Undo 3 scene(s)?'),
+          bulkSceneUpdates(env.calls).length === 0 && d().visible('Undo 3 scenes?'),
           'armed caption wrong');
 
-        d().button('Undo 3 scene(s)?').click();
+        d().button('Undo 3 scenes?').click();
         return h.flush(200).then(() => {
           const undo = bulkSceneUpdates(env.calls);
           h.check('the undo goes out as a delta, not a rewritten tag list',
@@ -632,7 +632,7 @@ Promise.resolve()
       const before = env.calls.filter((c) => /FindScene\(/.test(c.query || '')).length;
       d().button('Undo').click();
       return h.flush(5).then(() => {
-        d().button('Undo 3 scene(s)?').click();
+        d().button('Undo 3 scenes?').click();
         return h.flush(200).then(() => {
           const after = env.calls.filter((c) => /FindScene\(/.test(c.query || '')).length;
           h.check('the undo does not re-enter its own auto-merge', after === before,
@@ -664,8 +664,8 @@ Promise.resolve()
         d().button('Undo').click();
         return h.flush(5).then(() => {
           h.check('a failed scene drops out of what Undo offers',
-            d().visible('Undo 2 scene(s)?'), 'armed caption wrong');
-          d().button('Undo 2 scene(s)?').click();
+            d().visible('Undo 2 scenes?'), 'armed caption wrong');
+          d().button('Undo 2 scenes?').click();
           return h.flush(200).then(() => {
             const scenes = bulkSceneUpdates(env.calls)
               .reduce((n, c) => n + c.variables.input.ids.length, 0);
@@ -702,7 +702,7 @@ Promise.resolve()
       return h.flush(200).then(() => {
         d().button('Undo').click();
         return h.flush(5).then(() => {
-          d().button('Undo 3 scene(s)?').click();
+          d().button('Undo 3 scenes?').click();
           return h.flush(200).then(() => {
             const during = seen.filter((s) => s.undo);
             h.check('a lease is held across the undo',

@@ -98,7 +98,7 @@ Promise.resolve()
     h.check('the review writes nothing', bulks(env.calls).length === 0,
       bulks(env.calls).length + ' mutations');
     h.check('and reports how many requests the apply will take',
-      d.lines.some((l) => /2 request\(s\)/.test(l)),
+      d.lines.some((l) => /2 requests?/.test(l)),
       d.lines.filter((l) => /Review complete/.test(l)).join('\n'));
   })
 
@@ -166,7 +166,7 @@ Promise.resolve()
         appliedLines(dd).some((l) =>
           /^\[TAG\] Scene "One" \(10\) - Tag "Blonde" \(2\) - from Performer "Jane" \(100\)$/.test(l)),
         appliedLines(dd).filter((l) => /^\[TAG\]/.test(l)).join('\n'));
-      h.check('and reports what landed', dd.lines.some((l) => /3 entity change\(s\) applied/.test(l)),
+      h.check('and reports what landed', dd.lines.some((l) => /3 entity changes? applied/.test(l)),
         dd.lines.filter((l) => /Finished/.test(l)).join('\n'));
       // A finished run is not a settled library: the plan was computed before the
       // first write, so anything that changed during phase 2 is invisible to it.
@@ -239,13 +239,13 @@ Promise.resolve()
         appliedLines(dd).some((l) => /^\[TAG\] Scene "Three"/.test(l)),
         appliedLines(dd).filter((l) => /^\[TAG\]/.test(l)).join('\n'));
       h.check('the run carries on to the next batch',
-        dd.lines.some((l) => /1 entity change\(s\) applied, 2 failed/.test(l)),
+        dd.lines.some((l) => /1 entity changes? applied, 2 failed/.test(l)),
         dd.lines.filter((l) => /Finished/.test(l)).join('\n'));
       // Counted from what the server accepted, not from the plan: a recap that
       // summarised the plan would report tags that never landed.
-      const recap = dd.lines.filter((l) => /tag\(s\) added/.test(l))[0] || '';
+      const recap = dd.lines.filter((l) => /tags? added/.test(l))[0] || '';
       h.check('and the applied recap counts only what landed',
-        /1 tag\(s\) added: "Outdoor" \(3\) x1/.test(recap), recap);
+        /1 tags? added: "Outdoor" \(3\) x1/.test(recap), recap);
     });
   })
 
@@ -264,7 +264,7 @@ Promise.resolve()
         // The armed caption states the scope. A failed batch was never recorded, so
         // it is not offered for reversal either.
         h.check('Undo arms with the count of what actually landed',
-          /^Undo 1 change\(s\)\?$/.test(undoBtn.textContent), undoBtn.textContent);
+          /^Undo 1 changes?\?$/.test(undoBtn.textContent), undoBtn.textContent);
         h.check('and writes nothing on the first click',
           bulks(env.calls).filter((c) => /REMOVE/.test(JSON.stringify(c.variables))).length === 0);
       });
@@ -302,7 +302,7 @@ Promise.resolve()
           ddd.lines.some((l) => /Everything this dialog wrote has been taken back/.test(l)),
           ddd.lines.filter((l) => /Undo finished/.test(l)).join('\n'));
         h.check('the recap names what was removed again',
-          ddd.lines.some((l) => /tag\(s\) removed again/.test(l)),
+          ddd.lines.some((l) => /tags? removed again/.test(l)),
           ddd.lines.filter((l) => /removed again/.test(l)).join('\n'));
         // The same line as the apply, marked as its reversal. Which entity was
         // responsible is exactly what the user is checking when they read an Undo,
@@ -430,7 +430,7 @@ Promise.resolve()
             // survives a rescan even though the rendered view does not.
             h.check('Copy log still carries the pass the rescan replaced',
               copied !== null && /--- Rescan ---/.test(copied) &&
-              /entity change\(s\) applied/.test(copied),
+              /entity changes? applied/.test(copied),
               copied === null ? 'nothing copied' : copied.split('\n').length + ' lines');
           });
         });

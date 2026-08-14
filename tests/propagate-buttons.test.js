@@ -1723,7 +1723,7 @@ function nodeListLikeContainer() {
     await h.flush(120);
     const d = await proceed(env);
     h.check('without Apollo the write still reports, and nothing reloads the page',
-      d.lines.some((l) => /^\[INFO\] Finished\. 1 entity change\(s\) applied/.test(l)) && !reloaded,
+      d.lines.some((l) => /^\[INFO\] Finished\. 1 entity changes? applied/.test(l)) && !reloaded,
       d.lines.join(' | ') + ' reloaded=' + reloaded);
   }
 
@@ -2006,7 +2006,7 @@ function nodeListLikeContainer() {
     h.check('onto the resolved scene', w.length === 1 && w[0].variables.input.ids.join() === '10',
       JSON.stringify(w.map((c) => c.variables.input)));
     h.check('and the dialog reports what was written',
-      d.lines.some((l) => /^\[INFO\] Finished\. 1 entity change\(s\) applied/.test(l)),
+      d.lines.some((l) => /^\[INFO\] Finished\. 1 entity changes? applied/.test(l)),
       d.lines.join(' | '));
   }
   {

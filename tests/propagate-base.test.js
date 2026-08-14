@@ -202,7 +202,7 @@ Promise.resolve()
       /only reverses what this dialog wrote/.test(warn) && /while it stays open/.test(warn), warn);
     h.check('the log opens by saying nothing will be written yet',
       /reviewing, nothing will be written yet/.test(d.lines.join('\n')), d.lines.join('\n'));
-    // The id legend: a bracketed number is always a Stash id and never a count.
+    // The id legend: a bracketed number is always a id and never a count.
     // Nothing else in the dialog says so, and "(250)" read as a count is how a
     // library-wide write gets approved for the wrong reason.
     h.check('the head carries the id legend',

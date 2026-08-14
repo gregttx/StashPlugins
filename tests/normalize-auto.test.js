@@ -155,8 +155,8 @@ Promise.resolve()
     const legends = () => info.filter((l) => l.indexOf('brackets') !== -1);
     return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
       .then(() => h.flush()).then(() => {
-        h.check('the first auto write says the brackets hold a Stash id',
-          legends().length === 1 && legends()[0].indexOf('Stash id') !== -1, info.join(' | '));
+        h.check('the first auto write says the brackets hold a id',
+          legends().length === 1 && legends()[0].indexOf('id') !== -1, info.join(' | '));
         h.check('and it comes before the line it explains',
           info.indexOf(legends()[0]) <
           info.findIndex((l) => l.indexOf('Scene "Ten" (10)') !== -1), info.join(' | '));

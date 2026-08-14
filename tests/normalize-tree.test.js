@@ -119,7 +119,7 @@ Promise.resolve()
     h.check('nothing below the second level is drawn yet',
       !r.some((l) => l.indexOf('Leaf (3)') !== -1 || l.indexOf('Skip (4)') !== -1), r.join(' | '));
     h.check('the header counts the hierarchy',
-      d().progress.indexOf('6 tag(s), 2 root(s)') === 0, d().progress);
+      d().progress.indexOf('6 tags, 2 roots') === 0, d().progress);
   })
 
   .then(() => open()).then(({ env }) => {
@@ -137,7 +137,7 @@ Promise.resolve()
       ['Root (1)', 'Mid (2)', 'Skip (4)', 'Other (6)', 'Loose (7)']
         .every((n) => r.some((l) => l.indexOf(n) !== -1)), r.join(' | '));
     h.check('leaves and child counts are labelled',
-      r.some((l) => l.indexOf('Root (1)') !== -1 && l.indexOf('2 child(ren)') !== -1) &&
+      r.some((l) => l.indexOf('Root (1)') !== -1 && l.indexOf('2 children') !== -1) &&
       r.some((l) => l.indexOf('Loose (7)') !== -1 && l.indexOf('leaf') !== -1), r.join(' | '));
   })
 
@@ -185,7 +185,7 @@ Promise.resolve()
     h.check('the inspector lists descendants of the selected tag',
       i.indexOf('All descendants') !== -1 && i.indexOf('"Mid" (2)') !== -1, i);
     h.check('and says what Prune would do with it',
-      i.indexOf('Prune removes this from any entity that also carries one of its 4 descendant(s)') !== -1, i);
+      i.indexOf('Prune removes this from any entity that also carries one of its 4 descendants') !== -1, i);
     h.check('and that Roll Up has nothing to add above a root',
       i.indexOf('Roll Up adds nothing for this tag') !== -1, i);
   })
@@ -210,7 +210,7 @@ Promise.resolve()
   // the head is describing a notation the rows do not follow.
   .then(() => open()).then(({ env, d }) => {
     h.check('the head says the bracketed number is a tag id',
-      d().legend.indexOf('Stash id') !== -1 && d().legend.indexOf('not a count') !== -1,
+      d().legend.indexOf('id') !== -1 && d().legend.indexOf('not a count') !== -1,
       d().legend);
     h.check('and the tag name repeats it as a tooltip',
       tip(env, 'Root').indexOf('Stash tag id 1') !== -1, tip(env, 'Root'));
@@ -325,7 +325,7 @@ Promise.resolve()
     const r = type('Le');
     h.check('search flattens to the matching tags', r.length === 1 &&
       r[0].indexOf('Leaf (3)') !== -1, r.join(' | '));
-    h.check('and says how many matched', d().progress.indexOf('1 of 6 tag(s) match "Le"') === 0,
+    h.check('and says how many matched', d().progress.indexOf('1 of 6 tags match "Le"') === 0,
       d().progress);
     // A find-as-you-type box nobody types the exact case into.
     h.check('a match is case-insensitive',

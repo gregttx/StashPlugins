@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.4.4';
+  var PLUGIN_VERSION = '0.4.5';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -71,6 +71,14 @@
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  // "3 changes", "1 change" - the count is always known where it is printed, so the
+  // "(s)" these dialogs used to write everywhere was never carrying information. An
+  // irregular plural passes its own; everything else takes an "s". Keep this function
+  // byte-identical across the plugins, like the CSS.
+  function plural(n, one, many) {
+    return n + ' ' + (n === 1 ? one : (many || one + 's'));
   }
 
   // ── The seven entity types ────────────────────────────────────────────────
@@ -1383,7 +1391,7 @@
     });
     if (items.length > LIST_RENDER_CAP) {
       this.listEl.appendChild(el('div', 'cfbe-entry cfbe-INFO',
-        '... and ' + (items.length - LIST_RENDER_CAP) + ' more line(s) not shown. ' +
+        '... and ' + plural(items.length - LIST_RENDER_CAP, 'more line') + ' not shown. ' +
         'Filter to narrow the list; every one of them is still in scope.'));
     }
   };
@@ -1432,17 +1440,17 @@
         ? 'Loading. ' + this.entities.length + ' of ' + this.ids.length + ' read'
         : 'Loading ' + (this.loadingWhat || '') + '. ' + this.entities.length + ' read so far';
     } else if (this.state === 'applying') {
-      summary = 'Applying. ' + this.applied + ' of ' + this.changes.length + ' entity change(s) written';
+      summary = 'Applying. ' + this.applied + ' of ' + plural(this.changes.length, 'entity change') + ' written';
     } else if (this.state === 'undoing') {
-      summary = 'Undoing. ' + this.undone + ' of ' + this.changes.length + ' change(s) reversed';
+      summary = 'Undoing. ' + this.undone + ' of ' + plural(this.changes.length, 'change') + ' reversed';
     } else if (this.state === 'applied') {
-      summary = 'Applied. ' + this.applied + ' entity change(s) written' +
+      summary = 'Applied. ' + plural(this.applied, 'entity change') + ' written' +
         (this.failed ? ', ' + this.failed + ' failed' : '') +
         (this.undone ? ', ' + this.undone + ' reversed by Undo' : '');
     } else {
       summary = this.entities.length + ' ' + this.noun() + ' read, ' +
-        withFields + ' with custom fields, ' + this.rows.length + ' field(s) in total, ' +
-        (listed == null ? this.rows.length : listed) + ' line(s) listed';
+        withFields + ' with custom fields, ' + plural(this.rows.length, 'field') + ' in total, ' +
+        plural(listed == null ? this.rows.length : listed, 'line') + ' listed';
     }
     this.progressEl.textContent = summary;
   };
@@ -1549,7 +1557,7 @@
     var now = Date.now();
     if (!this.undoArmed || now - this.undoArmed > UNDO_ARM_MS) {
       this.undoArmed = now;
-      this.undoBtn.textContent = 'Undo ' + this.changes.length + ' change(s)?';
+      this.undoBtn.textContent = 'Undo ' + plural(this.changes.length, 'change') + '?';
       setTimeout(function () {
         if (self.undoBtn.textContent !== 'Undo') self.undoBtn.textContent = 'Undo';
       }, UNDO_ARM_MS);
@@ -1677,7 +1685,7 @@
       this.msg('INFO', 'Applied "' + planned.mode + '" on field "' + planned.name + '" to ' +
         this.changes.length + ' ' + this.noun() + ': ' + acts + '.');
     } else {
-      this.msg('INFO', 'Reversed ' + this.changes.length + ' change(s): ' + acts + '.');
+      this.msg('INFO', 'Reversed ' + plural(this.changes.length, 'change') + ': ' + acts + '.');
     }
   };
 

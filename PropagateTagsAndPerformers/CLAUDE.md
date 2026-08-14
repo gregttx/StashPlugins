@@ -5,10 +5,17 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.1.1.** Every step in the table below has landed, so the version left the
+**Status: released, 1.1.2.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**1.1.2 says "id", not "Stash id", and never "(s)".** Two repo-wide wording rules landed together, and
+both are in the root `CLAUDE.md`. *Stash ID* is already Stash's own name for a **stash-box**
+identifier, so calling the local database id one was a claim about a metadata provider that had
+never been consulted - every dialog head, legend and README here now says **id**. And every
+generated `3 scene(s)` / `2 child(ren)` now agrees with its own count, through one
+`plural(n, one, many)` helper held byte-identical in all four plugins beside `coopObject`.
 
 **1.1.1 trims one word from the head.** "only while it stays open" is now "while it stays open" - the load-bearing "only" is the one in "reverses only what this dialog wrote", and a second in the same clause read as emphasis rather than a limit. All three dialogs were reworded together at the user's wording; `CustomFieldsBulkEditor` 0.4.1 carries the same sentence.
 
@@ -381,7 +388,7 @@ this exception rather than despite it.
 ### The log's two halves read alike
 
 Phase 1 and phase 2 emit the same `[TAG]` / `[PERF]` lines — they describe the same changes, once as
-a plan and once as a fact — and the `Applying N entity change(s) - <timestamp>` header is what
+a plan and once as a fact — and the `Applying N entity changes - <timestamp>` header is what
 separates them. This is the siblings' convention and it caught out the first version of
 `propagate-apply.test.js`, which read the whole log and thought it had seen a write. Any check about
 what was *written* has to read below that header.
@@ -1147,7 +1154,7 @@ scene", and the source side keeps `reaches` and `carries` apart for the same rea
 distinctions are invisible from the button and each points at a different thing to go and fix.
 
 **0.13.2 fixed it saying nothing at all in the commonest case.** Live paste, one day after 0.13.1:
-the structural lines appeared (`5 enabled path(s)`, `button row found`) and not a single per-button
+the structural lines appeared (`5 enabled paths`, `button row found`) and not a single per-button
 outcome. The outcomes were emitted from the probe's callback, and a probe runs once per entity — so
 switching the flag on while already on the page produced no probe and therefore no outcome, which is
 precisely how a debug flag gets switched on. They now come from the tick via `gateLogOnce`, keyed per

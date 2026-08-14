@@ -175,4 +175,32 @@ parsed.filter((p) => p.plugin.settingsPage).forEach((p) => {
       'all ' + keys.length + ' key(s) known');
 });
 
+// ── Two words the plugins do not say ────────────────────────────────────────
+// Wording, not style, but this is the one suite that already reads all four
+// sources side by side, and both rules are cross-plugin by construction.
+//
+// "Stash id" is Stash's own name for a *stash-box* identifier - what `stash_ids`
+// holds - so every head and legend here calling the local database id one was a
+// claim about a metadata provider that had never been consulted. And a `(s)` in
+// generated text sits next to the very count that decides it, so it never carried
+// information; `plural(n, one, many)` is what replaced it, byte-identical in all
+// four the way `coopObject` is.
+const sources = PLUGINS.map((p) => ({
+  plugin: p,
+  src: fs.readFileSync(path.join(__dirname, '..', p.name, p.name + '.js'), 'utf8'),
+}));
+
+sources.forEach((s) => {
+  h.check(s.plugin.name + ' says "id" rather than "Stash id"',
+    s.src.indexOf('Stash id') === -1);
+  // Only inside a single-quoted string: a regex like /tag(s)?Update/ and a comment
+  // quoting one of Stash's own captions are both none of this rule's business.
+  const generic = (s.src.match(/'[^'\n]*\((s|ren)\)/g) || []);
+  h.check(s.plugin.name + ' writes no generic "(s)" in a string', generic.length === 0,
+    generic.join(' | '));
+  h.check(s.plugin.name + ' carries the plural helper',
+    /\n  function plural\(n, one, many\) \{\n    return n \+ ' ' \+ \(n === 1 \? one : \(many \|\| one \+ 's'\)\);\n  \}\n/
+      .test(s.src));
+});
+
 h.finish();

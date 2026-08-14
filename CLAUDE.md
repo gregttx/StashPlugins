@@ -712,6 +712,24 @@ Tests cover the plugin's own logic and its assumptions about Stash's markup and 
 
 When fixing a bug, check the new test fails against the unfixed plugin before trusting it: `SRC=/path/to/old.js node tests/<suite>.test.js`.
 
+## Two words this repo does not say: "Stash id", and "(s)"
+
+**"Stash id" is taken, and it does not mean the local one.** In Stash's own vocabulary a *Stash ID*
+is the identifier a **stash-box** (a metadata provider — StashDB and friends) assigns an entity;
+it is what `stash_ids` holds on a scene or performer, and what "Submit to Stash-box" matches on. It
+is not the number in the URL. Every dialog head, log legend and README here used to call the local
+database id a "Stash id" — the number in brackets after a name — which read as a claim about a
+provider that had never been consulted. They all say **id** now, plainly, and nothing here uses the
+phrase "Stash id" for anything but a stash-box identifier. The plural is `ids`.
+
+**A count is known where it is printed, so print the word that agrees with it.** `3 scene(s)`,
+`1 child(ren)` and `2 error(s)` were everywhere, and the parenthesis was never carrying information
+— the number sits right beside it. Every plugin now holds one `plural(n, one, many)` (byte-identical
+across the four, like `coopObject` and the CSS): it appends an `s` unless an irregular plural is
+passed, so `plural(kids.length, 'child', 'children')` is the only call in the repo that needs a
+third argument. This is about *generic* parentheses in generated text; a parenthesis quoting one of
+Stash's own captions, or a regex like `/tag(s)?Update/`, is untouched.
+
 ## Reference: a list view's URL does not always name what it lists
 
 Read off `stashapp/stash` `develop`, 2026-08-13, when `CustomFieldsBulkEditor` 0.1.1 fixed the four

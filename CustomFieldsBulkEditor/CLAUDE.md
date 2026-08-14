@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.4.4 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.4.5 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -16,6 +16,13 @@ it, and no task description is touched. §13's five additions came out of that s
 are unverified. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
 2026-08-13 are closed at 0.1.2 (§3).
+
+**0.4.5 says "id", not "Stash id", and never "(s)".** Two repo-wide wording rules landed together, and
+both are in the root `CLAUDE.md`. *Stash ID* is already Stash's own name for a **stash-box**
+identifier, so calling the local database id one was a claim about a metadata provider that had
+never been consulted - every dialog head, legend and README here now says **id**. And every
+generated `3 scene(s)` / `2 child(ren)` now agrees with its own count, through one
+`plural(n, one, many)` helper held byte-identical in all four plugins beside `coopObject`.
 
 0.1.0 is the settings-page description (§10) and Escape (§11), both new capability rather than
 fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (§5a), and
@@ -682,8 +689,8 @@ local need is what the pinning exists to stop.
   are prose and a bracketed number could be either. This dialog's lines are a table with the id in
   a fixed column, so naming it once — *the number in brackets after the entity name is its id* —
   is the whole job, and the count rule shrinks to a trailing *Counts are written with prefix "x"*.
-  `tests/cfbe.test.js` matches the new clause, not the old `Stash id` string the other three still
-  carry.
+  `tests/cfbe.test.js` matches the new clause, not the `Stash id` string the other three carried
+  until the repo-wide rename below.
 - **The head's `Plugin README` link is gone.** CFBE was the only plugin here that put one in the
   dialog as well as under the settings description, and the dialog is opened by someone already
   mid-task. The settings-page link (`README_LINK_ID`, §10) is unaffected and still tested; so is

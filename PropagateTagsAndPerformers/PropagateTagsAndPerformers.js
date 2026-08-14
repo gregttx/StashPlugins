@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '1.1.1';
+  var PLUGIN_VERSION = '1.1.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -104,6 +104,14 @@
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  // "3 changes", "1 change" - the count is always known where it is printed, so the
+  // "(s)" these dialogs used to write everywhere was never carrying information. An
+  // irregular plural passes its own; everything else takes an "s". Keep this function
+  // byte-identical across the plugins, like the CSS.
+  function plural(n, one, many) {
+    return n + ' ' + (n === 1 ? one : (many || one + 's'));
   }
 
   function oneLine(text) {
@@ -1454,7 +1462,7 @@
     // misreading that gets a library-wide write approved for the wrong reason.
     head.appendChild(el('div', 'ptp2re-legend',
       'Reading the log: the number in brackets after a name is that entity\'s, tag\'s or ' +
-      'performer\'s Stash id - Scene "My Scene" (123) is the scene with id 123. Counts are ' +
+      'performer\'s id - Scene "My Scene" (123) is the scene with id 123. Counts are ' +
       'written as x250, never in brackets.'));
     this.noteEl = el('div', 'ptp2re-note', '');
     head.appendChild(this.noteEl);
@@ -1606,20 +1614,20 @@
 
     var summary;
     if (this.state === 'scanning') {
-      summary = 'Scanning. ' + this.plan.length + ' change(s) found';
+      summary = 'Scanning. ' + plural(this.plan.length, 'change') + ' found';
     } else if (this.state === 'ready') {
-      summary = 'Review complete. ' + this.plan.length + ' entity change(s) planned, ' +
-        this.viewLines + ' log line(s)';
+      summary = 'Review complete. ' + plural(this.plan.length, 'entity change') +
+        ' planned, ' + plural(this.viewLines, 'log line');
     } else if (this.state === 'applying') {
       summary = 'Applying. ' + this.applied + ' of ' + this.plan.length + ' entities updated';
     } else if (this.state === 'undoing') {
-      summary = 'Undoing. ' + this.undone + ' of ' + this.undoTotal + ' change(s) reversed';
+      summary = 'Undoing. ' + this.undone + ' of ' + plural(this.undoTotal, 'change') + ' reversed';
     } else {
-      summary = 'Finished. ' + this.applied + ' entity change(s) applied' +
+      summary = 'Finished. ' + plural(this.applied, 'entity change') + ' applied' +
         (this.failed ? ', ' + this.failed + ' failed' : '') +
         (this.undone ? ', ' + this.undone + ' reversed by Undo' : '');
     }
-    if (this.errors) summary += ', ' + this.errors + ' error(s)';
+    if (this.errors) summary += ', ' + plural(this.errors, 'error');
     if (this.viewLines > LOG_RENDER_CAP) {
       summary += ' - showing the last ' + LOG_RENDER_CAP + ' of ' + this.viewLines + ' lines';
     }
@@ -2229,7 +2237,7 @@
         });
       }
       var label = kind === 'tags' ? 'tag' : 'performer';
-      var parts = [{ text: list.length + ' ' + label + '(s) ' + verb + ': ' }];
+      var parts = [{ text: plural(list.length, label) + ' ' + verb + ': ' }];
       list.forEach(function (id, i) {
         var name = kind === 'tags' ? tagLabel(self.tagMap, id) : performerLabel(self.performerNames, id);
         var d = kind === 'tags' && detail && hasOwn(detail, String(id)) ? detail[String(id)] : null;
@@ -2253,8 +2261,8 @@
     } else {
       var adds = 0;
       this.plan.forEach(function (e) { adds += e.add.length; });
-      this.log('INFO', 'Review complete: ' + adds + ' addition(s) across ' + this.plan.length +
-        ' entity change(s) in ' + buildBatches(this.plan).length + ' request(s). Nothing has been ' +
+      this.log('INFO', 'Review complete: ' + plural(adds, 'addition') + ' across ' + plural(this.plan.length, 'entity change') +
+        ' in ' + plural(buildBatches(this.plan).length, 'request') + '. Nothing has been ' +
         'written. Press Proceed to apply.');
       this.recap(countsFromPlan(this.plan), 'to add');
     }
@@ -2370,7 +2378,7 @@
     this.failed = 0;
     this.appliedCounts = emptyCounts();
     this.stopped = false;
-    this.log('INFO', 'Applying ' + this.plan.length + ' entity change(s) - ' +
+    this.log('INFO', 'Applying ' + plural(this.plan.length, 'entity change') + ' - ' +
       new Date().toISOString());
 
     this.runBatches(buildBatches(this.plan), this.taskName,
@@ -2379,7 +2387,7 @@
   };
 
   Run.prototype.finishApply = function () {
-    this.log('INFO', 'Finished. ' + this.applied + ' entity change(s) applied' +
+    this.log('INFO', 'Finished. ' + plural(this.applied, 'entity change') + ' applied' +
       (this.failed ? ', ' + this.failed + ' failed' : '') +
       (this.stopped ? ' (stopped early; changes already applied stay applied)' : '') +
       // A finished run is not the same thing as a settled library: the plan was
@@ -2451,7 +2459,7 @@
     // states the scope rather than asking a generic "are you sure".
     if (!this.undoArmed) {
       this.undoArmed = true;
-      this.undoBtn.textContent = 'Undo ' + batchCount(this.undoable) + ' change(s)?';
+      this.undoBtn.textContent = 'Undo ' + plural(batchCount(this.undoable), 'change') + '?';
       this.undoTimer = setTimeout(function () { self.disarmUndo(); }, UNDO_ARM_MS);
       return;
     }
@@ -2463,7 +2471,7 @@
     this.undoFailed = 0;
     this.undoneCounts = emptyCounts();
     this.undoTotal = batchCount(this.undoable);
-    this.log('INFO', 'Undoing ' + this.undoTotal + ' entity change(s) - ' +
+    this.log('INFO', 'Undoing ' + plural(this.undoTotal, 'entity change') + ' - ' +
       new Date().toISOString());
 
     // Newest first, because that is the order that composes: a rescan-and-apply cycle
@@ -2479,11 +2487,11 @@
   };
 
   Run.prototype.finishUndo = function () {
-    this.log('INFO', 'Undo finished. ' + this.undone + ' entity change(s) reversed' +
+    this.log('INFO', 'Undo finished. ' + plural(this.undone, 'entity change') + ' reversed' +
       (this.undoFailed ? ', ' + this.undoFailed + ' could not be' : '') +
       (this.stopped ? ' (stopped early; what was reversed stays reversed)' : '') +
       (this.undoable.length
-        ? '. ' + batchCount(this.undoable) + ' change(s) are still applied.'
+        ? '. ' + plural(batchCount(this.undoable), 'change') + ' are still applied.'
         : '. Everything this dialog wrote has been taken back.'));
     this.recap(this.undoneCounts, 'removed again');
     // Always finishes in `done`, even when it started from `ready`: a plan reviewed
@@ -3067,8 +3075,8 @@
           }, function (e) {
             // One failed batch does not cancel the rest, and says so where the user
             // will look: there is no dialog to carry an [ERROR] line.
-            console.error('[ptp2re] auto mode: a batch of ' + batch.entries.length +
-              ' ' + batch.target + '(s) failed:', e);
+            console.error('[ptp2re] auto mode: a batch of ' +
+              plural(batch.entries.length, batch.target) + ' failed:', e);
           });
       });
     });
@@ -4311,8 +4319,8 @@
       var check = _existenceCheck = {
         target: rt.target, id: rt.id, pathsKey: wantKey, status: 'pending', adds: null, has: null,
       };
-      gateLog('probing ' + TARGETS[rt.target].label + ' ' + rt.id + ' for ' + paths.length +
-        ' path(s) - the outcomes below are this probe\'s');
+      gateLog('probing ' + TARGETS[rt.target].label + ' ' + rt.id + ' for ' +
+        plural(paths.length, 'path') + ' - the outcomes below are this probe\'s');
       probeButtons(rt.target, paths, rt.id, s).then(function (r) {
         if (_existenceCheck !== check) return;
         check.adds = r.adds; check.has = r.has; check.status = 'ready';
@@ -4350,8 +4358,8 @@
           ': no enabled path writes into a ' + TARGETS[rt.target].label.toLowerCase());
         clearManualButtons(); return;
       }
-      gateLogOnce('t:route', TARGETS[rt.target].label + ' ' + rt.id + ' - ' + wanted.length +
-        ' enabled path(s) into this page: ' + wanted.map(function (p) { return p.id; }).join(', '));
+      gateLogOnce('t:route', TARGETS[rt.target].label + ' ' + rt.id + ' - ' +
+        plural(wanted.length, 'enabled path') + ' into this page: ' + wanted.map(function (p) { return p.id; }).join(', '));
       var container = findManualButtonContainer();
       if (!container) {
         // No row yet - on a Scene that means the Edit tab is not open. Probe anyway:
@@ -4947,8 +4955,8 @@
           ' (both marker paths have no detail page and never qualify)');
         clearManualSourceButtons(); return;
       }
-      gateLogOnce('s:paths', SOURCES[rt.sourceType].label + ' ' + rt.id + ' - ' + candidates.length +
-        ' candidate path(s): ' + candidates.map(function (p) { return p.id; }).join(', '));
+      gateLogOnce('s:paths', SOURCES[rt.sourceType].label + ' ' + rt.id + ' - ' +
+        plural(candidates.length, 'candidate path') + ': ' + candidates.map(function (p) { return p.id; }).join(', '));
       var container = findSourceButtonContainer();
       if (!container) {
         gateLogOnce('s:container', 'nowhere to put a source button on ' + SOURCES[rt.sourceType].label +
@@ -4976,8 +4984,8 @@
       if (!_existenceCheckSrc || _existenceCheckSrc.sourceType !== rt.sourceType ||
           _existenceCheckSrc.id !== rt.id || _existenceCheckSrc.pathsKey !== wantKey) {
         var check = _existenceCheckSrc = { sourceType: rt.sourceType, id: rt.id, pathsKey: wantKey, status: 'pending', has: null };
-        gateLog('probing ' + SOURCES[rt.sourceType].label + ' ' + rt.id + ' for ' + paths.length +
-          ' path(s) - the outcomes below are this probe\'s');
+        gateLog('probing ' + SOURCES[rt.sourceType].label + ' ' + rt.id + ' for ' +
+          plural(paths.length, 'path') + ' - the outcomes below are this probe\'s');
         checkSourceButtonExistence(paths, rt.id, s).then(function (r) {
           if (_existenceCheckSrc !== check) return;
           check.has = r.has; check.reaches = r.reaches; check.carries = r.carries;

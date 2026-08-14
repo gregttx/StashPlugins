@@ -57,7 +57,7 @@ entity it came from**:
 ```
 
 Where several entities carried the same thing, one is named and the rest are counted — the named
-one is where to start looking. Numbers in brackets are Stash ids, so you can go straight to
+one is where to start looking. Numbers in brackets are ids, so you can go straight to
 `/performers/7` to see why a tag was copied, or to undo one by hand later.
 
 Each phase closes with a recap of every distinct tag and performer the run moves and how many

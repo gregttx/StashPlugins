@@ -81,7 +81,7 @@ const perfLines = (d) => d.lines.filter((l) => /^\[PERF\]/.test(l));
 // the caption carry a title, and nothing else about the line changes.
 const recapSpans = (env, verb) => {
   const line = env.ctx.document.body.descendants().filter((n) =>
-    h.hasClass(n, 'ptp2re-line') && n.textContent.indexOf('tag(s) ' + verb + ':') !== -1)[0];
+    h.hasClass(n, 'ptp2re-line') && n.textContent.indexOf(' ' + verb + ':') !== -1)[0];
   return line ? line.descendants() : [];
 };
 const recapTips = (env, verb) => recapSpans(env, verb).filter((n) => n.title)
@@ -158,7 +158,7 @@ Promise.resolve()
     h.check('two paths wanting the same tag plan it once', tagLines(d).length === 1,
       tagLines(d).join('\n'));
     h.check('and the recap counts the entity once, not the paths',
-      d.lines.some((l) => /1 tag\(s\) to add: "Blonde" \(2\) x1/.test(l)),
+      d.lines.some((l) => /1 tags? to add: "Blonde" \(2\) x1/.test(l)),
       d.lines.filter((l) => /to add/.test(l)).join('\n'));
   })
 
@@ -542,9 +542,9 @@ Promise.resolve()
       ] },
     },
   })).then(({ d }) => {
-    const line = d.lines.filter((l) => /tag\(s\) to add/.test(l))[0] || '';
+    const line = d.lines.filter((l) => /tags? to add/.test(l))[0] || '';
     h.check('the review closes with a recap of every tag it would add',
-      /3 tag\(s\) to add/.test(line), line);
+      /3 tags? to add/.test(line), line);
     // Counted per entity, not per path: a scene is written once whichever of its
     // paths asked for the tag.
     h.check('with a per-entity count for each', /"Volume 2" \(8\) x2/.test(line), line);
@@ -610,7 +610,7 @@ Promise.resolve()
       recapSpans(env, 'to add').every((n) => !n.className),
       recapSpans(env, 'to add').map((n) => n.className).join('|'));
     h.check('and the line itself is unchanged as text, which is what Copy log hands over',
-      d.lines.some((l) => l === '[INFO] 2 tag(s) to add: "Blonde" (2) x1, "Outdoor" (3) x1'),
+      d.lines.some((l) => l === '[INFO] 2 tags to add: "Blonde" (2) x1, "Outdoor" (3) x1'),
       d.lines.join(' | '));
   })
 
@@ -627,7 +627,7 @@ Promise.resolve()
     },
   })).then(({ d }) => {
     h.check('a failed detail query still leaves the recap readable',
-      d.lines.some((l) => l === '[INFO] 1 tag(s) to add: "Blonde" (2) x1'), d.lines.join(' | '));
+      d.lines.some((l) => l === '[INFO] 1 tag to add: "Blonde" (2) x1'), d.lines.join(' | '));
     h.check('and says nothing about it',
       !d.lines.some((l) => l.indexOf('[ERROR]') === 0), d.lines.join(' | '));
   })
@@ -642,7 +642,7 @@ Promise.resolve()
     },
   })).then(({ d }) => {
     h.check('performers get their own recap line',
-      d.lines.some((l) => /1 performer\(s\) to add: "Ada" \(101\) x1/.test(l)),
+      d.lines.some((l) => /1 performers? to add: "Ada" \(101\) x1/.test(l)),
       d.lines.join('\n'));
   })
 

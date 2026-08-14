@@ -3,9 +3,16 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.2.1.** This file is both the design and the map of the code — the
+**Status: implemented at 2.2.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.2.2 says "id", not "Stash id", and never "(s)".** Two repo-wide wording rules landed together, and
+both are in the root `CLAUDE.md`. *Stash ID* is already Stash's own name for a **stash-box**
+identifier, so calling the local database id one was a claim about a metadata provider that had
+never been consulted - every dialog head, legend and README here now says **id**. And every
+generated `3 scene(s)` / `2 child(ren)` now agrees with its own count, through one
+`plural(n, one, many)` helper held byte-identical in all four plugins beside `coopObject`.
 
 **2.2.1 trims one word from the head.** "only while it stays open" is now "while it stays open" - the load-bearing "only" is the one in "reverses only what this dialog wrote", and a second in the same clause read as emphasis rather than a limit. All three dialogs were reworded together at the user's wording; `CustomFieldsBulkEditor` 0.4.1 carries the same sentence.
 
@@ -335,7 +342,7 @@ no PluginApi). It shows:
   recognisable against each other.
 - A closing **tag summary** as the last line of the phase, listing every distinct tag the run
   touches and how many entities each lands on:
-  `[INFO] 2 tag(s) to remove: "Blonde" (2) x1, "Hair Colour" (1) x250`
+  `[INFO] 2 tags to remove: "Blonde" (2) x1, "Hair Colour" (1) x250`
 
   The per-entity lines answer "what happened to this entity"; this answers "which tags did this
   run touch, and how widely", which is the question actually asked before trusting a Prune over a
@@ -440,7 +447,7 @@ not already serve.
 **Two counters, deliberately.** `lines` is the export buffer: it survives a Rescan, because Copy
 log is meant to hand over the whole session. `viewLines` counts what has gone into the log *since
 the current pass emptied the view*, and is what the progress line describes — both the
-`N log line(s)` figure and the `showing the last 1000 of N` clause. Reporting `lines` there was
+`N log lines` figure and the `showing the last 1000 of N` clause. Reporting `lines` there was
 wrong in a way that only showed up at scale: a pass that applied 28 000 lines followed by a rescan
 finding nothing left the header claiming 28 161 lines and 27 161 hidden, over a log holding four.
 Reset `viewLines` wherever the view is emptied — today that is `reset()`, which `rescan()` calls.
@@ -491,7 +498,7 @@ applying more and taking back what is there. It always finishes in `done`: a pla
 the library as it was no longer describes it, so Rescan is the honest next step rather than a
 Proceed left armed over stale ground.
 
-**It arms and asks.** One click sets the caption to `Undo N change(s)?`, a second within
+**It arms and asks.** One click sets the caption to `Undo N changes?`, a second within
 `UNDO_ARM_MS` carries it out, and Rescan/Close disarm it. This is the same mechanism removed from
 Clear log at 0.10.0 and the reasoning is not in tension: Clear log's safe use was covered by another
 button and its unsafe use was discarding a log, whereas Undo has no alternative and starts a
@@ -556,7 +563,7 @@ trade. Both dialogs go through `checkInstalledVersion`, which settles unknown-an
 console; they differ only in what they do about a mismatch.
 
 **A row is `Name (id)`, a badge is a count** (1.2.7). This dialog is the one place where the two
-kinds of number sit side by side on the same row — `Hair Colour (45)   2 child(ren)` — so it says so
+kinds of number sit side by side on the same row — `Hair Colour (45)   2 children` — so it says so
 in the head, the tag name carries a tooltip repeating the id, and the inspector's list headings were
 changed from `Parents (3)` to `Parents: 3`. That last one was the actual bug: a heading in brackets
 over a list of tags, in a dialog where brackets mean ids, reads as the tag with id 3. Keep counts
@@ -1168,7 +1175,7 @@ cover:
   folder, an image to its `visual_files` basename, and a real title still wins over all of them.
   The queries are asserted too: the fallback fields are useless if they are never requested, and
   that combination is exactly what shipped broken.
-- **The id legend** — the run dialog's head says a bracketed number is a Stash id and a count is
+- **The id legend** — the run dialog's head says a bracketed number is an id and a count is
   written `x250`; the viewer's says the same for its rows, its name tooltip repeats it, and the
   inspector's headings are asserted to count *outside* brackets (`All descendants: 4`) since that is
   the rule the legend depends on. The tooltip's own content is covered too: the aliases and

@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '2.2.1';
+  var PLUGIN_VERSION = '2.2.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -88,6 +88,14 @@
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  // "3 changes", "1 change" - the count is always known where it is printed, so the
+  // "(s)" these dialogs used to write everywhere was never carrying information. An
+  // irregular plural passes its own; everything else takes an "s". Keep this function
+  // byte-identical across the plugins, like the CSS.
+  function plural(n, one, many) {
+    return n + ' ' + (n === 1 ? one : (many || one + 's'));
   }
 
   // ── Entity types ──────────────────────────────────────────────────────────
@@ -666,7 +674,7 @@
       if (c) return c;
       return lowerId(a, b) ? -1 : 1;
     });
-    var parts = [{ text: ids.length + ' tag(s) ' + verb + ': ' }];
+    var parts = [{ text: plural(ids.length, 'tag') + ' ' + verb + ': ' }];
     ids.forEach(function (tid, i) {
       var d = detail && hasOwn(detail, tid) ? detail[tid] : null;
       parts.push({
@@ -1272,7 +1280,7 @@
     // Nothing else in the dialog says so, and an id read as "250 of these" is the
     // kind of misreading that gets a Prune approved for the wrong reason.
     head.appendChild(el('div', 'npt-legend',
-      'Reading the log: the number in brackets after a name is that entity\'s or tag\'s Stash id - ' +
+      'Reading the log: the number in brackets after a name is that entity\'s or tag\'s id - ' +
       'Scene "My Scene" (123) is the scene with id 123. Counts are written as x250, never in brackets.'));
     this.noteEl = el('div', 'npt-note', '');
     head.appendChild(this.noteEl);
@@ -1428,20 +1436,20 @@
 
     var summary;
     if (this.state === 'scanning') {
-      summary = 'Scanning. ' + this.plan.length + ' change(s) found';
+      summary = 'Scanning. ' + plural(this.plan.length, 'change') + ' found';
     } else if (this.state === 'ready') {
-      summary = 'Review complete. ' + this.plan.length + ' entity change(s) planned, ' +
-        this.viewLines + ' log line(s)';
+      summary = 'Review complete. ' + plural(this.plan.length, 'entity change') +
+        ' planned, ' + plural(this.viewLines, 'log line');
     } else if (this.state === 'applying') {
       summary = 'Applying. ' + this.applied + ' of ' + this.plan.length + ' entities updated';
     } else if (this.state === 'undoing') {
-      summary = 'Undoing. ' + this.undone + ' of ' + this.undoTotal + ' change(s) reversed';
+      summary = 'Undoing. ' + this.undone + ' of ' + plural(this.undoTotal, 'change') + ' reversed';
     } else {
-      summary = 'Finished. ' + this.applied + ' entity change(s) applied' +
+      summary = 'Finished. ' + plural(this.applied, 'entity change') + ' applied' +
         (this.failed ? ', ' + this.failed + ' failed' : '') +
         (this.undone ? ', ' + this.undone + ' reversed by Undo' : '');
     }
-    if (this.errors) summary += ', ' + this.errors + ' error(s)';
+    if (this.errors) summary += ', ' + plural(this.errors, 'error');
     if (this.viewLines > LOG_RENDER_CAP) {
       summary += ' - showing the last ' + LOG_RENDER_CAP + ' of ' + this.viewLines + ' lines';
     }
@@ -1600,8 +1608,9 @@
     if (!this.plan.length) {
       this.log('INFO', 'Nothing to change.');
     } else {
-      this.log('INFO', 'Review complete: ' + this.plan.length + ' entity change(s) planned across ' +
-        buildBatches(this.plan).length + ' request(s). Nothing has been written. Press Proceed to apply.');
+      this.log('INFO', 'Review complete: ' + plural(this.plan.length, 'entity change') +
+        ' planned across ' + plural(buildBatches(this.plan).length, 'request') +
+        '. Nothing has been written. Press Proceed to apply.');
       this.logTagSummary(planTagCounts(this.plan),
         this.mode === 'prune' ? 'to remove' : 'to add');
     }
@@ -1657,7 +1666,7 @@
     this.applied = 0;
     this.appliedTags = {};
     this.failed = 0;
-    this.log('INFO', 'Applying ' + this.plan.length + ' entity change(s) - ' + new Date().toISOString());
+    this.log('INFO', 'Applying ' + plural(this.plan.length, 'entity change') + ' - ' + new Date().toISOString());
 
     this.runBatches(buildBatches(this.plan), this.taskName,
       function (b) { return applyBatch(b, self, self.graph); },
@@ -1665,7 +1674,7 @@
   };
 
   Run.prototype.finishApply = function () {
-    this.log('INFO', 'Finished. ' + this.applied + ' entity change(s) applied' +
+    this.log('INFO', 'Finished. ' + plural(this.applied, 'entity change') + ' applied' +
       (this.failed ? ', ' + this.failed + ' failed' : '') +
       (this.stopped ? ' (stopped early; changes already applied stay applied)' : '') +
       '. Press Rescan to review what is left.');
@@ -1701,7 +1710,7 @@
     // reading: it is the scope of the reversal, not a generic "are you sure".
     if (!this.undoArmed) {
       this.undoArmed = true;
-      this.undoBtn.textContent = 'Undo ' + undoableCount(this.undoable) + ' change(s)?';
+      this.undoBtn.textContent = 'Undo ' + plural(undoableCount(this.undoable), 'change') + '?';
       this.undoTimer = setTimeout(function () { self.disarmUndo(); }, UNDO_ARM_MS);
       return;
     }
@@ -1713,7 +1722,7 @@
     this.undoFailed = 0;
     this.undoneTags = {};
     this.undoTotal = undoableCount(this.undoable);
-    this.log('INFO', 'Undoing ' + this.undoTotal + ' entity change(s) - ' + new Date().toISOString());
+    this.log('INFO', 'Undoing ' + plural(this.undoTotal, 'entity change') + ' - ' + new Date().toISOString());
 
     // Newest batch first: a rescan-and-apply cycle can write to one entity twice, and
     // taking the second write back before the first is the only order that lands where
@@ -1727,11 +1736,11 @@
   };
 
   Run.prototype.finishUndo = function () {
-    this.log('INFO', 'Undo finished. ' + this.undone + ' entity change(s) reversed' +
+    this.log('INFO', 'Undo finished. ' + plural(this.undone, 'entity change') + ' reversed' +
       (this.undoFailed ? ', ' + this.undoFailed + ' could not be' : '') +
       (this.stopped ? ' (stopped early; what was reversed stays reversed)' : '') +
       (this.undoable.length
-        ? '. ' + undoableCount(this.undoable) + ' change(s) are still applied.'
+        ? '. ' + plural(undoableCount(this.undoable), 'change') + ' are still applied.'
         : '. Everything this dialog wrote has been taken back.'));
     // Prune put tags back; Roll Up took its own additions off again.
     this.logTagSummary(this.undoneTags, this.mode === 'prune' ? 'restored' : 'removed again');
@@ -1873,11 +1882,11 @@
       'Read-only. Nothing here writes anything. Badges reflect the exclusion filters ' +
       'currently set in the plugin settings.');
     head.appendChild(this.noteEl);
-    // Rows read "Hair Colour (45)" and badges read "2 child(ren)", so a number in
+    // Rows read "Hair Colour (45)" and badges read "2 children", so a number in
     // brackets here is an id and a number outside them is a count. The inspector's
     // list headings follow the same rule - they say "Parents: 3", not "Parents (3)".
     head.appendChild(el('div', 'npt-legend',
-      'Each row reads Tag name (id): the number in brackets is the tag\'s Stash id, not a count. ' +
+      'Each row reads Tag name (id): the number in brackets is the tag\'s id, not a count. ' +
       'Counts sit outside the brackets, in the badges to the right.'));
     this.modal.appendChild(head);
 
@@ -2181,12 +2190,12 @@
     var shown;
     if (this.query) {
       shown = this.renderSearch();
-      this.progressEl.textContent = shown + ' of ' + total + ' tag(s) match "' + this.query + '".';
+      this.progressEl.textContent = shown + ' of ' + plural(total, 'tag') + ' match "' + this.query + '".';
     } else {
       shown = 0;
       this.roots.forEach(function (rid) { shown += this.renderNode(rid, 0, null); }, this);
-      this.progressEl.textContent = total + ' tag(s), ' + this.roots.length + ' root(s). ' +
-        shown + ' row(s) shown - click a tag for what Prune and Roll Up would do with it.';
+      this.progressEl.textContent = plural(total, 'tag') + ', ' + plural(this.roots.length, 'root') +
+        '. ' + plural(shown, 'row') + ' shown - click a tag for what Prune and Roll Up would do with it.';
     }
     this.renderInspector();
   };
@@ -2243,7 +2252,7 @@
     }
     row.appendChild(twisty);
     // The tooltip says what the head legend says, at the one place a user hovers to
-    // ask: brackets are the tag's Stash id, the same id the run logs it under. It
+    // ask: brackets are the tag's id, the same id the run logs it under. It
     // also carries the aliases and description, which is what answers "is this the
     // tag I think it is" without leaving the viewer for the tag page.
     var nameEl = el('span', 'npt-tag-name', (t.name || 'unknown') + ' (' + id + ')');
@@ -2282,7 +2291,7 @@
     if (prot.remove) badges.push({ cls: 'npt-b-prot', text: '⛔ never removed: ' + prot.remove });
     if (prot.add) badges.push({ cls: 'npt-b-prot', text: '⛔ never added: ' + prot.add });
     if (!kids.length) badges.push({ cls: 'npt-b-dim', text: 'leaf' });
-    else badges.push({ cls: 'npt-b-dim', text: kids.length + ' child(ren)' });
+    else badges.push({ cls: 'npt-b-dim', text: plural(kids.length, 'child', 'children') });
     if (this.counts && hasOwn(this.counts, id)) badges.push({ cls: 'npt-b-dim', text: this.counts[id] });
 
     badges.forEach(function (b) {
@@ -2346,7 +2355,7 @@
     function list(label, ids) {
       if (!ids.length) return;
       // "Parents: 3", not "Parents (3)". Every other bracketed number in this dialog
-      // is a Stash id, and a heading that broke the rule read as the tag with id 3.
+      // is a id, and a heading that broke the rule read as the tag with id 3.
       line('npt-i-label', label + ': ' + ids.length);
       var body = el('div', 'npt-i-body');
       var capped = ids.slice(0, 24);
@@ -2381,13 +2390,13 @@
       line('npt-i-body', prot.remove
         ? 'Prune would leave this in place - protected: ' + prot.remove + '.'
         : 'Prune removes this from any entity that also carries one of its ' +
-          desc.length + ' descendant(s).');
+          plural(desc.length, 'descendant') + '.');
     } else {
       line('npt-i-body', 'Prune never removes this: it has no descendants, so nothing on an ' +
         'entity can imply it.');
     }
     if (anc.length) {
-      line('npt-i-body', 'Roll Up adds its ' + anc.length + ' ancestor(s) to every entity ' +
+      line('npt-i-body', 'Roll Up adds its ' + plural(anc.length, 'ancestor') + ' to every entity ' +
         'carrying this tag.');
     } else {
       line('npt-i-body', 'Roll Up adds nothing for this tag: it has no ancestors.');
@@ -2621,7 +2630,7 @@
     if (_autoLegendShown) return;
     _autoLegendShown = true;
     console.info('[' + PLUGIN_ID + '] auto mode is writing. In the lines below, the number in ' +
-      'brackets after a name is that entity\'s or tag\'s Stash id.');
+      'brackets after a name is that entity\'s or tag\'s id.');
   }
 
   // Enough of a Run for applyBatch to write into. The dialog's version renders to

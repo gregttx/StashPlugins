@@ -20,7 +20,7 @@ function bigLibrary() {
 // The hoverable segments of a recap line: only the tags with something to say beyond
 // the caption carry a title, and nothing else about the line changes.
 const recapLine = (env, verb) => env.body.descendants().filter((n) => h.hasClass(n, 'npt-line') &&
-  n.textContent.indexOf('tag(s) ' + verb + ':') !== -1)[0] || null;
+  n.textContent.indexOf(' ' + verb + ':') !== -1)[0] || null;
 const recapSpans = (env, verb) => {
   const line = recapLine(env, verb);
   return line ? line.descendants() : [];
@@ -42,7 +42,7 @@ Promise.resolve()
     // The log puts an id and a count on the same summary line - "Hair Colour" (1)
     // x250 - and nothing else in the dialog says which bracket means what.
     h.check('the head explains the ids in the log',
-      d().legend.indexOf('Stash id') !== -1 && d().legend.indexOf('x250') !== -1, d().legend);
+      d().legend.indexOf('id') !== -1 && d().legend.indexOf('x250') !== -1, d().legend);
     h.check('Proceed and Cancel are the phase 1 buttons',
       d().visible('Proceed') && d().visible('Cancel') && !d().visible('Close') && !d().visible('Stop'));
     h.check('Proceed is enabled once a plan exists', d().button('Proceed').disabled === false);
@@ -66,7 +66,7 @@ Promise.resolve()
       h.check('phase 2 buttons replace phase 1 buttons',
         d().visible('Close') && d().visible('Rescan') && !d().visible('Proceed'));
       h.check('the applied count is reported',
-        d().progress.indexOf('253 entity change(s) applied') !== -1, d().progress);
+        d().progress.indexOf('253 entity changes applied') !== -1, d().progress);
       // Entities are batched by shared delta, but the reason is per entity: the
       // 250 lose Hair Colour to Blonde, the 3 lose Body to Tattoo, and both kinds
       // of line have to come back out of one batch loop with the right reason.
@@ -244,7 +244,7 @@ Promise.resolve()
         return h.flush(200).then(() => {
           const progress = d().progress;
           h.check('a rescan counts its own log lines, not the whole session',
-            /Review complete\. \d+ entity change\(s\) planned, 120\d log line\(s\)/.test(progress),
+            /Review complete\. \d+ entity changes? planned, 120\d log lines?/.test(progress),
             progress);
           // Its caption is still "Copied" from the click above, and the dialog
           // helper finds buttons by their text.
@@ -360,12 +360,12 @@ Promise.resolve()
   .then(() => scan({ entities: bigLibrary() })).then(({ d }) => {
     const planned = d().lines[d().lines.length - 1];
     h.check('the review summary counts every entity per tag',
-      planned === '[INFO] 2 tag(s) to remove: "Body" (4) x3, "Hair Colour" (1) x250', planned);
+      planned === '[INFO] 2 tags to remove: "Body" (4) x3, "Hair Colour" (1) x250', planned);
     d().button('Proceed').click();
     return h.flush().then(() => {
       const applied = d().lines[d().lines.length - 1];
       h.check('the run ends with what was actually written',
-        applied === '[INFO] 2 tag(s) removed: "Body" (4) x3, "Hair Colour" (1) x250', applied);
+        applied === '[INFO] 2 tags removed: "Body" (4) x3, "Hair Colour" (1) x250', applied);
     });
   })
 
@@ -401,7 +401,7 @@ Promise.resolve()
       recapSpans(env, 'to remove').map((n) => n.className).join('|'));
     h.check('and the line itself is unchanged as text',
       d().lines[d().lines.length - 1] ===
-        '[INFO] 2 tag(s) to remove: "Body" (4) x3, "Hair Colour" (1) x250',
+        '[INFO] 2 tags to remove: "Body" (4) x3, "Hair Colour" (1) x250',
       d().lines[d().lines.length - 1]);
 
     // The apply's own recap is a second pass over the same tags, and a second query.
@@ -417,7 +417,7 @@ Promise.resolve()
   .then(() => scan({ entities: bigLibrary(), failTagDetail: true })).then(({ env, d }) => {
     const planned = d().lines[d().lines.length - 1];
     h.check('a failed detail query still leaves the recap',
-      planned === '[INFO] 2 tag(s) to remove: "Body" (4) x3, "Hair Colour" (1) x250', planned);
+      planned === '[INFO] 2 tags to remove: "Body" (4) x3, "Hair Colour" (1) x250', planned);
     h.check('and says nothing about it',
       !d().lines.some((l) => l.indexOf('[ERROR]') === 0), d().lines.join(' | '));
     h.check('and nothing hovers', recapTips(env, 'to remove').length === 0);
@@ -433,7 +433,7 @@ Promise.resolve()
     return h.flush().then(() => {
       const applied = d().lines[d().lines.length - 1];
       h.check('a failed batch is not summarised as written',
-        applied === '[INFO] 2 tag(s) removed: "Body" (4) x3, "Hair Colour" (1) x150', applied);
+        applied === '[INFO] 2 tags removed: "Body" (4) x3, "Hair Colour" (1) x150', applied);
     });
   })
 
@@ -464,7 +464,7 @@ Promise.resolve()
         d().button('Rescan').click();
         return h.flush(200).then(() => {
           h.check('a rescan that finds nothing reports only its own lines',
-            d().progress.indexOf('Review complete. 0 entity change(s) planned, 4 log line(s)') === 0,
+            d().progress.indexOf('Review complete. 0 entity changes planned, 4 log lines') === 0,
             d().progress);
           h.check('and does not claim to be hiding any',
             d().progress.indexOf('showing the last') === -1, d().progress);
@@ -528,10 +528,10 @@ Promise.resolve()
       d().button('Undo').click();
       return h.flush(5).then(() => {
         h.check('the first click only arms, naming the scope',
-          h.bulkCalls(env.calls).length === applied && d().visible('Undo 253 change(s)?'),
+          h.bulkCalls(env.calls).length === applied && d().visible('Undo 253 changes?'),
           d().button('Undo') ? 'still plain' : 'armed');
 
-        d().button('Undo 253 change(s)?').click();
+        d().button('Undo 253 changes?').click();
         return h.flush().then(() => {
           const undo = h.bulkCalls(env.calls).slice(applied);
           h.check('the undo issues one mutation per applied batch', undo.length === 4,
@@ -575,9 +575,9 @@ Promise.resolve()
         applied.length === 1 && applied[0].variables.input.tag_ids.mode === 'ADD');
       d().button('Undo').click();
       return h.flush(5).then(() => {
-        h.check('the roll up arms with its own count', d().visible('Undo 1 change(s)?'),
+        h.check('the roll up arms with its own count', d().visible('Undo 1 change?'),
           'armed caption wrong');
-        d().button('Undo 1 change(s)?').click();
+        d().button('Undo 1 change?').click();
         return h.flush().then(() => {
           const undo = h.bulkCalls(env.calls).slice(applied.length);
           h.check("a roll up's undo removes what it added",
@@ -613,12 +613,12 @@ Promise.resolve()
       d().button('Proceed').click();
       return h.flush().then(() => {
         h.check('a failed batch drops out of what Undo offers',
-          d().visible('Undo 153 change(s)?') === false && d().visible('Undo'));
+          d().visible('Undo 153 changes?') === false && d().visible('Undo'));
         d().button('Undo').click();
         return h.flush(5).then(() => {
           h.check('the armed count covers only the batches that landed',
-            d().visible('Undo 153 change(s)?'), 'armed caption wrong');
-          d().button('Undo 153 change(s)?').click();
+            d().visible('Undo 153 changes?'), 'armed caption wrong');
+          d().button('Undo 153 changes?').click();
           return h.flush().then(() => {
             const undo = h.bulkCalls(env.calls).filter(
               (c) => c.variables.input.tag_ids.mode === 'ADD');
@@ -656,7 +656,7 @@ Promise.resolve()
       return h.flush().then(() => {
         d().button('Undo').click();
         return h.flush(5).then(() => {
-          d().button('Undo 253 change(s)?').click();
+          d().button('Undo 253 changes?').click();
           return h.flush().then(() => {
             const during = seen.filter((s) => s.undo);
             h.check('a lease is held across the undo',
@@ -685,9 +685,9 @@ Promise.resolve()
           d().visible('Undo') && d().visible('Proceed'));
         d().button('Undo').click();
         return h.flush(5).then(() => {
-          h.check('and still offers the whole session', d().visible('Undo 253 change(s)?'),
+          h.check('and still offers the whole session', d().visible('Undo 253 changes?'),
             'armed caption wrong');
-          d().button('Undo 253 change(s)?').click();
+          d().button('Undo 253 changes?').click();
           return h.flush().then(() => {
             // The reviewed plan predates the reversal, so Proceed must not stay armed
             // over ground that has just moved.

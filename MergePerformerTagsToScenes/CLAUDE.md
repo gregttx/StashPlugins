@@ -5,8 +5,15 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.1.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.1.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.1.2 says "id", not "Stash id", and never "(s)".** Two repo-wide wording rules landed together, and
+both are in the root `CLAUDE.md`. *Stash ID* is already Stash's own name for a **stash-box**
+identifier, so calling the local database id one was a claim about a metadata provider that had
+never been consulted - every dialog head, legend and README here now says **id**. And every
+generated `3 scene(s)` / `2 child(ren)` now agrees with its own count, through one
+`plural(n, one, many)` helper held byte-identical in all four plugins beside `coopObject`.
 
 **2.1.1 trims one word from the head.** "only while it stays open" is now "while it stays open" - the load-bearing "only" is the one in "reverses only what this dialog wrote", and a second in the same clause read as emphasis rather than a limit. All three dialogs were reworded together at the user's wording; `CustomFieldsBulkEditor` 0.4.1 carries the same sentence.
 
@@ -475,7 +482,7 @@ evicts the Apollo scene-list cache directly and accepts a stale list where Apoll
 lands on, `to add` for the plan and `added` for what was written:
 
 ```
-[INFO] 3 tag(s) to add: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1
+[INFO] 3 tags to add: "Zed" (20) x2, "Volume 2" (22) x1, "volume 10" (21) x1
 ```
 
 Counted **per scene, not per performer** (a scene is written once whichever of its performers

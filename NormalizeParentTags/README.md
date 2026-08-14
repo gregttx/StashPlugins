@@ -83,16 +83,16 @@ and a log of every change it *would* make:
 [REMOVE] Image "IMG_0042" (900) - Tag "Hair Colour" (45) - due to "Blonde" (46)
 [ADD]    Performer "Jane" (7) - Tag "Hair Colour" (45) - due to "Platinum" (47)
 [ERROR]  Scenes page 5 - findScenes failed: ...
-[INFO]   2 tag(s) to remove: "Blonde" (46) x1, "Hair Colour" (45) x250
+[INFO]   2 tags to remove: "Blonde" (46) x1, "Hair Colour" (45) x250
 ```
 
-**The number in brackets after a name is that entity's or tag's Stash id** — `Scene "My Scene"
+**The number in brackets after a name is that entity's or tag's id** — `Scene "My Scene"
 (123)` is the scene with id 123, and `Tag "Hair Colour" (45)` the tag with id 45. It is never a
 count, and it is never part of the name: the id deliberately sits *outside* the quotes, so a scene
 actually called `My Scene (2)` cannot be misread. The id is what you put after `/scenes/` or
 `/tags/` in the address bar to open the thing the line is about, and it is what tells two tags with
 the same name apart. Counts in the log are written differently — `x250` after a tag in the summary
-line, `2 child(ren)` in the hierarchy viewer — so a bracketed number always means the same thing.
+line, `2 children` in the hierarchy viewer — so a bracketed number always means the same thing.
 The dialog says this in a line under its warning, so you do not have to remember it.
 
 The last line of each phase lists **every distinct tag the run touches**, with the number of
@@ -152,7 +152,7 @@ Once a run has written something, an **Undo** button appears. It reverses every 
 has made — Prune puts the tags it removed back, Roll Up takes the tags it added off again — and it
 covers the whole session, so a run you applied, rescanned and applied again comes back in one go.
 
-The first click arms it and shows the scope (*"Undo 253 change(s)?"*); a second click within a few
+The first click arms it and shows the scope (*"Undo 253 changes?"*); a second click within a few
 seconds carries it out. Clicking anything else, or waiting, disarms it.
 
 **Undo is not a database restore, and it is not a substitute for the backup.** Three limits, all of
@@ -180,16 +180,16 @@ nothing, so it is safe to open at any time — and it is the quickest way to und
 other two tasks would do before running either.
 
 ```
-▾ Hair Colour (45)                                    2 child(ren)
-  ▾ Blonde (12)                                       2 child(ren)
+▾ Hair Colour (45)                                    2 children
+  ▾ Blonde (12)                                       2 children
       Platinum (47)          ◆ 2 parents  leaf
       Ash (48)               ⛔ never removed: name filter   leaf
   ▸ Rare (6)                 ↩ shown under "Body" (4)
 ```
 
-Each row reads **tag name followed by its Stash id in brackets** — `Hair Colour (45)` is the tag
+Each row reads **tag name followed by its id in brackets** — `Hair Colour (45)` is the tag
 with id 45, the same id the review log names it by and the one in `/tags/45`. The numbers that
-*are* counts sit outside the brackets, in the badges on the right (`2 child(ren)`, `◆ 2 parents`),
+*are* counts sit outside the brackets, in the badges on the right (`2 children`, `◆ 2 parents`),
 and the inspector's headings spell them out the same way — `Parents: 3`, never `Parents (3)`.
 
 **Hovering a tag name** shows what the row has no space for — the full name, the id, the tag's
@@ -307,7 +307,7 @@ Things worth knowing:
 - **Bulk edits count.** Editing 500 scenes from Stash's bulk edit dialog normalizes all 500. This
   is usually what you want and it is also the largest thing this mode does without asking.
 - **The console lines read like the dialog's**, `[NormalizeParentTags] Scene "My Scene" (123) -
-  Tag "Hair Colour" (45) - due to "Platinum" (47)`, so the bracketed numbers are Stash ids there
+  Tag "Hair Colour" (45) - due to "Platinum" (47)`, so the bracketed numbers are ids there
   too. The plugin says so once, before the first line it writes.
 - **It only reacts in the tab it is running in**, like anything else that lives in the browser. A
   change made by the server, by a scan, or in another browser is picked up the next time that

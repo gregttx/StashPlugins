@@ -68,7 +68,7 @@ There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks*
   lands on — what the plan would add, and then what was actually added:
 
   ```
-  [INFO] 3 tag(s) to add: "Blonde" (12) x250, "Tattoo" (17) x18
+  [INFO] 3 tags to add: "Blonde" (12) x250, "Tattoo" (17) x18
   ```
 
   The tags are listed in the same order Stash sorts them — by **Sort Name** where a tag has one,
@@ -89,7 +89,7 @@ There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks*
   costs one extra query per phase, for the handful of tags the recap names rather than for every
   tag met while scanning, and if it fails the recap simply reads as it always did.
 
-  **The number in brackets after a name is that scene's, performer's or tag's Stash id**, never a
+  **The number in brackets after a name is that scene's, performer's or tag's id**, never a
   count and never part of the name — `"Blonde" (12)` is the tag with id 12, the one at `/tags/12`,
   which is also how two tags with the same name are told apart. The id sits *outside* the quotes so
   that a scene genuinely titled `My Scene (2)` cannot be misread as an id. Counts are written
@@ -115,7 +115,7 @@ Once the library-wide task has written something, an **Undo** button appears in 
 removes the tags the dialog added, from the scenes it added them to, and covers the whole session —
 a run you applied, rescanned and applied again comes back in one go.
 
-The first click arms it and shows the scope (*"Undo 3 scene(s)?"*); a second click within a few
+The first click arms it and shows the scope (*"Undo 3 scenes?"*); a second click within a few
 seconds carries it out. Clicking anything else, or waiting, disarms it.
 
 **This is the only thing in the plugin that removes a tag**, and it is deliberately narrow: it
@@ -164,14 +164,14 @@ Enable **Log Tag merges to the Browser Console (Info level)** to have every tag 
 [MergePerformerTagsToScenes] Tag "Tattoo" (17) staged to Scene "My Scene" (345)
 ```
 
-**The number in brackets after each name is that tag's or scene's Stash id** — `"Blonde" (12)` is the tag at `/tags/12` and `"My Scene" (345)` the scene at `/scenes/345`. It is not a count, and it is not part of the name: the id is deliberately outside the quotes, so a scene actually titled `My Scene (2)` reads as `"My Scene (2)" (345)` rather than ambiguously. Use it to open exactly the scene or tag a line is about, and to tell two same-named tags apart.
+**The number in brackets after each name is that tag's or scene's id** — `"Blonde" (12)` is the tag at `/tags/12` and `"My Scene" (345)` the scene at `/scenes/345`. It is not a count, and it is not part of the name: the id is deliberately outside the quotes, so a scene actually titled `My Scene (2)` reads as `"My Scene (2)" (345)` rather than ambiguously. Use it to open exactly the scene or tag a line is about, and to tell two same-named tags apart.
 
 **These lines go to your browser's own JavaScript console — not to Stash.** Open it with **F12** (or Ctrl+Shift+J / Cmd+Option+J) and pick the **Console** tab. This plugin runs entirely in the browser, so it has no way to write to the Stash server console or the **Settings → Logs** page; nothing will ever appear in either of those.
 
 As soon as the plugin picks the setting up it says so once, so you can tell it is running before anything has been merged:
 
 ```
-[MergePerformerTagsToScenes] merge logging enabled — one line will appear here per tag merged into a scene. The number in brackets after a name is that tag's or scene's Stash id.
+[MergePerformerTagsToScenes] merge logging enabled — one line will appear here per tag merged into a scene. The number in brackets after a name is that tag's or scene's id.
 ```
 
 If you tick the setting and that line never appears, check in this order: you are looking at the browser's console rather than the Stash log; the console's level filter is not hiding **Info** messages (Chrome collapses them under "Verbose"/"Info" in the level dropdown); and the browser is not still running an older copy of the plugin's JavaScript — the version line the plugin logs at load says which one it is, and reloading the page (F5) picks up a newly copied file.

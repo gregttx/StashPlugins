@@ -216,7 +216,7 @@ openTask()
       lines(env.body).length === 1 && /^Tag /.test(lines(env.body)[0]),
       lines(env.body).join(' | '));
     h.check('and the counter counts what is left showing',
-      /1 line\(s\) listed/.test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
+      /1 line listed/.test((one(env.body, 'cfbe-progress') || {}).textContent || ''),
       (one(env.body, 'cfbe-progress') || {}).textContent);
     if (type) {
       type.value = '';

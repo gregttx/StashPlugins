@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '2.1.1';
+  var PLUGIN_VERSION      = '2.1.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -37,6 +37,14 @@
     if (typeof console !== 'undefined' && (console.info || console.log)) {
       (console.info || console.log).call(console, message);
     }
+  }
+
+  // "3 changes", "1 change" - the count is always known where it is printed, so the
+  // "(s)" these dialogs used to write everywhere was never carrying information. An
+  // irregular plural passes its own; everything else takes an "s". Keep this function
+  // byte-identical across the plugins, like the CSS.
+  function plural(n, one, many) {
+    return n + ' ' + (n === 1 ? one : (many || one + 's'));
   }
 
   cpt2s('[cpt2s] MergePerformerTagsToScenes.js ' + PLUGIN_VERSION + ' loaded. This is the ' +
@@ -389,7 +397,7 @@
     if (_loggingAnnounced) return;
     _loggingAnnounced = true;
     logInfo('merge logging enabled — one line will appear here per tag merged into a scene. ' +
-      'The number in brackets after a name is that tag\'s or scene\'s Stash id.');
+      'The number in brackets after a name is that tag\'s or scene\'s id.');
   }
 
   // One line per tag, at info level. Callers log only once the change is real: after
@@ -564,10 +572,10 @@
     if (!plan) {
       return no(sceneIsExcluded(scene, exclTagId)
         ? 'scene excluded by a filter (Organized, or the exclusion tag)'
-        : 'scene already carries all ' + perfTagIds.length + ' mergeable performer tag(s)');
+        : 'scene already carries all ' + plural(perfTagIds.length, 'mergeable performer tag'));
     }
     plan.tagById = perfTagById;
-    _lastPlanReason = plan.missing.length + ' tag(s) to add';
+    _lastPlanReason = plural(plan.missing.length, 'tag') + ' to add';
     gateLog(who + ': YES - ' + _lastPlanReason);
     return plan;
   }
@@ -796,8 +804,8 @@
             // Report failures only after every scene has been attempted, so one bad
             // scene cannot silently cancel the rest of the run.
             if (failed) {
-              throw new Error(failed + ' of ' + scenes.length +
-                ' scene(s) could not be updated; see the browser console for details');
+              throw new Error(failed + ' of ' + plural(scenes.length, 'scene') +
+                ' could not be updated; see the browser console for details');
             }
           }
 
@@ -1130,7 +1138,7 @@
       if (c) return c;
       return taskLowerId(a, b) ? -1 : 1;
     });
-    var parts = [{ text: ids.length + ' tag(s) ' + verb + ': ' }];
+    var parts = [{ text: plural(ids.length, 'tag') + ' ' + verb + ': ' }];
     ids.forEach(function (tid, i) {
       var t = tagsById[tid];
       var d = detail && hasOwn(detail, tid) ? detail[tid] : null;
@@ -1308,7 +1316,7 @@
     // written as x250. Saying which is which is cheaper than a misread scene id.
     head.appendChild(taskEl('div', 'cpt2s-legend',
       'Reading the log: the number in brackets after a name is that scene\'s, performer\'s or ' +
-      'tag\'s Stash id - Scene "My Scene" (345) is the scene with id 345. Counts are written ' +
+      'tag\'s id - Scene "My Scene" (345) is the scene with id 345. Counts are written ' +
       'as x250, never in brackets.'));
     this.noteEl = taskEl('div', 'cpt2s-note', '');
     head.appendChild(this.noteEl);
@@ -1480,21 +1488,21 @@
     var summary;
     if (this.state === 'scanning') {
       summary = 'Reviewing. Performers ' + this.performersSeen + ' / ' + this.performersTotal +
-        ', ' + this.plan.length + ' scene(s) to update';
+        ', ' + plural(this.plan.length, 'scene') + ' to update';
     } else if (this.state === 'ready') {
-      summary = 'Review complete. ' + this.plan.length + ' scene(s) to update, ' +
-        this.tagsPlanned + ' tag assignment(s) to add. Nothing has been written.';
+      summary = 'Review complete. ' + plural(this.plan.length, 'scene') + ' to update, ' +
+        plural(this.tagsPlanned, 'tag assignment') + ' to add. Nothing has been written.';
     } else if (this.state === 'applying') {
-      summary = 'Merging. ' + this.scenesUpdated + ' of ' + this.plan.length + ' scene(s) updated';
+      summary = 'Merging. ' + this.scenesUpdated + ' of ' + plural(this.plan.length, 'scene') + ' updated';
     } else if (this.state === 'undoing') {
-      summary = 'Undoing. ' + this.undone + ' of ' + this.undoTotal + ' scene(s) reversed';
+      summary = 'Undoing. ' + this.undone + ' of ' + plural(this.undoTotal, 'scene') + ' reversed';
     } else {
-      summary = 'Finished. ' + this.scenesUpdated + ' scene(s) updated, ' +
-        this.tagsAdded + ' tag assignment(s) added' +
-        (this.undone ? ', ' + this.undone + ' scene(s) reversed by Undo' : '') +
+      summary = 'Finished. ' + plural(this.scenesUpdated, 'scene') + ' updated, ' +
+        plural(this.tagsAdded, 'tag assignment') + ' added' +
+        (this.undone ? ', ' + plural(this.undone, 'scene') + ' reversed by Undo' : '') +
         (this.stopped ? ' (stopped early; what was written stays written)' : '');
     }
-    if (this.errors) summary += ', ' + this.errors + ' error(s)';
+    if (this.errors) summary += ', ' + plural(this.errors, 'error');
     if (this.viewLines > TASK_LOG_CAP) {
       summary += ' - showing the last ' + TASK_LOG_CAP + ' of ' + this.viewLines + ' lines';
     }
@@ -1808,7 +1816,7 @@
     this.tagsPlanned += added.length;
     if (added.length) {
       this.log('MERGE', 'Performer ' + performerLabel(p) + ' - Scene ' +
-        sceneLogLabel(scene, scene.id) + ' - ' + added.length + ' tag(s): ' +
+        sceneLogLabel(scene, scene.id) + ' - ' + plural(added.length, 'tag') + ': ' +
         added.map(function (t) { return '"' + (t.name || 'unnamed') + '" (' + t.id + ')'; }).join(', '));
     }
   };
@@ -1852,8 +1860,9 @@
     if (!this.plan.length) {
       this.log('INFO', 'Nothing to merge.');
     } else {
-      this.log('INFO', 'Review complete: ' + this.tagsPlanned + ' tag assignment(s) across ' +
-        this.plan.length + ' scene(s). Nothing has been written. Press Proceed to apply.');
+      this.log('INFO', 'Review complete: ' + plural(this.tagsPlanned, 'tag assignment') +
+        ' across ' + plural(this.plan.length, 'scene') +
+        '. Nothing has been written. Press Proceed to apply.');
       this.logTagSummary(this.plannedTagCounts, 'to add');
     }
     this.setState('ready');
@@ -1909,7 +1918,7 @@
     this.scenesUpdated = 0;
     this.tagsAdded = 0;
     this.appliedTagCounts = {};
-    this.log('INFO', 'Applying ' + this.plan.length + ' scene change(s) - ' + new Date().toISOString());
+    this.log('INFO', 'Applying ' + plural(this.plan.length, 'scene change') + ' - ' + new Date().toISOString());
 
     this.runUnits(this.plan.slice(), this.taskName,
       function (entry) { return self.applyEntry(entry); },
@@ -1935,7 +1944,7 @@
       });
       logMerges(entry.tags, entry.scene, entry.scene.id, 'saved');
       self.log('MERGE', 'Scene ' + sceneLogLabel(entry.scene, entry.scene.id) + ' - ' +
-        entry.tagIds.length + ' tag(s) added - from Performer ' + entry.from.join(', '));
+        plural(entry.tagIds.length, 'tag') + ' added - from Performer ' + entry.from.join(', '));
       self.renderProgress();
     }, function (e) {
       self.log('ERROR', 'Scene ' + sceneLogLabel(entry.scene, entry.scene.id) + ' update failed: ' +
@@ -1945,9 +1954,9 @@
   };
 
   TaskRun.prototype.finishApply = function () {
-    this.log('INFO', 'Finished. ' + this.scenesUpdated + ' scene(s) updated, ' +
-      this.tagsAdded + ' tag assignment(s) added' +
-      (this.errors ? ', ' + this.errors + ' error(s)' : '') +
+    this.log('INFO', 'Finished. ' + plural(this.scenesUpdated, 'scene') + ' updated, ' +
+      plural(this.tagsAdded, 'tag assignment') + ' added' +
+      (this.errors ? ', ' + plural(this.errors, 'error') : '') +
       (this.stopped ? ' (stopped early; what was written stays written)' : '') +
       '. Press Rescan to review what is left.');
     // Counted from what was written, not from the plan: a failed scene, or a Stop,
@@ -2026,7 +2035,7 @@
     // reading: it is the scope of the reversal, not a generic "are you sure".
     if (!this.undoArmed) {
       this.undoArmed = true;
-      this.undoBtn.textContent = 'Undo ' + this.undoable.length + ' scene(s)?';
+      this.undoBtn.textContent = 'Undo ' + plural(this.undoable.length, 'scene') + '?';
       this.undoTimer = setTimeout(function () { self.disarmUndo(); }, TASK_UNDO_ARM_MS);
       return;
     }
@@ -2038,7 +2047,7 @@
     this.undoFailed = 0;
     this.undoneTagCounts = {};
     this.undoTotal = this.undoable.length;
-    this.log('INFO', 'Undoing the merge on ' + this.undoTotal + ' scene(s) - ' +
+    this.log('INFO', 'Undoing the merge on ' + plural(this.undoTotal, 'scene') + ' - ' +
       new Date().toISOString());
 
     // Newest first, the order that composes: a rescan-and-apply cycle can write to
@@ -2065,11 +2074,11 @@
         });
         self.undone++;
         self.log('MERGE', 'Undo - Scene ' + sceneLogLabel(entry.scene, entry.scene.id) + ' - ' +
-          entry.tagIds.length + ' tag(s) removed again');
+          plural(entry.tagIds.length, 'tag') + ' removed again');
       });
       self.renderProgress();
     }, function (e) {
-      self.log('ERROR', 'Undo failed for ' + ids.length + ' scene(s) (' +
+      self.log('ERROR', 'Undo failed for ' + plural(ids.length, 'scene') + ' (' +
         ids.slice(0, 5).join(', ') + (ids.length > 5 ? ', ...' : '') + '): ' +
         (e && e.message ? e.message : e));
       self.errors++;
@@ -2078,11 +2087,11 @@
   };
 
   TaskRun.prototype.finishUndo = function () {
-    this.log('INFO', 'Undo finished. ' + this.undone + ' scene(s) reversed' +
+    this.log('INFO', 'Undo finished. ' + plural(this.undone, 'scene') + ' reversed' +
       (this.undoFailed ? ', ' + this.undoFailed + ' could not be' : '') +
       (this.stopped ? ' (stopped early; what was reversed stays reversed)' : '') +
       (this.undoable.length
-        ? '. ' + this.undoable.length + ' scene(s) still carry what this run added.'
+        ? '. ' + plural(this.undoable.length, 'scene') + ' still carry what this run added.'
         : '. Everything this dialog added has been taken back.'));
     this.logTagSummary(this.undoneTagCounts, 'removed again');
     this.setState('done');

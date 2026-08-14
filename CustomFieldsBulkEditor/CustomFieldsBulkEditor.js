@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.4.0';
+  var PLUGIN_VERSION = '0.4.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -811,24 +811,17 @@
       ? this.spec.plural + ' - ' + this.ids.length + ' selected'
       : 'Whole library - every entity type that carries custom fields')));
     head.appendChild(el('div', 'cfbe-warn',
-      'Backing up your database before proceeding is recommended. Apply rewrites one custom field across every ' +
-      'entity in scope, and Undo reverses only what this dialog wrote, only while it stays ' +
-      'open, and cannot account for changes made elsewhere in the meantime.'));
+      'Backing up your database before proceeding is recommended. Undo only reverses what this dialog wrote, ' +
+      'while it stays open, and cannot account for changes made elsewhere in the meantime.'));
     head.appendChild(el('div', 'cfbe-legend',
-      'Reading the list: the number in brackets after a name is that entity\'s Stash id - ' +
-      'Scene "My Scene" (123) is the scene with id 123. Counts are written as x250, never in ' +
-      'brackets. A line reads: entity: field name ' + EQ + ' field value, and after Apply, ' +
+      'Reading the list: the number in brackets after the entity name is its id. The rest of ' +
+      'the line reads: entity: field name ' + EQ + ' field value, and after Apply, ' +
       'what changed as before ' + ARROW.replace(/^\s+|\s+$/g, '') + ' after. ' + NONE +
       ' marks nothing there - either no such field, or a field set to an empty value; it is a ' +
       'mark on the screen only, and copies as nothing. Click an entity to open it in a new tab; ' +
-      'click a field name or value to copy it. Selecting lines and copying gives plain text.'));
+      'click a field name or value to copy it. Counts are written with prefix "x".'));
     this.noteEl = el('div', 'cfbe-note', '');
     head.appendChild(this.noteEl);
-    var link = el('a', 'cfbe-readme', 'Plugin README');
-    link.href = README_URL;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    head.appendChild(link);
     this.modal.appendChild(head);
 
     this.progressEl = el('div', 'cfbe-progress', 'Loading...');

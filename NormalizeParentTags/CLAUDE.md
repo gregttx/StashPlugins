@@ -3,9 +3,11 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.2.0.** This file is both the design and the map of the code — the
+**Status: implemented at 2.2.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.2.1 trims one word from the head.** "only while it stays open" is now "while it stays open" - the load-bearing "only" is the one in "reverses only what this dialog wrote", and a second in the same clause read as emphasis rather than a limit. All three dialogs were reworded together at the user's wording; `CustomFieldsBulkEditor` 0.4.1 carries the same sentence.
 
 **2.2.0 is the viewer's footer.** The two graph exports are gone (§5a), `Load counts` gained a tooltip and now says `Refresh counts` once it has loaded them. All three were live feedback on 2.1.0; the exports are the only capability ever removed from this plugin, and §5a records why so it is not re-added on the same reasoning that put it there.
 

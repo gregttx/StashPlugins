@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '2.2.0';
+  var PLUGIN_VERSION = '2.2.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1266,7 +1266,7 @@
     // beside it rather than left to be discovered.
     head.appendChild(el('div', 'npt-warn',
       'Backing up your database before proceeding is recommended. Undo only reverses what this dialog wrote, ' +
-      'only while it stays open, and cannot account for changes made elsewhere in the meantime.'));
+      'while it stays open, and cannot account for changes made elsewhere in the meantime.'));
     // Every name in this log carries a number in brackets and it is always a Stash
     // id, never a count - the counts in the log are written as `x250` or spelled out.
     // Nothing else in the dialog says so, and an id read as "250 of these" is the

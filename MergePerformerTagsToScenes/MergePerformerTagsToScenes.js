@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '2.1.0';
+  var PLUGIN_VERSION      = '2.1.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1300,8 +1300,8 @@
     // it takes back what this dialog itself added - and it is not a restore, so the
     // backup instruction stays and its limits are stated beside it.
     head.appendChild(taskEl('div', 'cpt2s-warn',
-      'The merge only ever adds tags. Backing up your database before proceeding is recommended: Undo reverses ' +
-      'what this dialog added, only while it stays open, and cannot account for changes made ' +
+      'The merge only ever adds tags. Backing up your database before proceeding is recommended: Undo only ' +
+      'reverses what this dialog added, while it stays open, and cannot account for changes made ' +
       'elsewhere in the meantime.'));
     // Same legend as NormalizeParentTags', because the log lines are the same shape:
     // the id sits outside the quotes, and the only other numbers here are counts

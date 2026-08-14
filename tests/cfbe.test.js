@@ -380,7 +380,8 @@ openDialog()
     h.check('the backup instruction leads the head',
       /Backing up your database before proceeding is recommended\./.test((one(env.body, 'cfbe-warn') || {}).textContent || ''));
     h.check('the legend says a bracketed number is an id',
-      /Stash id/.test((one(env.body, 'cfbe-legend') || {}).textContent || ''));
+      /number in brackets after the entity name is its id/.test(
+        (one(env.body, 'cfbe-legend') || {}).textContent || ''));
 
     h.check('the selection is read in one aliased by-id query, not one per entity',
       env.calls.filter((c) => /CFBE_Read/.test(c.query || '')).length === 1,

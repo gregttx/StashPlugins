@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '1.1.0';
+  var PLUGIN_VERSION = '1.1.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1446,7 +1446,7 @@
     // discovered.
     head.appendChild(el('div', 'ptp2re-warn',
       'Backing up your database before proceeding is recommended. This only ever adds tags and performers, but ' +
-      'Undo reverses only what this dialog wrote, only while it stays open, and cannot account ' +
+      'Undo only reverses what this dialog wrote, while it stays open, and cannot account ' +
       'for changes made elsewhere in the meantime.'));
     // Every name in this log carries a number in brackets and it is always a Stash
     // id, never a count - the counts are written as `x250` or spelled out. Nothing

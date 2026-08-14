@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.4.0 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.4.3 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -664,3 +664,31 @@ with it — and `.cfbe-log` is **pinned byte-identical across the four dialogs**
 element, carries the smaller floor. A modifier beside a shared rule is the move whenever one
 plugin's copy of the chrome holds something the others' do not; editing the shared rule for a
 local need is what the pinning exists to stop.
+
+## 14. The head reads shorter, and the dialog no longer links its own README
+
+0.4.1, at the user's wording. Three cuts, none of them behavioural:
+
+- **"only while it stays open" → "while it stays open."** The other "only" in that sentence is the
+  load-bearing one (*only reverses what this dialog wrote*); a second one in the same clause read
+  as emphasis rather than a limit. 0.4.2 moved that first `only` ahead of the verb, matching the
+  word order the other three dialogs took at `NormalizeParentTags` 2.2.1 / `MergePerformerTagsToScenes`
+  2.1.1 / `PropagateTagsAndPerformers` 1.1.1 — four heads, one sentence. 0.4.3 dropped the clause
+  in front of it, *Apply rewrites one custom field across every entity in scope*: it describes what
+  the dialog does rather than what Undo cannot reach, and `README.md` says it at length. The head
+  is now the siblings' sentence verbatim.
+- **The legend stops teaching the id and the count separately.** `NormalizeParentTags` and the two
+  after it spend a sentence on *Scene "My Scene" (123) is the scene with id 123* because their logs
+  are prose and a bracketed number could be either. This dialog's lines are a table with the id in
+  a fixed column, so naming it once — *the number in brackets after the entity name is its id* —
+  is the whole job, and the count rule shrinks to a trailing *Counts are written with prefix "x"*.
+  `tests/cfbe.test.js` matches the new clause, not the old `Stash id` string the other three still
+  carry.
+- **The head's `Plugin README` link is gone.** CFBE was the only plugin here that put one in the
+  dialog as well as under the settings description, and the dialog is opened by someone already
+  mid-task. The settings-page link (`README_LINK_ID`, §10) is unaffected and still tested; so is
+  `README_URL` and the `.cfbe-readme` rule, which that link still uses.
+
+**"Selecting lines and copying gives plain text" left the legend but not the plugin.** It is still
+true, still documented in `README.md`, and was the one sentence there describing something the user
+cannot see from the screen — which is an argument for the README carrying it, not the head.

@@ -199,7 +199,7 @@ Promise.resolve()
     h.check('the head leads with the backup instruction',
       /^Backing up your database before proceeding is recommended\./.test(warn), warn);
     h.check('and states what Undo cannot reach',
-      /only what this dialog wrote/.test(warn) && /only while it stays open/.test(warn), warn);
+      /only reverses what this dialog wrote/.test(warn) && /while it stays open/.test(warn), warn);
     h.check('the log opens by saying nothing will be written yet',
       /reviewing, nothing will be written yet/.test(d.lines.join('\n')), d.lines.join('\n'));
     // The id legend: a bracketed number is always a Stash id and never a count.

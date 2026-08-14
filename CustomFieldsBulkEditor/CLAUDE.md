@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.7.0 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.7.1 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -13,7 +13,7 @@ value filter's "is empty" mode (§5b) **are** — both requested from live use a
 there, the pills after two reports and the filter after 0.2.5 made the plugin loadable again. §10 is
 confirmed too, at 0.3.2: the description collapses behind **Show more** with the README linked under
 it, and no task description is touched. §13's five additions came out of that same live task run and
-are unverified, as are §14–§18 — every one of them a text, layout or logging change asked for from
+are unverified, as are §14–§19 — every one of them a text, layout or logging change asked for from
 live use and shipped without a live click behind it. The gallery-images gap reported 2026-08-12 is **closed** at 0.1.1, along with three more
 list views that had the same cause (§2); the undercounted tag and studio selections reported
 2026-08-13 are closed at 0.1.2 (§3).
@@ -31,8 +31,9 @@ fixes; 0.1.1 is §2's route fix and 0.1.2 is §3's; 0.2.0 is the pill listing (�
 had to reissue after an unescaped quote in its own `.yml` stopped Stash loading the plugin at all;
 0.3.0 is the library-wide task (§12), 0.3.1 its paged read and 0.3.2 the anchor fix in §10; 0.4.0 is
 §13, five things the task dialog wanted once it held a whole library; 0.5.0 is §16, one log in the
-order things happened, 0.6.0 is §17, every skip saying why, and 0.7.0 is §18, the first setting.
-200 automated checks cover the plugin across its two suites, and the suite still
+order things happened, 0.6.0 is §17, every skip saying why, 0.7.0 is §18, the first setting, and
+0.7.1 is §19, the footer in the siblings' order.
+202 automated checks cover the plugin across its two suites, and the suite still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -206,9 +207,10 @@ stylesheets with the prefixes stripped and fails on any drift.
 **The state machine is four states, and the pairing is deliberate.** `loading → listing →
 applying → applied`, with `undoing` returning to `applied`. Cancel/Apply and Undo/Close never
 overlap: after an Apply the listing describes a library this dialog has already changed, so offering
-Apply again over it would write from a plan nobody is looking at. **Rescan is what closing and
-reselecting does** — there is no Rescan button, because the selection is the scope and the selection
-lives in a list the dialog is covering.
+Apply again over it would write from a plan nobody is looking at. **Rescan re-reads the same scope
+without closing** — the selection is the scope and it does not change while the dialog covers the
+list it came from, so a rescan is a fresh read of the same entities rather than a fresh selection.
+Widening the scope still means closing and reselecting.
 
 **The version gate is the only warning here that blocks**, exactly as in the siblings, and **Undo is
 never gated on it**: stranding the user with changes they cannot take back is worse than the
@@ -855,3 +857,24 @@ header's own description.
 plugin write on its own; this one chooses what a run *covers*, which keeps Stash's blue. That is
 what `tests/style.test.js`'s new `toggles` flag records — and fixing the filter it replaced
 (`settingsPage`, a key no entry ever carried) is how the dead check under it was found.
+
+## 19. The footer order is the siblings' (0.7.1)
+
+`[Apply, Cancel, Copy log, Undo, Rescan, Close]`, replacing `[Cancel, Undo, Rescan, Copy log, Apply,
+Close]`. Nothing behaves differently; the write moved from second-to-last to first.
+
+**Three plugins against one decided it, not an argument about which position is better.** The
+siblings all read `Proceed · Cancel · Stop · Copy log · Undo · Rescan · Close`, and the user asked
+for the button positions to be harmonised "unless there is a specific reason". There was none on
+record here — this footer was built before the three had converged on anything and its order was
+never argued for — so the majority order wins and the smaller diff is on this side.
+
+**The one gap is Stop, and it is a real absence rather than an omission to fill.** A write here is
+one bulk mutation per batch with the whole footer disabled for the duration, so there is no state in
+which a Stop could be pressed. Apply therefore takes Proceed's leading position and the rest follow
+in sequence; nothing is left holding a place for a button that does not exist.
+
+**`tests/cfbe.test.js` pins the whole sequence as one string**, read off `.cfbe-foot`'s children in
+DOM order. The other three are not pinned the same way — the check would be four copies of one
+literal, and the drift it guards against is what this section just corrected on the one plugin that
+had it. Pin theirs if a second footer ever moves.

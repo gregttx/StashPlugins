@@ -3,9 +3,18 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.2.2.** This file is both the design and the map of the code — the
+**Status: implemented at 2.3.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.3.0 keeps the log until the dialog closes, and gives Rescan a tooltip.** `rescan()` no longer
+empties the rendered log — it writes `--- Rescan ---` and the next pass carries on below it, which is
+what `CustomFieldsBulkEditor` has always done and what the user asked the other three to match. The
+consequence is a **deletion**: `viewLines` existed only because a rescan emptied the view under the
+counter, so with the view session-scoped it is exactly `lines.length` and is gone (§5's "two
+counters, deliberately" is now one). All three siblings changed together, along with the shared
+footer order — `CustomFieldsBulkEditor` moved Apply to the leading position this dialog gives
+Proceed.
 
 **2.2.2 says "id", not "Stash id", and never "(s)".** Two repo-wide wording rules landed together, and
 both are in the root `CLAUDE.md`. *Stash ID* is already Stash's own name for a **stash-box**
@@ -436,21 +445,29 @@ plan away and restarts phase 1 without closing the dialog), and **Close**. A **S
 halts after the current chunk; already-applied chunks stay applied.
 
 **There is deliberately no Clear log.** It existed until 0.10.0 and earned nothing: emptying the
-buffer is only ever wanted before a Rescan, which empties the rendered view anyway, and once phase 2
+buffer was only ever wanted before a Rescan, which emptied the rendered view anyway, and once phase 2
 has written something the log is the only record of what changed — Stash has no undo and the plugin
-cannot reconstruct the list. A button whose whole safe use is covered by another button, and whose
+cannot reconstruct the list. **2.3.0 strengthened this rather than reopening it**: a Rescan no longer
+empties anything, and "the log stays until the dialog closes" is now the stated design, so a button
+whose only job is to break that promise has less of a case than it had when it was removed. A button whose whole safe use is covered by another button, and whose
 unsafe use needed an arm/confirm latch (`run.wrote`, `CLEAR_ARM_MS`) to be survivable, is a button
 worth removing rather than guarding. Its class also collided with the tree view's `.npt-clear`
 input icon, which is what made the cost visible. Do not reintroduce it without a use Rescan does
 not already serve.
 
-**Two counters, deliberately.** `lines` is the export buffer: it survives a Rescan, because Copy
-log is meant to hand over the whole session. `viewLines` counts what has gone into the log *since
-the current pass emptied the view*, and is what the progress line describes — both the
-`N log lines` figure and the `showing the last 1000 of N` clause. Reporting `lines` there was
-wrong in a way that only showed up at scale: a pass that applied 28 000 lines followed by a rescan
-finding nothing left the header claiming 28 161 lines and 27 161 hidden, over a log holding four.
-Reset `viewLines` wherever the view is emptied — today that is `reset()`, which `rescan()` calls.
+**One counter, since 2.3.0.** `lines` is the export buffer and survives a Rescan, because Copy log
+hands over the whole session — and the rendered log now survives one too, so `lines.length` is what
+the progress line describes: both the `N log lines` figure and the `showing the last 1000 of N`
+clause.
+
+There were two until 2.3.0, and the second was not redundant while it existed. `viewLines` counted
+what had gone into the log *since the current pass emptied the view*, because reporting `lines` over
+an emptied view was wrong in a way that only showed up at scale: a pass that applied 28 000 lines
+followed by a rescan finding nothing left the header claiming 28 161 lines and 27 161 hidden, over a
+log holding four. **Keeping the view removed the divergence rather than the symptom** — nothing
+empties the log now, so the two counters could only ever agree, and one of them had to go.
+`normalize-apply` pins that the progress figure equals what Copy log hands over, which is the check
+that would notice them parting again.
 
 **A rescan starts a pass, so every per-pass surface has to be re-derived, not just added to.**
 `reset()` handles the counters and `rescan()` clears the rendered log, but the head of the dialog
@@ -1158,10 +1175,12 @@ cover:
   lists jump, and jumping out of a flat filtered list restores the tree first. A failed tag query
   is covered too: both boxes and all five footer buttons are driven against a dialog that has no
   graph, and must stay inert rather than throw.
-- **What a rescan resets** — the log-line counter describes the new pass rather than the session
-  (including the reported case: a rescan finding nothing reports four lines and claims nothing
-  hidden), Copy log still exports both passes, and the sibling warning clears when the setting it
-  warns about is turned off.
+- **What a rescan keeps and what it resets** — the rendered log survives it, `--- Rescan ---`
+  separating the passes and the lines above it still on screen; the log-line counter therefore
+  describes the whole session and is pinned equal to what Copy log hands over; a rescan finding
+  nothing keeps the lines behind it and still claims nothing hidden while it is under the cap; Copy
+  log exports both passes; Rescan's own tooltip says the log is kept; and the sibling warning still
+  clears when the setting it warns about is turned off.
 - **The tag summary** — the exact closing line in both directions and both phases, the per-tag
   entity counts, an empty plan producing none, and a failed batch dropping its 100 entities out
   of the applied count rather than out of the plan's. Its tooltips too: the detail query scoped by

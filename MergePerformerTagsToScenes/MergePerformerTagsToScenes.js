@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '2.1.4';
+  var PLUGIN_VERSION      = '2.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1281,13 +1281,11 @@
     // `lines` is the export buffer and survives a Rescan, because Copy log is meant
     // to hand over the whole session - rescan() saves it across this call. It is
     // emptied here rather than kept, so a first run starts clean without the
-    // constructor needing a special case. `viewLines` counts what has gone into the
-    // log since the current pass emptied the view, which is what the progress line
-    // describes: a rescan logging four lines must not report the thousands behind it,
-    // nor claim to be hiding the ones it no longer has.
+    // constructor needing a special case. The rendered log survives a Rescan too, so
+    // `lines.length` is also what the progress line counts; a separate pass-scoped
+    // counter existed only while a rescan emptied the view under it.
     this.lines = [];
     this.pending = [];
-    this.viewLines = 0;
     this.state = 'scanning';
   };
 
@@ -1339,6 +1337,8 @@
     this.proceedBtn.disabled = true;
     this.undoBtn.title = 'Remove the tags this dialog added, from the scenes it added them to. ' +
       'Only what this dialog wrote, and only while it stays open.';
+    this.rescanBtn.title = 'Review again and replace the plan with whatever is left to merge. ' +
+      'The log is kept, and so is what Undo can still reverse.';
 
     this.proceedBtn.addEventListener('click', function () { self.proceed(); });
     this.cancelBtn.addEventListener('click', function () { self.cancel(); });
@@ -1441,7 +1441,6 @@
   TaskRun.prototype.log = function (kind, message, parts) {
     var line = '[' + kind + '] ' + message;
     this.lines.push(line);
-    this.viewLines++;
     this.pending.push({ kind: kind, line: line, parts: parts || null });
     this.scheduleFlush();
   };
@@ -1503,8 +1502,8 @@
         (this.stopped ? ' (stopped early; what was written stays written)' : '');
     }
     if (this.errors) summary += ', ' + plural(this.errors, 'error');
-    if (this.viewLines > TASK_LOG_CAP) {
-      summary += ' - showing the last ' + TASK_LOG_CAP + ' of ' + this.viewLines + ' lines';
+    if (this.lines.length > TASK_LOG_CAP) {
+      summary += ' - showing the last ' + TASK_LOG_CAP + ' of ' + this.lines.length + ' lines';
     }
     this.progressEl.textContent = summary;
   };
@@ -2124,6 +2123,10 @@
   // tags while phase 2 runs - another tab, a scan, the auto-merge modes - is not in
   // the plan being applied. Rescanning until it comes back empty is how a run
   // converges.
+  //
+  // The rendered log is kept rather than emptied: the "--- Rescan ---" marker
+  // separates the passes, and a log that stays until the dialog closes is the whole
+  // session on screen - the same thing Copy log has always handed over.
   TaskRun.prototype.rescan = function () {
     this.disarmUndo();
     var lines = this.lines.slice();
@@ -2136,7 +2139,6 @@
     this.lines = lines;
     this.undoable = undoable;
     this.log('INFO', '--- Rescan ---');
-    while (this.logEl.firstChild) this.logEl.removeChild(this.logEl.firstChild);
     this.begin();
   };
 

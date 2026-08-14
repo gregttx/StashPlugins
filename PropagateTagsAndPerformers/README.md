@@ -280,7 +280,8 @@ Clicking one does one of two things, depending on **Save Immediately**:
 - **On — reviews in a dialog.** The caption gains a trailing **"..."** to say so. The click opens
   the same dialog the library-wide task uses, scoped to this one entity and this one path: it lists
   every change, writes nothing until you press **Proceed**, and offers **Undo**, **Rescan** and
-  **Copy log** afterwards. Up to 0.17.0 it copied and saved on the spot, with no plan and no undo;
+  **Copy log** afterwards. **Rescan keeps the log** since 1.2.0 — it writes a `--- Rescan ---` line
+  and carries on below it, rather than clearing the view for the next pass. Up to 0.17.0 it copied and saved on the spot, with no plan and no undo;
   since 0.18.0 nothing in this plugin writes from a click without either staging it or showing it
   to you first. The dialog's heading names what it is scoped to — *Copy Tags to all Scenes - from
   Performer "Jane" (100)* — so a dialog opened from a button says which entity it is about, by the

@@ -14,6 +14,17 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.7.1 — the footer sits where the other three plugins' footers sit
+>
+> **Apply** has moved to the **left** end of the row, where its siblings put **Proceed**,
+> and the rest follow in their order: `Apply · Cancel · Copy log · Undo · Rescan · Close`.
+> Nothing behaves differently. All four GTTx dialogs now read the same way round, which
+> is the point — the write is the first button in every one of them.
+>
+> The three siblings gained this dialog's other two habits in the same release: their logs
+> **stay until the dialog closes** rather than being cleared by a **Rescan**, and their
+> **Rescan** button has a tooltip.
+>
 > ## 0.7.0 — the first setting: **Skip Images in the Whole-Library Task**
 >
 > Settings → Plugins now has one switch for this plugin. Turn it on and the library-wide

@@ -5,10 +5,19 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.1.2.** Every step in the table below has landed, so the version left the
+**Status: released, 1.2.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**1.2.0 keeps the log until the dialog closes, and gives Rescan a tooltip.** `rescan()` no longer
+empties the rendered log — it writes `--- Rescan ---` and the next pass carries on below it, which is
+what `CustomFieldsBulkEditor` has always done and what the user asked the other three to match. The
+consequence is a **deletion**: `viewLines` existed only because a rescan emptied the view under the
+counter, so with the view session-scoped it is exactly `lines.length` and is gone (§5's "two
+counters, deliberately" is now one). All three siblings changed together, along with the shared
+footer order: `CustomFieldsBulkEditor` moved Apply to the leading position this dialog gives
+Proceed, so all four footers now read the same way round.
 
 **1.1.2 says "id", not "Stash id", and never "(s)".** Two repo-wide wording rules landed together, and
 both are in the root `CLAUDE.md`. *Stash ID* is already Stash's own name for a **stash-box**
@@ -590,10 +599,12 @@ one thing they cannot see. Three things keep it from being obstructive: unknown 
 two quiet outcomes go to the console rather than the log; and **Undo is never gated on it**, because
 stranding the user with changes they cannot take back is worse than the mismatch.
 
-**Two counters, deliberately.** `lines` is the export buffer and survives a Rescan, because Copy log
-hands over the whole session. `viewLines` counts what has gone into the log since the current pass
-emptied the view, and is what the progress line describes — reporting `lines` there produced, in the
-sibling, a header claiming 28 161 lines over a log holding four.
+**One counter, since 1.2.0.** `lines` is the export buffer and survives a Rescan, because Copy log
+hands over the whole session — and so does the rendered log now, so `lines.length` is what the
+progress line describes. There were two while a rescan emptied the view: `viewLines` counted the
+current pass, because reporting `lines` over an emptied view produced, in the sibling, a header
+claiming 28 161 lines over a log holding four. Keeping the view removed the divergence rather than
+the symptom, so the second counter went with it.
 
 ## 5a. Two other plugins, two different kinds of collision (0.7.0)
 
@@ -1354,7 +1365,10 @@ of it apply unchanged:
   source is gathered before any target is read, a partial sweep after a failed page, and the
   progress line read *during* the sweep rather than after it.
 - **`propagate-apply.test.js`** — phase 2 and Undo: delta writes, batching, failed batches isolated,
-  Stop, Rescan, the leases, the arm/confirm latch, and that phase 2 reads nothing. It takes about
+  Stop, Rescan, the leases, the arm/confirm latch, and that phase 2 reads nothing. Since 1.2.0 the
+  Rescan case pins what it *keeps* rather than what it cleared — the rendered log growing across the
+  `--- Rescan ---` marker with the earlier pass's `[INFO] Applying` line still on screen — plus the
+  button's new tooltip; all three fail against 1.1.4. It takes about
   nine seconds, four of which are spent waiting out `UNDO_ARM_MS` to prove an expired arm does not
   write. That wait is the check; do not shorten it by reaching into the constant.
 - **`propagate-auto.test.js`** — auto mode, target side (§4d): it reacts and writes an ADD delta;

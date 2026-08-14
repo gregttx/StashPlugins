@@ -62,6 +62,10 @@ There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks*
   hands you the whole run, **Rescan** starts a fresh review without closing the dialog, and
   **Undo** takes the merge back — see [Undoing a run](#undoing-a-run).
 
+  **The log stays until you close the dialog** (2.2.0). A **Rescan** used to clear the view; it now
+  writes a `--- Rescan ---` line and carries on below it, so a run you applied, rescanned and
+  applied again reads top to bottom on screen and not only through **Copy log**.
+
   A scene featuring several performers is written **once**, with the tags all of them contribute.
 
   Each phase ends with a one-line recap of **every distinct tag involved** and how many scenes it

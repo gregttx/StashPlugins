@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '1.1.4';
+  var PLUGIN_VERSION = '1.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1426,11 +1426,9 @@
     this.lines = [];
     this.pending = [];
     // `lines` is the export buffer and survives a Rescan, because Copy log is meant
-    // to hand over the whole session. `viewLines` counts what has gone into the log
-    // since the current pass emptied the view, which is what the progress line
-    // describes: a rescan logging four lines must not report 28161 of them, nor
-    // claim to be hiding the 27161 it no longer has.
-    this.viewLines = 0;
+    // to hand over the whole session. The rendered log survives a Rescan too, so
+    // `lines.length` is also what the progress line counts; a separate pass-scoped
+    // counter existed only while a rescan emptied the view under it.
     this.state = 'scanning';
   };
 
@@ -1485,6 +1483,8 @@
     this.proceedBtn.disabled = true;
     this.undoBtn.title = 'Reverse every change this dialog has written, as an add/remove delta. ' +
       'Only what this dialog wrote, and only while it stays open.';
+    this.rescanBtn.title = 'Review again and replace the plan with whatever is left to copy. ' +
+      'The log is kept, and so is what Undo can still reverse.';
 
     this.proceedBtn.addEventListener('click', function () { self.proceed(); });
     this.cancelBtn.addEventListener('click', function () { self.cancel(); });
@@ -1549,7 +1549,6 @@
   Run.prototype.log = function (kind, message, parts) {
     var line = '[' + kind + '] ' + message;
     this.lines.push(line);
-    this.viewLines++;
     this.pending.push({ kind: kind, line: line, parts: parts || null });
     this.scheduleFlush();
   };
@@ -1617,7 +1616,7 @@
       summary = 'Scanning. ' + plural(this.plan.length, 'change') + ' found';
     } else if (this.state === 'ready') {
       summary = 'Review complete. ' + plural(this.plan.length, 'entity change') +
-        ' planned, ' + plural(this.viewLines, 'log line');
+        ' planned, ' + plural(this.lines.length, 'log line');
     } else if (this.state === 'applying') {
       summary = 'Applying. ' + this.applied + ' of ' + this.plan.length + ' entities updated';
     } else if (this.state === 'undoing') {
@@ -1628,8 +1627,8 @@
         (this.undone ? ', ' + this.undone + ' reversed by Undo' : '');
     }
     if (this.errors) summary += ', ' + plural(this.errors, 'error');
-    if (this.viewLines > LOG_RENDER_CAP) {
-      summary += ' - showing the last ' + LOG_RENDER_CAP + ' of ' + this.viewLines + ' lines';
+    if (this.lines.length > LOG_RENDER_CAP) {
+      summary += ' - showing the last ' + LOG_RENDER_CAP + ' of ' + this.lines.length + ' lines';
     }
     this.progressEl.textContent = parts.length ? summary + '\n' + parts.join('   ') : summary;
   };
@@ -2527,6 +2526,10 @@
   // Rescan exists because the whole plan is computed before the first write, so
   // anything that changes the library during phase 2 is invisible to the plan being
   // applied. Rescanning until the plan comes back empty is how a run converges.
+  //
+  // The rendered log is kept rather than emptied: the "--- Rescan ---" marker
+  // separates the passes, and a log that stays until the dialog closes is the whole
+  // session on screen - the same thing Copy log has always handed over.
   Run.prototype.rescan = function () {
     this.disarmUndo();
     var lines = this.lines.slice();
@@ -2539,7 +2542,6 @@
     this.lines = lines;
     this.undoable = undoable;
     this.log('INFO', '--- Rescan ---');
-    while (this.logEl.firstChild) this.logEl.removeChild(this.logEl.firstChild);
     this.begin();
   };
 

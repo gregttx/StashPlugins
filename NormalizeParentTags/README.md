@@ -142,9 +142,11 @@ comes back empty is how you know the library has settled.
 On a large library the log can run to many thousands of lines. Only the most recent are kept on
 screen (the dialog says how many are hidden); **Copy log** always copies all of them.
 
-**Rescan** starts the next pass with an empty view, so there is nothing to clear by hand. Once
-changes have been written the log is the only record of what happened — **Copy log** it before you
-rescan if you want to keep it.
+**The log stays until you close the dialog** (2.3.0). A **Rescan** used to clear the view and start
+the next pass on a blank one; it now writes a `--- Rescan ---` line and carries on below it, so a
+run you applied, rescanned and applied again reads top to bottom on screen and not only through
+**Copy log**. Once changes have been written the log is the only record of what happened, so copy it
+before you close.
 
 ## Undo
 

@@ -236,16 +236,17 @@ Promise.resolve()
         h.check('Copy log copies every line, not the rendered tail',
           copied.length === 1 && copied[0].split('\n').length > rendered,
           'copied ' + (copied[0] || '').split('\n').length + ' vs rendered ' + rendered);
-        // The counter in the progress line describes the log as it stands, and a
-        // Rescan empties it. Counting the export buffer instead reported tens of
-        // thousands of lines over a view holding four, and claimed to be hiding
-        // the difference.
+        // The rendered log now survives a Rescan, so the counter in the progress
+        // line describes the whole session and the cap message goes on being true
+        // of it. The old behaviour emptied the view and counted only the new pass.
         d().button('Rescan').click();
         return h.flush(200).then(() => {
           const progress = d().progress;
-          h.check('a rescan counts its own log lines, not the whole session',
-            /Review complete\. \d+ entity changes? planned, 120\d log lines?/.test(progress),
-            progress);
+          const counted = /planned, (\d+) log lines/.exec(progress);
+          h.check('a rescan keeps the log, so the counter keeps the session',
+            !!counted && Number(counted[1]) > rendered, progress);
+          h.check('and the cap message still says what is hidden',
+            progress.indexOf('showing the last 1000 of') !== -1, progress);
           // Its caption is still "Copied" from the click above, and the dialog
           // helper finds buttons by their text.
           (d().button('Copy log') || d().button('Copied')).click();
@@ -255,6 +256,11 @@ Promise.resolve()
               copied[1].split('\n').length > copied[0].split('\n').length,
               'first ' + copied[0].split('\n').length +
               ', second ' + (copied[1] || '').split('\n').length);
+            // One counter now, not two: the progress line and the export are the
+            // same log, so a number in one that the other cannot produce is a bug.
+            h.check('and the counter agrees with what Copy log hands over',
+              !!counted && Number(counted[1]) === copied[1].split('\n').length,
+              (counted ? counted[1] : '?') + ' vs ' + copied[1].split('\n').length);
           });
         });
       });
@@ -273,6 +279,14 @@ Promise.resolve()
           d().visible('Proceed') && !d().visible('Close'));
         h.check('Rescan keeps the earlier log', d().lines.some((l) => l.indexOf('--- Rescan ---') !== -1),
           d().lines.slice(0, 2).join(' | '));
+        // The marker alone only proves the new pass logged one. What the log has to
+        // do now is keep everything above it, until the dialog closes.
+        h.check('and the lines the earlier pass wrote are still on screen',
+          d().lines.some((l) => /^\[INFO\] Applying /.test(l)) &&
+          d().lines.some((l) => /^\[REMOVE\] /.test(l)), d().lines.length + ' lines');
+        h.check('and Rescan says what it keeps',
+          /The log is kept/.test(d().button('Rescan').title || ''),
+          d().button('Rescan').title);
       });
     });
   })
@@ -437,9 +451,9 @@ Promise.resolve()
     });
   })
 
-  // The reported case: a run that applied tens of thousands of lines, then a
-  // rescan that finds nothing. The four lines it logs are the whole of the log,
-  // and there is nothing hidden to announce.
+  // A run that applied, then a rescan that finds nothing. The counter describes
+  // the log on screen - now the whole session, since a rescan keeps it - and under
+  // the cap there is still nothing hidden to announce.
   .then(() => {
     const dirty = Array.from({ length: 5 }, (_, i) =>
       ({ id: String(i + 1), title: 'S' + (i + 1), organized: false, tags: [{ id: '1' }, { id: '2' }] }));
@@ -461,11 +475,15 @@ Promise.resolve()
     return h.flush().then(() => {
       d().button('Proceed').click();
       return h.flush().then(() => {
+        const before = d().lines.length;
         d().button('Rescan').click();
         return h.flush(200).then(() => {
-          h.check('a rescan that finds nothing reports only its own lines',
-            d().progress.indexOf('Review complete. 0 entity changes planned, 4 log lines') === 0,
-            d().progress);
+          const shown = d().lines.length;
+          h.check('a rescan that finds nothing keeps the lines behind it',
+            shown > before, shown + ' vs ' + before);
+          h.check('and counts exactly what is on screen',
+            d().progress.indexOf('Review complete. 0 entity changes planned, ' +
+              shown + ' log lines') === 0, d().progress);
           h.check('and does not claim to be hiding any',
             d().progress.indexOf('showing the last') === -1, d().progress);
         });
@@ -473,8 +491,8 @@ Promise.resolve()
     });
   })
 
-  // The log buffer has no Clear: the dialog offers only Copy log, and Rescan is
-  // what empties the rendered view for the next pass.
+  // The log buffer has no Clear, and now nothing empties it at all: it stays until
+  // the dialog closes, and Copy log is the only thing offered over it.
   .then(() => scan({ entities: bigLibrary() })).then(({ d }) => {
     h.check('the run dialog offers no Clear log button', !d().button('Clear log'));
   })

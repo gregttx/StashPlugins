@@ -852,6 +852,18 @@ openDialog()
     });
   })
 
+  // The footer sits in the order the other three plugins already had - the write
+  // first, Close last - so that four dialogs the user meets in one Stash do not put
+  // Apply and Proceed at opposite ends of the row. There is no Stop here, which is
+  // the one gap in the sibling sequence.
+  .then(() => openDialog())
+  .then((env) => {
+    const order = (one(env.body, 'cfbe-foot') || { childNodes: [] }).childNodes
+      .map((n) => n.textContent);
+    h.check('the footer reads Apply Cancel Copy log Undo Rescan Close',
+      order.join(' ') === 'Apply Cancel Copy log Undo Rescan Close', order.join(' '));
+  })
+
   // Mid-undo the footer must not flip back to Cancel/Apply: the write it is
   // performing started from this half of the dialog, and offering a second one over a
   // library the first is still moving is the state nobody should be able to reach.

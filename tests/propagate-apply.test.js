@@ -399,9 +399,15 @@ Promise.resolve()
       dd.button('Rescan').click();
       return h.flush(150).then(() => {
         const ddd = h.dialog(env.ctx.document.body, PREFIX);
-        h.check('a rescan empties the rendered log', ddd.lines.length < linesBefore,
+        h.check('a rescan keeps the rendered log', ddd.lines.length > linesBefore,
           ddd.lines.length + ' vs ' + linesBefore);
-        h.check('and starts a fresh review', ddd.lines.some((l) => /--- Rescan ---/.test(l)));
+        h.check('and marks where the fresh review starts',
+          ddd.lines.some((l) => /--- Rescan ---/.test(l)));
+        h.check('and the lines the earlier pass wrote are still on screen',
+          ddd.lines.some((l) => /^\[INFO\] Applying /.test(l)), ddd.lines.length + ' lines');
+        h.check('and Rescan says what it keeps',
+          /The log is kept/.test(ddd.button('Rescan').title || ''),
+          ddd.button('Rescan').title);
         // Converging on an empty plan is the normal way to finish a run, and losing
         // the ability to undo at exactly that moment would be the worst time for it.
         h.check('and keeps what can still be undone', ddd.visible('Undo'),
@@ -426,9 +432,9 @@ Promise.resolve()
         return h.flush(150).then(() => {
           h.dialog(env.ctx.document.body, PREFIX).button('Copy log').click();
           return h.flush(5).then(() => {
-            // Copy log hands over the whole session, not the pass: the export buffer
-            // survives a rescan even though the rendered view does not.
-            h.check('Copy log still carries the pass the rescan replaced',
+            // Copy log hands over the whole session, and so does the rendered log
+            // now - the export buffer was the only half that survived a rescan.
+            h.check('Copy log still carries the pass before the rescan',
               copied !== null && /--- Rescan ---/.test(copied) &&
               /entity changes? applied/.test(copied),
               copied === null ? 'nothing copied' : copied.split('\n').length + ' lines');

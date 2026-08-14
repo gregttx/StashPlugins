@@ -5,8 +5,17 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.1.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.2.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.2.0 keeps the log until the dialog closes, and gives Rescan a tooltip.** `rescan()` no longer
+empties the rendered log — it writes `--- Rescan ---` and the next pass carries on below it, which is
+what `CustomFieldsBulkEditor` has always done and what the user asked the other three to match. The
+consequence is a **deletion**: `viewLines` existed only because a rescan emptied the view under the
+counter, so with the view session-scoped it is exactly `lines.length` and is gone — the
+`showing the last 1000 of N` clause reads that instead. All three siblings changed together, along
+with the shared footer order: `CustomFieldsBulkEditor` moved Apply to the leading position this
+dialog gives Proceed, so all four footers now read the same way round.
 
 **2.1.2 says "id", not "Stash id", and never "(s)".** Two repo-wide wording rules landed together, and
 both are in the root `CLAUDE.md`. *Stash ID* is already Stash's own name for a **stash-box**
@@ -526,7 +535,8 @@ landing in the middle of the next pass's log.
 write, so anything that changes tags during phase 2 — another tab, a scan, the auto-merge modes —
 is invisible to the plan being applied. Since 1.4.2 `finishApply` closes with *"Press Rescan to
 review what is left."*, the sibling's wording, because a finished run is not the same thing as a
-settled library and the button alone does not say so.
+settled library and the button alone does not say so. Since 2.2.0 the button also carries a
+`title` saying what it keeps, and the log it used to clear is kept with it.
 
 **It takes a lease while it writes, warns about anyone else's, and stands down for neither.** The
 lease covers phase 2 only — phase 1 writes nothing, so there is nothing to suppress, and holding
@@ -745,7 +755,9 @@ of their tags, scenes that already carry the tag being skipped, untagged perform
 scene query, an empty plan disabling Proceed, the apply not re-entering its own auto-merge, a
 failed scene isolated and not logged as merged, **Stop**, **Rescan**, and the closing tag recap in
 both phases (including its Stash-order sorting and a failed scene dropping out of the applied
-count). The Stop case presses the button from inside the responder on
+count). Since 2.2.0 the Rescan case also pins what it *keeps* — the earlier pass's `[INFO] Applying`
+and `[MERGE]` lines still on screen below the marker — and that the button's tooltip says so; both
+fail against 2.1.4. The Stop case presses the button from inside the responder on
 the fifth write, so the moment it lands does not depend on how many ticks a flush happens to take.
 
 It also covers the id legend from §8, in both of the places a log line is first met: the task

@@ -498,6 +498,14 @@ Promise.resolve()
           d().visible('Proceed') && !d().visible('Close'));
         h.check('Rescan keeps the earlier log',
           d().lines.some((l) => l.indexOf('--- Rescan ---') !== -1), d().lines.join(' | '));
+        // The marker alone only proves the new pass logged one. What the log has to
+        // do now is keep everything above it, until the dialog closes.
+        h.check('and the lines the earlier pass wrote are still on screen',
+          d().lines.some((l) => /^\[INFO\] Applying /.test(l)) &&
+          d().lines.some((l) => /^\[MERGE\] /.test(l)), d().lines.join(' | '));
+        h.check('and Rescan says what it keeps',
+          /The log is kept/.test(d().button('Rescan').title || ''),
+          d().button('Rescan').title);
         // The fake server does not apply what it is told, so the second pass finds
         // the same three scenes - the point is that it finds three and not six.
         h.check('Rescan starts the plan over rather than adding to it',

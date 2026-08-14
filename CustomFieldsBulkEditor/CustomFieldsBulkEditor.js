@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.7.0';
+  var PLUGIN_VERSION = '0.7.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -1007,7 +1007,11 @@
     this.copyBtn.addEventListener('click', function () { self.copyLog(); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
 
-    [this.cancelBtn, this.undoBtn, this.rescanBtn, this.copyBtn, this.applyBtn, this.closeBtn]
+    // The siblings' footer order, which three of the four plugins already had:
+    // <write> Cancel [Stop] Copy log Undo Rescan Close. There is no Stop here - a
+    // write is one bulk mutation per batch and the dialog disables its own footer for
+    // the duration - so Apply takes Proceed's leading position and the rest follow.
+    [this.applyBtn, this.cancelBtn, this.copyBtn, this.undoBtn, this.rescanBtn, this.closeBtn]
       .forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 

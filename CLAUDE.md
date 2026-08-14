@@ -714,6 +714,33 @@ name an entity, an id and two values, and the wrap they were taking at 784px was
 `94vw` half is what keeps it honest on a narrow window and is the reason the change is a one-token
 edit rather than a layout question.
 
+**The log stays until the dialog closes, in all four** (`NormalizeParentTags` 2.3.0 /
+`MergePerformerTagsToScenes` 2.2.0 / `PropagateTagsAndPerformers` 1.2.0; `CustomFieldsBulkEditor`
+never did otherwise, which is why it is the plugin the other three were asked to match). Three of
+them emptied the rendered log on **Rescan** and kept only the export buffer, so a session read whole
+solely through Copy log. They now write a `--- Rescan ---` line and the next pass carries on below
+it — the marker is what makes the passes legible, and it was always logged; it was simply wiped a
+line later.
+
+**It deleted a counter rather than adding one.** All three carried `viewLines` beside `lines`
+precisely *because* a rescan emptied the view: reporting the export buffer's length over an emptied
+view produced a header claiming 28 161 log lines above four of them, and claiming to hide the
+difference. With nothing emptying the view, `lines.length` is the only honest answer and the second
+counter is gone. **A divergence maintained by two counters is worth checking for a third option: not
+diverging.**
+
+**The footer order is shared too, and majority decided it** — `CustomFieldsBulkEditor` 0.7.1 moved
+Apply from second-to-last to first, matching the three siblings' `Proceed · Cancel · Stop ·
+Copy log · Undo · Rescan · Close`. The write is the leading button in all four now. There was no
+recorded reason for the outlier: it was built before the three had converged, and "unless there is a
+specific reason" is the user's own rule for harmonising. `CustomFieldsBulkEditor` has no **Stop** —
+its writes disable the whole footer for their duration, so there is no state to press one in — and
+the gap is simply closed rather than held open.
+
+**Only that plugin's footer is pinned in a test.** Four copies of one literal would guard against a
+drift that has happened once, on the one plugin that has now been corrected; pin the others if a
+second footer ever moves.
+
 ## Tests
 
 `node tests/run.js` (or `npm test`) runs the suites in `tests/`. They evaluate a plugin inside a `vm` context holding a hand-rolled browser and drive it by answering its GraphQL requests — see `tests/README.md`.

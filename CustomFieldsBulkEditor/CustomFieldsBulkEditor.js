@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.11.0';
+  var PLUGIN_VERSION = '0.12.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -493,6 +493,11 @@
     // window jumping to a new size while you are reading it. A modifier rather than an
     // edit to the shared rule, for the reason `.cfbe-listwrap` is one.
     '.cfbe-modal.cfbe-tall{height:88vh;}' +
+    // Three labelled boxes with a mode each (0.12.0) no longer fit one line on a narrow
+    // window, and the shared `.cfbe-search` is pinned across the four plugins - so the
+    // wrap is a modifier here, the same escape hatch `.cfbe-tall` above is. `gap` is
+    // already both axes, so the wrapped line spaces itself.
+    '.cfbe-search-wrap{flex-wrap:wrap;}' +
     // The list was a <textarea> until 0.2.0, which is what made it selectable and
     // copyable with nothing to press and kept a selection of several thousand
     // entities down to one node. Pills need real elements, so the node count is back
@@ -1216,7 +1221,7 @@
     this.progressEl = el('div', 'cfbe-progress', 'Loading...');
     this.modal.appendChild(this.progressEl);
 
-    var filters = el('div', 'cfbe-search');
+    var filters = el('div', 'cfbe-search cfbe-search-wrap');
     // Only on a task run: a selection is one type by construction, and a pulldown
     // offering the six it cannot contain would be six ways to empty the list. Left
     // null otherwise, which is what `filtered` reads.
@@ -1229,15 +1234,26 @@
       filters.appendChild(this.typeFilter);
     }
     filters.appendChild(el('span', 'cfbe-label', 'Filter by Name'));
+    this.nameMode = this.select('cfbe-filter-namemode', TEXT_MODES, 'contains');
+    filters.appendChild(this.nameMode);
     this.nameFilter = this.input('cfbe-filter-name');
     filters.appendChild(this.nameFilter);
+    filters.appendChild(el('span', 'cfbe-label', 'Filter by Entity'));
+    this.entMode = this.select('cfbe-filter-entmode', TEXT_MODES, 'contains');
+    filters.appendChild(this.entMode);
+    this.entFilter = this.input('cfbe-filter-ent');
+    // The one filter box whose subject is not on the line as plain text: the row shows
+    // the entity as a pill, so the box has to say what shape it is matching against.
+    this.entFilter.title = this.entMode.title = 'Matches the entity name and id together, ' +
+      'as name, space, id in brackets - so "Cool Scene (42)", "Cool Scene" and "(42)" all ' +
+      'find that one row.';
+    filters.appendChild(this.entFilter);
     filters.appendChild(el('span', 'cfbe-label', 'Filter by Value'));
     // The mode is a control of its own rather than something typed into the box, because
     // any sentinel the box could carry is also a value somebody is allowed to have.
-    this.valueMode = this.select('cfbe-filter-mode', [
-      ['contains', 'contains'], ['empty', 'is empty'],
-      ['true', 'is true'], ['nottrue', 'is not true'],
-    ], 'contains');
+    this.valueMode = this.select('cfbe-filter-mode', TEXT_MODES.concat([
+      ['empty', 'is empty'], ['true', 'is true'], ['nottrue', 'is not true'],
+    ]), 'contains');
     // The two truth modes are one predicate away from being a lie about themselves -
     // "no" and "off" are true by it - so the rule goes on the control rather than in a
     // release note nobody has open.
@@ -1247,13 +1263,16 @@
     filters.appendChild(this.valueMode);
     this.valueFilter = this.input('cfbe-filter-value');
     filters.appendChild(this.valueFilter);
-    [this.nameFilter, this.valueFilter].forEach(function (i) {
+    [this.nameFilter, this.entFilter, this.valueFilter].forEach(function (i) {
       i.addEventListener('input', function () { self.filterChanged(); });
+    });
+    [this.nameMode, this.entMode].forEach(function (s) {
+      s.addEventListener('change', function () { self.filterChanged(); });
     });
     this.valueMode.addEventListener('change', function () {
       // Nothing to type in when the mode is the whole query, and a box left enabled
       // would read as a second condition that is silently not applied.
-      self.valueFilter.disabled = self.valueMode.value !== 'contains';
+      self.valueFilter.disabled = !needsText(self.valueMode.value);
       self.filterChanged();
     });
     this.modal.appendChild(filters);
@@ -1807,7 +1826,9 @@
     var p = pill('cf', text === '' ? null : text);
     if (text === '') p.appendChild(noneNode('empty - this field is set, to nothing'));
     var desc = named && hasOwn(_descriptions, text) ? String(_descriptions[text] || '') : '';
-    p.title = desc ? desc + '\n\nClick to copy' : 'Click to copy';
+    // What the click does comes first, because it is true of every pill; the
+    // description is what only some of them have, and it is the longer half.
+    p.title = 'Click to copy' + (desc ? '\n\n' + desc : '');
     p.addEventListener('click', function () {
       // A drag-select that ends inside a pill fires a click, and copying the pill
       // there would take the clipboard off the selection the user just made. A plain
@@ -1903,21 +1924,44 @@
     }
   };
 
+  // The two modes every text filter here offers, and the only two that read the box
+  // beside them - the value filter's other three are the whole query on their own.
+  var TEXT_MODES = [['contains', 'contains'], ['omits', 'omits']];
+
+  function needsText(mode) { return mode === 'contains' || mode === 'omits'; }
+
+  // An empty box filters nothing, in **either** mode: "omits nothing" is every row, not
+  // none. Everything else is one `indexOf`, negated for "omits".
+  function textMatch(hay, needle, mode) {
+    if (!needle) return true;
+    var found = String(hay).toLowerCase().indexOf(needle) !== -1;
+    return mode === 'omits' ? !found : found;
+  }
+
+  // The entity as one string to filter on. Not the pill's own text, which quotes the
+  // name: typing what the row shows has to work, and `"Cool Scene" (42)` would then
+  // refuse `Cool Scene (42)` over a quote nobody thinks of as part of the name.
+  function entityText(r) { return r.display + ' (' + r.id + ')'; }
+
   // The value test is judged on the **raw** value, not on the text the row shows: an
   // empty array is `[]` on screen and not-true underneath, and the mode has to agree
   // with the dropdown filter that reads the same field, which never sees the text.
   Run.prototype.filtered = function () {
     var name = String(this.nameFilter.value || '').toLowerCase();
+    var nameMode = this.nameMode.value;
+    var ent = String(this.entFilter.value || '').toLowerCase();
+    var entMode = this.entMode.value;
     var type = this.typeFilter ? this.typeFilter.value : '';
     var mode = this.valueMode.value;
-    var value = mode === 'contains' ? String(this.valueFilter.value || '').toLowerCase() : '';
+    var value = needsText(mode) ? String(this.valueFilter.value || '').toLowerCase() : '';
     return this.rows.filter(function (r) {
       if (type && r.spec.key !== type) return false;
-      if (name && r.name.toLowerCase().indexOf(name) === -1) return false;
+      if (!textMatch(r.name, name, nameMode)) return false;
+      if (!textMatch(entityText(r), ent, entMode)) return false;
       if (mode === 'empty') return r.value === '';
       if (mode === 'true') return isMarked(r.raw);
       if (mode === 'nottrue') return !isMarked(r.raw);
-      return !value || r.value.toLowerCase().indexOf(value) !== -1;
+      return textMatch(r.value, value, mode);
     });
   };
 
@@ -1934,11 +1978,14 @@
   };
 
   // Is any filter actually narrowing the listing? The three truth/empty modes are a
-  // filter with an empty box, which is why this cannot just test the two text boxes.
+  // filter with an empty box, which is why this cannot just test the text boxes. A mode
+  // that *does* read a box is not itself a filter: "omits" with nothing typed in keeps
+  // every row, so testing the mode there would switch the scope for no narrowing at all.
   Run.prototype.filtering = function () {
     return !!(this.typeFilter && this.typeFilter.value) ||
       !!String(this.nameFilter.value || '') ||
-      this.valueMode.value !== 'contains' ||
+      !!String(this.entFilter.value || '') ||
+      !needsText(this.valueMode.value) ||
       !!String(this.valueFilter.value || '');
   };
 
@@ -2101,8 +2148,11 @@
   var MODE_TIPS = {
     add: 'Set the field only where it is missing. An entity that already carries it is ' +
       'left alone, whatever its value - "Add" never overwrites.',
-    overwrite: 'Set the field on every entity in scope, replacing whatever is there.',
-    remove: 'Delete the field from every entity in scope that has it.',
+    overwrite: 'Set this one field on every entity in scope, replacing the value it ' +
+      'already has there. Every other custom field on those entities is left untouched - ' +
+      '"Overwrite" replaces one field\'s value, never an entity\'s whole set of fields.',
+    remove: 'Delete this one field from every entity in scope that has it. The entity\'s ' +
+      'other custom fields are left untouched.',
     rename: 'Rename the field itself, keeping each entity\'s value. Available only when ' +
       'everything in scope carries the same one field name; "Custom Field name" is the ' +
       'new name, and the value box is not used.',

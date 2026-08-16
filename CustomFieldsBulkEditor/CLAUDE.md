@@ -5,14 +5,15 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**0.9.0's two filter modes, all of 0.10.0 and all of 0.11.0 are unverified** — §5b's truth modes,
-§5c's fixed height, §5d's divider and box sizing, §6a's Rename and §6b's scope switch. Every one of
-them came from live use of the dialogs (the shrinking window was reported, not deduced; so was the
-description box being too small for what it holds), but nothing in any of the fixes has been
-clicked: it is `tests/cfbe.test.js` at 185 checks, `tests/cfbe-desc.test.js` at 83, and twelve
-mutants across the three releases.
+**0.9.0's two filter modes, all of 0.10.0, all of 0.11.0 and all of 0.12.0 are unverified** — §5b's
+truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text filters, §6a's
+Rename and §6b's scope switch. Every one of them came from live use of the dialogs (the shrinking
+window was reported, not deduced; so was the description box being too small for what it holds, and
+so was "Overwrite" reading as if it cleared an entity's whole set of fields), but nothing in any of
+the fixes has been clicked: it is `tests/cfbe.test.js` at 198 checks, `tests/cfbe-desc.test.js` at
+83, and seventeen mutants across the four releases.
 
-**Status: 0.11.0 — §22–§23 are being used, and the first reports are in.** Everything those two
+**Status: 0.12.0 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
@@ -367,8 +368,10 @@ those one at a time into a `contains` box. Three things fix the shape of it:
 
 **The check is the escape, not a YAML parse.** There is no YAML library here and adding one would make the check optional the way `jsdom` makes `placement` optional — skipped on exactly the machine that needed it.
 
-**The name filter gets no mode.** A custom-field key is never the empty string, so it would have one
-useful setting.
+**The name filter gets no mode** — *until 0.12.0, and the reason it got one then is not the reason
+it was refused here.* A custom-field key is never the empty string, so none of this section's modes
+has anything to offer it. §5e's pair is a different question: it is about the *direction* of a
+substring match, which every text box has.
 
 **It reaches the write through the door that already exists.** "Apply to → Filtered list only" is
 defined as the entities the filters leave showing, so "set this on exactly the ones that have
@@ -403,7 +406,7 @@ user's rather than the layout's. Three parts, and they are deliberately three di
 native grip and needs no code. Nothing here reimplements it.
 
 **The panes-over-log divider is the one place that needs a handle of its own**, because a flex
-column gives no grip between two boxes. `splitter(above)` returns a `.cfbe-split` bar that pins
+column gives no grip between two boxes. `splitter(above)` returns a `.cfbe-divider` bar that pins
 `above.style.flex` to a pixel height on drag, so the log below takes what is left. Three details
 worth keeping: the `mousemove`/`mouseup` listeners go on **`document`**, not on the bar — a fast
 drag leaves the pointer behind and a `mouseup` off the 10px bar would never arrive, latching the
@@ -423,6 +426,40 @@ dragged is the plugin fighting them.
 one is read-only, and before this the single head above the box described *the entity list*.
 `DESC_HEAD` / `USERS_HEAD` are constants because both strings are used twice, once in the empty
 state and once with the field name in them.
+
+## 5e. Three text filters, one shape (0.12.0)
+
+Asked for from live use: "omits" on the value filter, "contains and omits" on the name filter, and a
+third filter over the entity itself.
+
+**One `TEXT_MODES` array and one `textMatch`, not three of each.** The value filter's `<select>` is
+`TEXT_MODES.concat(...)` — its three §5b modes are the *extension*, and the two directions are the
+base every text box here shares. `needsText(mode)` is the one predicate deciding whether a mode
+reads the box beside it, and it is read in both places that ever cared: the `disabled` toggle and
+`filtering()`.
+
+**An empty box filters nothing in *either* direction.** "Omits nothing" is every row, not none — the
+only reading that keeps "clear the box" meaning "no filter", which is §5b's founding rule. It also
+makes the mode alone not a filter, which is why `filtering()` tests `!needsText(...)` rather than
+`mode !== 'contains'`: the naive test switches **Apply to** to *Filtered list only* (§6b) the moment
+someone picks "omits", before they have typed anything, silently narrowing a scope for no narrowing
+at all.
+
+**The entity filter matches `name (id)`, not the pill's own text.** `entityText(r)` builds
+`Cool Scene (42)`; `entityPill` renders `"Cool Scene" (42)`. The difference is one pair of quotes,
+and matching the pill would mean `Cool Scene (42)` — typed exactly as the row reads to a human —
+finding nothing, over a quote nobody thinks of as part of the name. The two are deliberately not
+the same string, and the box carries a `title` saying which shape it wants. It is the only filter
+whose subject is not on the line as plain text, which is why it is also the only one that has to
+explain itself.
+
+**Classes: `cfbe-filter-namemode` / `cfbe-filter-entmode` / `cfbe-filter-ent`.** The value mode kept
+`cfbe-filter-mode` — three selects sharing one class would break every `one(env.body, ...)` lookup
+in the suite, and the value mode is the one that was there first.
+
+**The filter row wraps, through a modifier.** `.cfbe-search` is one of the chrome selectors pinned
+byte-identical across the four plugins, so the `flex-wrap` goes on a `.cfbe-search-wrap` beside it —
+the same escape hatch `.cfbe-tall` (§5c) and `.cfbe-listwrap` are.
 
 ## 6. The four modes, and the one distinction the data allows
 
@@ -456,6 +493,14 @@ part a one-word caption cannot carry: "Add" never overwriting is the one that ha
 and Rename's precondition is what explains a greyed-out option. **Apply to** is tooltipped the same
 way, and its *Filtered list only* tip says the filters switch to it on their own, so the behaviour
 in §6b is discoverable from the control it moves.
+
+**Overwrite and Remove had to say what they leave *alone*, not only what they touch** (0.12.0).
+Reported live: "replacing whatever is there" reads as replacing an entity's whole set of custom
+fields. The plugin never did that — `full` is refused above for exactly this reason — but the
+tooltip was the only place a user could have learned it, and it did not say. Both now name the
+scope of the write as **one field** and state that the entity's others are untouched. Add and
+Rename are left alone: neither has ever read as wholesale, and adding the sentence to all four
+would make it furniture nobody reads.
 
 **Values are written as strings.** The `Map` accepts any JSON, and `valueText` renders what it reads
 faithfully, but nothing tries to infer that `5` was meant as a number. Guessing would be a silent
@@ -1091,6 +1136,12 @@ every attribute. `#` has to be `%23` regardless — unencoded it starts a fragme
 A custom field's name is all Stash keeps of what it means, and a library with thirty of them is a
 library where nobody remembers what four of them were for. So each name gets one description, shown
 as a tooltip on the field-name pills in the bulk dialog and edited in a second dialog of its own.
+
+**The tooltip leads with "Click to copy" and puts the description under it** (0.12.0; it shipped the
+other way round). What the click does is true of *every* pill and is one line; the description is
+the longer half and only some pills have one — so the constant part first is what makes the tooltips
+scannable down a listing. It is also what stops a described field's tooltip reading as a different
+kind of thing from an undescribed one's.
 
 **The store is one tag's `description` string, not its `custom_fields` map.** The map was the
 obvious place — a 1-1 mapping is what a map is — and it is taken twice over: the same tag has to

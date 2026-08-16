@@ -494,6 +494,74 @@ openDialog()
       String(byClass(env.body, 'cfbe-block').length));
   })
 
+  // "omits" on all three text filters, and the entity filter itself (0.12.0). The
+  // fixture is S1 (1) carrying colour and rating, S2 (2) carrying colour, S3 (3)
+  // carrying nothing - so every filter below has a different right answer.
+  .then(() => openDialog())
+  .then((env) => {
+    const nameMode = one(env.body, 'cfbe-filter-namemode');
+    const nameFilter = one(env.body, 'cfbe-filter-name');
+    const entMode = one(env.body, 'cfbe-filter-entmode');
+    const entFilter = one(env.body, 'cfbe-filter-ent');
+    const valueMode = one(env.body, 'cfbe-filter-mode');
+    const valueFilter = one(env.body, 'cfbe-filter-value');
+    const scope = one(env.body, 'cfbe-scope');
+    h.check('every text filter starts on the substring match it has always been',
+      nameMode.value === 'contains' && entMode.value === 'contains' &&
+      valueMode.value === 'contains');
+
+    nameMode.value = 'omits';
+    h.fire(nameMode, 'change');
+    h.check('"omits" with an empty box filters nothing, in either direction',
+      lines(env.body).length === 3 && scope.value === 'all',
+      lines(env.body).length + ' ' + scope.value);
+    nameFilter.value = 'colo';
+    h.fire(nameFilter, 'input');
+    h.check('a name the row omits is the complement of one it contains',
+      lines(env.body).length === 1 && /rating/.test(lines(env.body)[0]),
+      lines(env.body).join(' | '));
+    nameFilter.value = '';
+    h.fire(nameFilter, 'input');
+
+    valueMode.value = 'omits';
+    h.fire(valueMode, 'change');
+    h.check('the value box stays usable under "omits", unlike the three truth modes',
+      valueFilter.disabled === false);
+    h.check('and an empty one is still not a filter, so the scope stays on All',
+      scope.value === 'all', scope.value);
+    valueFilter.value = 'red';
+    h.fire(valueFilter, 'input');
+    h.check('and it lists every row whose value does not hold the text',
+      lines(env.body).length === 2 && !/red/.test(lines(env.body).join(' | ')),
+      lines(env.body).join(' | '));
+    valueFilter.value = '';
+    h.fire(valueFilter, 'input');
+    valueMode.value = 'contains';
+    h.fire(valueMode, 'change');
+
+    entFilter.value = 'S2';
+    h.fire(entFilter, 'input');
+    h.check('the entity filter matches the name', lines(env.body).length === 1 &&
+      /\(2\)/.test(lines(env.body)[0]), lines(env.body).join(' | '));
+    entFilter.value = 'S1 (1)';
+    h.fire(entFilter, 'input');
+    h.check('and the name and id together, as the row shows them',
+      lines(env.body).length === 2 && lines(env.body).every((l) => /\(1\)/.test(l)),
+      lines(env.body).join(' | '));
+    entFilter.value = '(1)';
+    h.fire(entFilter, 'input');
+    h.check('the id on its own reaches one entity, not every row holding that digit',
+      lines(env.body).length === 2, lines(env.body).join(' | '));
+    entMode.value = 'omits';
+    h.fire(entMode, 'change');
+    h.check('and "omits" leaves exactly the rest',
+      lines(env.body).length === 1 && /\(2\)/.test(lines(env.body)[0]),
+      lines(env.body).join(' | '));
+    h.check('a filled entity box counts as filtering, like the other two',
+      scope.value === 'filtered', scope.value);
+    return env;
+  })
+
   // Copying a selection out of the list. The mark stands for nothing being there, so
   // it stands for nothing in the text - and it is dropped as an *element*, never by
   // stripping its character, since an entity name is free to contain that character
@@ -715,8 +783,20 @@ openDialog()
       /never overwrites/.test(modeSel.title), modeSel.title);
     modeSel.value = 'overwrite';
     h.fire(modeSel, 'change');
-    h.check('changing the operation changes that tooltip', /replacing whatever/.test(modeSel.title),
+    h.check('changing the operation changes that tooltip', /replacing the value/.test(modeSel.title),
       modeSel.title);
+    // The complaint that sent 0.12.0: "replacing whatever is there" read to a live user
+    // as replacing the entity's whole set of custom fields. Both writing modes now say
+    // what they leave alone, which is the half a caption cannot carry.
+    h.check('and it says the entity\'s other custom fields are left alone',
+      /other custom field[s]? on those entities is left untouched/.test(modeSel.title),
+      modeSel.title);
+    modeSel.value = 'remove';
+    h.fire(modeSel, 'change');
+    h.check('Remove says the same, since it is the other mode that reads as wholesale',
+      /other custom fields are left untouched/.test(modeSel.title), modeSel.title);
+    modeSel.value = 'overwrite';
+    h.fire(modeSel, 'change');
     h.check('"Apply to" is tooltipped too', !!one(env.body, 'cfbe-scope').title);
 
     const nameFilter = one(env.body, 'cfbe-filter-name');

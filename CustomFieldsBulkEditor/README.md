@@ -14,6 +14,25 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.12.0 — filter by entity, and say what you do *not* want
+>
+> **Every text filter has a mode beside it, and *omits* is the new one.** *contains* is what
+> all three do by default; *omits* is its exact complement — the rows the same text would
+> have hidden. An empty box filters nothing in either mode, so switching to *omits* on its
+> own leaves the list, and **Apply to**, exactly as they were.
+>
+> **A third filter: Filter by Entity.** It matches the entity as the line shows it — name, a
+> space, then the id in brackets — so `Cool Scene (42)`, `Cool Scene` and `(42)` all reach
+> that one entity's fields.
+>
+> **Overwrite and Remove say what they leave alone.** *Overwrite* replaces the value of the
+> **one** field you name; every other custom field on those entities is untouched. The old
+> tooltip ("replacing whatever is there") could be read as clearing an entity's fields
+> wholesale, which it never did.
+>
+> **A field-name tooltip leads with *Click to copy***, and puts the field's description
+> underneath it.
+>
 > ## 0.11.0 — the descriptions dialog divides its own room
 >
 > **A divider above the log.** Drag it to give the log more or less room; the panes above
@@ -303,10 +322,14 @@ with no colours to paste into anything.
 
 - **Filter by Type** appears on a task run only, since a selection is one type already. It
   narrows the listing to one of the seven; **All types** puts them back.
-- **Filter by Name** and **Filter by Value** narrow that list as you type (case-insensitive
-  substring, all of them applied together).
-- The dropdown beside **Filter by Value** switches it from *contains* to one of three modes that
-  are the whole query on their own — the text box greys out for all three:
+- **Filter by Name**, **Filter by Entity** and **Filter by Value** narrow that list as you type
+  (case-insensitive substring, all of them applied together).
+- **Filter by Entity** matches the entity as the line shows it — name, a space, then the id in
+  brackets — so `Beach Day (412)`, `Beach Day` and `(412)` all reach that entity's fields.
+- Each of the three has a mode beside it: **contains**, or **omits** for its exact complement. An
+  empty box filters nothing in either mode.
+- The dropdown beside **Filter by Value** also offers three modes that are the whole query on
+  their own — the text box greys out for all three:
   - **is empty** lists only the fields set to the empty string — the one thing an empty box cannot
     ask for, since an empty box means no filter.
   - **is true** and **is not true** read the value as a flag, exactly the way the **Hide from Add
@@ -338,8 +361,8 @@ Below the list:
 | Control | What it does |
 | --- | --- |
 | **Operation** — Add *(default)* | Sets the field **only where it is missing**. Existing values are left alone. |
-| **Operation** — Overwrite | Sets the field on **every** entity in scope, replacing whatever was there. |
-| **Operation** — Remove | Deletes the field from every entity in scope that has it. |
+| **Operation** — Overwrite | Sets **that one field** on every entity in scope, replacing the value it already had. Every other custom field on those entities is untouched. |
+| **Operation** — Remove | Deletes **that one field** from every entity in scope that has it. The entity's other custom fields are untouched. |
 | **Operation** — Rename | Moves the field to a new name, keeping each entity's value. Only selectable while everything in scope carries **one** field name — that is the name it renames. |
 | **Apply to** — All *(default)* | Every entity in scope: what you selected, or the whole library on a task run. |
 | **Apply to** — Filtered list only | Only the entities still showing in the filtered list. Touching any filter switches to this on its own. |

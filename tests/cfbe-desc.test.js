@@ -516,13 +516,16 @@ openDesc()
     h.check('and says where its custom fields went instead',
       notes(env.body).some((l) => /left out of this listing/.test(l)),
       notes(env.body).join(' | '));
-    h.check('a field name in the listing carries its description as a tooltip',
+    // 0.12.0: what the click does leads, since it is true of every pill; the
+    // description is the longer half and only some of them have one.
+    h.check('a field name in the listing carries its description as a tooltip, after the click',
       byClass(env.body, 'cfbe-pill-cf').some((p) =>
-        /^The colour it is filed under\./.test(p.title || '')),
+        /^Click to copy\n\nThe colour it is filed under\./.test(p.title || '')),
       byClass(env.body, 'cfbe-pill-cf').map((p) => p.title).join(' | '));
     h.check('and a value pill is not given one',
-      !byClass(env.body, 'cfbe-pill-cf').some((p) =>
-        p.textContent === 'blue' && /colour it is filed/.test(p.title || '')));
+      byClass(env.body, 'cfbe-pill-cf').some((p) =>
+        p.textContent === 'blue' && p.title === 'Click to copy'),
+      byClass(env.body, 'cfbe-pill-cf').map((p) => p.title).join(' | '));
     return env;
   })
 

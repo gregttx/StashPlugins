@@ -5,13 +5,15 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.8.0 — partly verified, and §22–§23 are not.** Everything the two new sections describe
-was written in one branch (`cf-descriptions`) from a specification, against schema read off
-`stashapp/stash` `develop` on 2026-08-16, and **has not been clicked once in a live Stash**. What
-is riding on that: a tag created and written to by the plugin, and a `window.fetch` wrapper sitting
-in front of six of Stash's own queries. The suite covers both — 63 checks in `tests/cfbe-desc.test.js`,
-each confirmed against a deliberately broken copy — and the suite reproduces Stash's answers from
-notes, which is exactly the limit stated at the end of §9.
+**Status: 0.8.1 — §22–§23 are being used, and the first two reports are in.** Everything those two
+sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
+read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
+typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
+until a Rescan (§22a), and both STRING settings read as empty until edited (§22b). What is still
+unverified: Undo, Prune, Migrate, the version gate, and every one of the six dropdowns §23 filters.
+The suite covers all of it — 75 checks in `tests/cfbe-desc.test.js`, each confirmed against a
+deliberately broken copy — but it reproduces Stash's answers from notes, which is exactly the limit
+stated at the end of §9.
 
 **Status of everything before it: 0.7.3 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
@@ -1023,6 +1025,67 @@ newer than `"0.9.0"` and a string compare says otherwise.
 on the handful of fields those touch. There is no module between these plugins and there is no class
 hierarchy inside one either. The one thing it does *not* borrow is `renderProgress`, because its
 counters count fields and descriptions rather than entities and rows.
+
+## 22a. An Apply does not end this dialog (0.8.1)
+
+**The first thing live use said about §22: "after an Apply, rescan required before I can edit
+again".** `DescRun.setState` was a copy of `Run`'s, and it had inherited the assumption underneath
+it without the reason for it. In the first dialog the listing *is* the plan — every line describes a
+write that has now happened, so the screen is describing a library that has moved on and a rescan is
+the only honest way back to an editable state. **The descriptions dialog has no such listing.** Its
+left pane is the library's custom fields, which writing a description does not touch, and its right
+pane is a box the user came here to type in. Nothing on screen goes stale when Apply succeeds.
+
+So `editable()` is `listing || applied`, and Apply stays *visible* in the applied state rather than
+being swapped for Close — `pending()` already answers "is there anything to write", which is the
+whole of the enable rule. **Cancel still becomes Close after a write**, because that word is about
+what has happened rather than about what can be typed next, and the escape-key indirection (§11)
+follows the footer wherever it lands.
+
+**Undo had to re-read the box, not just re-render around it.** It restores `desc` and `base` from
+the tag's previous description and called `renderNames()` — correct while the box was locked
+afterwards, and wrong the moment editing continues: the box would still show the text that was just
+reversed, and the next keystroke would write it back. `pick(this.sel)` re-reads it from the restored
+working copy.
+
+**The lesson is about copied state machines, not about this button.** `DescRun` borrows `Run`'s
+methods by assignment on purpose (§22), and this is the cost of that: a borrowed method carries the
+*first* dialog's model of what a write means. Check each borrowed one against what the second dialog
+actually shows before assuming the state names mean the same thing.
+
+## 22b. Stash has no default for a plugin setting, so the plugin writes them in (0.8.1)
+
+**The second report: both STRING settings read as empty until edited.** `PluginSettingConfig` in
+`stashapp/stash` carries `displayName`, `description` and `type` — and no default. Settings →
+Plugins renders whatever is in `config.yml` under `plugins.<id>`, which is *nothing* until the user
+types in a box. So a setting the plugin was quietly defaulting looked unset, and worse, looked
+identical to one deliberately cleared — a distinction this plugin actually depends on, since an
+empty `c1ExcludeFromAddListField` is how §23's filtering is switched off.
+
+`seedDefaults` writes the absent string defaults in once, from `loadSettings`, through
+`configurePlugin`. Four things it is careful about:
+
+- **Only absent keys.** `hasOwn(raw, k)` is already how `loadSettings` tells "never set" from
+  "cleared", and the seed uses the same test — so a cleared box is never refilled, which would
+  otherwise turn a switched-off filter back on behind the user's back.
+- **The whole map goes back.** `SetPluginConfiguration` replaces `plugins.<id>` rather than merging,
+  so the seed sends `raw` plus the missing keys. Sending only the new keys would drop the settings
+  the user has.
+- **Booleans are left out.** Absent already means `false` for a `BOOLEAN`, and Stash renders the
+  switch off either way, so there is nothing for a seed to make visible.
+- **Silent on failure, and once per page.** A settings write nobody asked for must not put an error
+  in front of someone who came here to look at custom fields; `_seeded` is cleared again if the
+  write fails, so the next load retries.
+
+**The alternative was a `placeholder` on the input**, set from `settingsTick` — cosmetic, no write,
+and rejected because it says the wrong thing about exactly the case that matters: grey default text
+in an empty box is *right* for a setting never set and *a lie* for one deliberately cleared, and the
+two look the same. A written-in value makes them different.
+
+**It is the one write in this plugin that happens without an Apply**, and it is defensible only
+because it writes to the plugin's own config rather than to the library: no entity, no tag, nothing
+the database backup is there to protect. Do not take it as a precedent for anything under §22's
+staging rule.
 
 ## 23. Hiding an entity from Stash's add lists (0.8.0)
 

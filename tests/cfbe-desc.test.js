@@ -18,6 +18,11 @@ const TASK = 'Manage Custom Field Descriptions...';
 const BULK_TASK = 'Edit Custom Fields Across the Whole Library...';
 const STORE_FIELD = 'cfbe_desc_store';
 const HIDE = 'Exclude_from_add_list';
+const STORE_TAG_NAME = 'ᱜ╦╦🞮 🗃️🔌 🛂🧲 🛠🛈🖫 ❌∙';
+// Read from the source rather than pinned: the blob carries whatever version wrote it,
+// and a bump is not a thing this suite should have to be edited for.
+const VERSION = /PLUGIN_VERSION = '([^']+)'/.exec(
+  require('fs').readFileSync(SRC, 'utf8'))[1];
 
 // A store tag as the plugin writes one: a sentence, then the blob. The sentence is
 // there to be ignored by the parser, which is the point of testing with one.
@@ -153,7 +158,8 @@ const names = (body) => byClass(body, 'cfbe-name').map((n) => n.textContent);
 const notes = (body) => byClass(body, 'cfbe-line').map((n) => n.textContent);
 const foot = (body) => (one(body, 'cfbe-foot') || { childNodes: [] }).childNodes
   .filter((b) => !h.hasClass(b, 'cfbe-hidden')).map((b) => b.textContent);
-const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || ''));
+const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || '') &&
+  !/CFBE_SeedSettings/.test(c.query || ''));   // the settings seed is not a library write
 const tagWrites = (calls) => calls.filter((c) => /CFBE_Tag(Create|Update)/.test(c.query || ''));
 // The blob out of whatever the last tag write sent, parsed the way the plugin parses it.
 function sentStore(calls) {
@@ -297,7 +303,7 @@ openDesc()
       h.check('the blob carries the edited description',
         sent.descriptions.colour === 'What colour it is.', JSON.stringify(sent.descriptions));
       h.check('and keeps the ones nobody touched', sent.descriptions.gone === 'A field nothing carries.');
-      h.check('and stamps the running version', sent.version === '0.8.0', sent.version);
+      h.check('and stamps the running version', sent.version === VERSION, sent.version);
       h.check('and remembers the field name the hide setting had',
         sent.hideField === HIDE, sent.hideField);
       h.check('the marker is topped up rather than replaced',
@@ -308,7 +314,14 @@ openDesc()
           /Replaced.*colour.*The colour it is filed under.*What colour it is/.test(n.textContent)),
         byClass(env.body, 'cfbe-entry').map((n) => n.textContent).join(' | '));
       h.check('Undo is offered afterwards, with Close beside it',
-        foot(env.body).join(' ') === 'Copy log Undo Rescan Close', foot(env.body).join(' '));
+        foot(env.body).join(' ') === 'Apply Copy log Undo Rescan Close', foot(env.body).join(' '));
+
+      // The dialog is an editor, not a plan: a written Apply does not end it, and
+      // needing a Rescan before typing again was the complaint that got this fixed.
+      h.check('the box is still typeable after a written Apply',
+        !one(env.body, 'cfbe-text').disabled);
+      h.check('and Apply is disabled again only because nothing is unsaved',
+        one(env.body, 'cfbe-apply').disabled);
       return env;
     });
   })
@@ -328,6 +341,25 @@ openDesc()
         last.variables.input.description === STORE_TAG.description,
         String(last.variables.input.description).slice(0, 60));
       h.check('naming the tag it was called before', last.variables.input.name === 'plumbing');
+      // Editing stays open afterwards, so a box still showing the reversed text would be
+      // the next thing typed over.
+      h.check('and the box shows the description it restored, not the one it reversed',
+        one(env.body, 'cfbe-text').value === 'The colour it is filed under.',
+        one(env.body, 'cfbe-text').value);
+      return env;
+    });
+  })
+
+  // ── And editing carries straight on, with no Rescan in between ────────────
+  .then((env) => {
+    const before = tagWrites(env.calls).length;
+    type(env, 'What colour it is, exactly.');
+    h.check('typing after an Undo re-enables Apply', !one(env.body, 'cfbe-apply').disabled);
+    return press(env, 'cfbe-apply').then(() => {
+      h.check('and that Apply writes the new edit',
+        tagWrites(env.calls).length === before + 1 &&
+        sentStore(env.calls).descriptions.colour === 'What colour it is, exactly.',
+        JSON.stringify(sentStore(env.calls).descriptions));
       return env;
     });
   })
@@ -501,6 +533,37 @@ openDesc()
         !env.calls.some((c) => /CFBE_Marked/.test(c.query || '')));
       return env;
     });
+  })
+  // ── The defaults are written into the settings, so the boxes are not blank ──
+  //
+  // Stash has no `default:` for a plugin setting: a STRING reads as empty until someone
+  // types in it, which is indistinguishable from one deliberately cleared - and clearing
+  // is how the dropdown filter is switched off.
+  .then(() => openDesc({}))
+  .then((env) => {
+    const seed = env.calls.filter((c) => /CFBE_SeedSettings/.test(c.query || ''));
+    h.check('an unconfigured plugin writes its own string defaults in once',
+      seed.length === 1, String(seed.length));
+    h.check('naming the store tag', seed.length &&
+      seed[0].variables.input.b1DescriptionTagName === STORE_TAG_NAME,
+      seed.length && seed[0].variables.input.b1DescriptionTagName);
+    h.check('and the hide-from-add-lists field',
+      seed.length && seed[0].variables.input.c1ExcludeFromAddListField === HIDE,
+      seed.length && seed[0].variables.input.c1ExcludeFromAddListField);
+    h.check('under this plugin\'s own id', seed.length && seed[0].variables.id === 'CustomFieldsBulkEditor',
+      seed.length && seed[0].variables.id);
+    h.check('and the booleans are left out - absent already means what false means',
+      seed.length && !('a1SkipImagesInTask' in seed[0].variables.input),
+      seed.length && JSON.stringify(seed[0].variables.input));
+    return env;
+  })
+  .then(() => openDesc({ settings: { b1DescriptionTagName: 'mine', c1ExcludeFromAddListField: '' } }))
+  .then((env) => {
+    h.check('a setting the user has answered is never seeded over - a cleared one included',
+      !env.calls.some((c) => /CFBE_SeedSettings/.test(c.query || '')),
+      env.calls.filter((c) => /CFBE_SeedSettings/.test(c.query || ''))
+        .map((c) => JSON.stringify(c.variables.input)).join(' '));
+    return env;
   })
   .then(() => h.finish())
   .catch((e) => { console.error(e); process.exit(1); });

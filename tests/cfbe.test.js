@@ -193,7 +193,8 @@ function start(opts) {
 const byClass = (body, cls) => body.descendants().filter((n) => h.hasClass(n, cls));
 const one = (body, cls) => byClass(body, cls)[0] || null;
 const menuItems = (body) => byClass(body, 'cfbe-menu-item');
-const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || ''));
+const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || '') &&
+  !/CFBE_SeedSettings/.test(c.query || ''));   // the settings seed is not a library write
 // The listing is a stack of pill rows since 0.2.0, so a "line" is a row's own text.
 // Since 0.5.0 the log keeps every listing it has drawn, one `.cfbe-block` each, so
 // "the list" is the last of them - the one describing the library as of now.

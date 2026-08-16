@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.8.0';
+  var PLUGIN_VERSION = '0.8.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -302,8 +302,41 @@
       // Except this one: the empty string cannot name a tag, so it means the same as
       // never having set it.
       if (!s.b1DescriptionTagName) s.b1DescriptionTagName = DEFAULT_STORE_TAG;
+      seedDefaults(raw);
       return s;
     });
+  }
+
+  // Stash's plugin settings have no `default:` in the manifest - the panel shows
+  // whatever is in `config.yml`, which is nothing at all until the user types in the
+  // box. So a STRING setting reads as empty while the plugin is quietly using its
+  // default, and the two states a blank box can mean - "never set" and "deliberately
+  // cleared", which are *not* the same thing here - look identical.
+  //
+  // Writing the defaults in once settles both: the box shows the name it is actually
+  // using, and clearing it becomes a visible choice. Only keys that are absent are
+  // seeded, so this can never overwrite an answer the user has given, and the whole
+  // map goes back because `configurePlugin` replaces it rather than merging.
+  // Silent on failure: a settings write nobody asked for must not put an error in
+  // front of someone who came here to look at custom fields.
+  var _seeded = false;
+  function seedDefaults(raw) {
+    if (_seeded) return;
+    var input = {};
+    var missing = 0;
+    var k;
+    for (k in raw) if (hasOwn(raw, k)) input[k] = raw[k];
+    for (k in DEFAULTS) {
+      if (!hasOwn(DEFAULTS, k) || typeof DEFAULTS[k] === 'boolean') continue;
+      if (hasOwn(raw, k) && raw[k] != null) continue;
+      input[k] = DEFAULTS[k];
+      missing++;
+    }
+    if (!missing) return;
+    _seeded = true;
+    gqlRequest('mutation CFBE_SeedSettings($id: ID!, $input: Map!) ' +
+      '{ configurePlugin(plugin_id: $id, input: $input) }',
+    { id: PLUGIN_ID, input: input }).then(null, function () { _seeded = false; });
   }
 
   // ── The description store ─────────────────────────────────────────────────
@@ -2501,7 +2534,7 @@
   DescRun.prototype.pick = function (name) {
     this.sel = name;
     this.textEl.value = String(this.desc[name] || '');
-    this.textEl.disabled = this.state !== 'listing' || !!this.blocked;
+    this.textEl.disabled = !this.editable();
     var users = this.fields[name] || [];
     this.detailEl.textContent = 'Custom field "' + name + '" - ' + (users.length
       ? plural(users.length, 'entity', 'entities') + ' carry it'
@@ -2576,28 +2609,38 @@
       !!(this.migration && this.migration.armed);
   };
 
+  // **A written Apply does not end this dialog the way it ends the other one.** There
+  // the listing *is* the plan, so once it has been written the lines on screen describe
+  // a library that has moved on and the only honest next step is a rescan. Here the
+  // left pane is the library's custom fields, which an Apply does not touch, and the
+  // box is what the user came to type in - so editing stays open afterwards, with the
+  // write's own report in the log below it. Apply is simply disabled again until the
+  // next unsaved change, which `pending()` already answers.
+  DescRun.prototype.editable = function () {
+    return (this.state === 'listing' || this.state === 'applied') && !this.blocked;
+  };
+
   DescRun.prototype.setState = function (state) {
     this.state = state;
-    var listing = state === 'listing';
     var applied = state === 'applied' || state === 'undoing';
     var busy = state === 'applying' || state === 'undoing';
+    var edit = this.editable();
     this.show(this.cancelBtn, !applied);
-    this.show(this.applyBtn, !applied);
+    this.show(this.applyBtn, true);
     this.show(this.undoBtn, !!this.undoTo || !!(this.migration && this.migration.done));
-    this.show(this.rescanBtn, listing || applied);
+    this.show(this.rescanBtn, state === 'listing' || state === 'applied');
     this.show(this.closeBtn, applied);
     this.cancelBtn.disabled = busy;
     this.undoBtn.disabled = busy;
     this.rescanBtn.disabled = busy;
     this.closeBtn.disabled = busy;
-    this.pruneBtn.disabled = !listing || !!this.blocked;
-    this.textEl.disabled = !listing || !!this.blocked || this.sel == null;
+    this.pruneBtn.disabled = !edit;
+    this.textEl.disabled = !edit || this.sel == null;
     this.syncApply();
   };
 
   DescRun.prototype.syncApply = function () {
-    this.applyBtn.disabled = this.state !== 'listing' || this.stale || !!this.blocked ||
-      !this.pending();
+    this.applyBtn.disabled = !this.editable() || this.stale || !this.pending();
     this.applyBtn.title = this.blocked
       ? 'Editing is off: ' + this.blocked + '.'
       : 'Write the descriptions to the store tag. Nothing else in the library is ' +
@@ -2618,7 +2661,7 @@
       summary = this.names.length + ' custom fields, ' +
         this.described(this.names) + ' described, ' +
         (changes ? plural(changes, 'unsaved change') : 'no unsaved changes') +
-        (this.state === 'applied' ? ' - last Apply written' : '');
+        (this.state === 'applied' && !changes ? ' - last Apply written' : '');
     }
     this.progressEl.textContent = summary;
   };
@@ -2822,7 +2865,10 @@
     }).then(function () {
       self.undoTo = null;
       self.setState('applied');
-      self.renderNames();
+      // The box has to be re-read from the restored working copy, not just re-rendered
+      // around it: editing stays open after an Undo, so a box still showing the text
+      // that was just reversed would be the next thing typed over.
+      if (self.sel != null) self.pick(self.sel); else self.renderNames();
       self.renderProgress();
     });
   };
@@ -2849,12 +2895,11 @@
 
   // ── The settings page ─────────────────────────────────────────────────────
   //
-  // This plugin has no settings, so its block in Settings → Plugins is a heading, a
-  // description and Stash's own Enable/Disable and link buttons - nothing to
-  // configure. It still gets the siblings' description treatment, because the
-  // description is the only thing there that is ours and it is the first thing a
-  // user reads before installing: a one-line summary, the rest behind **Show more**,
-  // and a labelled link to the README under it.
+  // The group gets the siblings' description treatment - a one-line summary, the rest
+  // behind **Show more**, and a labelled link to the README under it - and each of the
+  // three setting rows the per-setting hover box. The description half of that was here
+  // first and mattered most while the plugin had no settings at all: it is the only
+  // thing in the group that is ours, and the first thing a user reads before installing.
   //
   // **The heading is the only anchor available, and that is the one thing here worth
   // being uneasy about.** Every sibling finds its group through the

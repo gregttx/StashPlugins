@@ -14,6 +14,24 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.8.1 — the descriptions dialog stays open for the next edit
+>
+> **Apply no longer ends the editing.** It wrote what you had typed and then locked the box
+> until you pressed **Rescan**, which is right for the bulk editor — there the list on
+> screen *is* the plan, and once it has been written it describes a library that has moved
+> on. The descriptions dialog is not that: the fields on the left are unaffected by writing
+> a description, so typing carries straight on afterwards, with **Apply** simply greyed out
+> again until there is a new unsaved change. An **Undo** now also puts the box back to the
+> text it restored, instead of leaving the reversed text on screen.
+>
+> **The two settings arrive with their defaults in the box.** Stash has no default value for
+> a plugin setting — a text setting is empty until someone types in it — so both of these
+> read as blank while the plugin was quietly using its default. They are now written into
+> your settings the first time the plugin loads, so the box shows the name actually in use.
+> A setting you have answered is never written over, and that includes one you have
+> deliberately **cleared**: an empty **Hide from Add Lists** box means the filtering is off,
+> and it stays off.
+>
 > ## 0.8.0 — every custom field can say what it is for
 >
 > A custom field's name is all Stash keeps of what it means. Now each one can carry a
@@ -339,7 +357,7 @@ schema fact, not a gap in this plugin.
 
 ## Settings
 
-One switch, in Settings → Plugins:
+One switch and two names, in Settings → Plugins:
 
 | Setting | Default | What it does |
 | --- | --- | --- |
@@ -350,6 +368,13 @@ One switch, in Settings → Plugins:
 The first two are read when you press a task button, so flipping one and running the task in the
 same session does what it says. **Skip Images** does not affect a selection — the **"..."** menu acts
 on exactly what you selected, image lists included.
+
+**The two names are written into your settings the first time the plugin loads**, since Stash has no
+default value for a plugin setting and the boxes would otherwise read as empty while the plugin used
+the defaults above. Whatever you have put there is never written over — including a box you have
+**cleared on purpose**, which is a different thing from one that was never set: an empty **Hide from
+Add Lists** means no filtering at all, and an empty **Description Store Tag Name** goes back to the
+default name.
 
 ## Custom field descriptions
 
@@ -365,8 +390,11 @@ Some details worth knowing:
 - **`[orphan]`** is a description whose custom field no entity carries any more. It is kept rather
   than dropped — a field you cleared today may come back tomorrow — and **Prune orphans** clears
   them all in one press, staged like everything else.
-- **Undo** puts the tag's description and name back exactly as they were before Apply. A tag the
-  dialog *created* is left in place; delete it by hand if you do not want it.
+- **Apply does not close the editing.** It writes, reports what changed in the log, and leaves the
+  box and the field list exactly where they were, so the next description can be typed straight
+  away — Apply greys out again until there is something new to write.
+- **Undo** puts the tag's description and name back exactly as they were before Apply, and the box
+  with it. A tag the dialog *created* is left in place; delete it by hand if you do not want it.
 - **Rescan** re-reads the library and the store, keeping whatever you have typed.
 - If you rename the **Hide from Add Lists** setting, the description follows it, and the dialog
   counts the entities still carrying the old field name and offers a **Migrate** button that renames

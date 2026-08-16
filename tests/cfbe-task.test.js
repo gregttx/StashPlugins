@@ -141,7 +141,8 @@ const lines = (body) => {
   const b = lastBlock(body);
   return b ? b.descendants().filter((n) => h.hasClass(n, 'cfbe-entry')).map((n) => n.textContent) : [];
 };
-const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || ''));
+const writes = (calls) => calls.filter((c) => /mutation CFBE_/.test(c.query || '') &&
+  !/CFBE_SeedSettings/.test(c.query || ''));   // the settings seed is not a library write
 const reads = (calls) => calls.filter((c) => /CFBE_ReadAll/.test(c.query || ''));
 const notes = (body) => byClass(body, 'cfbe-line').map((n) => n.textContent);
 const readTypes = (calls) =>

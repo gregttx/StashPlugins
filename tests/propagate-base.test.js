@@ -92,7 +92,7 @@ Promise.resolve()
     const group = h.makeElement('div');
     const heading = h.makeElement('h3');
     heading.textContent = NAME === 'PropagateTagsAndPerformers'
-      ? 'GTTx Propagate Tags and Performers to Related Entities' : NAME;
+      ? 'ᝯㄝₓ Propagate Tags and Performers to Related Entities' : NAME;
     group.appendChild(heading);
     const btn = h.makeElement('button');
     btn.textContent = TASK;
@@ -146,7 +146,7 @@ Promise.resolve()
     // strips it rather than comparing the raw text.
     const group = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'GTTx Propagate Tags and Performers to Related Entities (0.1.0)';
+    heading.textContent = 'ᝯㄝₓ Propagate Tags and Performers to Related Entities (0.1.0)';
     group.appendChild(heading);
     const btn = h.makeElement('button');
     btn.textContent = TASK;
@@ -191,7 +191,7 @@ Promise.resolve()
     // The *short* name since 0.18.1: the manifest's full one is the least informative
     // third of a title that also names a task, a path and an entity.
     h.check('the head names the plugin and the task',
-      /GTTx Propagate Tags & Performers/.test(title) && title.indexOf(TASK) !== -1,
+      /ᝯㄝₓ Propagate Tags & Performers/.test(title) && title.indexOf(TASK) !== -1,
       title);
     // Undo reaches its own writes and only while the dialog is open. It must never
     // be allowed to read as a substitute for the backup, so the instruction leads
@@ -556,7 +556,7 @@ Promise.resolve()
     header.className = 'setting';
     const headBox = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'GTTx Propagate Tags and Performers to Related Entities (0.1.0)';
+    heading.textContent = 'ᝯㄝₓ Propagate Tags and Performers to Related Entities (0.1.0)';
     headBox.appendChild(heading);
     const sub = h.makeElement('div');
     sub.className = 'sub-heading';

@@ -1,4 +1,4 @@
-# GTTx Merge Performer Tags To Scenes
+# ᝯㄝₓ Merge Performer Tags To Scenes
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -30,7 +30,7 @@ A front-end-only Stash plugin that adds two tag-merging buttons:
 
 **A button whose caption ends in "..." opens a dialog first** — the same review the library-wide task uses, listing every change before any of it is written, with Proceed, Stop, Copy log, Rescan and Undo. The performer button always does; the scene button does when **Save Tags Immediately** is on, or on a Stash where staging into the form is unavailable. No button here writes anything without either staging it in the form or showing you the plan. The dialog's heading names what it is scoped to — *Copy Tags to all Scenes - from Performer "Ann" (7)* — so a dialog opened from a button says which entity it is about, by the name you know it by.
 
-Buttons are hidden by default and can be enabled in **Settings → Plugins → GTTx Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and — since 1.16.0 — the scene button needs the scene to be actually missing at least one of its performers' tags, rather than merely having a performer. Both re-check themselves when you save that scene or performer, so a button appears or disappears without a page reload. Tags are **added** (not replaced) — existing tags are always kept.
+Buttons are hidden by default and can be enabled in **Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and — since 1.16.0 — the scene button needs the scene to be actually missing at least one of its performers' tags, rather than merely having a performer. Both re-check themselves when you save that scene or performer, so a button appears or disappears without a page reload. Tags are **added** (not replaced) — existing tags are always kept.
 
 There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks**:
 
@@ -228,7 +228,7 @@ draw buttons into the same rows. Set it to `false`, or reload the page, to turn 
 
 ### The README link in settings
 
-**Settings → Plugins → GTTx Merge Performer Tags To Scenes** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
+**Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
 
 ### Checking which version is actually running
 
@@ -238,7 +238,7 @@ The version beside the plugin's name in **Settings → Plugins** does not settle
 
 **The plugin says so when it happens.** A stale script is called out in red, in two places, both naming the version you are running, the version installed, and the fix:
 
-- **Settings → Plugins → GTTx Merge Performer Tags To Scenes**, at the top of the group and above the description — so it shows even with the group collapsed. It disappears once the two agree.
+- **Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes**, at the top of the group and above the description — so it shows even with the group collapsed. It disappears once the two agree.
 - **Every dialog the plugin opens**, in a box of its own under the title.
 
 It says which script is running in the browser console too (**F12** → Console), on every page load, whether or not merge logging is enabled:

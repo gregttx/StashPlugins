@@ -1,4 +1,4 @@
-// GTTx Custom Fields Bulk Editor: the menu item it injects into a list view's "..."
+// ᝯㄝₓ Custom Fields Bulk Editor: the menu item it injects into a list view's "..."
 // dropdown, and the dialog that item opens.
 //
 // Two halves, and the first is the one that cannot be checked any other way. The
@@ -434,7 +434,7 @@ openDialog()
   .then((env) => {
     h.check('the item opens the dialog', !!one(env.body, 'cfbe-modal'));
     h.check('the head names the plugin, the type and the count',
-      /GTTx Custom Fields Bulk Editor - Scenes - 3 selected/.test(
+      /ᝯㄝₓ Custom Fields Bulk Editor - Scenes - 3 selected/.test(
         (one(env.body, 'cfbe-title') || {}).textContent || ''),
       (one(env.body, 'cfbe-title') || {}).textContent);
     h.check('the backup instruction leads the head',
@@ -1540,7 +1540,7 @@ openDialog()
   // below matter as much as the positives.
   .then(() => {
     const env = start({ pathname: '/settings?tab=plugins' });
-    const group = mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (0.1.0)',
+    const group = mountSettingGroup(env.body, 'ᝯㄝₓ Custom Fields Bulk Editor (0.1.0)',
       'Summary line.\n\nSecond paragraph.\n\nThird paragraph.');
     env.tick();
     const sub = group.descendants().filter((n) => h.hasClass(n, 'sub-heading'))[0];
@@ -1612,7 +1612,7 @@ openDialog()
   // than not having it - a warning that is always on is one nobody reads.
   .then(() => {
     const env = start({ pathname: '/settings?tab=plugins' });
-    mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (' + SCRIPT_VERSION + ')',
+    mountSettingGroup(env.body, 'ᝯㄝₓ Custom Fields Bulk Editor (' + SCRIPT_VERSION + ')',
       'Summary line.\n\nSecond paragraph.');
     env.tick();
     h.check('a heading on the running version raises no banner',
@@ -1621,7 +1621,7 @@ openDialog()
     // Settings → Tasks heads its group with the bare name and no version. Unknown is
     // not a mismatch: the banner has to stay quiet rather than guess.
     const env2 = start({ pathname: '/settings?tab=tasks' });
-    mountSettingGroup(env2.body, 'GTTx Custom Fields Bulk Editor',
+    mountSettingGroup(env2.body, 'ᝯㄝₓ Custom Fields Bulk Editor',
       'Summary line.\n\nSecond paragraph.');
     env2.tick();
     h.check('nor does a heading carrying no version at all',
@@ -1632,7 +1632,7 @@ openDialog()
   // gave it a setting. Same design as the three siblings, same three triggers.
   .then(() => {
     const env = start({ pathname: '/settings?tab=plugins' });
-    const group = mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (0.7.0)',
+    const group = mountSettingGroup(env.body, 'ᝯㄝₓ Custom Fields Bulk Editor (0.7.0)',
       'Summary line.\n\nSecond paragraph.');
     const two = mountSettingRow(group, 'a1SkipImagesInTask',
       'Leave Images out of the library-wide task.\n\nImages are usually the most numerous type.');
@@ -1667,7 +1667,7 @@ openDialog()
   // A one-paragraph setting hides nothing, so nothing is built for it.
   .then(() => {
     const env = start({ pathname: '/settings?tab=plugins' });
-    const group = mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (0.7.0)',
+    const group = mountSettingGroup(env.body, 'ᝯㄝₓ Custom Fields Bulk Editor (0.7.0)',
       'Summary line.\n\nSecond paragraph.');
     const one = mountSettingRow(group, 'a1SkipImagesInTask', 'Just the one line.');
     env.tick();
@@ -1679,7 +1679,7 @@ openDialog()
   // Exactly, never by prefix: a plugin whose name merely starts with ours is not us.
   .then(() => {
     const env = start({ pathname: '/settings?tab=plugins' });
-    const group = mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor Extra (1.0.0)',
+    const group = mountSettingGroup(env.body, 'ᝯㄝₓ Custom Fields Bulk Editor Extra (1.0.0)',
       'Someone else.\n\nAnd their detail.');
     env.tick();
     h.check('another plugin group is left alone', !h.hasClass(group, 'cfbe-own-group'));
@@ -1691,7 +1691,7 @@ openDialog()
   // show what is already there.
   .then(() => {
     const env = start({ pathname: '/settings?tab=plugins' });
-    mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (0.1.0)', 'Just the one line.');
+    mountSettingGroup(env.body, 'ᝯㄝₓ Custom Fields Bulk Editor (0.1.0)', 'Just the one line.');
     env.tick();
     h.check('a one-paragraph description gets no toggle',
       env.body.descendants().filter((n) => n.id === 'cfbe-desc-toggle').length === 0);

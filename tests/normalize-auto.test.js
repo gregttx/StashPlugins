@@ -54,7 +54,7 @@ const tagQueries = (calls) => calls.filter((c) => /NPTTags/.test(c.query || ''))
     header.className = 'setting';
     const headBox = h.makeElement('div');
     const heading = h.makeElement('h3');
-    heading.textContent = 'GTTx Normalize Parent Tags (1.2.5)';
+    heading.textContent = 'ᝯㄝₓ Normalize Parent Tags (1.2.5)';
     headBox.appendChild(heading);
     // Stash renders the description here, as a sibling of the h3 - Inputs.tsx
     // wraps both in one div inside the .setting row.
@@ -503,7 +503,7 @@ Promise.resolve()
   // from the same guesses as the code, so they agreed with the bugs:
   //
   //   <div class="setting-group collapsible">
-  //     <div class="setting"><div><h3>GTTx Normalize Parent Tags (1.2.5)</h3></div></div>
+  //     <div class="setting"><div><h3>ᝯㄝₓ Normalize Parent Tags (1.2.5)</h3></div></div>
   //     <div class="collapse">
   //       <div class="setting"><input id="plugin-NormalizeParentTags-a8..." checked></div>
   //       <div class="setting"><input id="plugin-NormalizeParentTags-a9..." checked></div>
@@ -640,10 +640,10 @@ Promise.resolve()
         !!env.ctx.document.getElementById('npt-conflict-notice'));
     }
     return Promise.all([
-      headingOnly('GTTx Normalize Parent Tags (1.2.5)'),
-      headingOnly('GTTx Normalize Parent Tags'),
-      headingOnly('GTTx Normalize Parent Tags undefined'),
-      headingOnly('GTTx Normalize Parent Tags Extra'),
+      headingOnly('ᝯㄝₓ Normalize Parent Tags (1.2.5)'),
+      headingOnly('ᝯㄝₓ Normalize Parent Tags'),
+      headingOnly('ᝯㄝₓ Normalize Parent Tags undefined'),
+      headingOnly('ᝯㄝₓ Normalize Parent Tags Extra'),
       headingOnly('Some Other Plugin (1.0.0)'),
     ]).then(([withVersion, plain, noVersion, namesake, other]) => {
       h.check('heading fallback: the versioned form is matched', withVersion);

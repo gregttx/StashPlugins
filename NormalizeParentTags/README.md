@@ -1,4 +1,4 @@
-# GTTx Normalize Parent Tags
+# ᝯㄝₓ Normalize Parent Tags
 
 > ## ⚠ Back up your database before the first run
 >
@@ -238,7 +238,7 @@ a second click re-fetches.
 
 ## Entity types
 
-Every type is **off** until you enable it in **Settings → Plugins → GTTx Normalize Parent Tags**.
+Every type is **off** until you enable it in **Settings → Plugins → ᝯㄝₓ Normalize Parent Tags**.
 Stash has no default value for a plugin setting, and since Prune deletes tag assignments, opting
 in per type is deliberate.
 
@@ -361,11 +361,11 @@ Two things worth knowing about the tag-level filters:
    ```
 3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
 4. Refresh your browser (F5) so the plugin's JavaScript is loaded.
-5. Enable the entity types you want in **Settings → Plugins → GTTx Normalize Parent Tags**.
+5. Enable the entity types you want in **Settings → Plugins → ᝯㄝₓ Normalize Parent Tags**.
 
 ### The README link in settings
 
-**Settings → Plugins → GTTx Normalize Parent Tags** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled
+**Settings → Plugins → ᝯㄝₓ Normalize Parent Tags** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled
 `NormalizeParentTags/README.md` link the plugin adds underneath the description — the icon alone is
 easy to miss. Both open the same page.
 
@@ -385,7 +385,7 @@ exactly what a cached script looks like.
 **The plugin says so when it happens.** A stale script is called out in red, in two places, both
 naming the version you are running, the version installed, and the fix:
 
-- **Settings → Plugins → GTTx Normalize Parent Tags**, at the top of the group and above the
+- **Settings → Plugins → ᝯㄝₓ Normalize Parent Tags**, at the top of the group and above the
   description — so it shows even with the group collapsed. It disappears once the two agree.
 - **Every dialog the plugin opens**, in a box of its own under the title.
 

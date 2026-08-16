@@ -1,7 +1,7 @@
-# CLAUDE.md — GTTx Custom Fields Bulk Editor
+# CLAUDE.md — ᝯㄝₓ Custom Fields Bulk Editor
 
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build step,
-`gqlRequest`, the bulk-edit lease, the shared dialog chrome, the `GTTx ` name prefix) are in
+`gqlRequest`, the bulk-edit lease, the shared dialog chrome, the `ᝯㄝₓ ` name prefix) are in
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
@@ -13,6 +13,24 @@ small for what it holds, so was "Overwrite" reading as if it cleared an entity's
 fields, and so was the hide field reading as an orphan), but nothing in any of the fixes has been
 clicked: it is `tests/cfbe.test.js` at 218 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
+
+**2.0.0 is a rename, and this plugin is the one it broke.** The `GTTx ` prefix is now `ᝯㄝₓ `, in
+the `.yml`, the `manifest`, `PLUGIN_NAME`, `PLUGIN_SHORT_NAME` and the fixtures in
+`tests/cfbe.test.js`, `tests/cfbe-desc.test.js` and `tests/cfbe-task.test.js`. The folder, the
+plugin **id**, both setting keys and the description store's tag are untouched, so an upgrade keeps
+its configuration; this is the plugin's first major digit that is not the 0.x claim, and it means
+what §2's note says a rename means.
+
+**It shipped as a live bug first, which is the point worth keeping.** The four manifests were
+renamed a session before the scripts. The three siblings' settings pages carried on looking normal
+— they find their group through the `plugin-<id>-<key>` ids Stash builds from the plugin id, and
+match the heading only as a fallback — and this one's went undecorated with no error, no console
+line and nothing to distinguish it from a plugin that had simply not loaded. That is exactly the
+exposure §2 flagged when the heading became the only route in: **the sole anchor here is the one
+piece of markup that a rename moves**, and it fails silently rather than loudly. Nothing about that
+has changed and there is still no second route; what the episode adds is the failure's shape, for
+the next time a name moves. `ownTaskName` was in the same position and was hit too, along with all
+three siblings', since none of them has an id route for a task button either.
 
 **1.3.1 finishes the README pass the siblings had at their own 1.4.1 / 2.6.1 / 2.4.1.** This
 plugin's release-note blocks all went at 1.3.0, but two version references survived in
@@ -770,9 +788,9 @@ find is the **group header's own description**, and the id points into a setting
 fallback is still the only route in, which is why:
 
 - `headingIsOurs` compares **exactly**, after stripping the version suffix Settings → Plugins
-  appends (`GTTx Custom Fields Bulk Editor (0.1.0)`) and the literal `undefined` its template
+  appends (`ᝯㄝₓ Custom Fields Bulk Editor (0.1.0)`) and the literal `undefined` its template
   interpolates for a plugin with no version. A prefix test would make
-  `GTTx Custom Fields Bulk Editor Extra` us; `tests/cfbe.test.js` drives exactly that.
+  `ᝯㄝₓ Custom Fields Bulk Editor Extra` us; `tests/cfbe.test.js` drives exactly that.
 - The fixture in the suite carries the version suffix, because a bare-name match is the specific
   bug both siblings shipped.
 - If Stash ever restyles that panel, this is the first thing here to break, and it will break

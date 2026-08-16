@@ -73,11 +73,18 @@ SRC=/tmp/old-version.js node tests/merge-logic.test.js
 Several suites build the settings-page or Tasks-page markup Stash would render, which means
 writing the plugin's name into an `h3` and expecting the plugin to find itself by it
 (`normalize-auto`, `normalize-tasks`, `placement`, `propagate-base`, `merge-task`). Those
-literals carry the `GTTx ` prefix as of `NormalizeParentTags` 2.0.0 /
-`MergePerformerTagsToScenes` 2.0.0 / `PropagateTagsAndPerformers` 1.0.0, along with the
-dialog-heading assertions, and they have to move with any future rename — they are a copy of
-the `.yml`'s `name:`, and nothing checks the two against each other. A stale one fails loudly
-rather than silently, since a plugin that cannot find its own settings group does nothing at all.
+literals carry a prefix as of `NormalizeParentTags` 2.0.0 / `MergePerformerTagsToScenes` 2.0.0 /
+`PropagateTagsAndPerformers` 1.0.0 — the ASCII `GTTx ` then, and `ᝯㄝₓ ` since those plugins'
+3.0.0 / 3.0.0 / 2.0.0 and `CustomFieldsBulkEditor` 2.0.0. They move with any rename, along with the
+dialog-heading assertions — they are a copy of the `.yml`'s `name:`, and nothing checks the two
+against each other. A stale one fails loudly rather than silently, since a plugin that cannot find
+its own settings group does nothing at all.
+
+**Only `cfbe` fails on a stale *manifest* name, though.** The three older plugins reach their own
+settings group through the `plugin-<id>-<key>` ids Stash builds from the plugin id, and match the
+heading only as a fallback, so a `.yml` renamed without its `.js` leaves them looking normal while
+`CustomFieldsBulkEditor` — whose only route in is the heading — silently decorates nothing. That is
+what the ᝯㄝₓ rename hit live, and it is the shape of failure to expect from any future one.
 
 ## The suites
 

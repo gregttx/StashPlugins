@@ -1,11 +1,27 @@
-# CLAUDE.md — GTTx Normalize Parent Tags
+# CLAUDE.md — ᝯㄝₓ Normalize Parent Tags
 
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.6.1.** This file is both the design and the map of the code — the
+**Status: implemented at 3.0.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**3.0.0 is the second rename, and the same kind of change as 2.0.0.** The `GTTx ` prefix is now
+`ᝯㄝₓ `, in the `.yml`, the `manifest`, `PLUGIN_NAME`, `PLUGIN_SHORT_NAME`, `SIBLING_NAME` and every
+fixture in `tests/` that mounts a settings or tasks heading. The folder, the plugin **id**, every
+setting key and every storage slot are untouched, so an upgrade keeps its configuration; the major
+digit is for the heading matches in §2 and §5b now comparing against a different string.
+
+**What the rename taught, and the reason it is worth a note here rather than only in the repo
+root: the four plugins fail differently when the `.yml` moves without the `.js`.** The user renamed
+the manifests first, and this plugin's settings page looked untouched — because `ownSettingGroup`
+enters through the `plugin-<id>-<key>` ids Stash builds from the plugin **id**, and `headingIsOurs`
+is only its fallback. `CustomFieldsBulkEditor` has no setting-id route at all and decorated
+nothing, silently. The half that *was* broken here and invisible: `ownTaskName` compares the group
+heading against `PLUGIN_NAME` with no id fallback, so both task buttons stopped being ours — no
+interception, no amber. **A name lives in two files and they are not interchangeable; a settings
+page that still looks right is not evidence the rename landed.**
 
 **2.6.1 takes the release notes out of the README.** The standing rule is new and lives in the
 repo-root CLAUDE.md ("A README describes the plugin, not its history"): a block at the top of a

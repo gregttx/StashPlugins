@@ -1,4 +1,4 @@
-# GTTx Propagate Tags and Performers to Related Entities
+# ᝯㄝₓ Propagate Tags and Performers to Related Entities
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -403,7 +403,7 @@ when the running script is older.
 The plugin says so when that happens, in red, in two places — both naming the version you are
 running, the version installed, and the fix:
 
-- **Settings → Plugins → GTTx Propagate Tags and Performers to Related Entities**, at the top of the
+- **Settings → Plugins → ᝯㄝₓ Propagate Tags and Performers to Related Entities**, at the top of the
   group and above the description, so it shows even with the group collapsed. It disappears once the
   two agree.
 - **The dialog**, in a box of its own under the title. **Proceed stays disabled** while they
@@ -422,7 +422,7 @@ is nothing to compare.
 
 ## Settings
 
-All under **Settings → Plugins → GTTx Propagate Tags and Performers to Related Entities**. Each
+All under **Settings → Plugins → ᝯㄝₓ Propagate Tags and Performers to Related Entities**. Each
 description shows one line on the page; hover it, or the setting's name, for the rest.
 
 **Running it** — whether the manual buttons appear, whether they save or stage for review, and the

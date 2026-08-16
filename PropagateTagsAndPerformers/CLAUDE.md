@@ -1,14 +1,30 @@
-# CLAUDE.md — GTTx Propagate Tags and Performers to Related Entities
+# CLAUDE.md — ᝯㄝₓ Propagate Tags and Performers to Related Entities
 
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build step,
 `gqlRequest`, the bulk-edit lease, the shared dialog chrome) are in `../CLAUDE.md` and still apply.
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.4.2.** Every step in the table below has landed, so the version left the
+**Status: released, 2.0.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**2.0.0 is a rename, the second one, and the same kind of change as 1.0.0.** The `GTTx ` prefix is
+now `ᝯㄝₓ `, in the `.yml`, the `manifest`, `PLUGIN_NAME`, `PLUGIN_SHORT_NAME` (`ᝯㄝₓ Propagate Tags
+& Performers`, what the dialog heads wear), `NPT_NAME` and every fixture in `tests/` that mounts a
+settings or tasks heading. The folder, the plugin **id**, every setting key, every path id in
+`declares` and every storage slot are untouched, so an upgrade keeps its configuration; the major
+digit is for the heading matches — `ownSettingGroup`'s fallback, `headingIsOurs`, `ownTaskName` —
+now comparing against a different string.
+
+**The rename landed in the `.yml` a release before the `.js`, which is worth recording because the
+four plugins fail differently under exactly that.** Here the settings group was still found (the
+`plugin-<id>-<key>` ids Stash builds from the plugin **id** are the primary route, heading text only
+the fallback) while the task button stopped being recognised, since `ownTaskName` has nothing but
+the heading. `CustomFieldsBulkEditor`, whose only route in *is* the heading, lost its settings panel
+outright and gave no sign of it. **A name lives in two files, and the page that still looks right is
+not evidence the other one moved.**
 
 **1.4.1 takes the release notes out of the README.** The standing rule is new and lives in the
 repo-root CLAUDE.md ("A README describes the plugin, not its history"): a block at the top of a

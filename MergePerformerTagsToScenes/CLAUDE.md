@@ -1,12 +1,28 @@
-# CLAUDE.md — GTTx Merge Performer Tags To Scenes
+# CLAUDE.md — ᝯㄝₓ Merge Performer Tags To Scenes
 
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build step,
 `gqlRequest`, `tick()` + MutationObserver, the bulk-edit lease) are in `../CLAUDE.md` and still
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.4.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.0.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.0.0 is the second rename, and the same kind of change as 2.0.0.** The `GTTx ` prefix is now
+`ᝯㄝₓ `, in the `.yml`, the `manifest`, `PLUGIN_NAME`, `PLUGIN_SHORT_NAME`, `SIBLING_NAME` and every
+fixture in `tests/` that mounts a settings or tasks heading. The folder, the plugin **id**, every
+setting key and every storage slot are untouched, so an upgrade keeps its configuration; the major
+digit is for `ownTaskName` and the settings-page heading match now comparing against a different
+string.
+
+**The rename went into the `.yml` first, which is how it showed what each file is load-bearing
+for.** With the manifest renamed and `PLUGIN_NAME` still on the old string, this plugin's settings
+group was found as usual — `ownSettingGroup` enters through the `plugin-<id>-<key>` ids, and the
+heading is only its fallback — while `ownTaskName`, which has **no id route and compares the
+group's h3 against `PLUGIN_NAME` directly**, stopped recognising the task button: no interception
+of Stash's own click, no amber. The sibling with neither route (`CustomFieldsBulkEditor`) lost its
+whole settings panel. **A settings page that still looks right after a rename says nothing about
+the tasks page.**
 
 **2.4.1 takes the release notes out of the README.** The standing rule is new and lives in the
 repo-root CLAUDE.md ("A README describes the plugin, not its history"): a block at the top of a

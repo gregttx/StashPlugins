@@ -1,4 +1,4 @@
-// The description store in GTTx Custom Fields Bulk Editor: the second task, the tag
+// The description store in ᝯㄝₓ Custom Fields Bulk Editor: the second task, the tag
 // that holds every custom field's description, and the dropdown filter that hides a
 // marked entity from Stash's add/select lists.
 //
@@ -13,7 +13,7 @@ const h = require('./npt-harness');
 const SRC = process.env.SRC || path.join(
   __dirname, '..', 'CustomFieldsBulkEditor', 'CustomFieldsBulkEditor.js');
 
-const PLUGIN_NAME = 'GTTx Custom Fields Bulk Editor';
+const PLUGIN_NAME = 'ᝯㄝₓ Custom Fields Bulk Editor';
 const TASK = 'Manage Custom Field Descriptions...';
 const BULK_TASK = 'Edit Custom Fields Across the Whole Library...';
 const STORE_FIELD = 'cfbe_desc_store';

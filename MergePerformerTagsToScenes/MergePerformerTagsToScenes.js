@@ -7,7 +7,7 @@
   'use strict';
 
   var PLUGIN_ID           = 'MergePerformerTagsToScenes';
-  var PLUGIN_NAME         = 'GTTx Merge Performer Tags To Scenes';
+  var PLUGIN_NAME         = 'ᝯㄝₓ Merge Performer Tags To Scenes';
   // The name the dialog wears, declared beside the full one the way
   // `PropagateTagsAndPerformers` declares its own - there, the manifest name is long
   // enough to crowd out the task, the path and the entity that follow it in a scoped
@@ -17,7 +17,7 @@
   // matches the settings page's heading against it.
   var PLUGIN_SHORT_NAME   = PLUGIN_NAME;
   var SIBLING_ID          = 'NormalizeParentTags';
-  var SIBLING_NAME        = 'GTTx Normalize Parent Tags';
+  var SIBLING_NAME        = 'ᝯㄝₓ Normalize Parent Tags';
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and updates as soon as plugins are reloaded, while the browser can still
@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '2.4.1';
+  var PLUGIN_VERSION      = '3.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running

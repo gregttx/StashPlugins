@@ -19,19 +19,19 @@
   'use strict';
 
   var PLUGIN_ID   = 'CustomFieldsBulkEditor';
-  var PLUGIN_NAME = 'GTTx Custom Fields Bulk Editor';
+  var PLUGIN_NAME = 'ᝯㄝₓ Custom Fields Bulk Editor';
   // The name the dialog head wears. The same string here, because this name already
   // fits in a title that goes on to name an entity type and a count - the constant
   // exists so that every head in the repo reads from one expression, not because
   // every plugin has to shorten. See the repo-root CLAUDE.md, "one name prefix".
-  var PLUGIN_SHORT_NAME = 'GTTx Custom Fields Bulk Editor';
+  var PLUGIN_SHORT_NAME = 'ᝯㄝₓ Custom Fields Bulk Editor';
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and goes current the moment plugins are reloaded, while the browser can
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '1.3.1';
+  var PLUGIN_VERSION = '2.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers

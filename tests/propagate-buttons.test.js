@@ -1999,7 +1999,7 @@ function nodeListLikeContainer() {
     // here - and the entity named rather than numbered.
     const title = (env.body.descendants().filter((n) => h.hasClass(n, 'ptp2re-title'))[0] || {}).textContent || '';
     h.check('the title names the scope by name, not by id alone',
-      title === 'GTTx Propagate Tags & Performers - Copy Tags to all Scenes - from Performer "Jane" (100)',
+      title === 'ᝯㄝₓ Propagate Tags & Performers - Copy Tags to all Scenes - from Performer "Jane" (100)',
       title);
     const d = await proceed(env);
     const w = writes(env.calls);

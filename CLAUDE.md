@@ -393,11 +393,13 @@ choose what a run covers rather than starting one.
 ## Cross-plugin cooperation: one name prefix
 
 A sixth shared convention, and the only one the user reads before installing anything. Every
-plugin in this repo is named **`GTTx <name>`** — `GTTx Normalize Parent Tags`,
-`GTTx Merge Performer Tags To Scenes`, `GTTx Propagate Tags and Performers to Related Entities`,
-`GTTx Custom Fields Bulk Editor` — since `NormalizeParentTags` 2.0.0 /
-`MergePerformerTagsToScenes` 2.0.0 / `PropagateTagsAndPerformers` 1.0.0, and from its first release
-for `CustomFieldsBulkEditor`. Stash's plugin list is one flat alphabetical column of every
+plugin in this repo is named **`ᝯㄝₓ <name>`** — `ᝯㄝₓ Normalize Parent Tags`,
+`ᝯㄝₓ Merge Performer Tags To Scenes`, `ᝯㄝₓ Propagate Tags and Performers to Related Entities`,
+`ᝯㄝₓ Custom Fields Bulk Editor`. There has been a prefix since `NormalizeParentTags` 2.0.0 /
+`MergePerformerTagsToScenes` 2.0.0 / `PropagateTagsAndPerformers` 1.0.0 (and from its first release
+for `CustomFieldsBulkEditor`); it was the ASCII `GTTx ` until `NormalizeParentTags` 3.0.0 /
+`MergePerformerTagsToScenes` 3.0.0 / `PropagateTagsAndPerformers` 2.0.0 /
+`CustomFieldsBulkEditor` 2.0.0. Stash's plugin list is one flat alphabetical column of every
 plugin installed, from every source; the prefix is what collects them in it and says they
 are one author's, which matters here because they cooperate through the mechanisms above and are
 meant to be installed together.
@@ -417,7 +419,7 @@ matched on the old string has to be re-pointed.
 
 **`PLUGIN_SHORT_NAME` carries the prefix too**, since its whole job is to be the name a dialog head
 wears and a head that dropped the prefix would read as a different plugin from the settings page
-that configures it. `GTTx ` is five characters and buys the recognition; shortening happens in the
+that configures it. `ᝯㄝₓ ` is four characters and buys the recognition; shortening happens in the
 *rest* of the name, which is why `PropagateTagsAndPerformers` is the only one whose two constants
 differ.
 
@@ -426,6 +428,25 @@ strings the cross-plugin warnings print — carry the prefix, because their enti
 the user to a settings group they then have to find. The *id* those checks look the sibling up by
 is unchanged, so a warning about an older, unprefixed sibling still fires; it names the plugin by
 its current name, which is the one worth going to look for.
+
+**A rename half-applied fails differently in each plugin, and three of the four fail invisibly.**
+The `ᝯㄝₓ ` rename went into the four manifests a session before the four scripts, and the report
+was that one plugin's settings page had stopped formatting. What was actually true: the three
+plugins that reach their own settings group through the `plugin-<id>-<key>` ids looked untouched
+(the ids are built from the plugin **id**, which no rename moves, and the heading is only their
+fallback), `CustomFieldsBulkEditor` — whose only route in is the heading — decorated nothing, and
+**all four** lost their task buttons, since `ownTaskName` compares the group's h3 against
+`PLUGIN_NAME` in every one of them and has no id route anywhere. So: change `.yml`, `manifest` and
+`.js` in the same edit, and when checking a rename landed, look at **Settings → Tasks**, not only at
+Settings → Plugins — the settings page is the half most likely to look right while the name is
+wrong.
+
+**This rename shipped without a README release-note block, at the user's call**, and the rule above
+("Only a major version earns a release-note block") is permission rather than obligation. A prefix
+change costs a user nothing to act on: the ids carry the settings across, and the one genuinely
+useful warning — half-updated folder, silent settings page — belongs in
+`CustomFieldsBulkEditor`'s Troubleshooting, where it now is, because it is a fact about the plugin
+rather than about a version.
 
 ## No write without a plan in front of it, and "..." says which
 

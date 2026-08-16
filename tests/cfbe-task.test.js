@@ -1,4 +1,4 @@
-// The library-wide task in GTTx Custom Fields Bulk Editor: the button Stash renders
+// The library-wide task in ᝯㄝₓ Custom Fields Bulk Editor: the button Stash renders
 // in Settings - Tasks - Plugin Tasks, the click that never reaches the server, and the
 // one dialog holding seven entity types at once.
 //
@@ -15,7 +15,7 @@ const h = require('./npt-harness');
 const SRC = process.env.SRC || path.join(
   __dirname, '..', 'CustomFieldsBulkEditor', 'CustomFieldsBulkEditor.js');
 
-const PLUGIN_NAME = 'GTTx Custom Fields Bulk Editor';
+const PLUGIN_NAME = 'ᝯㄝₓ Custom Fields Bulk Editor';
 const TASK = 'Edit Custom Fields Across the Whole Library...';
 
 // One library, two custom fields, and ids that repeat across types on purpose: scene 1

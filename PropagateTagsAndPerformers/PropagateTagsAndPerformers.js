@@ -16,13 +16,13 @@
   'use strict';
 
   var PLUGIN_ID   = 'PropagateTagsAndPerformers';
-  var PLUGIN_NAME = 'GTTx Propagate Tags and Performers to Related Entities';
+  var PLUGIN_NAME = 'ᝯㄝₓ Propagate Tags and Performers to Related Entities';
   // The name the dialog wears. `PLUGIN_NAME` is the manifest's, and it has to stay
   // byte-identical to the `.yml` because `ownSettingGroup` finds this plugin's block
   // on the settings page by matching that heading - but as the first third of a
   // dialog title that also names a task, a path and an entity, it is the least
   // informative third and the longest. Two names, one of them free to be short.
-  var PLUGIN_SHORT_NAME = 'GTTx Propagate Tags & Performers';
+  var PLUGIN_SHORT_NAME = 'ᝯㄝₓ Propagate Tags & Performers';
 
   // NormalizeParentTags is the one sibling this plugin reads settings from by name
   // - see `checkHierarchySibling` below. MergePerformerTagsToScenes needs no such
@@ -30,7 +30,7 @@
   // rather than a name lookup, because it is the same kind of collision a future
   // relationship-copying plugin could have too (see the repo-root CLAUDE.md).
   var NPT_ID   = 'NormalizeParentTags';
-  var NPT_NAME = 'GTTx Normalize Parent Tags';
+  var NPT_NAME = 'ᝯㄝₓ Normalize Parent Tags';
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and goes current the moment plugins are reloaded, while the browser can
@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '1.4.2';
+  var PLUGIN_VERSION = '2.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new

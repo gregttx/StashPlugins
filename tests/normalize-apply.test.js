@@ -334,7 +334,7 @@ Promise.resolve()
     .then(({ d }) => {
       h.check('a version mismatch is named in the dialog head',
         d().note.indexOf('9.9.9 is installed') !== -1 &&
-          /running GTTx Normalize Parent Tags \d/.test(d().note),
+          /running ᝯㄝₓ Normalize Parent Tags \d/.test(d().note),
         d().note);
       h.check('and says how to fix it', d().note.indexOf('Ctrl+Shift+R') !== -1, d().note);
       // Its own red box, not a sentence appended to the run's notes: every other

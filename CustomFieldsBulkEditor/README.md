@@ -1,4 +1,4 @@
-# GTTx Custom Fields Bulk Editor
+# ᝯㄝₓ Custom Fields Bulk Editor
 
 > ## Backing up your database first is recommended
 >
@@ -255,10 +255,10 @@ write and says so rather than overwriting what is there.
 newer release may keep things in there that an older one would drop. Load that version (or newer),
 or delete the tag's description by hand — which loses the descriptions in it.
 
-## Cooperating with the other GTTx plugins
+## Cooperating with the other ᝯㄝₓ plugins
 
-While it writes, this plugin takes a **bulk-edit lease** on the shared object the GTTx plugins use,
-so `GTTx Merge Performer Tags To Scenes` and `GTTx Normalize Parent Tags` stand their automatic
+While it writes, this plugin takes a **bulk-edit lease** on the shared object the ᝯㄝₓ plugins use,
+so `ᝯㄝₓ Merge Performer Tags To Scenes` and `ᝯㄝₓ Normalize Parent Tags` stand their automatic
 modes down until it finishes rather than reacting to every entity it touches. If one of *them* is
 writing when you open the dialog, the head says so — advisory, not a lock; you started this by hand
 and it will not refuse.
@@ -275,7 +275,7 @@ again:
 __GTTx__.StashPluginCoop.debugButtons = true
 ```
 
-Every GTTx plugin that draws a control into Stash's own UI answers to that one switch. This one will
+Every ᝯㄝₓ plugin that draws a control into Stash's own UI answers to that one switch. This one will
 say which of the three conditions is not met — not a list view, no open menu, or nothing selected —
 on the next tick. Set it back to `false` to stop.
 
@@ -291,6 +291,15 @@ itself — so a card laid out in a way it does not expect is skipped rather than
 link to a *relative* of their own type are handled: a tag card names its parent tag and a studio card
 its parent studio, and the row's own entity is the one it links twice. Report which list, and the two
 numbers.
+
+**The settings group is plain — no README link under the description, no hover boxes on the
+settings, and the stale-script warning could not appear there either.** This plugin finds its own
+block on **Settings → Plugins** by the group's heading, which is the plugin's name, and it is the
+only plugin here with no second route in. So the name in `CustomFieldsBulkEditor.js` and the name in
+`CustomFieldsBulkEditor.yml` have to be the same string: if the folder was updated a file at a time,
+copy it again whole. The two task buttons under **Settings → Tasks** go with it, since they are
+recognised by the same heading; the list-view menu item and its dialog are unaffected. Nothing in
+the console says any of this.
 
 **Your browser is running an older copy of the plugin.** Stash serves plugin scripts with caching
 on, so an update can leave the new version installed on the server while the page in front of you

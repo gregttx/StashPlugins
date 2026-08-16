@@ -13,7 +13,7 @@
   'use strict';
 
   var PLUGIN_ID   = 'NormalizeParentTags';
-  var PLUGIN_NAME = 'GTTx Normalize Parent Tags';
+  var PLUGIN_NAME = 'ᝯㄝₓ Normalize Parent Tags';
   // The name the dialogs wear. `PLUGIN_NAME` is the manifest's, and it has to stay
   // byte-identical to the `.yml` because the settings group and the task rows are
   // found by matching that heading. The same string here, because this one already
@@ -21,7 +21,7 @@
   // and so a future shortening is one edit rather than three call sites.
   var PLUGIN_SHORT_NAME = PLUGIN_NAME;
   var SIBLING_ID   = 'MergePerformerTagsToScenes';
-  var SIBLING_NAME = 'GTTx Merge Performer Tags To Scenes';
+  var SIBLING_NAME = 'ᝯㄝₓ Merge Performer Tags To Scenes';
 
   // The one version that proves anything. Everything the settings page shows is read
   // from the manifest over GraphQL and updates the moment plugins are reloaded, while
@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '2.6.1';
+  var PLUGIN_VERSION = '3.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2912,7 +2912,7 @@
   // is why the notice never appeared at 1.2.0.
   //
   // Strip the suffix and compare exactly, rather than testing a prefix: a plugin
-  // called "GTTx Normalize Parent Tags Extra" must not be mistaken for ours.
+  // called "ᝯㄝₓ Normalize Parent Tags Extra" must not be mistaken for ours.
   function headingIsOurs(text) {
     var t = String(text == null ? '' : text).trim();
     if (t === PLUGIN_NAME) return true;

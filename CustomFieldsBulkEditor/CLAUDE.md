@@ -5,7 +5,15 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.7.3 — partly verified.** The user has it installed and has reported back, which is the
+**Status: 0.8.0 — partly verified, and §22–§23 are not.** Everything the two new sections describe
+was written in one branch (`cf-descriptions`) from a specification, against schema read off
+`stashapp/stash` `develop` on 2026-08-16, and **has not been clicked once in a live Stash**. What
+is riding on that: a tag created and written to by the plugin, and a `window.fetch` wrapper sitting
+in front of six of Stash's own queries. The suite covers both — 63 checks in `tests/cfbe-desc.test.js`,
+each confirmed against a deliberately broken copy — and the suite reproduces Stash's answers from
+notes, which is exactly the limit stated at the end of §9.
+
+**Status of everything before it: 0.7.3 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are
 being used. §8's table was walked live on 2026-08-13 and is **confirmed** for `/tags` in card mode;
 what is *not* verified is the table view, an aliased route, an Apply, and §12's write. §12's task, dialog and read **are** confirmed live on 2026-08-13, over 155,012 entities. The pills (§5a) and the
@@ -44,11 +52,13 @@ that reasoning is about the *code*, and the digit is about the *user*. See "A ne
 0.0.1" in the repo-root `CLAUDE.md`. From here: a patch per fix, a minor per verified capability,
 1.0.0 when §8's table has been walked in a real Stash.
 
-**It is the smallest plugin here by a wide margin, and that is the design.** One setting, no
-automatic mode, no fetch wrapper. Two entry points that *do* anything since 0.3.0 — the list-view
-menu item and the task button (§12) — and both open the same dialog; until one is clicked it does
-nothing but tick. Since 0.1.0 it also decorates its own block on the settings page (§10), which is
-presentation rather than a third entry point.
+**It was the smallest plugin here by a wide margin, and 0.8.0 is where that stopped being the
+design.** Until then: one setting, no automatic mode, no fetch wrapper, and two entry points that
+both opened the same dialog. It now has three settings, a second dialog with a second task behind
+it (§22), and a `window.fetch` wrapper that filters six of Stash's own queries (§23). What has *not*
+changed is that nothing runs on its own: the wrapper answers Stash's reads and writes nothing, and
+every write still comes from a button in a dialog. Since 0.1.0 it also decorates its own block on
+the settings page (§10), which is presentation rather than an entry point.
 
 ---
 
@@ -389,9 +399,14 @@ it read at open.
 empty batch list — so a reactive sibling is never left standing down. The expiry is the backstop for
 the one outcome nothing can catch: the tab going away mid-write.
 
-**No `guarded()`, and no `respecters` entry.** This plugin never wraps `window.fetch` and never
-reacts to a save, so there is nothing of its own to suppress and nothing to stand down. Registering
-as a respecter would be a claim a sibling's dialog repeats to the user, and it would be false.
+**No `guarded()`, and no `respecters` entry.** This plugin never reacts to a save, so there is
+nothing of its own to suppress and nothing to stand down. Registering as a respecter would be a
+claim a sibling's dialog repeats to the user, and it would be false.
+
+**It does wrap `window.fetch` since 0.8.0, and that changes nothing here.** §23's dropdown filter
+edits what a `Find*ForSelect` *read* answers; it never sees a mutation and has no reaction to
+suppress. Standing down for a lease would only mean showing hidden entities in a dropdown while a
+sibling ran a task, which is not what a lease is about.
 
 **No Apollo eviction.** The siblings evict what they wrote so a panel showing tags or performers
 redraws. No Stash list view or card displays a custom field, so there is nothing on screen to
@@ -938,3 +953,118 @@ rule is what it copies.
 **Quotes inside the SVG are percent-encoded (`%27`), not escaped.** The CSS lives in a
 single-quoted JS string and the `url()` is double-quoted, so anything else would need a backslash on
 every attribute. `#` has to be `%23` regardless — unencoded it starts a fragment.
+
+## 22. Custom field descriptions, and where they live (0.8.0)
+
+A custom field's name is all Stash keeps of what it means, and a library with thirty of them is a
+library where nobody remembers what four of them were for. So each name gets one description, shown
+as a tooltip on the field-name pills in the bulk dialog and edited in a second dialog of its own.
+
+**The store is one tag's `description` string, not its `custom_fields` map.** The map was the
+obvious place — a 1-1 mapping is what a map is — and it is taken twice over: the same tag has to
+carry the marker below *and* the field that hides it from the dropdowns, and each of those is
+indistinguishable from a description entry keyed on the same name. Namespacing the keys would work
+(`cfdesc⟩<name>`) and costs a prefix out of Stash's 64-character custom field name limit, plus a
+rule about which keys are internal that every listing then has to know. The description column is
+`text` (migration 36 of `stashapp/stash`), so there is no size to design around; one `tagUpdate`
+writes the version, the field list and every description atomically; and there is no key layout to
+be right about at all.
+
+**What it costs, and it is worth knowing before this is "improved":**
+
+- **The blob is visible.** `TagCard.tsx` renders `tag.description`, and so does the tag's own page.
+  Hence the sentence in front of it, and hence the tag being marked hidden from the dropdowns when
+  it is created.
+- **A hand-edit can break it**, which is why `parseStore` returns `broken` rather than an empty
+  store, and why the dialog then refuses to write. **A blank description is the exception**: that
+  is the documented reset, so it reads as an empty store. A `{` with no `}` after it took a round
+  to get right — the first cut read "no blob found" off it and would have written over whatever
+  somebody had typed there.
+- **Read-modify-write of the whole store.** Two tabs editing descriptions is last-write-wins.
+  That is the same bargain everything else here makes with a Stash that offers no better.
+
+**The tag is found by a marker custom field (`cfbe_desc_store`), never by its name.** The name is a
+setting the user is invited to change, so a store found by name is a store that a rename loses. It
+also means the rename *is* a rename: the dialog finds the tag it already has and writes the new
+name onto it. Two marked tags is a state nothing here creates, so it is resolved rather than
+refused — the one whose name matches the setting, else the lowest id — and the log says which.
+
+**Nothing is written until Apply, including this plugin's own housekeeping.** Creating the tag,
+seeding the description for the hide-from-add-lists field, and pruning orphans are all staged into
+the working copy and go out on the one press. A dialog that wrote its own plumbing on open would be
+the one place in this repo where opening something changes the library.
+
+**Undo puts the tag's description and name back, and leaves a tag it created in place.** The store
+is one field, so one write reverses it — this is the one Undo here that *can* honestly be a stored
+copy written back, because the thing it is restoring is the whole of what it wrote. Deleting a tag
+the user may have used elsewhere in the meantime is not something an undo of a description edit
+gets to do; the log says the tag stays and gives its id.
+
+**An orphan is a description whose field no entity carries.** Kept and marked rather than dropped:
+a field cleared off every entity today is one that may come back tomorrow, and losing the sentence
+that explains it would be worse than a stale line in a list. **Prune** clears them all in one go,
+and is staged like everything else.
+
+**A renamed hide field moves its description here and offers to move the library.** The store
+records the field name it was last written with, so the dialog can tell a rename from a first run.
+The description follows the setting immediately, in the working copy; the entities still carrying
+the old key are a bulk write and wait behind a **Migrate** button, which stages one rename batch per
+(type, value) — the same grouping Undo in the first dialog uses, for the same reason. Renaming a
+setting must not itself write to the library.
+
+**The version gate blocks, and it is the only thing here that does.** A store stamped with a version
+newer than the running script may hold keys this script would drop on its next write, so editing is
+off and the log names both ways out: load that release (or newer), or delete the tag's description
+by hand and lose what is in it. `cmpVersion` compares part by part as numbers, because `"0.10.0"` is
+newer than `"0.9.0"` and a string compare says otherwise.
+
+**`DescRun` borrows `Run`'s methods by assignment**, not by inheritance: `loadAll`, `msg`,
+`fillList`, `runWrites`, `close` and the rest are the same functions, and the two constructors agree
+on the handful of fields those touch. There is no module between these plugins and there is no class
+hierarchy inside one either. The one thing it does *not* borrow is `renderProgress`, because its
+counters count fields and descriptions rather than entities and rows.
+
+## 23. Hiding an entity from Stash's add lists (0.8.0)
+
+An entity carrying the field named by `c1ExcludeFromAddListField` is dropped from the six
+`Find*ForSelect` queries — the dropdown you pick a tag, performer, studio, group, gallery or scene
+from while editing something else. It stays on its own list page, on the entities that already have
+it, and in the API.
+
+**The convention is the Custom Field Tag Filter plugin's** (CommunityScripts), which does this for
+tags alone and stores the marking on the tag rather than in `localStorage`. This covers the other
+five for the reason that plugin exists at all: a plumbing entity is plumbing whatever its type.
+Running both is harmless — a tag hidden twice is hidden.
+
+**Marked means present and not obviously false.** cf-tag-filter treats any `NOT_NULL` as marked and
+has a second setting for an exact value; this reads the value instead, so clearing a field to `0`
+unmarks an entity without deleting the key. The plugin writes `1` when it marks its own store tag.
+
+**The count has to lose exactly what the list did.** These queries return `count` beside the list
+and Stash shows it as how many more there are; a filtered list under an unfiltered count is a
+dropdown offering to load entities that are not there.
+
+**A by-id request under the same operation name is not filtered, and that is the one thing here
+that would have lost data rather than annoyed somebody.** `StashService.ts` has two functions per
+type behind one operation: `queryFindTagsForSelect(filter)` asks what to *offer*, and
+`queryFindTagsByIDForSelect(ids)` asks for the ones already *assigned*, so the editor can draw them
+as chips. Filtering the second would make a marked tag vanish from the form of every entity that
+already has it - and saving that form would then take the tag off. `ids` in the variables is what
+tells them apart. Read off `stashapp/stash` `develop`, 2026-08-16, *after* the filter was written
+and before it was committed; nothing in the operation name says the second call exists.
+
+**Every failure path returns the original response.** A dropdown showing one entity too many is a
+nuisance; one showing nothing because a filter threw is a broken editor. That is also why the
+marked-id read resolves to an empty set on failure rather than rejecting.
+
+**Read once per type per page load, never refreshed.** The same cache-first bargain Stash's own UI
+makes, and the one cf-tag-filter documents: mark something in another tab and this tab picks it up
+on reload. Six polling queries against a library this size would cost more than the staleness does.
+
+**`FILTER_ARG` is a table, not a rule.** Six of the seven filter arguments are the singular of the
+plural key and `galleries` is not — `gallery_filter`. Read off `schema.graphql` on 2026-08-16,
+along with the fact that all seven filter types carry `custom_fields`.
+
+**A real `Response` where there is one.** Apollo reads the body back through it, and a shim is one
+method away from being wrong about something. The plain object is for the test harness, whose fetch
+answers with exactly that shape.

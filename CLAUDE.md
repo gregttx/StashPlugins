@@ -175,10 +175,17 @@ Rules that make this safe:
 - **UI plugins only.** A server-side `hooks:` plugin runs in the Stash process, never sees this
   `window`, and cannot be leased against. Do not let documentation imply otherwise.
 - **A bulk-only plugin takes leases and registers no `respecters` entry.**
-  `CustomFieldsBulkEditor` is the first of those: it never wraps `window.fetch` and never reacts to
-  a save, so it has nothing to stand down. Registering anyway would be a claim a sibling's dialog
-  repeats to the user ("it will stand down") and it would be false — worse than silence, which the
-  other side already reads correctly as "too old, or not listening".
+  `CustomFieldsBulkEditor` is the first of those: it never reacts to a save, so it has nothing to
+  stand down. Registering anyway would be a claim a sibling's dialog repeats to the user ("it will
+  stand down") and it would be false — worse than silence, which the other side already reads
+  correctly as "too old, or not listening".
+
+  **Wrapping `window.fetch` is not what decides this — reacting to a write is.** That plugin was
+  described here as one that "never wraps `window.fetch`", and at its 0.8.0 it does: it filters
+  Stash's own `Find*ForSelect` responses so that a marked entity is not offered in an add
+  dropdown. It still registers nothing, because it changes what a *read* answers and never acts on
+  anyone's mutation. A plugin that stood down there would stop filtering dropdowns while a sibling
+  ran a bulk task, which is unrelated to anything a lease is about.
 
 ## Cross-plugin cooperation: the `declares` registry
 

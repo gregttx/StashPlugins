@@ -14,6 +14,35 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.8.0 — every custom field can say what it is for
+>
+> A custom field's name is all Stash keeps of what it means. Now each one can carry a
+> **description**: hover a field name anywhere in the dialog and it tells you what the
+> field is for.
+>
+> They are written in a second task — Settings → Tasks → **Manage Custom Field
+> Descriptions...** — which scans the library, lists every custom field it finds with how
+> many entities carry it, and gives each one a box to describe it in and a read-only list
+> of what carries it. Nothing is written until you press **Apply**, and **Undo** takes the
+> whole thing back while the dialog stays open.
+>
+> The descriptions live in the **description of one tag**, so they are in your database
+> rather than in one browser: covered by your database backup, carried by an export, and
+> the same on every machine you open Stash from. The tag is created for you the first time
+> you press Apply, is marked so that renaming it can never lose the descriptions, and is
+> left out of the bulk editor's own listings.
+>
+> The same release can **hide an entity from Stash's add lists**: give it the custom field
+> named in the settings (`Exclude_from_add_list` by default) and it stops being offered in
+> the dropdowns you pick a tag, performer, studio, group, gallery or scene from while
+> editing something else. It stays on its own list page, on the entities that already have
+> it, and in the API — this hides it from being *added*, nothing more. An entity that is
+> already assigned still shows in the editor that has it, so nothing drops out of a form
+> you open. It is the same
+> convention the [Custom Field Tag
+> Filter](https://github.com/stashapp/CommunityScripts/tree/main/plugins/cf-tag-filter)
+> plugin uses for tags, extended to the other five types; running both is harmless.
+>
 > ## 0.7.3 — the dropdowns look like Stash's
 >
 > The four dropdowns in the dialog — the entity-type and value-mode filters, the write
@@ -314,11 +343,43 @@ One switch, in Settings → Plugins:
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| **Skip Images in the Whole-Library Task** | off | Leaves Images out of the library-wide task, so it covers the other six types only. Images are usually the most numerous type by a wide margin, and reading them can be most of the wait. The dialog says in an `[INFO]` line when it is on. |
+| **Skip Images in the Whole-Library Task** | off | Leaves Images out of the library-wide task, so it covers the other six types only. Images are usually the most numerous type by a wide margin, and reading them can be most of the wait. The dialog says in an `[INFO]` line when it is on. It applies to the descriptions task too, where a field only images carry will then read as an orphan. |
+| **Description Store Tag Name** | `ᱜ╦╦🞮 🗃️🔌 🛂🧲 🛠🛈🖫 ❌∙` | The name of the tag that holds every custom field's description. Changing it **renames the existing tag** rather than starting a second store — the tag is found by a marker custom field (`cfbe_desc_store`), not by its name. Leave it empty to go back to the default. |
+| **Hide from Add Lists — Custom Field Name** | `Exclude_from_add_list` | Entities carrying this custom field are hidden from Stash's add/select dropdowns. Any value other than empty, `0` or `false` counts as marked. Clear the setting to switch the filtering off. |
 
-It is read when you press the task button, so flipping it and running the task in the same session
-does what it says. It does not affect a selection — the **"..."** menu acts on exactly what you
-selected, image lists included.
+The first two are read when you press a task button, so flipping one and running the task in the
+same session does what it says. **Skip Images** does not affect a selection — the **"..."** menu acts
+on exactly what you selected, image lists included.
+
+## Custom field descriptions
+
+Settings → Tasks → **Manage Custom Field Descriptions...** scans the library and shows every custom
+field it found on the left, with how many entities carry each. Pick one and you get a box to
+describe it in and a list of exactly what carries it; the description then shows as a tooltip on
+that field's name everywhere in the bulk-edit dialog.
+
+Some details worth knowing:
+
+- **Nothing is written until Apply**, including the tag itself. A field marked `*` in the left pane
+  has an unsaved edit; `•` means it already has a description.
+- **`[orphan]`** is a description whose custom field no entity carries any more. It is kept rather
+  than dropped — a field you cleared today may come back tomorrow — and **Prune orphans** clears
+  them all in one press, staged like everything else.
+- **Undo** puts the tag's description and name back exactly as they were before Apply. A tag the
+  dialog *created* is left in place; delete it by hand if you do not want it.
+- **Rescan** re-reads the library and the store, keeping whatever you have typed.
+- If you rename the **Hide from Add Lists** setting, the description follows it, and the dialog
+  counts the entities still carrying the old field name and offers a **Migrate** button that renames
+  it across them. Renaming a setting never writes to your library on its own.
+
+**Where they are stored, and how to reset.** In the description of the store tag: a sentence saying
+what it is, then a block of JSON. Delete that whole description on the tag's own edit page and the
+store is reset. If it is ever edited into something that is not valid JSON, the dialog refuses to
+write and says so rather than overwriting what is there.
+
+**A store written by a newer version of this plugin** stops the dialog from editing it, because a
+newer release may keep things in there that an older one would drop. Load that version (or newer),
+or delete the tag's description by hand — which loses the descriptions in it.
 
 ## Cooperating with the other GTTx plugins
 

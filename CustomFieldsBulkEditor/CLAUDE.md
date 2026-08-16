@@ -14,6 +14,16 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 218 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**1.3.1 finishes the README pass the siblings had at their own 1.4.1 / 2.6.1 / 2.4.1.** This
+plugin's release-note blocks all went at 1.3.0, but two version references survived in
+Troubleshooting - "that is the bug 0.1.1 fixed for four of them", "that is what 0.1.2 fixed for tags
+and studios" - which is the exact shape the rule is against: someone reading a troubleshooting entry
+wants to know whether their case is handled, and a release number does not answer that. Both now say
+what *is* handled and name it (the four aliased routes; a row linking to a relative of its own
+type), so the entry is useful to a reader who has never seen a changelog. Nothing in that file
+carries a version now but the Stash requirement. The standing rule is in the repo-root CLAUDE.md
+under "A README describes the plugin, not its history".
+
 **1.3.0 puts the same warning in the dialogs.** The version check was always there and always
 blocked Apply; what changed is that its message is a box of its own (`.cfbe-stale`, the settings
 banner's red) under the dialog title, rather than a sentence appended to `noteEl` behind whatever
@@ -61,7 +71,7 @@ second is not. The bump was asked for explicitly, so it is the user's claim abou
 instance rather than a conclusion drawn here. What that changes going forward: a patch per fix, a
 minor per delivered capability, and this paragraph goes when the list above does.
 
-**Status: 1.3.0 — §22–§23 are being used, and the first reports are in.** Everything those two
+**Status: 1.3.1 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box

@@ -208,8 +208,8 @@ sources and running the diff, so the answer is there to be used.
 
 **Source-side buttons stop one step short**, and it is a real limit rather than an oversight. They
 hide when the source reaches nothing (a performer in no scenes) and when the source
-carries nothing worth copying (a performer with no tags of its own — matching what
-`MergePerformerTagsToScenes`' performer button has always done). They do **not** check whether the
+carries nothing worth copying (a performer with no tags of its own — the same gate
+`MergePerformerTagsToScenes`' performer button uses). They do **not** check whether the
 scenes on the far side already have those tags: that means reading every scene a studio touches,
 which is unbounded. So a source button can still report "No changes" on click.
 

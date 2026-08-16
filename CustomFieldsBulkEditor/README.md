@@ -279,15 +279,18 @@ Every GTTx plugin that draws a control into Stash's own UI answers to that one s
 say which of the three conditions is not met — not a list view, no open menu, or nothing selected —
 on the next tick. Set it back to `false` to stop.
 
-If it says **not a list view** on a page that plainly is one, that is the bug 0.1.1 fixed for four of
-them: the plugin works out what a list holds from the URL, and a few of Stash's lists live at a URL
-that names something else. Report the page's address (the `/…` part) and it can be added.
+If it says **not a list view** on a page that plainly is one: the plugin works out what a list holds
+from the URL, and a few of Stash's lists live at a URL that names something else — a gallery's own
+images, a group's sub-groups, a studio's child studios, a performer's appears-with. Those four are
+known and handled; report the page's address (the `/…` part) if you find another and it can be
+added.
 
 **If the dialog's title counts fewer than you selected**, the plugin is failing to recognise some of
 the rows. It reads the selection off the page — a ticked checkbox, and the row's own link back to
-itself — so a card laid out in a way it does not expect is skipped rather than guessed at. That is
-what 0.1.2 fixed for tags and studios, whose cards also link to their parent. Report which list, and
-the two numbers.
+itself — so a card laid out in a way it does not expect is skipped rather than guessed at. Rows that
+link to a *relative* of their own type are handled: a tag card names its parent tag and a studio card
+its parent studio, and the row's own entity is the one it links twice. Report which list, and the two
+numbers.
 
 **Your browser is running an older copy of the plugin.** Stash serves plugin scripts with caching
 on, so an update can leave the new version installed on the server while the page in front of you

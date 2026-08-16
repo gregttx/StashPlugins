@@ -792,6 +792,11 @@ fact about today: a **requirement** (`Requires Stash 0.31.0 or newer`, `needs Me
 sample console line takes `<version>` rather than a number, which is the same rule applied to an
 example: the number in it was never the point, and a stale one reads as an instruction.
 
+**This rule is about a plugin's `README.md` and nothing else.** `tests/README.md` keeps its
+"since X.Y.Z" markers on purpose: it is the suite map, it does not ship in `files:`, and which
+release a check was added for is exactly what makes `SRC=/path/to/old.js node tests/<suite>.test.js`
+usable. Confirmed with the user when the rule was set.
+
 **The reasoning still gets written down — in the plugin's own `CLAUDE.md`,** which is where a
 per-version note has always belonged and which does not ship to users (`files:` carries the `js`,
 the `yml` and the `README.md`). This rule moves nothing out of that file; it stops the same material

@@ -14,6 +14,24 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 1.0.0 — the hide field is nobody's loose end
+>
+> **Renaming the hide-from-add-lists field moves the setting with it.** Rename
+> `Exclude_from_add_list` in the bulk dialog and the **Hide from Add Lists — Custom Field
+> Name** setting follows, along with the mark the description store tag wears to hide
+> itself. Left behind, that setting would name a field nothing carries any more, and
+> everything you had hidden would quietly come back into the add lists. **Undo** takes the
+> setting back with the field. A rename of any *other* field leaves the setting alone.
+>
+> **That field is no longer listed as an `[orphan]`.** The description store tag carries it
+> — to hide itself — and that tag is deliberately left out of every scan, so the descriptions
+> dialog was reporting the one field this plugin asks you to use as one nothing carries. It
+> is marked **`[store tag]`** instead, in blue rather than amber, naming the tag that has it,
+> and **Prune orphans** leaves it alone.
+>
+> **Filter by Entity comes before Filter by Name**, so the filter row reads in the order a
+> line does: which entity, then which field on it.
+>
 > ## 0.12.0 — filter by entity, and say what you do *not* want
 >
 > **Every text filter has a mode beside it, and *omits* is the new one.** *contains* is what
@@ -127,10 +145,7 @@
 > editing something else. It stays on its own list page, on the entities that already have
 > it, and in the API — this hides it from being *added*, nothing more. An entity that is
 > already assigned still shows in the editor that has it, so nothing drops out of a form
-> you open. It is the same
-> convention the [Custom Field Tag
-> Filter](https://github.com/stashapp/CommunityScripts/tree/main/plugins/cf-tag-filter)
-> plugin uses for tags, extended to the other five types; running both is harmless.
+> you open.
 >
 > ## 0.7.3 — the dropdowns look like Stash's
 >
@@ -323,8 +338,9 @@ with no colours to paste into anything.
 
 - **Filter by Type** appears on a task run only, since a selection is one type already. It
   narrows the listing to one of the seven; **All types** puts them back.
-- **Filter by Name**, **Filter by Entity** and **Filter by Value** narrow that list as you type
-  (case-insensitive substring, all of them applied together).
+- **Filter by Entity**, **Filter by Name** and **Filter by Value** narrow that list as you type
+  (case-insensitive substring, all of them applied together) — in that order, which is the order a
+  line reads: which entity, then which field on it, then what it holds.
 - **Filter by Entity** matches the entity as the line shows it — name, a space, then the id in
   brackets — so `Beach Day (412)`, `Beach Day` and `(412)` all reach that entity's fields.
 - Each of the three has a mode beside it: **contains**, or **omits** for its exact complement. An
@@ -453,7 +469,7 @@ One switch and two names, in Settings → Plugins:
 | --- | --- | --- |
 | **Skip Images in the Whole-Library Task** | off | Leaves Images out of the library-wide task, so it covers the other six types only. Images are usually the most numerous type by a wide margin, and reading them can be most of the wait. The dialog says in an `[INFO]` line when it is on. It applies to the descriptions task too, where a field only images carry will then read as an orphan. |
 | **Description Store Tag Name** | `ᱜ╦╦🞮 🗃️🔌 🛂🧲 🛠🛈🖫 ❌∙` | The name of the tag that holds every custom field's description. Changing it **renames the existing tag** rather than starting a second store — the tag is found by a marker custom field (`cfbe_desc_store`), not by its name. Leave it empty to go back to the default. |
-| **Hide from Add Lists — Custom Field Name** | `Exclude_from_add_list` | Entities carrying this custom field are hidden from Stash's add/select dropdowns. Any value other than empty, `0` or `false` counts as marked. Clear the setting to switch the filtering off. |
+| **Hide from Add Lists — Custom Field Name** | `Exclude_from_add_list` | Entities carrying this custom field are hidden from Stash's add/select dropdowns. Any value other than empty, `0` or `false` counts as marked. Clear the setting to switch the filtering off. Renaming that field with the dialog's **Rename** mode moves this setting with it, so the two cannot drift apart. |
 
 The first two are read when you press a task button, so flipping one and running the task in the
 same session does what it says. **Skip Images** does not affect a selection — the **"..."** menu acts
@@ -480,6 +496,10 @@ Some details worth knowing:
 - **`[orphan]`** is a description whose custom field no entity carries any more. It is kept rather
   than dropped — a field you cleared today may come back tomorrow — and **Prune orphans** clears
   them all in one press, staged like everything else.
+- **`[store tag]`** is a field carried only by the tag the descriptions themselves live on — in
+  practice the **Hide from Add Lists** field, which that tag wears to hide itself. The scan leaves
+  that tag out, so this is what would otherwise read as an orphan; picking it names the tag, and
+  **Prune orphans** leaves it alone.
 - **Apply does not close the editing.** It writes, reports what changed in the log, and leaves the
   box and the field list exactly where they were, so the next description can be typed straight
   away — Apply greys out again until there is something new to write.

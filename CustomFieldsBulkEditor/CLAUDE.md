@@ -5,15 +5,23 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**0.9.0's two filter modes, all of 0.10.0, all of 0.11.0 and all of 0.12.0 are unverified** — §5b's
-truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text filters, §6a's
-Rename and §6b's scope switch. Every one of them came from live use of the dialogs (the shrinking
-window was reported, not deduced; so was the description box being too small for what it holds, and
-so was "Overwrite" reading as if it cleared an entity's whole set of fields), but nothing in any of
-the fixes has been clicked: it is `tests/cfbe.test.js` at 198 checks, `tests/cfbe-desc.test.js` at
-84, and eighteen mutants across the four releases.
+**0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0 and all of 1.0.0 are
+unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
+filters, §6a's Rename, §6b's scope switch and §24's three. Every one of them came from live use of
+the dialogs (the shrinking window was reported, not deduced; so was the description box being too
+small for what it holds, so was "Overwrite" reading as if it cleared an entity's whole set of
+fields, and so was the hide field reading as an orphan), but nothing in any of the fixes has been
+clicked: it is `tests/cfbe.test.js` at 204 checks, `tests/cfbe-desc.test.js` at 90, and twenty-four
+mutants across the five releases.
 
-**Status: 0.12.1 — §22–§23 are being used, and the first reports are in.** Everything those two
+**1.0.0 is the user's call, not this file's.** The repo rule is that the major digit says a plugin
+has been used in a real Stash and that the unverified list above is empty; the first half is true —
+the menu item, both dialogs, the task and the descriptions store are all in daily use — and the
+second is not. The bump was asked for explicitly, so it is the user's claim about their own
+instance rather than a conclusion drawn here. What that changes going forward: a patch per fix, a
+minor per delivered capability, and this paragraph goes when the list above does.
+
+**Status: 1.0.0 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
@@ -52,15 +60,17 @@ had to reissue after an unescaped quote in its own `.yml` stopped Stash loading 
 order things happened, 0.6.0 is §17, every skip saying why, 0.7.0 is §18, the first setting, and
 0.7.1 is §19, the footer in the siblings' order, 0.7.2 is §20, the last line
 of the log back on screen, and 0.7.3 is §21, the dropdown marker.
-203 automated checks cover the plugin across its two suites, and the suite still
+344 automated checks cover the plugin across its three suites, and they still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
 **The major digit is a claim to the user that the thing works, and only a live click can support
 it.** This shipped at 1.0.0 first, on the reasoning that the feature was complete and indivisible;
-that reasoning is about the *code*, and the digit is about the *user*. See "A new plugin starts at
-0.0.1" in the repo-root `CLAUDE.md`. From here: a patch per fix, a minor per verified capability,
-1.0.0 when §8's table has been walked in a real Stash.
+that reasoning is about the *code*, and the digit is about the *user*, so it was corrected to
+0.0.1. See "A new plugin starts at 0.0.1" in the repo-root `CLAUDE.md`. It reached 1.0.0 again at
+§24 — this time because the user, who runs it, asked for it; see the note at the top of this file.
+That is the only thing that can move a major digit here, and it is not something to reason your way
+to on a plugin's behalf.
 
 **It was the smallest plugin here by a wide margin, and 0.8.0 is where that stopped being the
 design.** Until then: one setting, no automatic mode, no fetch wrapper, and two entry points that
@@ -677,8 +687,11 @@ lines come from the tick.
 **Every check was confirmed against a deliberately broken copy before being trusted** — eleven
 mutants: a container's many ids taken as a row, Add not refusing an existing key, the lease not
 taken, `listType` matching by prefix instead of by last segment, Undo writing one flat batch,
-`undoing` not counting as applied for the footer, the most-linked tie-break accepting a tie, and the
-same tie-break applied outside a row. Each fails exactly the checks written for it. Use
+`undoing` not counting as applied for the footer, the most-linked tie-break accepting a tie, the
+same tie-break applied outside a row, and — since §24 — the whole of 0.12.1 (which fails the five
+new hide-field checks and nothing else) plus a `followHideRename` deciding from the run's own copy
+of the settings rather than from the live map, which fails exactly the one check written for it.
+Each fails exactly the checks written for it. Use
 `SRC=/path/to/mutant.js node tests/cfbe.test.js`.
 
 What they cannot cover: §8. The suite reproduces Stash's list markup from notes, so it proves the
@@ -1187,7 +1200,9 @@ copy written back, because the thing it is restoring is the whole of what it wro
 the user may have used elsewhere in the meantime is not something an undo of a description edit
 gets to do; the log says the tag stays and gives its id.
 
-**An orphan is a description whose field no entity carries.** Kept and marked rather than dropped:
+**An orphan is a description whose field no entity carries** — *and which the store tag does not
+carry either*, which is §24's correction: the tag is left out of the scan, so a field only it wears
+was being reported as an orphan and offered to Prune. Kept and marked rather than dropped:
 a field cleared off every entity today is one that may come back tomorrow, and losing the sentence
 that explains it would be worse than a stale line in a list. **Prune** clears them all in one go,
 and is staged like everything else.
@@ -1279,14 +1294,13 @@ An entity carrying the field named by `c1ExcludeFromAddListField` is dropped fro
 from while editing something else. It stays on its own list page, on the entities that already have
 it, and in the API.
 
-**The convention is the Custom Field Tag Filter plugin's** (CommunityScripts), which does this for
-tags alone and stores the marking on the tag rather than in `localStorage`. This covers the other
-five for the reason that plugin exists at all: a plumbing entity is plumbing whatever its type.
-Running both is harmless — a tag hidden twice is hidden.
+**All six types rather than tags alone**, for the reason the feature exists at all: a plumbing
+entity is plumbing whatever its type. The marking lives on the entity, in a custom field, so it is
+in the database and in the backup rather than in one browser's `localStorage`.
 
-**Marked means present and not obviously false.** cf-tag-filter treats any `NOT_NULL` as marked and
-has a second setting for an exact value; this reads the value instead, so clearing a field to `0`
-unmarks an entity without deleting the key. The plugin writes `1` when it marks its own store tag.
+**Marked means present and not obviously false**, rather than merely present: the *value* is read,
+so clearing a field to `0` unmarks an entity without deleting the key. The plugin writes `1` when
+it marks its own store tag.
 
 **The count has to lose exactly what the list did.** These queries return `count` beside the list
 and Stash shows it as how many more there are; a filtered list under an unfiltered count is a
@@ -1306,8 +1320,8 @@ nuisance; one showing nothing because a filter threw is a broken editor. That is
 marked-id read resolves to an empty set on failure rather than rejecting.
 
 **Read once per type per page load, never refreshed.** The same cache-first bargain Stash's own UI
-makes, and the one cf-tag-filter documents: mark something in another tab and this tab picks it up
-on reload. Six polling queries against a library this size would cost more than the staleness does.
+makes: mark something in another tab and this tab picks it up on reload. Six polling queries against
+a library this size would cost more than the staleness does.
 
 **`FILTER_ARG` is a table, not a rule.** Six of the seven filter arguments are the singular of the
 plural key and `galleries` is not — `gallery_filter`. Read off `schema.graphql` on 2026-08-16,
@@ -1316,3 +1330,57 @@ along with the fact that all seven filter types carry `custom_fields`.
 **A real `Response` where there is one.** Apollo reads the body back through it, and a shim is one
 method away from being wrong about something. The plain object is for the test harness, whose fetch
 answers with exactly that shape.
+
+## 24. The hide field is nobody's loose end (1.0.0)
+
+Three things, all of them about the one custom field this plugin asks the user to *use* rather than
+merely to look at — and two of them were the same mistake in two places: the store tag is left out
+of every scan, so anything that reasons about "who carries this field" was missing the tag that
+carries it.
+
+**A rename of that field takes the setting with it.** `Rename` moved the key on every entity in
+scope and left **Hide from Add Lists — Custom Field Name** naming the old one, so the dropdown
+filter went on asking for a field nothing carried and everything the user had hidden came back into
+the add lists — silently, with no error and nothing on screen about it. `followHideRename` writes
+the setting after a rename that wrote something, and `undo()` writes it back.
+
+**It is decided against the *live* setting, never against `this.settings`.** A selection run opens
+with `DEFAULTS` — `startRun` only reads the settings for the *task* — so a user who has named the
+field something else would have had a rename of the literal `Exclude_from_add_list` move a setting
+that was never pointing at it. The check and the write are one round trip: read `configuration
+{ plugins }`, compare through `effective()` (the same "absent means the default, empty means
+cleared" rule `loadSettings` reads by, now shared rather than written twice), and send the whole map
+back because `configurePlugin` replaces it. `tests/cfbe.test.js` drives exactly that case, and the
+mutant that reads `this.settings` instead fails on it alone.
+
+**The store tag's own mark has to be moved by hand, because nothing else can reach it.** It carries
+the hide field to hide *itself* and `keep` takes it out of every scope, so a rename that skipped it
+would leave the plugin's own plumbing tag showing up in the dropdowns. `moveStoreMark` is one
+`tagUpdate` with `partial` and `remove` in one input — the same shape §6a's rename uses — and it
+only fires when the tag actually carries the old key, so it can never *add* a mark to a tag the user
+has deliberately unmarked.
+
+**And in the descriptions dialog, that field is not an orphan.** `ready()` split the descriptions
+with nothing carrying them into two lists: a true orphan, and one the store tag carries
+(`_storeTagFields`, cached beside `_storeTagId` by `readStore` — the store query already asked for
+`custom_fields`). The second is `[store tag]` in blue rather than `[orphan]` in amber, names the tag
+in the log and in the right-hand pane, draws that tag as its one carrier row, and — the part that
+actually mattered — is **not** in `this.orphans`, so **Prune** does not offer to delete the
+description of the one field this plugin seeds itself.
+
+**Why blue rather than a second amber.** Amber here means "a loose end you may want to clear"; a
+store-tag field is accounted for, and marking it the same way would make the orphan colour mean
+nothing. `.cfbe-name-store` is plugin-local, like `.cfbe-name-orphan` beside it, so
+`tests/style.test.js` correctly ignores it.
+
+**The filter row reads entity-first** (`Filter by Entity`, then `Filter by Name`, then
+`Filter by Value`), at the user's ask: that is the order a line reads, and the type filter that
+leads on a task run is the same idea one step coarser. The controls are appended in that order and
+wired afterwards by reference, so nothing else moved.
+
+**The other plugin is out of the prose.** Every mention of the CommunityScripts *Custom Field Tag
+Filter* plugin — in the `.yml` setting description, in the seeded description this plugin writes for
+its own hide field, and in four comments — is gone. It was only ever cited as the source of a
+convention, and it is a plugin with settings of its own that this one does not read, so naming it in
+a description a user reads next to *our* setting invited exactly the confusion it caused. Nothing
+about the mechanism changed.

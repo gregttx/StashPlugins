@@ -150,6 +150,23 @@ function responder(opts) {
     if (/CFBEPluginVersion/.test(q)) {
       return { data: { plugins: opts.installed ? [{ id: 'CustomFieldsBulkEditor', version: opts.installed }] : [] } };
     }
+    // The settings map is *kept*, because a rename of the hide-from-add-lists field
+    // writes it and an Undo has to find the written value there rather than the one
+    // the dialog opened with.
+    if (/configuration/.test(q)) {
+      return { data: { configuration: { plugins:
+        { CustomFieldsBulkEditor: opts.settings || {} } } } };
+    }
+    if (/CFBE_SetSetting/.test(q)) {
+      opts.settings = req.variables.input;
+      return { data: { configurePlugin: req.variables.input } };
+    }
+    // The description store tag, which carries the hide field to hide itself and is
+    // never in a dialog's scope - so its own mark has to be moved for it.
+    if (/CFBE_Store/.test(q)) {
+      return { data: { findTags: { tags: opts.storeTag
+        ? [JSON.parse(JSON.stringify(opts.storeTag))] : [] } } };
+    }
     if (/CFBE_Read/.test(q)) {
       if (opts.failRead) return { errors: [{ message: 'read boom' }] };
       const data = {};
@@ -875,6 +892,87 @@ openDialog()
         JSON.stringify(w.map((c) => c.variables.input.ids)));
       h.check('and the skip is a WARN naming the value it would have overwritten',
         notes(env.body).some((l) => /^\[WARN\].*keep me/.test(l)), notes(env.body).join(' | '));
+      return env;
+    });
+  })
+
+  // Renaming the field the **Hide from Add Lists** setting names is a rename of the
+  // setting too. Left behind, it names a field nothing carries any more - so every
+  // entity the user had hidden quietly comes back into Stash's add lists.
+  .then(() => openDialog({
+    entities: {
+      1: { id: '1', title: 'S1', custom_fields: { Exclude_from_add_list: '1' } },
+      2: { id: '2', title: 'S2', custom_fields: { Exclude_from_add_list: 'yes' } },
+    },
+    select: ['1', '2'],
+    storeTag: { id: '9', name: 'plumbing', description: '',
+      custom_fields: { cfbe_desc_store: '1', Exclude_from_add_list: '1' } },
+  }))
+  .then((env) => {
+    const settingWrites = () => env.calls.filter((c) => /CFBE_SetSetting/.test(c.query || ''));
+    const markWrites = () => env.calls.filter((c) => /CFBE_TagUpdate/.test(c.query || ''));
+    one(env.body, 'cfbe-mode').value = 'rename';
+    h.fire(one(env.body, 'cfbe-mode'), 'change');
+    one(env.body, 'cfbe-field-name').value = 'Hidden_here';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => {
+      const set = settingWrites();
+      h.check('renaming the hide-from-add-lists field moves the setting with it',
+        set.length === 1 &&
+        set[0].variables.input.c1ExcludeFromAddListField === 'Hidden_here' &&
+        set[0].variables.id === 'CustomFieldsBulkEditor',
+        JSON.stringify(set.map((c) => c.variables)));
+      h.check('and says so in the log',
+        notes(env.body).some((l) => /Hide from Add Lists.*"Hidden_here"/.test(l)),
+        notes(env.body).join(' | '));
+      // The store tag is never in a dialog's scope, so nothing else would move its mark
+      // and it would stop hiding itself the moment the setting moved.
+      const marks = markWrites();
+      h.check('the store tag\'s own mark moves too, since the scan leaves it out',
+        marks.length === 1 && marks[0].variables.input.id === '9' &&
+        marks[0].variables.input.custom_fields.partial.Hidden_here === '1' &&
+        JSON.stringify(marks[0].variables.input.custom_fields.remove) ===
+          JSON.stringify(['Exclude_from_add_list']),
+        JSON.stringify(marks.map((c) => c.variables.input)));
+      one(env.body, 'cfbe-undo').click();
+      return h.flush().then(() => { one(env.body, 'cfbe-undo').click(); return h.flush(); });
+    }).then(() => {
+      const set = settingWrites();
+      h.check('and an Undo takes the setting back with the field',
+        set.length === 2 &&
+        set[1].variables.input.c1ExcludeFromAddListField === 'Exclude_from_add_list',
+        JSON.stringify(set.map((c) => c.variables.input)));
+      h.check('with the store tag\'s mark back on the old name too',
+        markWrites().length === 2 &&
+        markWrites()[1].variables.input.custom_fields.partial.Exclude_from_add_list === '1',
+        JSON.stringify(markWrites().map((c) => c.variables.input)));
+      return env;
+    });
+  })
+
+  // The other side of it: a rename of any other field must leave the setting alone,
+  // and so must a rename of the *default* name by a user who has set another one -
+  // which a selection run cannot tell from its own copy of the settings, since it
+  // opens with the defaults rather than reading them.
+  .then(() => openDialog({
+    entities: {
+      1: { id: '1', title: 'S1', custom_fields: { Exclude_from_add_list: '1' } },
+    },
+    select: ['1'],
+    settings: { c1ExcludeFromAddListField: 'Hide_me' },
+  }))
+  .then((env) => {
+    one(env.body, 'cfbe-mode').value = 'rename';
+    h.fire(one(env.body, 'cfbe-mode'), 'change');
+    one(env.body, 'cfbe-field-name').value = 'something_else';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => {
+      h.check('a field the setting does not name leaves the setting alone',
+        !env.calls.some((c) => /CFBE_SetSetting/.test(c.query || '')),
+        env.calls.filter((c) => /CFBE_SetSetting/.test(c.query || ''))
+          .map((c) => JSON.stringify(c.variables.input)).join(' '));
       return env;
     });
   })

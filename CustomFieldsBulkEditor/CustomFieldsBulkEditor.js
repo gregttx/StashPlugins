@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.12.1';
+  var PLUGIN_VERSION = '1.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -98,8 +98,8 @@
 
   // The custom field the store tag carries so it can be found again after any rename,
   // and the value written into `c1ExcludeFromAddListField` on it. Neither is a setting:
-  // the marker is this plugin's own plumbing, and the value is what cf-tag-filter and
-  // §23's own filter both read as "marked".
+  // the marker is this plugin's own plumbing, and the value is what §23's filter reads
+  // as "marked".
   var STORE_FIELD = 'cfbe_desc_store';
   var MARK_VALUE = '1';
 
@@ -300,8 +300,7 @@
         // A cleared STRING setting is the empty string, and that is a *choice* - it is
         // how the dropdown filter is switched off. So the default applies only where
         // the key is absent, never where the user has emptied it.
-        s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k]
-          : (hasOwn(raw, k) && raw[k] != null ? String(raw[k]) : DEFAULTS[k]);
+        s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : effective(raw, k);
       }
       // Except this one: the empty string cannot name a tag, so it means the same as
       // never having set it.
@@ -341,6 +340,13 @@
     gqlRequest('mutation CFBE_SeedSettings($id: ID!, $input: Map!) ' +
       '{ configurePlugin(plugin_id: $id, input: $input) }',
     { id: PLUGIN_ID, input: input }).then(null, function () { _seeded = false; });
+  }
+
+  // The effective value of one setting, out of the raw map: the same "absent means the
+  // default, empty means cleared" rule `loadSettings` reads by, so the two can never
+  // disagree about what the plugin is actually using.
+  function effective(raw, key) {
+    return hasOwn(raw, key) && raw[key] != null ? String(raw[key]) : DEFAULTS[key];
   }
 
   // ── The description store ─────────────────────────────────────────────────
@@ -433,11 +439,13 @@
   // plumbing back to the user.
   var _descriptions = {};
   var _storeTagId = null;
+  var _storeTagFields = {};        // its own custom fields - the marker, and the hide field
 
   function readStore(settings) {
     return findStoreTag(settings).then(function (tag) {
       var parsed = tag ? parseStore(tag.description) : { version: null, hideField: '', descriptions: {} };
       _storeTagId = tag ? String(tag.id) : null;
+      _storeTagFields = (tag && tag.custom_fields) || {};
       _descriptions = parsed.broken ? {} : parsed.descriptions;
       return { tag: tag, store: parsed };
     }, function (e) {
@@ -445,6 +453,7 @@
       // dialog only wants it for tooltips, and the manage dialog reports it itself.
       _descriptions = {};
       _storeTagId = null;
+      _storeTagFields = {};
       throw e;
     });
   }
@@ -567,6 +576,8 @@
     '.cfbe-name:hover{background:#3c4f5d;}' +
     '.cfbe-name-on{background:#425a6b;}' +
     '.cfbe-name-orphan{color:#ffb648;}' +
+    // Not the orphan amber: a store-tag field is accounted for, not a loose end.
+    '.cfbe-name-store{color:#48aff0;}' +
     '.cfbe-detail{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:.35rem;}' +
     '.cfbe-detail-head{color:#a7b6c2;font-size:.85rem;}' +
     '.cfbe-text{width:100%;box-sizing:border-box;min-height:5rem;background:#1f2b33;' +
@@ -759,9 +770,8 @@
     try { return JSON.stringify(v); } catch (e) { return String(v); }
   }
 
-  // Present and not obviously false. cf-tag-filter treats any NOT_NULL as marked and
-  // offers an exact-value setting beside it; this reads the value instead, so that
-  // clearing a field to `0` unmarks the entity without having to delete the key.
+  // Present and not obviously false: the value is read rather than merely its presence,
+  // so that clearing a field to `0` unmarks the entity without having to delete the key.
   //
   // **One predicate for both places a value is read as a yes/no**: the dropdown filter
   // of §23 and the listing's "is true" mode. A custom field is a string map with no
@@ -1163,6 +1173,9 @@
     // Undo replays - a per-key delta, never a stored copy of the whole map, so it puts
     // back exactly the one field this dialog changed and touches nothing else.
     this.changes = [];
+    // `{from, to}` while the last Apply renamed the field the "Hide from Add Lists"
+    // setting names, so an Undo can take the setting back with it.
+    this.hideRename = null;
     this.applied = 0;
     this.failed = 0;
     this.undone = 0;
@@ -1233,11 +1246,8 @@
       filters.appendChild(el('span', 'cfbe-label', 'Type'));
       filters.appendChild(this.typeFilter);
     }
-    filters.appendChild(el('span', 'cfbe-label', 'Filter by Name'));
-    this.nameMode = this.select('cfbe-filter-namemode', TEXT_MODES, 'contains');
-    filters.appendChild(this.nameMode);
-    this.nameFilter = this.input('cfbe-filter-name');
-    filters.appendChild(this.nameFilter);
+    // Entity before name, at the user's ask: the filters read left to right in the
+    // order a line does - which entity, then which field on it.
     filters.appendChild(el('span', 'cfbe-label', 'Filter by Entity'));
     this.entMode = this.select('cfbe-filter-entmode', TEXT_MODES, 'contains');
     filters.appendChild(this.entMode);
@@ -1248,6 +1258,11 @@
       'as name, space, id in brackets - so "Cool Scene (42)", "Cool Scene" and "(42)" all ' +
       'find that one row.';
     filters.appendChild(this.entFilter);
+    filters.appendChild(el('span', 'cfbe-label', 'Filter by Name'));
+    this.nameMode = this.select('cfbe-filter-namemode', TEXT_MODES, 'contains');
+    filters.appendChild(this.nameMode);
+    this.nameFilter = this.input('cfbe-filter-name');
+    filters.appendChild(this.nameFilter);
     filters.appendChild(el('span', 'cfbe-label', 'Filter by Value'));
     // The mode is a control of its own rather than something typed into the box, because
     // any sentinel the box could carry is also a value somebody is allowed to have.
@@ -2207,6 +2222,74 @@
     }
   };
 
+  // Renaming the field the **Hide from Add Lists** setting names is a rename of the
+  // setting too, and nothing else here can notice it: leave the setting on the old name
+  // and the dropdown filter goes on looking for a field nothing carries any more, so
+  // every entity the user had hidden quietly comes back into the add lists. The store
+  // tag carries that field to hide *itself* and is never in this dialog's scope
+  // (`keep`), so its own mark has to be moved by hand or it un-hides itself the same way.
+  //
+  // The description filed under the old name is deliberately *not* moved here. The
+  // descriptions dialog compares the store's `hideField` with the setting and moves it
+  // on its next open - that is the code that knows how to write the store, and this one
+  // would be a second copy of it.
+  // Decided against the **live** setting rather than against `this.settings`: a
+  // selection run opens without reading the settings at all (`startRun` hands it
+  // `DEFAULTS`), so its own copy would say "Exclude_from_add_list" for a user who has
+  // named the field something else - and a rename of that default would then move a
+  // setting that was never pointing at it. Resolves to whether the setting moved, which
+  // is what an Undo needs to know.
+  //
+  // The whole map goes back because `configurePlugin` replaces `plugins.<id>` rather
+  // than merging it, the same reason `seedDefaults` sends `raw` along with its keys.
+  Run.prototype.followHideRename = function (from, to) {
+    var self = this;
+    return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
+      var raw = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
+      if (effective(raw, 'c1ExcludeFromAddListField') !== from) return false;
+      var input = {};
+      for (var k in raw) if (hasOwn(raw, k)) input[k] = raw[k];
+      input.c1ExcludeFromAddListField = to;
+      return gqlRequest('mutation CFBE_SetSetting($id: ID!, $input: Map!) ' +
+        '{ configurePlugin(plugin_id: $id, input: $input) }',
+      { id: PLUGIN_ID, input: input }).then(function () {
+        self.settings.c1ExcludeFromAddListField = to;
+        self.msg('INFO', 'The "Hide from Add Lists - Custom Field Name" setting now ' +
+          'reads "' + to + '", so what was marked with "' + from + '" stays hidden ' +
+          'from the add lists. Its description moves with it the next time "Manage ' +
+          'Custom Field Descriptions..." is opened.');
+        self.moveStoreMark(from, to);
+        return true;
+      });
+    }, function (e) {
+      self.msg('WARN', 'The field was renamed, but the "Hide from Add Lists - Custom ' +
+        'Field Name" setting could not be updated: ' +
+        (e && e.message ? e.message : String(e)) + ' Set it to "' + to + '" by hand, or ' +
+        'nothing marked with it is hidden from the add lists any more.');
+      return false;
+    });
+  };
+
+  // The store tag marks *itself* with the hide field, and is never in this dialog's
+  // scope (`keep`) - so its mark is the one the rename cannot reach on its own, and a
+  // tag left carrying the old name stops hiding itself.
+  Run.prototype.moveStoreMark = function (from, to) {
+    var self = this;
+    if (!_storeTagId || !hasOwn(_storeTagFields, from)) return;
+    var mark = {};
+    mark[to] = MARK_VALUE;
+    gqlRequest('mutation CFBE_TagUpdate($input: TagUpdateInput!) ' +
+      '{ tagUpdate(input: $input) { id } }',
+    { input: { id: _storeTagId, custom_fields: { partial: mark, remove: [from] } } })
+      .then(function () {
+        delete _storeTagFields[from];
+        _storeTagFields[to] = MARK_VALUE;
+      }, function () {
+        self.msg('WARN', 'The description store tag (' + _storeTagId + ') still carries "' +
+          from + '" rather than "' + to + '", so it may start showing up in the add lists.');
+      });
+  };
+
   Run.prototype.apply = function () {
     var self = this;
     var planned = this.plan();
@@ -2257,6 +2340,13 @@
 
     this.runWrites(batches, label).then(function (ok) {
       self.applied = ok;
+      // Only once something was actually written: a rename that failed everywhere must
+      // not move the setting off the name the library still carries.
+      if (ok && planned.mode === 'rename' && planned.from) {
+        self.followHideRename(planned.from, planned.name).then(function (moved) {
+          if (moved) self.hideRename = { from: planned.from, to: planned.name };
+        });
+      }
       // The local copy is moved with the server's, so Undo compares against what the
       // dialog actually wrote rather than against the map it read at open.
       planned.changes.forEach(function (c) {
@@ -2319,6 +2409,12 @@
     this.renderProgress();
     this.runWrites(batches, 'Custom Fields (undo)').then(function (ok) {
       self.undone = ok;
+      // The setting followed the rename out; it follows the undo back.
+      if (ok && self.hideRename) {
+        var h = self.hideRename;
+        self.hideRename = null;
+        self.followHideRename(h.to, h.from);
+      }
       self.changes.forEach(function (c) {
         if (c.to) delete c.entity.fields[c.to];
         if (c.had) c.entity.fields[c.name] = c.before;
@@ -2542,7 +2638,9 @@
     head.appendChild(el('div', 'cfbe-legend',
       'Every custom field in the library is on the left, with how many entities carry ' +
       'it; pick one to write what it means. A field marked [orphan] has a description ' +
-      'but no entity left carrying it. The descriptions live in the description of one ' +
+      'but no entity left carrying it; one marked [store tag] is carried only by the ' +
+      'tag the descriptions themselves live on, which this scan leaves out. ' +
+      'The descriptions live in the description of one ' +
       'tag, and nothing is written until you press Apply. Counts are written with ' +
       'prefix "x".'));
     this.noteEl = el('div', 'cfbe-note', '');
@@ -2719,7 +2817,7 @@
     if (hide && !hasOwn(this.desc, hide)) {
       this.desc[hide] = 'Set on an entity to hide it from Stash\'s add/select ' +
         'dropdowns. Any value other than empty, 0 or false counts as set. Read by ' +
-        PLUGIN_NAME + ', and by the Custom Field Tag Filter plugin for tags.';
+        PLUGIN_NAME + '.';
       this.msg('INFO', 'Seeded a description for "' + hide + '", the field named by ' +
         'this plugin\'s "Hide from Add Lists" setting. Edit it like any other; Apply ' +
         'writes it.');
@@ -2752,12 +2850,21 @@
     var found = [];
     for (var k in this.fields) { if (hasOwn(this.fields, k)) found.push(k); }
     found.sort();
+    // The store tag is left out of the scan (`keep`), so a field only *it* carries -
+    // the hide-from-add-lists field it marks itself with - has an entity behind it that
+    // this dialog cannot see. Calling that an orphan is wrong twice: it reads as
+    // "nothing uses this any more", and Prune would then offer to drop the description
+    // of the one field this plugin asks the user to use.
+    var storeOnly = [];
     var orphans = [];
     for (var d in this.desc) {
-      if (hasOwn(this.desc, d) && !hasOwn(this.fields, d)) orphans.push(d);
+      if (!hasOwn(this.desc, d) || hasOwn(this.fields, d)) continue;
+      if (hasOwn(_storeTagFields, d)) storeOnly.push(d); else orphans.push(d);
     }
+    storeOnly.sort();
     orphans.sort();
-    this.names = found.concat(orphans);
+    this.names = found.concat(storeOnly, orphans);
+    this.storeOnly = storeOnly;
     this.orphans = orphans;
 
     this.msg('INFO', plural(found.length, 'custom field') + ' found across ' +
@@ -2765,6 +2872,14 @@
       plural(this.described(found), 'of them', 'of them') + ' described' +
       (orphans.length ? ', and ' + plural(orphans.length, 'description') +
         ' with no entity left carrying the field' : '') + '.');
+    if (storeOnly.length) {
+      this.msg('INFO', plural(storeOnly.length, 'field') + ' marked [store tag]: ' +
+        storeOnly.join(', ') + '. Nothing else in the library carries ' +
+        (storeOnly.length === 1 ? 'it' : 'them') + ', but the description store tag "' +
+        (this.tag ? this.tag.name : '') + '" does - and this scan leaves that tag out. ' +
+        'Not an orphan, and Prune leaves ' + (storeOnly.length === 1 ? 'it' : 'them') +
+        ' alone.');
+    }
 
     // A rename of the hide-field setting since the store was last written. The
     // description follows it here, in the working copy; the entities carrying the old
@@ -2805,17 +2920,21 @@
     var self = this;
     while (this.namesEl.firstChild) this.namesEl.removeChild(this.namesEl.firstChild);
     this.names.forEach(function (name) {
-      var orphan = !hasOwn(self.fields, name);
+      var store = !hasOwn(self.fields, name) && hasOwn(_storeTagFields, name);
+      var orphan = !hasOwn(self.fields, name) && !store;
       var has = String(self.desc[name] || '').replace(/^\s+|\s+$/g, '') !== '';
       var changed = String(self.desc[name] || '') !== String(self.base[name] || '');
       var b = el('button', 'cfbe-name' + (self.sel === name ? ' cfbe-name-on' : '') +
-        (orphan ? ' cfbe-name-orphan' : ''),
+        (orphan ? ' cfbe-name-orphan' : store ? ' cfbe-name-store' : ''),
       (changed ? '* ' : has ? '• ' : '  ') + name +
-        (orphan ? ' [orphan]' : ' x' + self.fields[name].length));
+        (orphan ? ' [orphan]' : store ? ' [store tag]' : ' x' + self.fields[name].length));
       b.type = 'button';
       b.title = orphan
         ? 'Described, but no entity in this scan carries it'
-        : plural(self.fields[name].length, 'entity', 'entities') + ' carry this field';
+        : store
+          ? 'Carried by the description store tag itself, which this scan leaves out - ' +
+            'no other entity carries it'
+          : plural(self.fields[name].length, 'entity', 'entities') + ' carry this field';
       b.addEventListener('click', function () { self.pick(name); });
       self.namesEl.appendChild(b);
     });
@@ -2827,13 +2946,27 @@
     this.textEl.disabled = !this.editable();
     this.sizeText();
     var users = this.fields[name] || [];
+    // A field only the store tag carries has one carrier this scan never read, so the
+    // pane names it and draws it as a row of its own rather than reading as an orphan.
+    var store = !users.length && hasOwn(_storeTagFields, name) && this.tag;
     this.detailEl.textContent = DESC_HEAD + ' of custom field "' + name + '"';
     this.usersHead.textContent = USERS_HEAD + ' - ' + (users.length
       ? plural(users.length, 'entity', 'entities') + ' carry "' + name + '"'
-      : 'no entity in this scan carries "' + name +
-        '" (orphan). Clearing the box above removes it.');
+      : store
+        ? 'only the description store tag carries "' + name + '", to hide itself from ' +
+          'the add lists. This plugin\'s own plumbing, and left out of the scan.'
+        : 'no entity in this scan carries "' + name +
+          '" (orphan). Clearing the box above removes it.');
     while (this.usersEl.firstChild) this.usersEl.removeChild(this.usersEl.firstChild);
     var self = this;
+    if (store) {
+      var row = el('div', 'cfbe-entry');
+      row.appendChild(textNode(ENTITIES.tags.label + ' '));
+      row.appendChild(entityPill(ENTITIES.tags, this.tag.id, this.tag.name));
+      row.appendChild(textNode(': '));
+      row.appendChild(copyPill(valueText(_storeTagFields[name])));
+      this.usersEl.appendChild(row);
+    }
     users.slice(0, LIST_RENDER_CAP).forEach(function (e) {
       var row = el('div', 'cfbe-entry');
       row.appendChild(textNode(e.spec.label + ' '));
@@ -3450,10 +3583,8 @@
   // something else. It is still on its list page, still on the entities that already
   // have it, and still in the API: this hides it from being *added*, nothing more.
   //
-  // The idea and the marker convention are the Custom Field Tag Filter plugin's
-  // (CommunityScripts), which does this for tags alone; this covers the other five for
-  // the same reason it exists at all - a plumbing entity is plumbing whatever its type.
-  // Running both is harmless: a tag hidden twice is hidden.
+  // All six types rather than tags alone, for the reason the feature exists at all: a
+  // plumbing entity is plumbing whatever its type.
   //
   // **This is what made the plugin wrap `window.fetch`**, which §7 of its CLAUDE.md
   // said it never would. It still registers no `respecters` entry: it filters what a
@@ -3476,8 +3607,8 @@
   }
 
   // Lazily, once per type per page load, and never refreshed - the same cache-first
-  // bargain Stash's own UI makes with its tag list, and the same one cf-tag-filter
-  // documents: mark something in another tab and this tab picks it up on reload.
+  // bargain Stash's own UI makes with its tag list: mark something in another tab and
+  // this tab picks it up on reload.
   // Polling six queries against a library this size to catch a rare edit would cost
   // more than it saves.
   function markedIds(spec, field) {

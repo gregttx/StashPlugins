@@ -508,6 +508,50 @@ openDesc()
     });
   })
 
+  // ── A field only the store tag carries is not an orphan ──────────────────
+  //
+  // The store tag marks *itself* with the hide-from-add-lists field, and `keep` takes
+  // that tag out of every scan - so the one field this plugin asks the user to use read
+  // as "no entity carries this any more", and Prune offered to drop its description.
+  .then(() => openDesc({
+    library: withStore(Object.assign({}, STORE_TAG, {
+      custom_fields: { [STORE_FIELD]: '1', [HIDE]: '1' },
+      description: blob({ version: '0.8.0', hideField: HIDE,
+        descriptions: { [HIDE]: 'Hides it from the add lists.',
+          gone: 'A field nothing carries.' } }),
+    })),
+  }))
+  .then((env) => {
+    h.check('a field only the store tag carries is marked [store tag], not [orphan]',
+      names(env.body).some((n) => new RegExp(HIDE + ' \\[store tag\\]').test(n)) &&
+      !names(env.body).some((n) => new RegExp(HIDE + ' \\[orphan\\]').test(n)),
+      names(env.body).join(' | '));
+    h.check('a description nothing at all carries is still an orphan',
+      names(env.body).some((n) => /gone \[orphan\]/.test(n)),
+      names(env.body).join(' | '));
+    h.check('and the log names the tag that carries it',
+      notes(env.body).some((l) => /marked \[store tag\]/.test(l) && /plumbing/.test(l)),
+      notes(env.body).join(' | '));
+
+    pick(env.body, HIDE).click();
+    const head = byClass(env.body, 'cfbe-detail-head').map((n) => n.textContent).join(' | ');
+    h.check('picking it names the store tag rather than calling it an orphan',
+      /only the description store tag carries/.test(head) && !/orphan/.test(head), head);
+    h.check('and the pane lists that tag as its one carrier',
+      byClass(env.body, 'cfbe-users').concat(byClass(env.body, 'cfbe-entry'))
+        .some((n) => /plumbing/.test(n.textContent)),
+      byClass(env.body, 'cfbe-users').map((n) => n.textContent).join(' | '));
+
+    return press(env, 'cfbe-prune').then(() => press(env, 'cfbe-apply')).then(() => {
+      const sent = sentStore(env.calls);
+      h.check('Prune drops the orphan and leaves the store tag\'s field alone',
+        !Object.prototype.hasOwnProperty.call(sent.descriptions, 'gone') &&
+        sent.descriptions[HIDE] === 'Hides it from the add lists.',
+        JSON.stringify(sent.descriptions));
+      return env;
+    });
+  })
+
   // ── The store tag stays out of the bulk dialog too ───────────────────────
   .then(() => openDesc({ task: BULK_TASK }))
   .then((env) => {

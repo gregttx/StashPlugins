@@ -83,7 +83,11 @@ const CHROME = ['.backdrop', '.modal', '.head', '.title', '.warn', '.note', '.le
 // stylesheet, four copies of it. Required of every plugin here - every one has a
 // description, whether or not it has anything to configure.
 const DESCRIPTION = ['.own-group .sub-heading',
-  '.desc-collapsed .p:not(:first-child)', '.desc-toggle'];
+  '.desc-collapsed .p:not(:first-child)', '.desc-toggle',
+  // The stale-script banner sits in the same group header. Every plugin here is
+  // served from the same cache and goes stale the same way, so a plugin without one
+  // is a plugin whose next release lands silently.
+  '.stale'];
 
 // The per-*setting* tooltip: one box per setting row, opened from the mark, the
 // name or the summary. Only a plugin that has setting rows can have these.

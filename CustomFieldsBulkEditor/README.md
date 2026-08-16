@@ -14,6 +14,15 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 1.2.0 — a stale script says so on the settings page
+>
+> **When your browser is still running an older copy of this plugin, its settings group now says
+> so in red.** Stash serves plugin scripts with caching on, so an update can leave the new version
+> installed on the server while the page in front of you goes on running the old one — with nothing
+> on screen to say which you have. The banner names both versions and the fix: **Ctrl+Shift+R**
+> (⌘+Shift+R on a Mac). It sits at the top of the group, above the description, so it shows even
+> with the group collapsed, and it disappears once the two agree.
+>
 > ## 1.1.1 — the store-tag row counts its carrier
 >
 > **`[store tag]` now carries a count like every other name in the list.** It reads

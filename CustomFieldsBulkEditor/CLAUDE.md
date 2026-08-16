@@ -5,14 +5,36 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0, all of 1.0.0 and all of
-1.1.0 are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
+**0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0, all of 1.0.0, all of
+1.1.0 and 1.2.0's stale-script banner are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
 filters, §6a's Rename, §6b's scope switch, §24's three and §25's. Every one of them came from live use of
 the dialogs (the shrinking window was reported, not deduced; so was the description box being too
 small for what it holds, so was "Overwrite" reading as if it cleared an entity's whole set of
 fields, and so was the hide field reading as an orphan), but nothing in any of the fixes has been
-clicked: it is `tests/cfbe.test.js` at 210 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
+clicked: it is `tests/cfbe.test.js` at 217 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
+
+**1.2.0 tells the user the script is stale, where they can see it.** Stash serves plugin JS with
+caching on, so a browser can go on running the old file after an update with nothing on screen
+saying so - and the settings heading is the one place the two numbers meet, since Stash builds it
+as `${name} (${version})` from the **manifest**, read fresh from the server, while
+`PLUGIN_VERSION` is what the browser actually loaded. `ensureStaleNotice` compares them on the
+settings tick and puts a red banner in this plugin's own group when they disagree, naming both
+numbers and **Ctrl+Shift+R**. All four plugins gained it in one release, byte-identically, like
+every other shared mechanism here; the repo-level notes are in the siblings' files and the rules are
+the same. Two things are this plugin's own:
+
+- **The heading is handed back by `ownParts` rather than re-found.** This is the one plugin whose
+  only route into its own group *is* that heading (§10), so re-running the fragile half to read a
+  number off it would be paying the risk twice. `ownParts` now returns `heading` beside `group` and
+  `sub`; everything else reads the same.
+- **It costs no query**, which matters here more than in the siblings: `tests/cfbe.test.js` pins
+  this plugin's settings page as issuing none at all, and that check would have caught a version
+  read that went to the server.
+
+`checkVersion`'s dialog note gained the same key at the same version - the other three already said
+"if this warning comes back, hard-refresh with Ctrl+Shift+R" and this one stopped at "reload the
+page", which is the sentence a cached script survives.
 
 **1.0.0 is the user's call, not this file's.** The repo rule is that the major digit says a plugin
 has been used in a real Stash and that the unverified list above is empty; the first half is true —
@@ -21,7 +43,7 @@ second is not. The bump was asked for explicitly, so it is the user's claim abou
 instance rather than a conclusion drawn here. What that changes going forward: a patch per fix, a
 minor per delivered capability, and this paragraph goes when the list above does.
 
-**Status: 1.1.0 — §22–§23 are being used, and the first reports are in.** Everything those two
+**Status: 1.2.0 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box

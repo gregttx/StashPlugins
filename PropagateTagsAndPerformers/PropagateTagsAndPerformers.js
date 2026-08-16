@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '1.2.2';
+  var PLUGIN_VERSION = '1.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -692,6 +692,9 @@
     '.ptp2re-line{white-space:pre-wrap;word-break:break-word;}' +
     // The log's own line kinds, which the siblings do not share: this plugin adds
     // both tags and performers, so ADD alone would not say which.
+    '.ptp2re-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
+    'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
+    'font-weight:600;}' +
     '.ptp2re-ERROR{color:#ff7373;} .ptp2re-WARN{color:#ffb648;} .ptp2re-TAG{color:#84d68a;}' +
     '.ptp2re-PERF{color:#7cc4ff;} .ptp2re-INFO{color:#a7b6c2;}' +
     '.ptp2re-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
@@ -3479,6 +3482,64 @@
   //
   // Clicking the link does not fold the group: SettingGroup's onDivClick walks up
   // from the event target and returns early for `a` and `button`.
+  // ── The stale-script banner ───────────────────────────────────────────────
+  //
+  // Stash serves plugin JS with caching on, so a browser holding the old file goes
+  // on running it after an update and nothing on screen says so. The settings
+  // heading is where the two numbers meet: Stash builds it as `${name} (${version})`
+  // from the **manifest**, read fresh from the server, while `PLUGIN_VERSION` is what
+  // this script actually is. A disagreement means the page is running code the
+  // manifest has already replaced.
+  //
+  // No query for it - the number is on the page already, and this tick runs once a
+  // second. `installedVersion` asks the server the same question, which is right for
+  // a dialog that opens once and wrong for a timer.
+  //
+  // It catches only what a version bump makes visible; editing the file without
+  // bumping leaves both numbers equal, which is the practical reason this repo bumps
+  // the patch digit on every change.
+  var STALE_ID = 'ptp2re-stale-notice';
+
+  // The group's own h3, not a search of the page: the header row comes before the
+  // setting rows, each of which has an h3 too, and the group is already ours. That
+  // also keeps this working here, where the group is found by setting id rather than
+  // by the heading text.
+  function installedFromHeading(group) {
+    var h3 = group && group.querySelector ? group.querySelector('h3') : null;
+    var t = h3 ? String(h3.textContent == null ? '' : h3.textContent).trim() : '';
+    var m = /\(([^()]+)\)$/.exec(t);
+    return m ? m[1].replace(/^\s+|\s+$/g, '') : null;
+  }
+
+  // Above the description rather than under it: it is the first thing in the group
+  // worth reading, and it leaves the README link's slot alone. Both sit in the group
+  // header, outside Stash's <Collapse>, so a collapsed group still shows the banner.
+  function staleSlot(group) {
+    var sub = byClass(group, 'sub-heading');
+    if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub };
+    return { parent: group, before: group.firstChild };
+  }
+
+  function ensureStaleNotice(group) {
+    var installed = installedFromHeading(group);
+    var node = document.getElementById(STALE_ID);
+    // No parenthesised version on the heading means Settings → Tasks, which heads its
+    // group with the bare name - not a mismatch, and nothing to say.
+    if (!installed || installed === PLUGIN_VERSION) {
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      return;
+    }
+    var slot = staleSlot(group);
+    if (node && node.parentNode === slot.parent) return;
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+    var box = el('div', 'ptp2re-stale', '⚠ This page is still running ' +
+      PLUGIN_SHORT_NAME + ' ' + PLUGIN_VERSION + ', but ' + installed + ' is installed. ' +
+      'Press Ctrl+Shift+R (⌘+Shift+R on a Mac) to reload it: your browser has cached ' +
+      'the older script, and everything this plugin does until then is that older code.');
+    box.id = STALE_ID;
+    slot.parent.insertBefore(box, slot.before);
+  }
+
   function ensureReadmeLink() {
     var group = ownSettingGroup();
     if (!group) return;
@@ -3492,6 +3553,7 @@
     splitDescription(group);
     collapseDescription(group);   // after the split: it counts the .ptp2re-p divs
     tipSettings();
+    ensureStaleNotice(group);     // before the early return: the link outlives it
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'ptp2re-readme', 'PropagateTagsAndPerformers/README.md');
     link.id = README_LINK_ID;

@@ -5,8 +5,34 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.2.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.3.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.3.0 tells the user the script is stale, where they can see it.** Stash serves plugin JS with
+caching on, so a browser can go on running the old file after an update with nothing on screen
+saying so - and the settings heading is the one place the two numbers meet, since Stash builds it
+as `${name} (${version})` from the **manifest**, read fresh from the server, while
+`PLUGIN_VERSION` is what the browser actually loaded. `ensureStaleNotice` compares them on the
+settings tick and puts a red banner in this plugin's own group when they disagree, naming both
+numbers and **Ctrl+Shift+R**.
+
+Four things it depends on, all four duplicated byte-identically across the four plugins like every
+other shared mechanism here:
+
+- **No query.** The number is already on the page, and this tick runs once a second.
+  `installedVersion` asks the server the same question, which is right for a dialog that opens once
+  and wrong for a timer - and `CustomFieldsBulkEditor`'s settings page is pinned by a test as
+  issuing no queries at all.
+- **The heading is read from the group already found**, never searched for across the page: the
+  header row precedes the setting rows, which have h3s of their own, and a page carrying several
+  plugins' groups would otherwise offer a stranger's version number.
+- **Unknown is not a mismatch.** Settings → Tasks heads its group with the bare name and no
+  version at all, so no parenthesised number means silence rather than a guess.
+- **Above the description, inside the group header** - which is outside Stash's `<Collapse>`, so a
+  collapsed group still shows it, and the README link's slot is untouched.
+
+It catches only what a version bump makes visible; editing a file without bumping it leaves both
+numbers equal and this check blind, which is the practical argument for the repo's patch-digit rule.
 
 **2.2.3 is the last of the anchor archaeology.** "Spacing settled over 1.15.2 to 1.15.9" was the
 one paragraph of it whose *body* described current behaviour, so it was rewritten rather than cut:

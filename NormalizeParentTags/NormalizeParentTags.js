@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '2.4.0';
+  var PLUGIN_VERSION = '2.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1012,6 +1012,9 @@
     '.npt-i-hint{color:#7d8f9c;}' +
     '.npt-conflict{margin:.5rem 0;padding:.5rem .75rem;border-left:3px solid #ffb648;' +
     'background:rgba(255,182,72,.12);color:#ffb648;font-size:.9rem;line-height:1.4;}' +
+    '.npt-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
+    'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
+    'font-weight:600;}' +
     // Stash's own .sub-heading is white-space: normal, so the newlines in this
     // plugin's description would collapse into one paragraph. Scoped to the group we
     // marked, never to .sub-heading at large: another plugin's description is not
@@ -3163,6 +3166,64 @@
     sub.appendChild(btn);
   }
 
+  // ── The stale-script banner ───────────────────────────────────────────────
+  //
+  // Stash serves plugin JS with caching on, so a browser holding the old file goes
+  // on running it after an update and nothing on screen says so. The settings
+  // heading is where the two numbers meet: Stash builds it as `${name} (${version})`
+  // from the **manifest**, read fresh from the server, while `PLUGIN_VERSION` is what
+  // this script actually is. A disagreement means the page is running code the
+  // manifest has already replaced.
+  //
+  // No query for it - the number is on the page already, and this tick runs once a
+  // second. `installedVersion` asks the server the same question, which is right for
+  // a dialog that opens once and wrong for a timer.
+  //
+  // It catches only what a version bump makes visible; editing the file without
+  // bumping leaves both numbers equal, which is the practical reason this repo bumps
+  // the patch digit on every change.
+  var STALE_ID = 'npt-stale-notice';
+
+  // The group's own h3, not a search of the page: the header row comes before the
+  // setting rows, each of which has an h3 too, and the group is already ours. That
+  // also keeps this working in the plugins that find their group by setting id and
+  // have no `headingIsOurs` at all.
+  function installedFromHeading(group) {
+    var h3 = group && group.querySelector ? group.querySelector('h3') : null;
+    var t = h3 ? String(h3.textContent == null ? '' : h3.textContent).trim() : '';
+    var m = /\(([^()]+)\)$/.exec(t);
+    return m ? m[1].replace(/^\s+|\s+$/g, '') : null;
+  }
+
+  // Above the description rather than under it: it is the first thing in the group
+  // worth reading, and it leaves the README link's slot alone. Both sit in the group
+  // header, outside Stash's <Collapse>, so a collapsed group still shows the banner.
+  function staleSlot(group) {
+    var sub = byClass(group, 'sub-heading');
+    if (sub && sub.parentNode) return { parent: sub.parentNode, before: sub };
+    return { parent: group, before: group.firstChild };
+  }
+
+  function ensureStaleNotice(group) {
+    var installed = installedFromHeading(group);
+    var node = document.getElementById(STALE_ID);
+    // No parenthesised version on the heading means Settings → Tasks, which heads its
+    // group with the bare name - not a mismatch, and nothing to say.
+    if (!installed || installed === PLUGIN_VERSION) {
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      return;
+    }
+    var slot = staleSlot(group);
+    if (node && node.parentNode === slot.parent) return;
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+    var box = el('div', 'npt-stale', '⚠ This page is still running ' +
+      PLUGIN_SHORT_NAME + ' ' + PLUGIN_VERSION + ', but ' + installed + ' is installed. ' +
+      'Press Ctrl+Shift+R (⌘+Shift+R on a Mac) to reload it: your browser has cached ' +
+      'the older script, and everything this plugin does until then is that older code.');
+    box.id = STALE_ID;
+    slot.parent.insertBefore(box, slot.before);
+  }
+
   // Re-added rather than tracked: React re-renders this panel whenever a setting
   // changes and drops anything we put in it, so the tick puts it back. Keyed on the
   // id, so a re-render that kept it does not produce a second one.
@@ -3179,6 +3240,7 @@
     splitDescription(group);
     collapseDescription(group);   // after the split: it counts the .npt-p divs
     tipSettings();
+    ensureStaleNotice(group);     // before the early return: the link outlives it
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'npt-readme', 'NormalizeParentTags/README.md');
     link.id = README_LINK_ID;

@@ -1,5 +1,14 @@
 # GTTx Normalize Parent Tags
 
+> ## 2.5.0 — a stale script says so on the settings page
+>
+> **When your browser is still running an older copy of this plugin, its settings group now says
+> so in red.** Stash serves plugin scripts with caching on, so an update can leave the new version
+> installed on the server while the page in front of you goes on running the old one — with nothing
+> on screen to say which you have. The banner names both versions and the fix: **Ctrl+Shift+R**
+> (⌘+Shift+R on a Mac). It sits at the top of the group, above the description, so it shows even
+> with the group collapsed, and it disappears once the two agree.
+>
 > ## 2.4.0 — the hierarchy viewer links out to a tag
 >
 > The name at the top of the inspector panel is now a **link to that tag's own page**, opening in a

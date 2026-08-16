@@ -16,6 +16,12 @@ const h = require('./npt-harness');
 const SRC = process.env.SRC || path.join(
   __dirname, '..', 'CustomFieldsBulkEditor', 'CustomFieldsBulkEditor.js');
 
+// What the script under test says it is. Read off the source rather than off the
+// manifest, because the stale-script banner is about the two disagreeing - a check
+// that took the manifest's number would be comparing the manifest with itself.
+const SCRIPT_VERSION = (/var PLUGIN_VERSION = '([^']+)'/
+  .exec(require('fs').readFileSync(SRC, 'utf8')) || [])[1];
+
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
 // The "..." dropdown as react-bootstrap mounts it while open: a toggle carrying the
@@ -1571,6 +1577,49 @@ openDialog()
       sub.childNodes.filter((n) => h.hasClass(n, 'cfbe-p')).length === 3);
     h.check('and the settings page issues no queries at all', env.calls.length === 0,
       env.calls.map((c) => (c.query || '').slice(0, 30)).join(' | '));
+
+    // The heading's version comes from the manifest, which Stash reads fresh off the
+    // server; PLUGIN_VERSION is what the browser actually loaded. The fixture heading
+    // says 0.1.0, so this page is running a script the manifest has replaced - which
+    // is exactly the state a cached script leaves a user in, and the state nothing on
+    // screen used to mention.
+    const stale = env.body.descendants().filter((n) => n.id === 'cfbe-stale-notice')[0];
+    h.check('a stale script is called out in the settings group', !!stale,
+      env.body.descendants().filter((n) => h.hasClass(n, 'cfbe-stale')).length + ' banners');
+    h.check('the banner names both versions and the key that fixes it', !!stale &&
+      /0\.1\.0/.test(stale.textContent) && /Ctrl\+Shift\+R/.test(stale.textContent) &&
+      stale.textContent.indexOf(SCRIPT_VERSION) !== -1, stale && stale.textContent);
+    // Above the description, and in the group *header* - which is outside Stash's
+    // <Collapse>, so a collapsed group still shows it.
+    h.check('and it sits above the description, inside the group header',
+      !!stale && stale.parentNode === sub.parentNode &&
+      sub.parentNode.childNodes.indexOf(stale) < sub.parentNode.childNodes.indexOf(sub),
+      stale && (stale.parentNode.childNodes.map((n) => n.className || n.tagName).join(' ')));
+    h.check('an idle tick adds no second banner',
+      env.body.descendants().filter((n) => n.id === 'cfbe-stale-notice').length === 1);
+    h.check('and it still cost no query', env.calls.length === 0,
+      env.calls.map((c) => (c.query || '').slice(0, 30)).join(' | '));
+  })
+
+  // The other half of that: a heading whose version is the one running says nothing
+  // at all. Without this the banner would pass by being unconditional, which is worse
+  // than not having it - a warning that is always on is one nobody reads.
+  .then(() => {
+    const env = start({ pathname: '/settings?tab=plugins' });
+    mountSettingGroup(env.body, 'GTTx Custom Fields Bulk Editor (' + SCRIPT_VERSION + ')',
+      'Summary line.\n\nSecond paragraph.');
+    env.tick();
+    h.check('a heading on the running version raises no banner',
+      env.body.descendants().filter((n) => n.id === 'cfbe-stale-notice').length === 0);
+
+    // Settings → Tasks heads its group with the bare name and no version. Unknown is
+    // not a mismatch: the banner has to stay quiet rather than guess.
+    const env2 = start({ pathname: '/settings?tab=tasks' });
+    mountSettingGroup(env2.body, 'GTTx Custom Fields Bulk Editor',
+      'Summary line.\n\nSecond paragraph.');
+    env2.tick();
+    h.check('nor does a heading carrying no version at all',
+      env2.body.descendants().filter((n) => n.id === 'cfbe-stale-notice').length === 0);
   })
 
   // The per-setting hover box, which this plugin has had a use for only since 0.7.0

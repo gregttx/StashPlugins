@@ -891,6 +891,19 @@ Promise.resolve()
       h.check('the description is rebuilt as paragraph elements',
         sub.childNodes.filter((n) => h.hasClass(n, 'cpt2s-p')).length === 2,
         String(sub.childNodes.length) + ' children');
+
+      // The heading says 1.9.3 and the script is whatever it is: a cached script the
+      // manifest has already replaced, which is the state this banner exists for.
+      const stale = env.ctx.document.getElementById('cpt2s-stale-notice');
+      h.check('a stale script is called out in the settings group', !!stale,
+        stale && stale.textContent);
+      h.check('naming the installed version and the key that fixes it', !!stale &&
+        /1\.9\.3/.test(stale.textContent) && /Ctrl\+Shift\+R/.test(stale.textContent),
+        stale && stale.textContent);
+      h.check('above the description, in the header that survives the collapse',
+        !!stale && stale.parentNode === headBox &&
+        headBox.childNodes.indexOf(stale) < headBox.childNodes.indexOf(sub),
+        stale && String(headBox.childNodes.indexOf(stale)));
       // ── 1.11.0: the description collapses, the settings hover ────────────
       //
       // Same feature as NormalizeParentTags 1.7.5, and `style.test.js` compares the

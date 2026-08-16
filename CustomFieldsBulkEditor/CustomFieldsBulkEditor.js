@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '1.1.1';
+  var PLUGIN_VERSION = '1.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -485,6 +485,9 @@
     '.cfbe-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;font-size:.8rem;' +
     'line-height:1.35;min-height:14rem;}' +
     '.cfbe-line{white-space:pre-wrap;word-break:break-word;}' +
+    '.cfbe-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
+    'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
+    'font-weight:600;}' +
     '.cfbe-ERROR{color:#ff7373;} .cfbe-WARN{color:#ffb648;} .cfbe-INFO{color:#a7b6c2;}' +
     '.cfbe-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
     'flex-wrap:wrap;align-items:center;}' +
@@ -1611,7 +1614,8 @@
       }
       self.stale = true;
       self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but Stash has ' +
-        installed + ' installed. Reload the page before applying anything.');
+        installed + ' installed. Reload the page before applying anything; if this warning ' +
+        'comes back, hard-refresh with Ctrl+Shift+R.');
       self.syncApply();
     });
   };
@@ -3450,7 +3454,7 @@
         if (!header && hasClass(node, 'setting')) header = node;
         if (!hasClass(node, 'setting-group')) continue;
         var sub = header ? byClass(header, 'sub-heading') : null;
-        if (sub) return { group: node, sub: sub };
+        if (sub) return { group: node, sub: sub, heading: heads[i] };
         break;    // our heading, but no description beside it: keep looking
       }
     }
@@ -3618,6 +3622,60 @@
     }
   }
 
+  // ── The stale-script banner ───────────────────────────────────────────────
+  //
+  // Stash serves plugin JS with caching on, so a browser holding the old file goes
+  // on running it after an update and nothing on screen says so. The settings
+  // heading is where the two numbers meet: Stash builds it as `${name} (${version})`
+  // from the **manifest**, read fresh from the server, while `PLUGIN_VERSION` is what
+  // this script actually is. A disagreement means the page is running code the
+  // manifest has already replaced.
+  //
+  // No query for it - the number is on the page already, and this tick runs once a
+  // second. `installedVersion` asks the server the same question, which is right for
+  // a dialog that opens once and wrong for a timer.
+  //
+  // It catches only what a version bump makes visible; editing the file without
+  // bumping leaves both numbers equal, which is the practical reason this repo bumps
+  // the patch digit on every change.
+  var STALE_ID = 'cfbe-stale-notice';
+
+  // The heading `ownParts` already matched, handed straight back rather than searched
+  // for again - this is the one plugin here whose only route into its own group is
+  // that heading, so re-finding it would be re-running the fragile half for nothing.
+  function installedFromHeading(heading) {
+    var t = heading ? String(heading.textContent == null ? '' : heading.textContent).trim() : '';
+    var m = /\(([^()]+)\)$/.exec(t);
+    return m ? m[1].replace(/^\s+|\s+$/g, '') : null;
+  }
+
+  // Above the description rather than under it: it is the first thing in the group
+  // worth reading, and it leaves the README link's slot alone. Both sit in the group
+  // header, outside Stash's <Collapse>, so a collapsed group still shows the banner.
+  function staleSlot(sub) {
+    return { parent: sub.parentNode, before: sub };
+  }
+
+  function ensureStaleNotice(parts) {
+    var installed = installedFromHeading(parts.heading);
+    var node = document.getElementById(STALE_ID);
+    // No parenthesised version on the heading means Settings → Tasks, which heads its
+    // group with the bare name - not a mismatch, and nothing to say.
+    if (!installed || installed === PLUGIN_VERSION) {
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      return;
+    }
+    var slot = staleSlot(parts.sub);
+    if (node && node.parentNode === slot.parent) return;
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+    var box = el('div', 'cfbe-stale', '⚠ This page is still running ' +
+      PLUGIN_SHORT_NAME + ' ' + PLUGIN_VERSION + ', but ' + installed + ' is installed. ' +
+      'Press Ctrl+Shift+R (⌘+Shift+R on a Mac) to reload it: your browser has cached ' +
+      'the older script, and everything this plugin does until then is that older code.');
+    box.id = STALE_ID;
+    slot.parent.insertBefore(box, slot.before);
+  }
+
   // Re-added rather than tracked: React re-renders this panel and drops anything we
   // put in it. Keyed on the id, so a re-render that kept it makes no second one.
   function settingsTick() {
@@ -3631,6 +3689,7 @@
     splitDescription(parts.sub);
     collapseDescription(parts.sub);   // after the split: it counts the .cfbe-p divs
     tipSettings();                    // the setting rows, which are not in the header
+    ensureStaleNotice(parts);         // before the early return: the link outlives it
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'cfbe-readme', 'CustomFieldsBulkEditor/README.md');
     link.id = README_LINK_ID;

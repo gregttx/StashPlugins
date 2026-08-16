@@ -611,6 +611,20 @@ Promise.resolve()
     h.check('the group is marked as ours so the scoped CSS applies',
       h.hasClass(group, PREFIX + '-own-group'), group.className);
 
+    // The heading's version is the manifest's, read fresh from the server; the script
+    // is whatever the browser had cached. 0.1.0 against anything later is exactly the
+    // state a cached script leaves a user in, and nothing on screen used to say so.
+    const stale = env.ctx.document.getElementById(PREFIX + '-stale-notice');
+    h.check('a stale script is called out in the settings group', !!stale,
+      stale && stale.textContent);
+    h.check('naming the installed version and the key that fixes it', !!stale &&
+      /0\.1\.0/.test(stale.textContent) && /Ctrl\+Shift\+R/.test(stale.textContent),
+      stale && stale.textContent);
+    h.check('above the description, in the header that survives the collapse',
+      !!stale && stale.parentNode === headBox &&
+      headBox.childNodes.indexOf(stale) < headBox.childNodes.indexOf(sub),
+      stale && String(headBox.childNodes.indexOf(stale)));
+
     // A second tick must not duplicate anything: React re-renders this panel on
     // every settings change and the tick puts it all back.
     env.tick();

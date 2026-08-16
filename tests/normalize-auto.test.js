@@ -701,6 +701,24 @@ Promise.resolve()
         p.headBox.childNodes.indexOf(link) === p.headBox.childNodes.indexOf(p.sub) + 1,
         link && String(p.headBox.childNodes.indexOf(link)));
 
+      // The stale-script banner, in the same header. This plugin finds its group by
+      // setting id rather than by heading text, so the check that matters here is
+      // that it still reads the version off *our* heading: the fixture also mounts
+      // "Some Other Plugin (2.0.0)", and reading that one would compare this script
+      // against a stranger's release.
+      const stale = p.env.ctx.document.getElementById('npt-stale-notice');
+      h.check('a stale script is called out in the settings group', !!stale,
+        stale && stale.textContent);
+      h.check('with the version from our own heading, not the other plugin\'s',
+        !!stale && /1\.2\.5/.test(stale.textContent) && !/2\.0\.0/.test(stale.textContent),
+        stale && stale.textContent);
+      h.check('and it names the key that fixes it',
+        !!stale && /Ctrl\+Shift\+R/.test(stale.textContent), stale && stale.textContent);
+      h.check('above the description, in the header that survives the collapse',
+        !!stale && stale.parentNode === p.headBox &&
+        p.headBox.childNodes.indexOf(stale) < p.headBox.childNodes.indexOf(p.sub),
+        stale && String(p.headBox.childNodes.indexOf(stale)));
+
       // React drops anything we add whenever it re-renders the panel, so the tick
       // re-adds it - and must not end up with two.
       p.env.tick();
@@ -709,6 +727,8 @@ Promise.resolve()
         const links = p.env.ctx.document.body.descendants()
           .filter((n) => n.id === 'npt-readme-link');
         h.check('ticking again does not add a second one', links.length === 1, String(links.length));
+        h.check('nor a second stale banner', p.env.ctx.document.body.descendants()
+          .filter((n) => n.id === 'npt-stale-notice').length === 1);
         links[0].parentNode.removeChild(links[0]);
         p.sub.textContent = 'One.\n\nTwo.';        // what a React re-render leaves
         p.env.tick();

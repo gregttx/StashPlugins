@@ -5,8 +5,14 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.2.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.2.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.2.3 is the last of the anchor archaeology.** "Spacing settled over 1.15.2 to 1.15.9" was the
+one paragraph of it whose *body* described current behaviour, so it was rewritten rather than cut:
+margins read off the row, measured against the button the user can see rather than the wrapper
+beside it, and a wrapped row spaced by whichever mechanism that row's layout honours. The versions
+are gone; the three facts are not. `../CLAUDE.md`'s placement section still carries the reasoning.
 
 **2.2.2 drops the "you are on 1.15.0 or earlier" note.** It was the last piece of anchor history in
 the README and it was kept back from 2.2.1's pass for being actionable rather than merely

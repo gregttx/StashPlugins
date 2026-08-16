@@ -369,13 +369,9 @@ whichever plugin's button appeared last. Both land **between Save and Delete**; 
 but no Delete puts them before Save, so Stash's own primary action stays the last thing in the
 row.
 
-**Spacing settled over 1.15.2 to 1.15.9**, mostly against screenshots of a real Stash. What it comes
-to: a button's margins are read off whatever Stash already put in that row rather than set to a
-fixed amount, so every gap in the row matches; the gap is measured against the button you can
-actually *see*, since Stash wraps some of its buttons in an extra element that carries no spacing of
-its own, and leaves an empty slot where others would go; and a wrapped second row of buttons is
-spaced by whichever mechanism the row's layout actually honours. 1.15.9 is the last of those — the
-mechanism for one of the two kinds of row had never been applied here at all, so a wrapped row of
-this plugin's buttons sat flush while `PropagateTagsAndPerformers`, running what looked like the
-same code, spaced correctly.
+**A button's spacing is read off the row it lands in**, never set to a fixed amount, so every gap in
+the row matches. The gap is measured against the button you can actually *see*: Stash wraps some of
+its buttons in an extra element that carries no spacing of its own, and leaves an empty slot where
+others would go. A wrapped second row of buttons is spaced by whichever mechanism that row's layout
+actually honours, which is not the same one for both kinds of row Stash uses here.
 

@@ -522,8 +522,8 @@ openDesc()
     })),
   }))
   .then((env) => {
-    h.check('a field only the store tag carries is marked [store tag], not [orphan]',
-      names(env.body).some((n) => new RegExp(HIDE + ' \\[store tag\\]').test(n)) &&
+    h.check('a field only the store tag carries is marked [store tag] x1, not [orphan]',
+      names(env.body).some((n) => new RegExp(HIDE + ' \\[store tag\\] x1').test(n)) &&
       !names(env.body).some((n) => new RegExp(HIDE + ' \\[orphan\\]').test(n)),
       names(env.body).join(' | '));
     h.check('a description nothing at all carries is still an orphan',

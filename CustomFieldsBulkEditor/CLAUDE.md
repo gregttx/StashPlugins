@@ -1373,6 +1373,13 @@ store-tag field is accounted for, and marking it the same way would make the orp
 nothing. `.cfbe-name-store` is plugin-local, like `.cfbe-name-orphan` beside it, so
 `tests/style.test.js` correctly ignores it.
 
+**It reads `[store tag] x1`** (1.1.1). Every other described name in that list ends in a carrier
+count, and this one shipped without one — the only entry in the column with no number beside it,
+which reads as a count that failed to compute rather than as a different kind of row. The literal
+`1` is not a shortcut: the marker is only applied when the scan found *no* carriers and the store
+tag has the field, so the tag is the carrier and there is exactly one. `[orphan]` keeps no count,
+because nothing carries it and `x0` would be noise.
+
 **The filter row reads entity-first** (`Filter by Entity`, then `Filter by Name`, then
 `Filter by Value`), at the user's ask: that is the order a line reads, and the type filter that
 leads on a task run is the same idea one step coarser. The controls are appended in that order and

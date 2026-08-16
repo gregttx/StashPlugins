@@ -14,6 +14,12 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 1.1.1 — the store-tag row counts its carrier
+>
+> **`[store tag]` now carries a count like every other name in the list.** It reads
+> `[store tag] x1` — one carrier, the tag itself — instead of being the one entry with no
+> number beside it.
+>
 > ## 1.1.0 — a description follows its field
 >
 > **Rename a custom field and its description moves with it.** Descriptions are filed under the
@@ -498,10 +504,10 @@ Some details worth knowing:
 - **`[orphan]`** is a description whose custom field no entity carries any more. It is kept rather
   than dropped — a field you cleared today may come back tomorrow — and **Prune orphans** clears
   them all in one press, staged like everything else.
-- **`[store tag]`** is a field carried only by the tag the descriptions themselves live on — in
+- **`[store tag] x1`** is a field carried only by the tag the descriptions themselves live on — in
   practice the **Hide from Add Lists** field, which that tag wears to hide itself. The scan leaves
   that tag out, so this is what would otherwise read as an orphan; picking it names the tag, and
-  **Prune orphans** leaves it alone.
+  **Prune orphans** leaves it alone. The count is always one: that tag.
 - **Apply does not close the editing.** It writes, reports what changed in the log, and leaves the
   box and the field list exactly where they were, so the next description can be typed straight
   away — Apply greys out again until there is something new to write.

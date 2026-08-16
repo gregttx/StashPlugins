@@ -14,6 +14,28 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.10.0 — Rename, and two dialogs that stop moving under you
+>
+> **The dialogs are a fixed height.** Both of this plugin's dialogs sized themselves to
+> whatever they were holding, so the whole window jumped smaller as a filter narrowed the
+> list, and fought back when you dragged the description box taller. They are now a steady
+> 88% of the window height, and it is the panes inside them that give and take.
+>
+> **A fourth operation: Rename.** It moves a custom field to a new name and keeps every
+> entity's value — the thing that previously took a Remove, a note of what everything held,
+> and an Add. It is offered only while everything in scope carries **one** field name, since
+> that name is what it renames; filter the list down to one and it lights up. The **Custom
+> Field name** box then means the *new* name and the value box greys out. An entity that
+> already carries the new name is skipped with a warning rather than having that value
+> overwritten, and **Undo** puts the old name back and takes the new one off in one write.
+>
+> **Touching a filter switches Apply to → Filtered list only.** The scope can only ever
+> narrow to what you can see, never widen behind you. Clear the last filter and it goes back
+> to **All**, which by then means the same entities anyway.
+>
+> **Every operation has a tooltip**, including the one that explains why *Add* leaves an
+> entity alone, and **Apply to** has one on both of its choices.
+>
 > ## 0.9.0 — filter the listing by whether a value is true
 >
 > **Filter by Value** gains two modes beside *contains* and *is empty*: **is true** and **is
@@ -305,10 +327,19 @@ Below the list:
 | **Operation** — Add *(default)* | Sets the field **only where it is missing**. Existing values are left alone. |
 | **Operation** — Overwrite | Sets the field on **every** entity in scope, replacing whatever was there. |
 | **Operation** — Remove | Deletes the field from every entity in scope that has it. |
+| **Operation** — Rename | Moves the field to a new name, keeping each entity's value. Only selectable while everything in scope carries **one** field name — that is the name it renames. |
 | **Apply to** — All *(default)* | Every entity in scope: what you selected, or the whole library on a task run. |
-| **Apply to** — Filtered list only | Only the entities still showing in the filtered list. |
-| **Custom Field name** | Required. **Apply** stays disabled until it is filled in. |
-| **Custom Field value** | May be empty — an empty string is a value like any other. Ignored by Remove. |
+| **Apply to** — Filtered list only | Only the entities still showing in the filtered list. Touching any filter switches to this on its own. |
+| **Custom Field name** | Required. **Apply** stays disabled until it is filled in. Under **Rename** it is the *new* name, and says so. |
+| **Custom Field value** | May be empty — an empty string is a value like any other. Ignored by Remove, and greyed out under Rename. |
+
+Each of those has a tooltip on the dropdown itself.
+
+**Rename in detail.** It is one write per distinct value — each carries that value onto the new key
+and drops the old one in the same input, so no entity is ever briefly without the field. An entity
+that **already carries the new name** is skipped with a `[WARN]` naming the value it would have
+overwritten: that is a merge, not a rename, and the dialog will not decide it for you. **Undo**
+reverses both halves at once.
 
 **Why Add/Overwrite and not Stash's own Overwrite/Add/Remove tabs.** A custom field holds *one*
 value per key, so there is no list to append to. "Add" therefore means *do not overwrite* and

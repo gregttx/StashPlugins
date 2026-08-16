@@ -713,6 +713,16 @@ of them separate less on the lighter panel. Changing the modal means re-tuning t
 them together or not at all. Both greys are Blueprint and both look native, which is exactly why
 the drift went unnoticed for four months.
 
+**The modal has no `height`, only a `max-height`, and that is a decision with a known edge.** It
+sits in a centring backdrop, so it is content-sized: it grows with its log to the cap and shrinks
+back when there is less to show. For a dialog that is a head, a log and a footer that is right.
+It is wrong for a dialog whose content changes while the user is reading it — a filter narrowing a
+listing, or a resizable box being dragged — where the window moves under the pointer.
+`CustomFieldsBulkEditor` 0.10.0 hit both and answered with `.cfbe-modal.cfbe-tall{height:88vh}`, a
+plugin-local **modifier**, leaving the pinned rule untouched. That is the pattern for anything in
+this category: the shared rule is the floor, and a plugin with a reason adds a class of its own
+beside it rather than editing what three other plugins are also using.
+
 **`width:min(100rem,94vw)` is the modal width**, raised from `56rem` to `80rem` and then by another
 quarter at the user's request, each time across all four plugins in one release
 (`NormalizeParentTags` 2.2.3 then 2.2.4, and its siblings alongside). It is one of the pinned

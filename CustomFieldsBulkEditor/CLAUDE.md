@@ -5,10 +5,12 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**0.9.0's two filter modes are unverified too** — §5b's addition, three checks and three mutants in
-`tests/cfbe.test.js`, and not a click behind them.
+**0.9.0's two filter modes and all of 0.10.0 are unverified** — §5b's truth modes, §5c's fixed
+height, §6a's Rename and §6b's scope switch. 0.10.0's three came from live use of the dialogs
+(the shrinking window was reported, not deduced), but nothing in the fix has been clicked: it is
+`tests/cfbe.test.js` at 185 checks and eight mutants across the two releases.
 
-**Status: 0.9.0 — §22–§23 are being used, and the first two reports are in.** Everything those two
+**Status: 0.10.0 — §22–§23 are being used, and the first two reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
@@ -370,7 +372,27 @@ useful setting.
 defined as the entities the filters leave showing, so "set this on exactly the ones that have
 nothing" needed no code in §7 at all.
 
-## 6. The three modes, and the one distinction the data allows
+## 5c. Both dialogs are a fixed height, and the siblings' are not (0.10.0)
+
+**Reported live: the dialog "shrinks down" when you drag the description box taller, or change a
+filter.** It did, and the cause is one declaration. `.cfbe-modal` sets `max-height:88vh` and **no
+`height`**, inside a backdrop that centres it — so the modal is *content-sized*, and every content
+change resizes the window: filter a listing down to three lines and the whole dialog collapses
+around them; drag the `textarea` in the descriptions dialog and the modal grows to the cap and then
+takes the room out of everything else.
+
+**That rule is right for the plugins it is shared with.** It is pinned byte-identical across all
+four (`tests/style.test.js`), and the siblings' dialogs are a head, a log and a footer — a box that
+sizes to its log is the correct behaviour there. These two are not that: one has a filter bar over a
+list, the other has two panes and a user-resizable box in one of them.
+
+**So `.cfbe-modal.cfbe-tall{height:88vh}`, a modifier, exactly as `.cfbe-listwrap` is one.** The
+shared rule is untouched, the plugin-specific selector is invisible to the pinning check (it exists
+in one plugin, so there is nothing to compare it against), and the panes inside now do the giving
+and taking that the window used to do. Do not "fix" this by editing `.cfbe-modal` — that changes
+three other plugins for a complaint about this one.
+
+## 6. The four modes, and the one distinction the data allows
 
 A custom field holds **one value per key**, so there is no list to append to and Stash's own
 Overwrite/Add/Remove tabs do not transfer. Here:
@@ -378,6 +400,8 @@ Overwrite/Add/Remove tabs do not transfer. Here:
 - **Add** — `partial`, on entities that do **not** already carry the key. "Do not overwrite."
 - **Overwrite** — `partial`, on every entity in scope.
 - **Remove** — `remove: [name]`, on entities that **do** carry it.
+- **Rename** (0.10.0) — `partial: {new: value}` **and** `remove: [old]` in one input, on entities
+  that carry the old key. See §6a.
 
 `plan()` also drops entities that already hold exactly the value asked for, so a second Apply of the
 same thing writes nothing rather than re-writing everything.
@@ -393,9 +417,59 @@ field `Y` still means "the entities showing", which is a thing a user can hold i
 it mean "the filtered rows" would make the field-name box and the name filter two half-overlapping
 ways to say the same thing.
 
+**Every mode carries a tooltip, on the option and on the select** (0.10.0). An `<option title>` is
+honoured by some browsers and ignored by others, so the select's own `title` is set to whichever
+mode is currently chosen — the reliable half. The four differ in what they *refuse*, which is the
+part a one-word caption cannot carry: "Add" never overwriting is the one that has surprised people,
+and Rename's precondition is what explains a greyed-out option. **Apply to** is tooltipped the same
+way, and its *Filtered list only* tip says the filters switch to it on their own, so the behaviour
+in §6b is discoverable from the control it moves.
+
 **Values are written as strings.** The `Map` accepts any JSON, and `valueText` renders what it reads
 faithfully, but nothing tries to infer that `5` was meant as a number. Guessing would be a silent
 type change on data the user cannot see the type of.
+
+## 6a. Rename, and why it is sometimes greyed out (0.10.0)
+
+**The fourth mode is the only one whose source field is not the box.** Add, Overwrite and Remove all
+act on the name typed into **Custom Field name**; Rename needs *two* names, and there is nowhere to
+type a second one. So the old name comes from the scope — which is why it is offered only while
+everything in scope carries **exactly one** field name, and why the box's label changes to **New
+Custom Field name** while it is selected. A second text box would have been the obvious alternative
+and is worse: it would sit empty and meaningless in the three modes that do not use it, and it would
+let a user name a field the scope does not contain, which is a rename of nothing.
+
+**One write per distinct value, not per entity and not per type.** A rename carries each entity's own
+value across, so entities that shared a value share a mutation — the same grouping Undo has always
+used, and the same one `DescRun.runMigration` uses for the hide-field rename. `apply()`'s type-only
+grouping stays for the other three modes, where the payload genuinely is one delta for everybody.
+
+**`partial` and `remove` go in one input, and that is what makes it a rename rather than a copy.**
+Two mutations would leave a window where an entity had the field under both names, or neither.
+
+**An entity already carrying the new name is refused, not merged.** The write would set the new key
+and drop the old one, so the value already under the new name would be overwritten and unrecoverable
+— a merge, decided silently, on data the dialog can see and the user cannot. It is a `[WARN]` with
+the kept values tallied, in the shape §17 gives every other skip.
+
+**The precondition is recomputed from the scope on every keystroke, and `plan()` reads it again.**
+`syncOps` disables the option and `syncApply` disables the button, but the plan does not trust
+either: `renameFrom()` is called once more inside `plan()`, so a stale answer can never become a
+write. A mode that becomes unavailable *while selected* stays selected, with Apply disabled and the
+reason in its `title` — switching the operation under someone about to press Apply would be worse
+than a button that says why it is off.
+
+## 6b. Touching a filter narrows the scope (0.10.0)
+
+**Asked for from live use, and it is safe in one direction only.** Changing any filter sets
+**Apply to** to *Filtered list only*. The scope can only ever narrow to what is on screen, never
+widen behind the user, so the automatic direction is the conservative one. Clearing the last filter
+sets it back to *All* — not a second rule: with nothing filtering, the two selections cover the same entities
+and the select should say the simpler one.
+
+**`filtering()` cannot just test the two text boxes.** Three of the value modes (*is empty*, *is
+true*, *is not true*) are a filter with an empty box, which is exactly the case that would have
+looked like "no filter" to a naive check.
 
 ## 7. Applying, and Undo
 

@@ -671,6 +671,134 @@ openDialog()
     });
   })
 
+  // Touching a filter moves "Apply to" to the filtered list (0.10.0). The scope can
+  // only ever narrow to what is on screen, never widen behind the user.
+  .then(() => openDialog())
+  .then((env) => {
+    const scope = one(env.body, 'cfbe-scope');
+    const nameFilter = one(env.body, 'cfbe-filter-name');
+    h.check('the scope starts at All', scope.value === 'all', scope.value);
+    nameFilter.value = 'col';
+    h.fire(nameFilter, 'input');
+    h.check('and a filter keystroke moves it to the filtered list',
+      scope.value === 'filtered', scope.value);
+    nameFilter.value = '';
+    h.fire(nameFilter, 'input');
+    h.check('clearing the last filter puts it back to All, which then means the same set',
+      scope.value === 'all', scope.value);
+    const mode = one(env.body, 'cfbe-filter-mode');
+    mode.value = 'empty';
+    h.fire(mode, 'change');
+    h.check('a mode with an empty box counts as filtering too',
+      scope.value === 'filtered', scope.value);
+    return env;
+  })
+
+  // Rename (0.10.0): the field name moves and every value goes with it.
+  .then(() => openDialog({
+    entities: {
+      1: { id: '1', title: 'S1', custom_fields: { colour: 'blue', rating: '5' } },
+      2: { id: '2', title: 'S2', custom_fields: { colour: 'red' } },
+    },
+    select: ['1', '2'],
+  }))
+  .then((env) => {
+    const modeSel = one(env.body, 'cfbe-mode');
+    const renameOpt = modeSel.childNodes.filter((o) => o.value === 'rename')[0];
+    h.check('Rename is offered as a fourth operation', !!renameOpt);
+    h.check('and is disabled while the scope carries more than one field name',
+      renameOpt.disabled === true);
+    h.check('every operation carries a tooltip of its own',
+      modeSel.childNodes.every((o) => !!o.title),
+      modeSel.childNodes.map((o) => o.value + ':' + !!o.title).join(' '));
+    h.check('and the select carries the selected one, which is what a browser shows',
+      /never overwrites/.test(modeSel.title), modeSel.title);
+    modeSel.value = 'overwrite';
+    h.fire(modeSel, 'change');
+    h.check('changing the operation changes that tooltip', /replacing whatever/.test(modeSel.title),
+      modeSel.title);
+    h.check('"Apply to" is tooltipped too', !!one(env.body, 'cfbe-scope').title);
+
+    const nameFilter = one(env.body, 'cfbe-filter-name');
+    nameFilter.value = 'colour';
+    h.fire(nameFilter, 'input');
+    h.check('filtering to one field name enables Rename', renameOpt.disabled === false);
+    modeSel.value = 'rename';
+    h.fire(modeSel, 'change');
+    h.check('the value box is greyed out, since a rename does not touch values',
+      one(env.body, 'cfbe-field-value').disabled === true);
+    h.check('and the name box says it means the new name',
+      /New Custom Field name/.test(byClass(env.body, 'cfbe-label').map((l) => l.textContent).join(' ')),
+      byClass(env.body, 'cfbe-label').map((l) => l.textContent).join(' | '));
+    h.check('Apply waits for that name', one(env.body, 'cfbe-apply').disabled === true);
+    one(env.body, 'cfbe-field-name').value = 'shade';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    h.check('and is offered once it has one', one(env.body, 'cfbe-apply').disabled === false);
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => env);
+  })
+  .then((env) => {
+    const w = writes(env.calls);
+    const cf = w.map((c) => c.variables.input.custom_fields);
+    h.check('a rename is one batch per value, each carrying that value to the new key',
+      w.length === 2 && cf[0].partial.shade === 'blue' && cf[1].partial.shade === 'red',
+      JSON.stringify(cf));
+    h.check('and dropping the old key in the same input',
+      cf.every((c) => JSON.stringify(c.remove) === JSON.stringify(['colour'])),
+      JSON.stringify(cf.map((c) => c.remove)));
+    h.check('the entities are split between those batches, not repeated across them',
+      JSON.stringify(w.map((c) => c.variables.input.ids)) === JSON.stringify([['1'], ['2']]),
+      JSON.stringify(w.map((c) => c.variables.input.ids)));
+    h.check('the log calls it a rename rather than a replace',
+      lines(env.body).filter((l) => /^Renamed/.test(l)).length === 2,
+      lines(env.body).join(' | '));
+    h.check('naming both sides of it, the name moving and the value staying',
+      /colour.*blue.*shade.*blue/.test(lines(env.body)[0]), lines(env.body)[0]);
+    h.check('and the summary counts it as one', /Renamed x2/.test(notes(env.body).join(' | ')),
+      notes(env.body).join(' | '));
+    const before = writes(env.calls).length;
+    one(env.body, 'cfbe-undo').click();
+    return h.flush()
+      .then(() => { one(env.body, 'cfbe-undo').click(); return h.flush(); })
+      .then(() => {
+        const back = writes(env.calls).slice(before).map((c) => c.variables.input.custom_fields);
+        h.check('Undo puts the old key back and takes the new one off, in one input',
+          back.length === 2 && back.every((c) => JSON.stringify(c.remove) === JSON.stringify(['shade'])) &&
+          back[0].partial.colour === 'blue' && back[1].partial.colour === 'red',
+          JSON.stringify(back));
+        return env;
+      });
+  })
+
+  // The one case a rename must refuse: the new name is already on the entity, so the
+  // write would overwrite a value rather than move one.
+  .then(() => openDialog({
+    entities: {
+      1: { id: '1', title: 'S1', custom_fields: { colour: 'blue' } },
+      2: { id: '2', title: 'S2', custom_fields: { colour: 'red', shade: 'keep me' } },
+    },
+    select: ['1', '2'],
+  }))
+  .then((env) => {
+    const nameFilter = one(env.body, 'cfbe-filter-name');
+    nameFilter.value = 'colour';
+    h.fire(nameFilter, 'input');
+    one(env.body, 'cfbe-mode').value = 'rename';
+    h.fire(one(env.body, 'cfbe-mode'), 'change');
+    one(env.body, 'cfbe-field-name').value = 'shade';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => {
+      const w = writes(env.calls);
+      h.check('an entity already carrying the new name is left out of the write',
+        w.length === 1 && JSON.stringify(w[0].variables.input.ids) === JSON.stringify(['1']),
+        JSON.stringify(w.map((c) => c.variables.input.ids)));
+      h.check('and the skip is a WARN naming the value it would have overwritten',
+        notes(env.body).some((l) => /^\[WARN\].*keep me/.test(l)), notes(env.body).join(' | '));
+      return env;
+    });
+  })
+
   // The cap the pills cost: one node per line is back, so a listing longer than the
   // DOM should hold is cut off with a line saying so - and the scope is untouched.
   .then(() => {

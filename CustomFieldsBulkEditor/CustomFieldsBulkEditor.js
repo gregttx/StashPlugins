@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.9.0';
+  var PLUGIN_VERSION = '0.10.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -480,6 +480,15 @@
     'display:flex;gap:.5rem;align-items:center;}' +
     // ── This dialog's own ───────────────────────────────────────────────────
     //
+    // **Both of this plugin's dialogs are a fixed height, and the siblings' are not.**
+    // `.cfbe-modal` has a `max-height` and no `height` - it is pinned byte-identical
+    // across the four plugins, and for a dialog that is only a log that is right: it
+    // sizes to what it holds and grows to the cap. These two are not only a log. The
+    // bulk dialog's list shrinks as a filter narrows it, and the descriptions dialog's
+    // textarea is user-resizable, so the modal moved under the pointer in both - the
+    // window jumping to a new size while you are reading it. A modifier rather than an
+    // edit to the shared rule, for the reason `.cfbe-listwrap` is one.
+    '.cfbe-modal.cfbe-tall{height:88vh;}' +
     // The list was a <textarea> until 0.2.0, which is what made it selectable and
     // copyable with nothing to press and kept a selection of several thousand
     // entities down to one node. Pills need real elements, so the node count is back
@@ -1133,7 +1142,7 @@
     var self = this;
 
     this.backdrop = el('div', 'cfbe-backdrop');
-    this.modal = el('div', 'cfbe-modal');
+    this.modal = el('div', 'cfbe-modal cfbe-tall');
     this.backdrop.appendChild(this.modal);
 
     var head = el('div', 'cfbe-head');
@@ -1174,7 +1183,7 @@
       var typeOpts = [['', 'All types']];
       this.specs.forEach(function (s) { typeOpts.push([s.key, s.plural]); });
       this.typeFilter = this.select('cfbe-filter-type', typeOpts, '');
-      this.typeFilter.addEventListener('change', function () { self.renderList(); });
+      this.typeFilter.addEventListener('change', function () { self.filterChanged(); });
       filters.appendChild(el('span', 'cfbe-label', 'Type'));
       filters.appendChild(this.typeFilter);
     }
@@ -1198,13 +1207,13 @@
     this.valueFilter = this.input('cfbe-filter-value');
     filters.appendChild(this.valueFilter);
     [this.nameFilter, this.valueFilter].forEach(function (i) {
-      i.addEventListener('input', function () { self.renderList(); });
+      i.addEventListener('input', function () { self.filterChanged(); });
     });
     this.valueMode.addEventListener('change', function () {
       // Nothing to type in when the mode is the whole query, and a box left enabled
       // would read as a second condition that is silently not applied.
       self.valueFilter.disabled = self.valueMode.value !== 'contains';
-      self.renderList();
+      self.filterChanged();
     });
     this.modal.appendChild(filters);
 
@@ -1225,23 +1234,30 @@
     this.modal.appendChild(listWrap);
 
     var ops = el('div', 'cfbe-editor');
+    // Per option *and*, in `syncOps`, on the select itself: an `<option title>` is
+    // honoured by some browsers and ignored by others, while the select's own title is
+    // reliable everywhere - so it carries whichever mode is currently chosen.
     this.modeSel = this.select('cfbe-mode', [
-      ['add', 'Add'], ['overwrite', 'Overwrite'], ['remove', 'Remove'],
+      ['add', 'Add', MODE_TIPS.add], ['overwrite', 'Overwrite', MODE_TIPS.overwrite],
+      ['remove', 'Remove', MODE_TIPS.remove], ['rename', 'Rename', MODE_TIPS.rename],
     ], 'add');
     this.scopeSel = this.select('cfbe-scope', [
-      ['all', 'All'], ['filtered', 'Filtered list only'],
+      ['all', 'All', SCOPE_TIPS.all], ['filtered', 'Filtered list only', SCOPE_TIPS.filtered],
     ], 'all');
     ops.appendChild(el('span', 'cfbe-label', 'Operation'));
     ops.appendChild(this.modeSel);
     ops.appendChild(el('span', 'cfbe-label', 'Apply to'));
     ops.appendChild(this.scopeSel);
     [this.modeSel, this.scopeSel].forEach(function (s) {
-      s.addEventListener('change', function () { self.syncApply(); });
+      s.addEventListener('change', function () { self.syncOps(); });
     });
     this.modal.appendChild(ops);
 
     var fields = el('div', 'cfbe-editor');
-    fields.appendChild(el('span', 'cfbe-label', 'Custom Field name'));
+    // The label is rewritten under Rename: the box means the *new* name there, and a
+    // box that means two things needs to say which one it means right now.
+    this.nameLabel = el('span', 'cfbe-label', 'Custom Field name');
+    fields.appendChild(this.nameLabel);
     this.nameInput = this.input('cfbe-field-name');
     fields.appendChild(this.nameInput);
     fields.appendChild(el('span', 'cfbe-label', 'Custom Field value'));
@@ -1296,11 +1312,17 @@
     return i;
   };
 
+  // `[value, label]`, or `[value, label, tooltip]`. The options are kept on `_opts` as
+  // well as in the DOM: a mode that is only sometimes available has to be disabled by
+  // name later, and walking `childNodes` for it would be the same lookup written twice.
   Run.prototype.select = function (className, options, initial) {
     var s = el('select', 'cfbe-select ' + className);
+    s._opts = {};
     options.forEach(function (o) {
       var opt = el('option', null, o[1]);
       opt.value = o[0];
+      if (o[2]) opt.title = o[2];
+      s._opts[o[0]] = opt;
       s.appendChild(opt);
     });
     s.value = initial;
@@ -1342,7 +1364,8 @@
     [this.modeSel, this.scopeSel, this.nameInput, this.valueInput].forEach(function (n) {
       n.disabled = !listing;
     });
-    this.syncApply();
+    // After the loop, because Rename disables the value box in `listing` too.
+    this.syncOps();
   };
 
   // Apply is enabled by the one rule the user asked for - a non-empty field name,
@@ -1351,8 +1374,16 @@
   // gated on it: stranding the user with changes they cannot take back is worse than
   // the mismatch it protects against.
   Run.prototype.syncApply = function () {
+    var rename = this.modeSel.value === 'rename';
     this.applyBtn.disabled = this.state !== 'listing' ||
-      !String(this.nameInput.value || '').replace(/^\s+|\s+$/g, '') || this.stale;
+      !String(this.nameInput.value || '').replace(/^\s+|\s+$/g, '') || this.stale ||
+      (rename && !this.renameName);
+    this.applyBtn.title = rename && !this.renameName
+      ? 'Rename needs one field name in scope: what Apply covers carries more than one, ' +
+        'or nothing at all. Filter the list down to a single field name first.'
+      : rename
+        ? 'Rename "' + this.renameName + '" on everything in scope, keeping each value.'
+        : '';
   };
 
   Run.prototype.note = function (message) {
@@ -1795,10 +1826,12 @@
   // text and the summary tally all have to agree about it.
   function changeSides(c, reversed) {
     var before = c.had ? { name: c.name, value: valueText(c.before) } : null;
-    var after = c.remove ? null : { name: c.name, value: valueText(c.after) };
+    // `c.to` is a rename: the value is the same on both sides and the *name* moves,
+    // which is also why the action word cannot be read off which side is missing.
+    var after = c.remove ? null : { name: c.to || c.name, value: valueText(c.after) };
     if (reversed) { var swap = before; before = after; after = swap; }
     return { before: before, after: after,
-      action: !before ? 'Added' : !after ? 'Deleted' : 'Replaced' };
+      action: c.to ? 'Renamed' : !before ? 'Added' : !after ? 'Deleted' : 'Replaced' };
   }
 
   // One place where the cap is applied, so both the listing and the change recap say
@@ -1856,6 +1889,58 @@
       return this.lineText(r, null, { name: r.name, value: r.value });
     });
     this.renderProgress(rows.length);
+    this.syncOps(rows);
+  };
+
+  // Is any filter actually narrowing the listing? The three truth/empty modes are a
+  // filter with an empty box, which is why this cannot just test the two text boxes.
+  Run.prototype.filtering = function () {
+    return !!(this.typeFilter && this.typeFilter.value) ||
+      !!String(this.nameFilter.value || '') ||
+      this.valueMode.value !== 'contains' ||
+      !!String(this.valueFilter.value || '');
+  };
+
+  // **Touching a filter moves the scope to "Filtered list only".** Asked for from live
+  // use, and it is the safer direction by construction: the scope can only ever narrow
+  // to what is on screen, never widen behind the user. It moves back to "All" when the
+  // last filter is cleared, which is not a second rule - with nothing filtering, the
+  // two selections cover the same entities and the select should say the simpler one.
+  Run.prototype.filterChanged = function () {
+    this.scopeSel.value = this.filtering() ? 'filtered' : 'all';
+    this.renderList();
+  };
+
+  // The one field name everything in scope carries, or null if they carry more than one
+  // - which is the whole of Rename's precondition. `rows` is passed in where the caller
+  // has just computed it: this runs on every keystroke in a filter box, over a listing
+  // that can be six figures long.
+  Run.prototype.renameFrom = function (rows) {
+    var scoped = this.scopeSel.value === 'filtered'
+      ? (rows || this.filtered()) : this.rows;
+    var name = null;
+    for (var i = 0; i < scoped.length; i++) {
+      if (name === null) name = scoped[i].name;
+      else if (scoped[i].name !== name) return null;
+    }
+    return name;
+  };
+
+  // Rename is offered only while the scope carries exactly one field name, and the
+  // value box is not part of it. A mode that *becomes* unavailable while selected stays
+  // selected - silently switching the operation under a user about to press Apply would
+  // be worse than a disabled button that says why.
+  Run.prototype.syncOps = function (rows) {
+    var rename = this.modeSel.value === 'rename';
+    this.renameName = this.renameFrom(rows);
+    if (this.modeSel._opts && this.modeSel._opts.rename) {
+      this.modeSel._opts.rename.disabled = !this.renameName;
+    }
+    this.modeSel.title = MODE_TIPS[this.modeSel.value] || '';
+    this.scopeSel.title = SCOPE_TIPS[this.scopeSel.value] || '';
+    this.valueInput.disabled = rename || this.state !== 'listing';
+    this.nameLabel.textContent = rename ? 'New Custom Field name' : 'Custom Field name';
+    this.syncApply();
   };
 
   // What to call the things in scope. A selection run knows its one type; the task
@@ -1922,7 +2007,30 @@
     // an "Add" over a key that already holds the asked-for value is *unchanged*, not
     // *refused*, so the equal-value test runs first for every mode that writes one.
     var changes = [];
-    var skipped = { present: [], unchanged: [], absent: [] };
+    var skipped = { present: [], unchanged: [], absent: [], collide: [] };
+
+    // Rename is the one mode whose *source* field is not the one in the box: the box
+    // holds the new name, and the old one is whatever the scope carries - which is why
+    // it is only offered while the scope carries exactly one. `from` is read here
+    // rather than trusted from `syncOps`, so a plan is never made from a stale answer.
+    if (mode === 'rename') {
+      var from = this.renameFrom();
+      scope.forEach(function (e) {
+        if (!from || !hasOwn(e.fields, from)) { skipped.absent.push(e); return; }
+        if (name === from) { skipped.unchanged.push(e); return; }
+        // The write is `partial` plus `remove` in one input, so an entity that already
+        // carries the new name would have it overwritten and the old value lost. That
+        // is a merge, not a rename, and it is not this dialog's to decide.
+        if (hasOwn(e.fields, name)) { skipped.collide.push({ value: valueText(e.fields[name]) }); return; }
+        changes.push({
+          spec: e.spec, id: e.id, display: e.display, entity: e, name: from, to: name,
+          had: true, before: e.fields[from], after: e.fields[from], remove: false,
+        });
+      });
+      return { mode: mode, name: name, from: from, value: value,
+        changes: changes, skipped: skipped };
+    }
+
     scope.forEach(function (e) {
       var has = hasOwn(e.fields, name);
       var now = has ? valueText(e.fields[name]) : null;
@@ -1945,9 +2053,47 @@
   // What a value looks like inside a sentence, where an empty one has to say so.
   function quoted(value) { return value === '' ? 'empty' : '"' + value + '"'; }
 
+  // What each operation does, in the tooltip rather than in a legend: the four differ
+  // in what they refuse, which is the part a caption cannot carry. "Add" not
+  // overwriting is the one that has surprised people (§6), and Rename's condition is
+  // the one that explains why it is sometimes greyed out.
+  var MODE_TIPS = {
+    add: 'Set the field only where it is missing. An entity that already carries it is ' +
+      'left alone, whatever its value - "Add" never overwrites.',
+    overwrite: 'Set the field on every entity in scope, replacing whatever is there.',
+    remove: 'Delete the field from every entity in scope that has it.',
+    rename: 'Rename the field itself, keeping each entity\'s value. Available only when ' +
+      'everything in scope carries the same one field name; "Custom Field name" is the ' +
+      'new name, and the value box is not used.',
+  };
+
+  var SCOPE_TIPS = {
+    all: 'Every entity this dialog read, whatever the filters are showing.',
+    filtered: 'Only the entities the filters leave on screen. Changing a filter switches ' +
+      'to this on its own.',
+  };
+
   Run.prototype.reportSkips = function (planned) {
     var s = planned.skipped;
     var noun = ' ' + this.noun() + ': "' + planned.name + '" ';
+    if (planned.mode === 'rename') {
+      if (s.absent.length) {
+        this.msg('INFO', 'Skipped ' + s.absent.length + ' ' + this.noun() + ': "' +
+          (planned.from || '') + '" is not set there, so there is nothing to rename.');
+      }
+      if (s.unchanged.length) {
+        this.msg('INFO', 'Skipped ' + s.unchanged.length + ' ' + this.noun() +
+          ': the new name is the name it already has.');
+      }
+      if (s.collide.length) {
+        this.tallyMsg('WARN', 'Skipped ' + s.collide.length + ' ' + this.noun() + ': "' +
+          planned.name + '" is already set there, and renaming onto it would ' +
+          'overwrite that value. Kept: ',
+        tally(s.collide, function (r) { return r.value; }),
+        '. Remove or rename that field first.');
+      }
+      return;
+    }
     if (s.present.length) {
       this.tallyMsg('WARN', 'Skipped ' + s.present.length + noun +
         'is already set there to another value, and "Add" never overwrites. Kept: ',
@@ -1973,7 +2119,8 @@
     if (!planned.changes.length) {
       this.msg('INFO', 'Nothing to change: no ' + this.noun() +
         ' in scope need "' + planned.name + '" ' +
-        (planned.mode === 'remove' ? 'removed.' : 'set to that value.'));
+        (planned.mode === 'remove' ? 'removed.'
+          : planned.mode === 'rename' ? 'as their field name.' : 'set to that value.'));
       return;
     }
 
@@ -1994,14 +2141,22 @@
     // One batch per entity type, because the mutation is per type: five of the seven
     // take a bulk update and two do not, and an id means nothing without the type it
     // belongs to. A selection run has exactly one batch, as it always did.
+    //
+    // **A rename groups by value as well**, because it carries each entity's own value
+    // over to the new key - the same grouping Undo below uses, and for the same reason.
     var byType = {};
     var batches = [];
     planned.changes.forEach(function (c) {
-      if (!hasOwn(byType, c.spec.key)) {
-        byType[c.spec.key] = { spec: c.spec, ids: [], cf: payload };
-        batches.push(byType[c.spec.key]);
+      var key = planned.mode === 'rename'
+        ? c.spec.key + '|' + valueText(c.before) : c.spec.key;
+      if (!hasOwn(byType, key)) {
+        byType[key] = { spec: c.spec, ids: [], cf: planned.mode === 'rename'
+          ? (function () { var p = {}; p[c.to] = c.before;
+            return { partial: p, remove: [c.name] }; })()
+          : payload };
+        batches.push(byType[key]);
       }
-      byType[c.spec.key].ids.push(c.id);
+      byType[key].ids.push(c.id);
     });
     var label = 'Custom Fields - ' + planned.mode + ' "' + planned.name + '"';
 
@@ -2011,7 +2166,10 @@
       // dialog actually wrote rather than against the map it read at open.
       planned.changes.forEach(function (c) {
         if (planned.mode === 'remove') delete c.entity.fields[c.name];
-        else c.entity.fields[c.name] = planned.value;
+        else if (planned.mode === 'rename') {
+          c.entity.fields[c.to] = c.before;
+          delete c.entity.fields[c.name];
+        } else c.entity.fields[c.name] = planned.value;
       });
       self.renderChanges(planned, false);
       self.setState('applied');
@@ -2047,9 +2205,14 @@
       // By type as well as by previous value, for the reason `apply` groups by type.
       var key = c.spec.key + '|' + (c.had ? 'v:' + valueText(c.before) : 'absent');
       if (!groups[key]) {
-        groups[key] = { spec: c.spec, ids: [], cf: c.had
-          ? (function () { var p = {}; p[c.name] = c.before; return { partial: p }; })()
-          : { remove: [c.name] } };
+        // Reversing a rename puts the old key back *and* takes the new one off - one
+        // input, both halves, or the undo would leave the field under both names.
+        groups[key] = { spec: c.spec, ids: [], cf: c.to
+          ? (function () { var p = {}; p[c.name] = c.before;
+            return { partial: p, remove: [c.to] }; })()
+          : c.had
+            ? (function () { var p = {}; p[c.name] = c.before; return { partial: p }; })()
+            : { remove: [c.name] } };
       }
       groups[key].ids.push(c.id);
     });
@@ -2062,6 +2225,7 @@
     this.runWrites(batches, 'Custom Fields (undo)').then(function (ok) {
       self.undone = ok;
       self.changes.forEach(function (c) {
+        if (c.to) delete c.entity.fields[c.to];
         if (c.had) c.entity.fields[c.name] = c.before;
         else delete c.entity.fields[c.name];
       });
@@ -2271,7 +2435,7 @@
     var self = this;
 
     this.backdrop = el('div', 'cfbe-backdrop');
-    this.modal = el('div', 'cfbe-modal');
+    this.modal = el('div', 'cfbe-modal cfbe-tall');
     this.backdrop.appendChild(this.modal);
 
     var head = el('div', 'cfbe-head');

@@ -14,6 +14,14 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 1.1.0 — a description follows its field
+>
+> **Rename a custom field and its description moves with it.** Descriptions are filed under the
+> field's name, so a rename used to leave one behind: the renamed field arrived undescribed and the
+> old description became an `[orphan]`. It now moves in the same press, for every field and not just
+> the hide-from-add-lists one, and **Undo** moves it back. If the new name already has a description
+> of its own, both are kept and the log says so.
+>
 > ## 1.0.0 — the hide field is nobody's loose end
 >
 > **Renaming the hide-from-add-lists field moves the setting with it.** Rename
@@ -44,9 +52,7 @@
 > that one entity's fields.
 >
 > **Overwrite and Remove say what they leave alone.** *Overwrite* replaces the value of the
-> **one** field you name; every other custom field on those entities is untouched. The old
-> tooltip ("replacing whatever is there") could be read as clearing an entity's fields
-> wholesale, which it never did.
+> **one** field you name; every other custom field on those entities is untouched.
 >
 > **A field-name tooltip reads *Click to copy Name*, with *Description:* under it.** A line
 > has a name pill and a value pill and both copy on a click, so the tooltip now says which
@@ -73,8 +79,7 @@
 > 88% of the window height, and it is the panes inside them that give and take.
 >
 > **A fourth operation: Rename.** It moves a custom field to a new name and keeps every
-> entity's value — the thing that previously took a Remove, a note of what everything held,
-> and an Add. It is offered only while everything in scope carries **one** field name, since
+> entity's value. It is offered only while everything in scope carries **one** field name, since
 > that name is what it renames; filter the list down to one and it lights up. The **Custom
 > Field name** box then means the *new* name and the value box greys out. An entity that
 > already carries the new name is skipped with a warning rather than having that value
@@ -230,10 +235,7 @@
 > - **Copy log** — the counters, the `[INFO]` lines and the whole listing as plain text,
 >   *including* the lines the 1000-line cap leaves off the screen.
 > - **Rescan**, so a finished write can be re-read without closing the dialog, and **Undo
->   now stays offered** until you close — an undone run used to leave Close as its only button.
-> - **The listing no longer sits over the `[INFO]` lines.** The message strip could be
->   squashed to nothing on a short window; it and the listing are now two scrollers that
->   keep their own space.
+>   stays offered** until you close.
 >
 > ## 0.3.2 — a task for the whole library
 >
@@ -262,7 +264,7 @@
 > in, so no value you might actually have can be mistaken for it.
 >
 > **`␀` marks "nothing there"** — either no such field, or a
-> field set to an empty value, which used to come out as a pill with nothing in it. It highlights
+> field set to an empty value. It highlights
 > with the rest of the line when you select it, and it is left out of what you copy: you get the
 > empty value the entity really has, and a name of your own containing `␀` keeps it.
 >
@@ -409,7 +411,7 @@ asked for are not written to at all.
 
 | Line | Why |
 | --- | --- |
-| `[WARN] Skipped 12 scenes: "colour" is already set there to another value, and "Add" never overwrites. Kept: blue x9, red x3. Use "Overwrite" to replace them.` | The one that used to be silent. Those entities keep what they had. |
+| `[WARN] Skipped 12 scenes: "colour" is already set there to another value, and "Add" never overwrites. Kept: blue x9, red x3. Use "Overwrite" to replace them.` | Those entities keep what they had. |
 | `[INFO] Skipped 4 scenes: "colour" is already "blue" there, so there is nothing to write.` | Not a refusal — the field already holds what you asked for. |
 | `[INFO] Skipped 7 scenes: "colour" is not set there, so there is nothing to remove.` | A **Remove** over entities that never had the field. |
 
@@ -510,6 +512,10 @@ Some details worth knowing:
   and the log, and the description box's own bottom-right corner to resize just that box. Picking a
   field sizes the box to the description it loads — up to four fifths of the pane — so a long one
   needs no scrolling.
+- **A rename takes the description with it.** Renaming a custom field in the bulk dialog moves its
+  description to the new name, so it stays attached to the field rather than becoming an orphan. A
+  new name that already has a description of its own is left as it is, and the log says both were
+  kept.
 - If you rename the **Hide from Add Lists** setting, the description follows it, and the dialog
   counts the entities still carrying the old field name and offers a **Migrate** button that renames
   it across them. Renaming a setting never writes to your library on its own.

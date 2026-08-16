@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '2.3.0';
+  var PLUGIN_VERSION = '2.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1001,7 +1001,12 @@
     '.npt-b-act:hover{background:#3c4f5d;}' +
     '.npt-i-link{cursor:pointer;text-decoration:underline dotted;}' +
     '.npt-i-link:hover{color:#7cc4ff;}' +
-    '.npt-i-title{font-size:1rem;font-weight:600;margin-bottom:.4rem;font-family:monospace;}' +
+    // `display:block` because it is an `<a>` now: an inline box would drop the margin
+    // under it, and the colour is inherited so the link still reads as the heading it
+    // is rather than as Stash's blue.
+    '.npt-i-title{display:block;font-size:1rem;font-weight:600;margin-bottom:.4rem;' +
+    'font-family:monospace;color:inherit;text-decoration:none;}' +
+    '.npt-i-title:hover{color:inherit;text-decoration:underline;}' +
     '.npt-i-label{color:#7cc4ff;margin-top:.6rem;}' +
     '.npt-i-body{color:#d6dee4;white-space:pre-wrap;word-break:break-word;}' +
     '.npt-i-hint{color:#7d8f9c;}' +
@@ -2374,7 +2379,17 @@
       self.inspectEl.appendChild(body);
     }
 
-    line('npt-i-title', tagLabel(g, id));
+    // The title is a link to the tag's own page, and it opens in a new tab: this
+    // viewer is a modal over whatever page you were on, holding a scan of the whole
+    // hierarchy, and a navigation in this tab would throw that away to show one tag.
+    // An `<a>` rather than a click handler, so middle-click and ctrl-click do what
+    // they do everywhere else.
+    var title = el('a', 'npt-i-title', tagLabel(g, id));
+    title.href = '/tags/' + id;
+    title.target = '_blank';
+    title.rel = 'noreferrer';
+    title.title = 'Open this tag in a new tab';
+    this.inspectEl.appendChild(title);
 
     var anc = [], k, ancMap = g.ancestorsOf(id);
     for (k in ancMap) if (hasOwn(ancMap, k)) anc.push(k);

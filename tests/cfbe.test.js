@@ -905,12 +905,26 @@ openDialog()
       2: { id: '2', title: 'S2', custom_fields: { Exclude_from_add_list: 'yes' } },
     },
     select: ['1', '2'],
-    storeTag: { id: '9', name: 'plumbing', description: '',
-      custom_fields: { cfbe_desc_store: '1', Exclude_from_add_list: '1' } },
+    storeTag: {
+      id: '9', name: 'plumbing',
+      description: 'Managed by the plugin.\n\n' + JSON.stringify({ version: '1.0.0',
+        hideField: 'Exclude_from_add_list',
+        descriptions: { Exclude_from_add_list: 'Hides it from the add lists.' } }),
+      custom_fields: { cfbe_desc_store: '1', Exclude_from_add_list: '1' },
+    },
   }))
   .then((env) => {
     const settingWrites = () => env.calls.filter((c) => /CFBE_SetSetting/.test(c.query || ''));
-    const markWrites = () => env.calls.filter((c) => /CFBE_TagUpdate/.test(c.query || ''));
+    // Two kinds of write land on the store tag now, and they are different concerns:
+    // the mark it wears to hide itself, and the description store in its description.
+    const markWrites = () => env.calls.filter((c) => /CFBE_TagUpdate/.test(c.query || '') &&
+      c.variables.input.custom_fields);
+    const storeWrites = () => env.calls.filter((c) => /CFBE_TagUpdate/.test(c.query || '') &&
+      c.variables.input.description != null);
+    const sentStore = (call) => {
+      const d = String(call.variables.input.description || '');
+      return JSON.parse(d.slice(d.indexOf('{'), d.lastIndexOf('}') + 1));
+    };
     one(env.body, 'cfbe-mode').value = 'rename';
     h.fire(one(env.body, 'cfbe-mode'), 'change');
     one(env.body, 'cfbe-field-name').value = 'Hidden_here';
@@ -935,6 +949,18 @@ openDialog()
         JSON.stringify(marks[0].variables.input.custom_fields.remove) ===
           JSON.stringify(['Exclude_from_add_list']),
         JSON.stringify(marks.map((c) => c.variables.input)));
+      // The description is filed under the name, so it has to move with it - and the
+      // store's record of which field the setting names moves too, or the descriptions
+      // dialog would read the difference as a rename of the setting.
+      const store = storeWrites();
+      h.check('the field\'s description moves to the new name',
+        store.length === 1 &&
+        sentStore(store[0]).descriptions.Hidden_here === 'Hides it from the add lists.' &&
+        !('Exclude_from_add_list' in sentStore(store[0]).descriptions),
+        JSON.stringify(store.map((c) => sentStore(c))));
+      h.check('and the store\'s own record of the hide field with it',
+        store.length && sentStore(store[0]).hideField === 'Hidden_here',
+        store.length && sentStore(store[0]).hideField);
       one(env.body, 'cfbe-undo').click();
       return h.flush().then(() => { one(env.body, 'cfbe-undo').click(); return h.flush(); });
     }).then(() => {
@@ -947,6 +973,12 @@ openDialog()
         markWrites().length === 2 &&
         markWrites()[1].variables.input.custom_fields.partial.Exclude_from_add_list === '1',
         JSON.stringify(markWrites().map((c) => c.variables.input)));
+      h.check('and the description back under it as well',
+        storeWrites().length === 2 &&
+        sentStore(storeWrites()[1]).descriptions.Exclude_from_add_list ===
+          'Hides it from the add lists.' &&
+        !('Hidden_here' in sentStore(storeWrites()[1]).descriptions),
+        JSON.stringify(storeWrites().map((c) => sentStore(c))));
       return env;
     });
   })
@@ -961,6 +993,13 @@ openDialog()
     },
     select: ['1'],
     settings: { c1ExcludeFromAddListField: 'Hide_me' },
+    storeTag: {
+      id: '9', name: 'plumbing',
+      description: 'Managed by the plugin.\n\n' + JSON.stringify({ version: '1.0.0',
+        hideField: 'Hide_me',
+        descriptions: { Exclude_from_add_list: 'A leftover under the old name.' } }),
+      custom_fields: { cfbe_desc_store: '1', Hide_me: '1' },
+    },
   }))
   .then((env) => {
     one(env.body, 'cfbe-mode').value = 'rename';
@@ -973,6 +1012,21 @@ openDialog()
         !env.calls.some((c) => /CFBE_SetSetting/.test(c.query || '')),
         env.calls.filter((c) => /CFBE_SetSetting/.test(c.query || ''))
           .map((c) => JSON.stringify(c.variables.input)).join(' '));
+      // The description move is not the hide field's privilege: it is filed under the
+      // name for every field, so it moves for every rename.
+      const store = env.calls.filter((c) => /CFBE_TagUpdate/.test(c.query || '') &&
+        c.variables.input.description != null);
+      const blob = store.length && JSON.parse(String(store[0].variables.input.description)
+        .slice(String(store[0].variables.input.description).indexOf('{'),
+          String(store[0].variables.input.description).lastIndexOf('}') + 1));
+      h.check('but its description still moves, as it does for any field',
+        store.length === 1 && blob.descriptions.something_else === 'A leftover under the old name.',
+        JSON.stringify(blob));
+      h.check('and the store\'s hide field, which this rename is not about, is left as it was',
+        blob && blob.hideField === 'Hide_me', blob && blob.hideField);
+      h.check('with the store tag\'s mark untouched, since the setting did not move',
+        !env.calls.some((c) => /CFBE_TagUpdate/.test(c.query || '') &&
+          c.variables.input.custom_fields));
       return env;
     });
   })

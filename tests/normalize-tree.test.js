@@ -494,6 +494,16 @@ Promise.resolve()
       h.hasClass(centred(env), 'npt-row-sel'), centred(env).textContent);
     h.check('and the inspector follows the selection',
       inspector(env).indexOf('"Other" (6)') === 0, inspector(env).slice(0, 40));
+    // The title is the way out of the viewer to the tag itself, and it has to leave
+    // this tab alone: the modal holds a scan of the whole hierarchy that a navigation
+    // here would throw away.
+    const title = env.body.descendants().filter((n) => h.hasClass(n, 'npt-i-title'))[0];
+    h.check('the inspector title links to the tag it names',
+      !!title && title.tagName === 'A' && title.href === '/tags/6',
+      title && title.tagName + ' ' + title.href);
+    h.check('in a new tab, and says so',
+      title.target === '_blank' && title.title === 'Open this tag in a new tab',
+      title.target + ' | ' + title.title);
   })
 
   // Same rule as Find: there are no branches in a flat list to land in.

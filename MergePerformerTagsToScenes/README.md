@@ -43,7 +43,7 @@ A front-end-only Stash plugin that adds two tag-merging buttons:
 - **"Copy Tags to all Scenes..."** on each performer's detail view — copies that performer's tags onto every scene featuring them, regardless of any filter or selection in the scene list below.
 - **"Copy all Tags from all Performers"** on each scene's Edit tab — puts all tags from all of that scene's performers into the scene's tag box for you to review and save.
 
-**A button whose caption ends in "..." opens a dialog first** — the same review the library-wide task uses, listing every change before any of it is written, with Proceed, Stop, Copy log, Rescan and Undo. The performer button always does; the scene button does when **Save Tags Immediately** is on, or on a Stash where staging into the form is unavailable. Since 1.18.0 no button here writes anything without either staging it in the form or showing you the plan. The dialog's heading names what it is scoped to — *Copy Tags to all Scenes - from Performer "Ann" (7)* — so a dialog opened from a button says which entity it is about, by the name you know it by (1.18.1).
+**A button whose caption ends in "..." opens a dialog first** — the same review the library-wide task uses, listing every change before any of it is written, with Proceed, Stop, Copy log, Rescan and Undo. The performer button always does; the scene button does when **Save Tags Immediately** is on, or on a Stash where staging into the form is unavailable. No button here writes anything without either staging it in the form or showing you the plan. The dialog's heading names what it is scoped to — *Copy Tags to all Scenes - from Performer "Ann" (7)* — so a dialog opened from a button says which entity it is about, by the name you know it by.
 
 Buttons are hidden by default and can be enabled in **Settings → Plugins → GTTx Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and — since 1.16.0 — the scene button needs the scene to be actually missing at least one of its performers' tags, rather than merely having a performer. Both re-check themselves when you save that scene or performer, so a button appears or disappears without a page reload. Tags are **added** (not replaced) — existing tags are always kept.
 
@@ -62,9 +62,9 @@ There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks*
   hands you the whole run, **Rescan** starts a fresh review without closing the dialog, and
   **Undo** takes the merge back — see [Undoing a run](#undoing-a-run).
 
-  **The log stays until you close the dialog** (2.2.0). A **Rescan** used to clear the view; it now
-  writes a `--- Rescan ---` line and carries on below it, so a run you applied, rescanned and
-  applied again reads top to bottom on screen and not only through **Copy log**.
+  **The log stays until you close the dialog.** A **Rescan** writes a `--- Rescan ---` line and
+  carries on below it, so a run you applied, rescanned and applied again reads top to bottom on
+  screen and not only through **Copy log**.
 
   A scene featuring several performers is written **once**, with the tags all of them contribute.
 
@@ -207,7 +207,7 @@ This setting is independent of everything else — it does not change what gets 
 
 The two buttons appear in different places, because each one sits where the content it acts on is visible.
 
-Since 1.17.0 both are **amber**, where Stash's own row actions are grey. Amber is this repo's
+Both are **amber**, where Stash's own row actions are grey. Amber is this repo's
 colour for "a plugin put this here, and pressing it writes to entities other than the one in front
 of you" — the same colour `PropagateTagsAndPerformers` uses, so a row holding buttons from both
 reads as one kind of thing rather than two. It is deliberately not the blue of a primary action:
@@ -223,7 +223,7 @@ else stays Stash's blue.
 
 ### Why is a button missing?
 
-Since 1.16.0 a button hides itself whenever clicking it would add nothing, and most of the reasons
+A button hides itself whenever clicking it would add nothing, and most of the reasons
 are invisible from the page — the sources' tags, the target's own tags, the exclusion filters. To
 see the reasoning, open the browser console (F12), run:
 
@@ -315,7 +315,7 @@ settings react to *any* scene or performer save they see:
 auto-merge would merge performer tags — parents included — straight back into everything it had
 just changed.
 
-Since 1.1.0 the two cooperate. While Normalize Parent Tags is applying changes it takes a
+The two cooperate. While Normalize Parent Tags is applying changes it takes a
 short-lived, self-expiring claim that this plugin honours: **auto-merge stands down for the
 duration and resumes as soon as the apply finishes**, including if it fails or is stopped. One
 line is written to the browser console when it happens:
@@ -357,21 +357,17 @@ other edit. If you have one that touches tags, disable it for the run.
 ## If you also use Propagate Tags and Performers to Related Entities
 
 That plugin implements this same merge as one of its thirteen relationship paths, so both plugins
-can end up doing the same work. Since 1.12.0 the library-wide task's dialog notices — if that
+can end up doing the same work. The library-wide task's dialog notices — if that
 plugin has its equivalent path enabled, a line in the log says so. This is purely informational:
 both plugins only ever add tags, so running both is redundant work and doubled log lines, never
 wrong data. Nothing is suppressed and nothing blocks; disable one if you would rather not see it
 twice.
 
 Where both plugins' manual buttons land in the same row (the performer detail view, the scene Edit
-tab), each used to place itself immediately next to Save or Delete independently of the other, so
-whichever plugin's button finished appearing last ended up closest to it — a detail decided by
-network timing, not a rule, that could flip between page loads. Since 1.13.0 the two plugins agree
-on a fixed relative order instead, regardless of which one finishes first. Since 1.14.0, the scene
-button's own anchor also moved from before Save to between Save and Delete — matching where the
-performer button, and `PropagateTagsAndPerformers`' own buttons, already land. Since 1.15.0, a page
-with Save but no Delete lands its button before Save instead of appending after it, so Stash's own
-primary action always stays the last thing in the row.
+tab), the two agree on a fixed relative order, so it is the same on every page load rather than
+whichever plugin's button appeared last. Both land **between Save and Delete**; a page with Save
+but no Delete puts them before Save, so Stash's own primary action stays the last thing in the
+row.
 
 **If your buttons sit to the left of Save, you are on 1.15.0 or earlier — update.** Up to that
 version the plugin looked for Delete only by the CSS class Stash puts on it, and on the scene Edit

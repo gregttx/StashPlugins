@@ -1,5 +1,10 @@
 # GTTx Normalize Parent Tags
 
+> ## 2.4.0 — the hierarchy viewer links out to a tag
+>
+> The name at the top of the inspector panel is now a **link to that tag's own page**, opening in a
+> **new tab** so the viewer and its scan stay where they are. Hovering it says so.
+>
 > ## 2.0.0 — the plugin is now called *GTTx Normalize Parent Tags*
 >
 > Only the display name changed. The folder, the plugin id and every setting keep their names, so
@@ -142,10 +147,9 @@ comes back empty is how you know the library has settled.
 On a large library the log can run to many thousands of lines. Only the most recent are kept on
 screen (the dialog says how many are hidden); **Copy log** always copies all of them.
 
-**The log stays until you close the dialog** (2.3.0). A **Rescan** used to clear the view and start
-the next pass on a blank one; it now writes a `--- Rescan ---` line and carries on below it, so a
-run you applied, rescanned and applied again reads top to bottom on screen and not only through
-**Copy log**. Once changes have been written the log is the only record of what happened, so copy it
+**The log stays until you close the dialog.** A **Rescan** writes a `--- Rescan ---` line and
+carries on below it, so a run you applied, rescanned and applied again reads top to bottom on
+screen and not only through **Copy log**. Once changes have been written the log is the only record of what happened, so copy it
 before you close.
 
 ## Undo
@@ -238,16 +242,14 @@ Both match **any part of a tag's name and ignore case**, so `colour` finds `Hair
 actually gets written.
 
 Select any tag to see its parents, ancestors, children and descendants, plus a plain-language
-answer for what Prune and Roll Up would do with it. Every tag named in those lists is clickable and
+answer for what Prune and Roll Up would do with it. **Its name at the top of that panel is a link
+to the tag's own page in Stash, and it opens in a new tab** — the viewer holds a scan of the whole
+hierarchy, and leaving the page in this tab would throw it away. Every tag named in those lists is clickable and
 takes you to it — which is the direct way to reach one particular parent of a multi-parent tag,
 where the **◆** badge walks them one at a time. **Load counts** adds how many scenes, images,
 galleries and performers carry each tag — a separate query over the whole tag list, so it is only
 made if you ask. Hover the button for what it fetches; once it has, it reads **Refresh counts** and
 a second click re-fetches.
-
-The viewer offered **Copy as DOT** and **Copy as Mermaid** until 2.2.0, putting the hierarchy on the
-clipboard for a tool that draws graphs. They were removed: at real library size the drawn result was
-unreadable, which is the same reason the viewer is a tree in the first place.
 
 ## Entity types
 
@@ -341,10 +343,6 @@ but never removed, plus one that sets how the two name filters are written:
   character works, which makes it a good fit for namespace markers in tag names. Because spaces
   separate the substrings, a single substring cannot contain one.
 
-  > **Upgrading from 0.4.x:** a value that used to be a phrase, say `Hair Colour`, is now read as
-  > the two substrings `Hair` and `Colour` and will match more tags than before. Check these two
-  > settings after updating if you had spaces in either — or set a separator, below, and the
-  > phrase works again as it did.
 - **Separator for the two "name contains" settings** — leave empty to separate those substrings on
   spaces. Enter any character instead — a comma, a pipe, or any Unicode character you never use in
   tag names — and the substrings are separated on that, which is how a substring can then contain a

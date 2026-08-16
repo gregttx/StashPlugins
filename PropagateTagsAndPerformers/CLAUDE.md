@@ -5,10 +5,16 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.2.0.** Every step in the table below has landed, so the version left the
+**Status: released, 1.2.1.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**1.2.1 is a README pass.** The reference sections had accumulated version archaeology - "Since
+1.13.0 the two plugins agree...", "0.9.1 supplied that gap with a margin, which turned out to..." -
+which is a changelog written into the middle of an explanation of how the plugin behaves *now*. The
+release-note blocks at the top of the README are the place for that, and they still have it; the
+rest reads in the present tense. Nothing in the script changed but the version constant.
 
 **1.2.0 keeps the log until the dialog closes, and gives Rescan a tooltip.** `rescan()` no longer
 empties the rendered log — it writes `--- Rescan ---` and the next pass carries on below it, which is

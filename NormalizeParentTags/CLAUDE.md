@@ -3,9 +3,17 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.3.0.** This file is both the design and the map of the code — the
+**Status: implemented at 2.4.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.4.0 links the inspector's title to the tag.** The viewer named the selected tag and gave no way
+to open it; the title is an `<a>` to `/tags/<id>` with `target="_blank"`, and it says so on hover.
+The new tab is the point rather than a detail: this dialog holds a scan of the whole hierarchy, and
+navigating in this tab throws it away to show one tag. An anchor rather than a click handler, so
+middle-click and ctrl-click behave the way they do everywhere else, and `.npt-i-title` gained
+`display:block` (an inline box drops the margin under it) with the colour inherited, so it still
+reads as a heading rather than as a link.
 
 **2.3.0 keeps the log until the dialog closes, and gives Rescan a tooltip.** `rescan()` no longer
 empties the rendered log — it writes `--- Rescan ---` and the next pass carries on below it, which is
@@ -601,6 +609,10 @@ and `centerOn` falls back to the tag's own row when the occurrence is not drawn 
 cycle, so it is never walked into). `rowNodes[id]` prefers the real row over a repeat explicitly;
 which of the two is drawn last depends on where the parents sit in the tree, not on their sort
 order, so the old "last one wins" comment was true only by accident.
+
+**The inspector's own title is the way *out* of the viewer** (2.4.0) - a link to the tag's page,
+opening in a new tab. Everything else in this dialog navigates the tree; this is the one control
+that leaves it, which is why it is also the one that must not take the tab with it.
 
 Every tag named in the inspector is a jump as well. That is the direct way to reach *one particular*
 parent, where the badge is the tour — the two gestures are worth having both of, and the inspector

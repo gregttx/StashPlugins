@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '1.0.0';
+  var PLUGIN_VERSION = '1.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -440,12 +440,14 @@
   var _descriptions = {};
   var _storeTagId = null;
   var _storeTagFields = {};        // its own custom fields - the marker, and the hide field
+  var _store = null;               // the parsed blob, for the writes a rename has to make
 
   function readStore(settings) {
     return findStoreTag(settings).then(function (tag) {
       var parsed = tag ? parseStore(tag.description) : { version: null, hideField: '', descriptions: {} };
       _storeTagId = tag ? String(tag.id) : null;
       _storeTagFields = (tag && tag.custom_fields) || {};
+      _store = parsed;
       _descriptions = parsed.broken ? {} : parsed.descriptions;
       return { tag: tag, store: parsed };
     }, function (e) {
@@ -454,6 +456,7 @@
       _descriptions = {};
       _storeTagId = null;
       _storeTagFields = {};
+      _store = null;
       throw e;
     });
   }
@@ -2233,6 +2236,61 @@
   // descriptions dialog compares the store's `hideField` with the setting and moves it
   // on its next open - that is the code that knows how to write the store, and this one
   // would be a second copy of it.
+  // A rename moves the field's **description** with it, for every field and not only
+  // the hide one: the description is filed under the name, so a rename that left it
+  // behind turned it into an orphan and left the renamed field undescribed - the value
+  // follows the name, and this is the other thing that has to.
+  //
+  // It writes the store from the module-level copy `readStore` cached, because the bulk
+  // dialog holds no store of its own. Refused rather than forced in the two states the
+  // descriptions dialog also refuses to write in - a description that is not our JSON,
+  // and a store stamped by a newer release - since both are cases where writing the
+  // whole blob back is what loses something. Resolves either way, so the caller can
+  // chain the hide-field rename after it and never have two writes to one tag in
+  // flight at once.
+  Run.prototype.moveDescription = function (from, to) {
+    var self = this;
+    if (!_storeTagId || !_store || !hasOwn(_descriptions, from)) return Promise.resolve();
+    if (_store.broken || (_store.version && cmpVersion(_store.version, PLUGIN_VERSION) > 0)) {
+      this.msg('WARN', 'The description filed under "' + from + '" stays there: the ' +
+        'description store on tag ' + _storeTagId + ' is ' + (_store.broken
+        ? 'not something this plugin wrote' : 'from a newer release') + ', and this ' +
+        'dialog will not write over it. "Manage Custom Field Descriptions..." says how ' +
+        'to recover it.');
+      return Promise.resolve();
+    }
+    if (hasOwn(_descriptions, to)) {
+      this.msg('INFO', '"' + to + '" already has a description, so the one under "' +
+        from + '" was left where it is rather than written over. Both are in "Manage ' +
+        'Custom Field Descriptions...".');
+      return Promise.resolve();
+    }
+
+    var descriptions = {};
+    for (var k in _descriptions) {
+      if (hasOwn(_descriptions, k)) descriptions[k === from ? to : k] = _descriptions[k];
+    }
+    // The store records which field the hide setting named when it was last written, so
+    // a rename of *that* field moves this too - or the descriptions dialog would read
+    // the difference as a rename of the setting and offer to migrate a library that has
+    // already moved.
+    var hideField = _store.hideField === from ? to : _store.hideField;
+    return gqlRequest('mutation CFBE_TagUpdate($input: TagUpdateInput!) ' +
+      '{ tagUpdate(input: $input) { id } }',
+    { input: { id: _storeTagId, description: serialiseStore(
+      { hideField: hideField, descriptions: descriptions }) } })
+      .then(function () {
+        _descriptions = descriptions;
+        _store = { version: PLUGIN_VERSION, hideField: hideField, descriptions: descriptions };
+        self.msg('INFO', 'The description of "' + from + '" moved to "' + to +
+          '" in the description store.');
+      }, function (e) {
+        self.msg('WARN', 'The field was renamed, but its description is still filed ' +
+          'under "' + from + '": ' + (e && e.message ? e.message : String(e)) +
+          ' Move it by hand in "Manage Custom Field Descriptions...".');
+      });
+  };
+
   // Decided against the **live** setting rather than against `this.settings`: a
   // selection run opens without reading the settings at all (`startRun` hands it
   // `DEFAULTS`), so its own copy would say "Exclude_from_add_list" for a user who has
@@ -2341,11 +2399,13 @@
     this.runWrites(batches, label).then(function (ok) {
       self.applied = ok;
       // Only once something was actually written: a rename that failed everywhere must
-      // not move the setting off the name the library still carries.
+      // not move a description, or the setting, off the name the library still carries.
       if (ok && planned.mode === 'rename' && planned.from) {
-        self.followHideRename(planned.from, planned.name).then(function (moved) {
-          if (moved) self.hideRename = { from: planned.from, to: planned.name };
-        });
+        self.moveDescription(planned.from, planned.name)
+          .then(function () { return self.followHideRename(planned.from, planned.name); })
+          .then(function (moved) {
+            if (moved) self.hideRename = { from: planned.from, to: planned.name };
+          });
       }
       // The local copy is moved with the server's, so Undo compares against what the
       // dialog actually wrote rather than against the map it read at open.
@@ -2409,11 +2469,18 @@
     this.renderProgress();
     this.runWrites(batches, 'Custom Fields (undo)').then(function (ok) {
       self.undone = ok;
-      // The setting followed the rename out; it follows the undo back.
-      if (ok && self.hideRename) {
-        var h = self.hideRename;
-        self.hideRename = null;
-        self.followHideRename(h.to, h.from);
+      // The description followed the rename out, and the setting with it where the
+      // rename was the hide field's; both follow the undo back. Read off the changes
+      // rather than remembered separately - `c.to` is what a rename leaves on one.
+      var ren = null;
+      self.changes.forEach(function (c) { if (!ren && c.to) ren = { from: c.name, to: c.to }; });
+      if (ok && ren) {
+        self.moveDescription(ren.to, ren.from).then(function () {
+          if (!self.hideRename) return null;
+          var h = self.hideRename;
+          self.hideRename = null;
+          return self.followHideRename(h.to, h.from);
+        });
       }
       self.changes.forEach(function (c) {
         if (c.to) delete c.entity.fields[c.to];

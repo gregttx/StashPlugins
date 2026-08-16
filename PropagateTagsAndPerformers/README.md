@@ -62,7 +62,7 @@ one is where to start looking. Numbers in brackets are ids, so you can go straig
 
 Each phase closes with a recap of every distinct tag and performer the run moves and how many
 entities each lands on — the question worth asking before a library-wide write, and one a
-six-figure log cannot be read for. Since 0.16.0 **the tags in that line hover**, naming their
+six-figure log cannot be read for. **The tags in that line hover**, naming their
 aliases and description, which is what tells two tags sharing a name apart without leaving the
 dialog. Only tags with something to add beyond the name carry one.
 
@@ -128,7 +128,7 @@ Under the **task** this is not a concern: one run applies each direction once, i
 The hazard is the automatic modes, where each write triggers the other.
 
 The dialog says so when it finds a pair enabled, in **one** note however many pairs are on — with
-both pairs enabled it used to print the same explanation twice (fixed in 1.1.0).
+both pairs enabled.
 
 **Press Escape** to close the dialog, exactly as Cancel or Close would. While a write is actually
 in flight it does nothing — there is no Cancel to reach at that moment, and Stop is not something a
@@ -193,29 +193,19 @@ Both automatic modes share the rest of their behaviour:
 
 With **Show Manual Buttons** on, each enabled path adds a small button to the Edit tab of its
 target — a scene with the performer-tags and studio-tags paths both enabled shows two buttons, not
-one that tries to name both, and a path with no button setting simply has no button. Since 0.9.0,
-each button is also labelled consistently: `"Copy [all|common] [Tags|Perfs] from all <plural>"` —
+one that tries to name both, and a path with no button setting simply has no button. Each button
+is labelled consistently: `"Copy [all|common] [Tags|Perfs] from all <plural>"` —
 for example **"Copy all Tags from all Performers"** on a scene, or **"Copy common Tags from all
 Scenes"** on a group if you have turned on that path's "common tags only" setting.
 
-Since 0.9.1, a button lands **beside Save and Delete rather than after them** — grouped with
-Stash's own non-destructive actions, the same placement `MergePerformerTagsToScenes`' button
-already uses, rather than trailing behind. On a page with two enabled paths, the row now also gets
-a small gap between its two lines when it wraps, rather than the second row sitting flush against
-the first. 0.9.1 supplied that gap with a margin on the buttons themselves, which turned out to
-grow Stash's own Save/Delete/Submit buttons taller too — a flex row stretches every button sharing
-it to match whichever one is tallest. 0.9.2 moves the gap onto the row itself instead, which does
-not have that effect. Since 0.11.0, "beside" specifically means **between Save and Delete** — 0.9.1
-had landed it before Save instead, and further live feedback was that this was the position
-actually wanted, not that one. Since 0.12.0, a page with no Delete at all (Group's edit form) lands
-its button **before Save** instead of after it, so Save — Stash's own primary action — always stays
-the last thing in the row rather than being displaced by ours.
+A button lands **between Save and Delete** — grouped with Stash's own non-destructive actions,
+the same placement `MergePerformerTagsToScenes`' buttons use. On a page with no Delete at all
+(Group's edit form) it lands **before Save**, so Save — Stash's own primary action — always stays
+the last thing in the row rather than being displaced by ours. On a page with two enabled paths,
+the row gets a small gap between its two lines when it wraps; the gap is on the row rather than on
+the buttons, since a margin on a button in a flex row grows Stash's own buttons taller with it.
 
-Since 0.12.1 this finally takes effect on Scene: up to 0.12.0 the plugin recognised Delete only
-by a CSS class that Stash does not put on that page's Delete, so every version silently used the
-Save fallback and placed buttons to the left of Save. Delete is now recognised by its label too.
-
-Since 0.17.0 every button this plugin draws is **amber**, where Stash's own row actions are grey.
+Every button this plugin draws is **amber**, where Stash's own row actions are grey.
 Amber is this repo's colour for "a plugin put this here, and pressing it writes to entities other
 than the one in front of you" — the same colour `MergePerformerTagsToScenes` uses for its two
 buttons, so a row holding both reads as one kind of thing rather than two. It is deliberately not
@@ -223,7 +213,7 @@ the blue of a primary action: Save is still the primary action on those pages.
 
 ### When a button appears
 
-Since 0.13.0 a target-side button appears only when clicking it would **actually add something**.
+A target-side button appears only when clicking it would **actually add something**.
 It hides when the relationship is absent (a scene with no performers, a group with no studio), and
 also when the relationship is there but has nothing left to give: the sources carry no tags, the
 target already has all of them, the "common tags only" intersection is empty, or the exclusion
@@ -247,7 +237,7 @@ back stays hidden until you press Save. Saving re-checks immediately; you never 
 
 ### Why is a button missing?
 
-Since 0.13.0 a button hides itself whenever clicking it would add nothing, and most of the reasons
+A button hides itself whenever clicking it would add nothing, and most of the reasons
 are invisible from the page — the sources' tags, the target's own tags, the exclusion filters. To
 see the reasoning, open the browser console (F12), run:
 
@@ -380,18 +370,15 @@ no such row at all — just a tab strip (Details / File Info / Chapters / Edit) 
 button gets a small row of its own directly under that strip. Image follows whichever shape it turns
 out to have.
 
-Since 0.15.0 a button in that row **appears only while the tab showing its targets is open** — the
+A button in that row **appears only while the tab showing its targets is open** — the
 Groups tab for "…to all Groups", the Images tab for "…to all Images". Where a page has no tab for
 that type, the button shows on every tab rather than disappearing; a missing button is the worse
 mistake. Buttons in a detail action row (Performer, Group) are not affected.
 
-Until 0.13.3 those five buttons simply never appeared, and nothing said why; the gating diagnostics
-below are what found it.
-
 **Anything this plugin writes outside the task dialog refreshes what it wrote.** The groups (or
 images, or scenes) it updated are dropped from Stash's client-side cache, so the panel you are
 looking at redraws with the new tag counts instead of the ones it loaded before. No page reload —
-a button keeps its "Added N". Since 0.16.0 this covers **both automatic modes** as well as both
+a button keeps its "Added N". This covers **both automatic modes** as well as both
 buttons; before that only the source-side button refreshed, so an automatic propagation left the
 page you had just saved showing what it read a moment earlier. Only entities actually written are
 dropped: refetching a panel a run did not change is the one cost this has.
@@ -454,7 +441,7 @@ never copy tags set to *Ignore auto tag*, and never copy tags carrying a custom 
 **Logging** — write every copy to the browser console (F12 → Console; **not** the Stash server log
 or the Logs page — this is a UI plugin and cannot write there).
 
-Since 0.17.0 four of those switches are not Stash's blue. **Save Immediately** and the two
+Four of those switches are not Stash's blue. **Save Immediately** and the two
 automatic modes are **amber**, the plugin's colour for a setting that makes it write without
 showing you a plan first; the logging switch is **teal**, for one that only talks to the console.
 Everything else stays blue. The plugin's task button in **Settings → Tasks → Plugin Tasks** is

@@ -5,14 +5,14 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0 and all of 1.0.0 are
-unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
-filters, §6a's Rename, §6b's scope switch and §24's three. Every one of them came from live use of
+**0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0, all of 1.0.0 and all of
+1.1.0 are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
+filters, §6a's Rename, §6b's scope switch, §24's three and §25's. Every one of them came from live use of
 the dialogs (the shrinking window was reported, not deduced; so was the description box being too
 small for what it holds, so was "Overwrite" reading as if it cleared an entity's whole set of
 fields, and so was the hide field reading as an orphan), but nothing in any of the fixes has been
-clicked: it is `tests/cfbe.test.js` at 204 checks, `tests/cfbe-desc.test.js` at 90, and twenty-four
-mutants across the five releases.
+clicked: it is `tests/cfbe.test.js` at 210 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
+mutants across the six releases.
 
 **1.0.0 is the user's call, not this file's.** The repo rule is that the major digit says a plugin
 has been used in a real Stash and that the unverified list above is empty; the first half is true —
@@ -21,7 +21,7 @@ second is not. The bump was asked for explicitly, so it is the user's claim abou
 instance rather than a conclusion drawn here. What that changes going forward: a patch per fix, a
 minor per delivered capability, and this paragraph goes when the list above does.
 
-**Status: 1.0.0 — §22–§23 are being used, and the first reports are in.** Everything those two
+**Status: 1.1.0 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
@@ -60,7 +60,7 @@ had to reissue after an unescaped quote in its own `.yml` stopped Stash loading 
 order things happened, 0.6.0 is §17, every skip saying why, 0.7.0 is §18, the first setting, and
 0.7.1 is §19, the footer in the siblings' order, 0.7.2 is §20, the last line
 of the log back on screen, and 0.7.3 is §21, the dropdown marker.
-344 automated checks cover the plugin across its three suites, and they still
+350 automated checks cover the plugin across its three suites, and they still
 reproduces Stash's markup **from notes** — it can only confirm the plugin is consistent with what it
 was told.
 
@@ -1384,3 +1384,39 @@ its own hide field, and in four comments — is gone. It was only ever cited as 
 convention, and it is a plugin with settings of its own that this one does not read, so naming it in
 a description a user reads next to *our* setting invited exactly the confusion it caused. Nothing
 about the mechanism changed.
+
+## 25. A description follows its field (1.1.0)
+
+§24 moved the *setting* on a rename and left the other half of the same mistake in place: a
+description is filed under the field's **name**, so a rename left it behind — the renamed field
+arrived undescribed, and the description became an `[orphan]` under a name nothing carried. The
+value follows the name through `partial` + `remove`; this is the other thing that has to.
+
+**For every field, not for the hide one.** The obvious reading of the request was to fix the field
+§24 is about, and that would have been the special case of a general bug: nothing about the hide
+field makes its description more attached to its name than any other. `moveDescription` runs for
+every rename, and `followHideRename` stays what it is — the *setting* really is one field's
+business.
+
+**It writes the store from the module-level copy, not from a dialog.** `readStore` already caches
+`_descriptions` for the field-name tooltips; it now keeps the parsed blob beside them as `_store`,
+which is all `serialiseStore` needs. The bulk dialog therefore writes the descriptions store
+without holding one, and without a second parser: one `tagUpdate` carrying `description`, the same
+shape `DescRun.apply` sends.
+
+**Refused in the two states the descriptions dialog also refuses to write in** — a description that
+is not our JSON (`broken`), and a store stamped by a newer release. Both are cases where writing
+the whole blob back is what loses something, and the reasoning in §22's version gate is unchanged
+by the caller being a different dialog. It says so in the log rather than failing silently, because
+the user is left with a description under the old name either way and only the line tells them.
+
+**A new name that already has a description keeps it.** Overwriting it would destroy a sentence
+somebody wrote, silently, to make room for another one — the same call `plan()` makes when a rename
+would land on a key an entity already carries (§6a), and for the same reason. One `[INFO]` names
+both.
+
+**Chained, never fired alongside.** `apply()` runs `moveDescription` and *then* `followHideRename`,
+so the two `tagUpdate`s a hide-field rename makes — the description and the mark — are never in
+flight against the same tag at once. Undo reverses both, and reads the pair off `c.to` on the
+changes rather than remembering a second copy of it; pressing Undo twice is idempotent, because the
+second call finds nothing filed under the name it would move.

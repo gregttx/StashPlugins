@@ -378,10 +378,10 @@ mistake. Buttons in a detail action row (Performer, Group) are not affected.
 **Anything this plugin writes outside the task dialog refreshes what it wrote.** The groups (or
 images, or scenes) it updated are dropped from Stash's client-side cache, so the panel you are
 looking at redraws with the new tag counts instead of the ones it loaded before. No page reload —
-a button keeps its "Added N". This covers **both automatic modes** as well as both
-buttons; before that only the source-side button refreshed, so an automatic propagation left the
-page you had just saved showing what it read a moment earlier. Only entities actually written are
-dropped: refetching a panel a run did not change is the one cost this has.
+a button keeps its "Added N". This covers **both automatic modes** as well as both buttons, so an
+automatic propagation never leaves the page you have just saved showing what it read a moment
+earlier. Only entities actually written are dropped: refetching a panel a run did not change is the
+one cost this has.
 
 ### What a source-side button actually does
 

@@ -369,12 +369,6 @@ whichever plugin's button appeared last. Both land **between Save and Delete**; 
 but no Delete puts them before Save, so Stash's own primary action stays the last thing in the
 row.
 
-**If your buttons sit to the left of Save, you are on 1.15.0 or earlier — update.** Up to that
-version the plugin looked for Delete only by the CSS class Stash puts on it, and on the scene Edit
-row it does not put one there, so the button kept landing before Save no matter what the three
-versions before it changed. 1.15.1 recognises Delete by its label as well, and the buttons move
-between Save and Delete.
-
 **Spacing settled over 1.15.2 to 1.15.9**, mostly against screenshots of a real Stash. What it comes
 to: a button's margins are read off whatever Stash already put in that row rather than set to a
 fixed amount, so every gap in the row matches; the gap is measured against the button you can

@@ -5,8 +5,12 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.2.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.2.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.2.2 drops the "you are on 1.15.0 or earlier" note.** It was the last piece of anchor history in
+the README and it was kept back from 2.2.1's pass for being actionable rather than merely
+historical; the user's call is that it goes with the rest.
 
 **2.2.1 is a README pass.** The reference sections had accumulated version archaeology - "Since
 1.13.0 the two plugins agree...", "0.9.1 supplied that gap with a margin, which turned out to..." -

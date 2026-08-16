@@ -5,10 +5,15 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.2.1.** Every step in the table below has landed, so the version left the
+**Status: released, 1.2.2.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**1.2.2 fixes a clause 1.2.1 left dangling.** Stripping "Since 0.16.0" from the cache-refresh
+paragraph left "before that only the source-side button refreshed" pointing at nothing. The lesson
+is small and general: removing a version stamp is not always a deletion of one phrase, since the
+sentence after it may be leaning on the version for its antecedent.
 
 **1.2.1 is a README pass.** The reference sections had accumulated version archaeology - "Since
 1.13.0 the two plugins agree...", "0.9.1 supplied that gap with a margin, which turned out to..." -

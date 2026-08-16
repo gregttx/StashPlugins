@@ -1,30 +1,19 @@
 # GTTx Propagate Tags and Performers to Related Entities
 
-> ## 1.3.0 — a stale script says so on the settings page
+> ## 1.4.0 — a stale script says so, on the settings page and in the dialogs
 >
-> **When your browser is still running an older copy of this plugin, its settings group now says
-> so in red.** Stash serves plugin scripts with caching on, so an update can leave the new version
-> installed on the server while the page in front of you goes on running the old one — with nothing
-> on screen to say which you have. The banner names both versions and the fix: **Ctrl+Shift+R**
-> (⌘+Shift+R on a Mac). It sits at the top of the group, above the description, so it shows even
-> with the group collapsed, and it disappears once the two agree.
+> **When your browser is still running an older copy of this plugin, it now says so in red.** Stash
+> serves plugin scripts with caching on, so an update can leave the new version installed on the
+> server while the page in front of you goes on running the old one — with nothing on screen to say
+> which you have. Two places tell you now:
 >
-> ## 1.0.0 — everything described below is built
+> - **The plugin's settings group**, at the top, above the description — so it shows even with the
+>   group collapsed, and it disappears once the two versions agree.
+> - **Every dialog this plugin opens**, in a box of its own under the title rather than a sentence
+>   among the run's other warnings. The dialog already refused to write with a stale script; what changed is that you can see why at a glance.
 >
-> The library-wide task covers every path: it reviews, applies and undoes. **Back up your database
-> before running it** — see below. Both automatic modes work, both cooperate with the two sibling
-> plugins, and manual buttons sit on **all four target pages** — Scene, Gallery, Image and Group —
-> with a second set on the **source's own page**: a performer, a studio, or one of those same four
-> entities acting as a source. The version was held below 1.0.0 while any of that was outstanding;
-> none of it is.
->
-> **If you are upgrading, three things are worth knowing.** The plugin is now called **GTTx
-> Propagate Tags and Performers to Related Entities** in Stash's plugin list — the folder and the
-> plugin id are unchanged, so your settings survive the update, but the name you look for on the
-> settings page has moved down the alphabet. Update `MergePerformerTagsToScenes` to 2.0.0 alongside
-> it: the two plugins share a row of buttons and a set of cooperation protocols, and they are
-> developed together. And if your buttons currently sit to the *left* of Save, you are on 0.12.0 or
-> older — 0.12.1 fixed the anchor and they move to between Save and Delete.
+> Both name the version you are running, the version installed, and the fix: reload the page, and
+> if the warning comes back, hard-refresh with **Ctrl+Shift+R** (⌘+Shift+R on a Mac).
 
 > ## ⚠ Back up your database before the first library-wide run
 >
@@ -159,7 +148,7 @@ the order is fixed, and the dialog states it:
 6. **The two reverses** — groups back onto scenes, galleries back onto images — last, so they
    distribute what stages 1–5 gathered rather than a stale set.
 
-## The automatic modes (0.5.0, 0.6.0)
+## The automatic modes
 
 Both react to Stash's own saves, immediately, with no dialog, no review and no undo — so treat them
 as the sharp end of this plugin, and try the task first.
@@ -198,7 +187,7 @@ Both automatic modes share the rest of their behaviour:
   being accepted, and copying tags onto an entity because of an edit that never happened would be
   the worst kind of surprise.
 
-## Manual buttons and staging (0.8.0 – 0.12.1)
+## Manual buttons and staging
 
 With **Show Manual Buttons** on, each enabled path adds a small button to the Edit tab of its
 target — a scene with the performer-tags and studio-tags paths both enabled shows two buttons, not

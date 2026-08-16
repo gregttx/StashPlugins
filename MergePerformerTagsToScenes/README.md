@@ -1,22 +1,19 @@
 # GTTx Merge Performer Tags To Scenes
 
-> ## 2.3.0 — a stale script says so on the settings page
+> ## 2.4.0 — a stale script says so, on the settings page and in the dialogs
 >
-> **When your browser is still running an older copy of this plugin, its settings group now says
-> so in red.** Stash serves plugin scripts with caching on, so an update can leave the new version
-> installed on the server while the page in front of you goes on running the old one — with nothing
-> on screen to say which you have. The banner names both versions and the fix: **Ctrl+Shift+R**
-> (⌘+Shift+R on a Mac). It sits at the top of the group, above the description, so it shows even
-> with the group collapsed, and it disappears once the two agree.
+> **When your browser is still running an older copy of this plugin, it now says so in red.** Stash
+> serves plugin scripts with caching on, so an update can leave the new version installed on the
+> server while the page in front of you goes on running the old one — with nothing on screen to say
+> which you have. Two places tell you now:
 >
-> ## 2.0.0 — the plugin is now called *GTTx Merge Performer Tags To Scenes*
+> - **The plugin's settings group**, at the top, above the description — so it shows even with the
+>   group collapsed, and it disappears once the two versions agree.
+> - **Every dialog this plugin opens**, in a box of its own under the title rather than a sentence
+>   among the run's other warnings. The dialog already refused to write with a stale script; what changed is that you can see why at a glance.
 >
-> Only the display name changed. The folder, the plugin id and every setting keep their names, so
-> an update carries your configuration over; what moves is where the plugin sits in Stash's
-> alphabetical plugin list. The `GTTx ` prefix collects it with its siblings —
-> `GTTx Normalize Parent Tags`, `GTTx Propagate Tags and Performers to Related Entities` and
-> `GTTx Custom Fields Bulk Editor` — which
-> are developed together and are meant to be updated together.
+> Both name the version you are running, the version installed, and the fix: reload the page, and
+> if the warning comes back, hard-refresh with **Ctrl+Shift+R** (⌘+Shift+R on a Mac).
 
 > ## ⚠ Back up your database before the first library-wide run
 >

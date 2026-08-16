@@ -6,13 +6,31 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 reasoning that does not belong in either.
 
 **0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0, all of 1.0.0, all of
-1.1.0 and 1.2.0's stale-script banner are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
+1.1.0 and the stale-script banner of 1.2.0/1.3.0 are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
 filters, §6a's Rename, §6b's scope switch, §24's three and §25's. Every one of them came from live use of
 the dialogs (the shrinking window was reported, not deduced; so was the description box being too
 small for what it holds, so was "Overwrite" reading as if it cleared an entity's whole set of
 fields, and so was the hide field reading as an orphan), but nothing in any of the fixes has been
-clicked: it is `tests/cfbe.test.js` at 217 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
+clicked: it is `tests/cfbe.test.js` at 218 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
+
+**1.3.0 puts the same warning in the dialogs.** The version check was always there and always
+blocked Apply; what changed is that its message is a box of its own (`.cfbe-stale`, the settings
+banner's red) under the dialog title, rather than a sentence appended to `noteEl` behind whatever
+else the run had to say. Three things about it:
+
+- **`showStale(msg)` rather than `note(msg)`**, and the message goes to the log by hand beside it.
+  `note` does both, which is right for a warning about the *library* - the log is where a user reads
+  those back. This one is about the dialog itself running code the user has already replaced, and it
+  is the only warning here that blocks, so it gets its own place in the head and keeps the log line
+  Copy log needs.
+- **`begin()` clears it**, like the note beside it: a rescan after the reload the box asked for must
+  not go on claiming the script is stale.
+- **The harness's `dialog().note` now concatenates both boxes**, and `dialog().stale` reads the new
+  one alone. Every existing check asking "does the head say so" keeps working and keeps meaning what
+  it meant; the checks that are about *which* box a message is in name it.
+
+**Both dialogs get it from one place.** `DescRun` borrows `showStale` the way it already borrows `show` and `checkVersion`, so the descriptions dialog needed nothing but the box in its own head. And the log line goes through `msg`, not `log` - this plugin's `Run` has no `log`.
 
 **1.2.0 tells the user the script is stale, where they can see it.** Stash serves plugin JS with
 caching on, so a browser can go on running the old file after an update with nothing on screen
@@ -43,7 +61,7 @@ second is not. The bump was asked for explicitly, so it is the user's claim abou
 instance rather than a conclusion drawn here. What that changes going forward: a patch per fix, a
 minor per delivered capability, and this paragraph goes when the list above does.
 
-**Status: 1.2.0 — §22–§23 are being used, and the first reports are in.** Everything those two
+**Status: 1.3.0 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box

@@ -300,7 +300,15 @@ function dialog(body, prefix) {
     open: nodes.some((n) => hasClass(n, p + '-modal')),
     lines: nodes.filter((n) => hasClass(n, p + '-line')).map((n) => n.textContent),
     progress: (nodes.filter((n) => hasClass(n, p + '-progress'))[0] || {}).textContent || '',
-    note: (nodes.filter((n) => hasClass(n, p + '-note'))[0] || {}).textContent || '',
+    // Everything the head is warning about, in one string. The stale-script box is
+    // separate markup from the run's notes precisely so it can be styled and cleared
+    // on its own, but every check that asks "does the head say so" means both -
+    // splitting them here would make each of those checks name a box by hand.
+    note: [p + '-note', p + '-stale']
+      .map((c) => (nodes.filter((n) => hasClass(n, c))[0] || {}).textContent || '')
+      .filter((t) => t).join(' '),
+    // The stale box alone, for the checks that are about *which* box a message is in.
+    stale: (nodes.filter((n) => hasClass(n, p + '-stale'))[0] || {}).textContent || '',
     // The standing explanation of the log's own notation - what the id in brackets
     // is - as opposed to `note`, which carries whatever this run had to warn about.
     legend: (nodes.filter((n) => hasClass(n, p + '-legend'))[0] || {}).textContent || '',

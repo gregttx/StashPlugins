@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '1.2.0';
+  var PLUGIN_VERSION = '1.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -1215,6 +1215,13 @@
     head.appendChild(el('div', 'cfbe-title', PLUGIN_SHORT_NAME + ' - ' + (this.spec
       ? this.spec.plural + ' - ' + this.ids.length + ' selected'
       : 'Whole library - every entity type that carries custom fields')));
+    // The stale-script warning gets a box of its own, in the same red the settings
+    // banner uses, rather than a sentence appended to `noteEl` among the run's other
+    // warnings. Every other note here is about the library or another plugin; this one
+    // is about the dialog itself running code the user has already replaced. It reads
+    // as a different kind of thing because it is one.
+    this.staleEl = el('div', 'cfbe-stale cfbe-hidden', '');
+    head.appendChild(this.staleEl);
     head.appendChild(el('div', 'cfbe-warn',
       'Backing up your database before proceeding is recommended. Undo only reverses what this dialog wrote, ' +
       'while it stays open, and cannot account for changes made elsewhere in the meantime.'));
@@ -1414,6 +1421,13 @@
     if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
   };
 
+  // Empty hides it. Both dialogs check once on open and again on a Rescan, so the
+  // reset is what stops a warning surviving a reload the user has already done.
+  Run.prototype.showStale = function (msg) {
+    this.staleEl.textContent = msg || '';
+    this.show(this.staleEl, !!msg);
+  };
+
   Run.prototype.show = function (node, visible) {
     node.className = node.className.replace(/\s*cfbe-hidden/g, '') + (visible ? '' : ' cfbe-hidden');
   };
@@ -1610,12 +1624,18 @@
       if (!installed || installed === PLUGIN_VERSION) {
         console.info('[cfbe] running ' + PLUGIN_VERSION + ', Stash reports ' +
           (installed || 'nothing') + ' installed.');
+        self.showStale('');
         return;
       }
       self.stale = true;
-      self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but Stash has ' +
-        installed + ' installed. Reload the page before applying anything; if this warning ' +
-        'comes back, hard-refresh with Ctrl+Shift+R.');
+      var msg = '\u26a0 This page is running ' + PLUGIN_SHORT_NAME + ' ' + PLUGIN_VERSION +
+        ', but Stash has ' + installed + ' installed. Reload the page (F5) before applying ' +
+        'anything; if this warning comes back, hard-refresh with Ctrl+Shift+R ' +
+        '(\u2318+Shift+R on a Mac).';
+      // Into the log as well as the box: Copy log is how a user reports this, and a
+      // warning that only exists as chrome is one they cannot paste.
+      self.msg('WARN', msg);
+      self.showStale(msg);
       self.syncApply();
     });
   };
@@ -2703,6 +2723,13 @@
     var head = el('div', 'cfbe-head');
     head.appendChild(el('div', 'cfbe-title',
       PLUGIN_SHORT_NAME + ' - Custom field descriptions'));
+    // The stale-script warning gets a box of its own, in the same red the settings
+    // banner uses, rather than a sentence appended to `noteEl` among the run's other
+    // warnings. Every other note here is about the library or another plugin; this one
+    // is about the dialog itself running code the user has already replaced. It reads
+    // as a different kind of thing because it is one.
+    this.staleEl = el('div', 'cfbe-stale cfbe-hidden', '');
+    head.appendChild(this.staleEl);
     head.appendChild(el('div', 'cfbe-warn',
       'Backing up your database before proceeding is recommended. Undo only reverses what this dialog wrote, ' +
       'while it stays open, and cannot account for changes made elsewhere in the meantime.'));
@@ -2808,6 +2835,7 @@
   DescRun.prototype.close = Run.prototype.close;
   DescRun.prototype.focus = Run.prototype.focus;
   DescRun.prototype.show = Run.prototype.show;
+  DescRun.prototype.showStale = Run.prototype.showStale;
   DescRun.prototype.noun = Run.prototype.noun;
 
   DescRun.prototype.begin = function () {

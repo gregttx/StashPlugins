@@ -425,6 +425,13 @@ Promise.resolve()
     .then(({ d }) => {
       h.check('a version mismatch is named in the head', /9\.9\.9/.test(d.note), d.note);
       h.check('and says how to fix it', /F5/.test(d.note) && /Ctrl\+Shift\+R/.test(d.note), d.note);
+      // Its own red box, not a sentence appended to the run's notes: every other
+      // warning here is about the library or another plugin, and this one is about the
+      // dialog running code the user has already replaced. The log carries the same
+      // sentence, because Copy log is how a user reports it.
+      h.check('in the stale box rather than among the run notes', /9\.9\.9/.test(d.stale), d.stale);
+      h.check('and in the log, so Copy log carries it',
+        d.lines.some((l) => /9\.9\.9 is installed/.test(l)), d.stale);
       h.check('and holds Proceed back', d.button('Proceed').disabled === true);
     })
 

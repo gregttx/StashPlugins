@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '2.3.0';
+  var PLUGIN_VERSION      = '2.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1305,6 +1305,14 @@
     // clipped. Nothing to set: it is the default, and it holds only because no rule in
     // `TASK_CSS` makes this a flex child or sets `white-space`.
     head.appendChild(taskEl('div', 'cpt2s-title', PLUGIN_SHORT_NAME + ' - ' + this.taskName));
+    // The stale-script warning gets a box of its own, in the same red the settings
+    // banner uses, rather than a sentence appended to `noteEl` among the run's other
+    // warnings. Every other note here is about the library or another plugin; this one
+    // is about the dialog itself running code the user has already replaced, and it is
+    // the only one that disables Proceed. It reads as a different kind of thing because
+    // it is one.
+    this.staleEl = taskEl('div', 'cpt2s-stale cpt2s-hidden', '');
+    head.appendChild(this.staleEl);
     // The merge only ever adds tags. Undo is the single exception in this plugin -
     // it takes back what this dialog itself added - and it is not a restore, so the
     // backup instruction stays and its limits are stated beside it.
@@ -1362,6 +1370,13 @@
 
   TaskRun.prototype.focus = function () {
     if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
+  };
+
+  // Empty hides it. `begin()` clears it on every pass for the same reason it clears
+  // the note: a rescan after a reload must not go on claiming the script is stale.
+  TaskRun.prototype.showStale = function (msg) {
+    this.staleEl.textContent = msg || '';
+    this.show(this.staleEl, !!msg);
   };
 
   TaskRun.prototype.show = function (node, visible) {
@@ -1517,6 +1532,7 @@
     var self = this;
     this.setState('scanning');
     this.noteEl.textContent = '';
+    this.showStale('');
     this.renderProgress();
     this.log('INFO', PLUGIN_NAME + ' - ' + this.taskName + ' - reviewing, nothing will be written yet.');
     this.describeFilters();
@@ -1848,10 +1864,15 @@
       // where the user knows more than the dialog does - here the dialog knows
       // something the user cannot see.
       self.stale = true;
-      self.note('This page is running ' + PLUGIN_NAME + ' ' + PLUGIN_VERSION + ', but ' +
-        installed + ' is installed. Reload the page (F5) and run the task again; if this ' +
-        'warning comes back, hard-refresh with Ctrl+Shift+R. Proceed stays disabled until the ' +
-        'script matches, since the plan would be computed by the older code.');
+      var msg = '\u26a0 This page is running ' + PLUGIN_SHORT_NAME + ' ' + PLUGIN_VERSION +
+        ', but ' + installed + ' is installed. Reload the page (F5) and run the task again; ' +
+        'if this warning comes back, hard-refresh with Ctrl+Shift+R (\u2318+Shift+R on a Mac). ' +
+        'Proceed stays disabled until the script matches, since the plan would be computed by ' +
+        'the older code.';
+      // Into the log as well as the box: Copy log is how a user reports this, and a
+      // warning that only exists as chrome is one they cannot paste.
+      self.log('WARN', msg);
+      self.showStale(msg);
       self.setState(self.state);
     });
   };

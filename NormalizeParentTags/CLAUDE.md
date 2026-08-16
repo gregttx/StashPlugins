@@ -3,9 +3,27 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.5.0.** This file is both the design and the map of the code — the
+**Status: implemented at 2.6.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.6.0 puts the same warning in the dialogs.** The version check was always there and always
+blocked Proceed; what changed is that its message is a box of its own (`.npt-stale`, the settings
+banner's red) under the dialog title, rather than a sentence appended to `noteEl` behind whatever
+else the run had to say. Three things about it:
+
+- **`showStale(msg)` rather than `note(msg)`**, and the message goes to the log by hand beside it.
+  `note` does both, which is right for a warning about the *library* - the log is where a user reads
+  those back. This one is about the dialog itself running code the user has already replaced, and it
+  is the only warning here that blocks, so it gets its own place in the head and keeps the log line
+  Copy log needs.
+- **`begin()` clears it**, like the note beside it: a rescan after the reload the box asked for must
+  not go on claiming the script is stale.
+- **The harness's `dialog().note` now concatenates both boxes**, and `dialog().stale` reads the new
+  one alone. Every existing check asking "does the head say so" keeps working and keeps meaning what
+  it meant; the checks that are about *which* box a message is in name it.
+
+**The hierarchy viewer's copy moved too**, from `.npt-warn` to `.npt-stale`. It still blocks nothing - it writes nothing to block - but a stale script should look the same wherever the user meets it.
 
 **2.5.0 tells the user the script is stale, where they can see it.** Stash serves plugin JS with
 caching on, so a browser can go on running the old file after an update with nothing on screen

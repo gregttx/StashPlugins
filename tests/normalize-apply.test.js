@@ -337,6 +337,14 @@ Promise.resolve()
           /running GTTx Normalize Parent Tags \d/.test(d().note),
         d().note);
       h.check('and says how to fix it', d().note.indexOf('Ctrl+Shift+R') !== -1, d().note);
+      // Its own red box, not a sentence appended to the run's notes: every other
+      // warning here is about the library or another plugin, and this one is about the
+      // dialog running code the user has already replaced. The log carries the same
+      // sentence, because Copy log is how a user reports it.
+      h.check('in the stale box rather than among the run notes',
+        d().stale.indexOf('9.9.9 is installed') !== -1, d().stale);
+      h.check('and in the log, so Copy log carries it',
+        d().lines.some((l) => l.indexOf('9.9.9 is installed') !== -1), d().stale);
       // The one blocking warning in this dialog: every other one is about the library
       // or another plugin, where the user knows more than the dialog does.
       h.check('Proceed is held back even with a plan',

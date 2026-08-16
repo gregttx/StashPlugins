@@ -283,8 +283,10 @@ Promise.resolve()
   // the old ones, confidently.
   .then(() => open({ installed: { id: 'NormalizeParentTags', version: '9.9.9' } }))
     .then(({ env, d }) => {
+      // `npt-stale` since 2.5.0, not `npt-warn`: the same red box the settings page
+      // uses, so a stale script looks the same wherever the user meets it.
       const warn = env.body.descendants()
-        .filter((n) => h.hasClass(n, 'npt-warn')).map((n) => n.textContent).join(' ');
+        .filter((n) => h.hasClass(n, 'npt-stale')).map((n) => n.textContent).join(' ');
       h.check('a stale viewer says which script it is running',
         warn.indexOf('9.9.9 is installed') !== -1 && warn.indexOf('Ctrl+Shift+R') !== -1, warn);
       h.check('and that what it shows describes the older rules',

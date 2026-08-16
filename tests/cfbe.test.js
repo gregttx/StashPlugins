@@ -1398,9 +1398,15 @@ openDialog()
     one(env.body, 'cfbe-field-name').value = 'colour';
     h.fire(one(env.body, 'cfbe-field-name'), 'input');
     h.check('a stale script cannot apply', one(env.body, 'cfbe-apply').disabled === true);
-    h.check('and the head says why',
-      /has 9\.9\.9 installed/.test((one(env.body, 'cfbe-note') || {}).textContent || ''),
-      (one(env.body, 'cfbe-note') || {}).textContent);
+    // In its own red box rather than appended to the run's notes: every other warning
+    // here is about the library, and this one is about the dialog running code the user
+    // has already replaced. It carries the key that fixes it, and the log carries the
+    // same sentence so Copy log can report it.
+    const stale = (one(env.body, 'cfbe-stale') || {}).textContent || '';
+    h.check('and the head says why, in the stale box',
+      /has 9\.9\.9 installed/.test(stale) && /Ctrl\+Shift\+R/.test(stale), stale);
+    h.check('and the log carries it too, for Copy log',
+      notes(env.body).some((l) => /9\.9\.9 installed/.test(l)), notes(env.body).join(' | '));
   })
 
   // Escape goes through the footer rather than straight to `close()`, so it can only

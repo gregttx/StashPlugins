@@ -5,10 +5,26 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.3.0.** Every step in the table below has landed, so the version left the
+**Status: released, 1.4.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**1.4.0 puts the same warning in the dialogs.** The version check was always there and always
+blocked Proceed; what changed is that its message is a box of its own (`.ptp2re-stale`, the settings
+banner's red) under the dialog title, rather than a sentence appended to `noteEl` behind whatever
+else the run had to say. Three things about it:
+
+- **`showStale(msg)` rather than `note(msg)`**, and the message goes to the log by hand beside it.
+  `note` does both, which is right for a warning about the *library* - the log is where a user reads
+  those back. This one is about the dialog itself running code the user has already replaced, and it
+  is the only warning here that blocks, so it gets its own place in the head and keeps the log line
+  Copy log needs.
+- **`begin()` clears it**, like the note beside it: a rescan after the reload the box asked for must
+  not go on claiming the script is stale.
+- **The harness's `dialog().note` now concatenates both boxes**, and `dialog().stale` reads the new
+  one alone. Every existing check asking "does the head say so" keeps working and keeps meaning what
+  it meant; the checks that are about *which* box a message is in name it.
 
 **1.3.0 tells the user the script is stale, where they can see it.** Stash serves plugin JS with
 caching on, so a browser can go on running the old file after an update with nothing on screen

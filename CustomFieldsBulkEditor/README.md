@@ -14,6 +14,19 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.11.0 — the descriptions dialog divides its own room
+>
+> **A divider above the log.** Drag it to give the log more or less room; the panes above
+> take the difference. The description box keeps its own corner grip, and the two work
+> together.
+>
+> **The two boxes on the right have titles**, *Description* and *List of entities* — the
+> second also saying how many entities carry the field you picked.
+>
+> **A long description opens at the size it needs.** Picking a field grows the box to fit
+> what it holds, up to four fifths of the pane, so a paragraph is read without scrolling and
+> the list under it never disappears. A short one leaves the split as it was.
+>
 > ## 0.10.0 — Rename, and two dialogs that stop moving under you
 >
 > **The dialogs are a fixed height.** Both of this plugin's dialogs sized themselves to
@@ -449,6 +462,10 @@ Some details worth knowing:
 - **Undo** puts the tag's description and name back exactly as they were before Apply, and the box
   with it. A tag the dialog *created* is left in place; delete it by hand if you do not want it.
 - **Rescan** re-reads the library and the store, keeping whatever you have typed.
+- **The room is yours to divide.** Drag the divider above the log to trade room between the panes
+  and the log, and the description box's own bottom-right corner to resize just that box. Picking a
+  field sizes the box to the description it loads — up to four fifths of the pane — so a long one
+  needs no scrolling.
 - If you rename the **Hide from Add Lists** setting, the description follows it, and the dialog
   counts the entities still carrying the old field name and offers a **Migrate** button that renames
   it across them. Renaming a setting never writes to your library on its own.

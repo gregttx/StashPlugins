@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.10.0';
+  var PLUGIN_VERSION = '0.11.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -65,6 +65,10 @@
   var OBSERVE_MS   = 100;   // a burst of DOM mutations coalesced into one tick
   var ROW_WALK_MAX = 8;     // ancestors climbed from a checkbox looking for its row
   var LIST_RENDER_CAP = 1000;  // listing rows put in the DOM; all of them stay in memory
+  // The two boxes in the descriptions dialog's right pane say what they are, since one
+  // is typed into and the other is read-only and neither is obvious from its contents.
+  var DESC_HEAD  = 'Description';
+  var USERS_HEAD = 'List of entities';
   var EQ = '🟰';  // the name-value separator, U+1F7F0
   var NONE = '␀';      // "no field here": what an Add starts from, a Delete ends at, U+2400
   var ARROW = ' ⇒ ';
@@ -571,6 +575,13 @@
     // room belongs to. Editing the shared rule for a local need is what the pinning in
     // `tests/style.test.js` exists to stop.
     '.cfbe-logshort{flex:1 1 10rem;min-height:5rem;}' +
+    // The handle between the panes and the log. A textarea gets its grip from
+    // `resize:vertical` for free; a flex row between two boxes has no such thing, so
+    // this is the one place here that needs a drag of its own.
+    '.cfbe-divider{flex:0 0 auto;height:.6rem;margin:0 1rem;cursor:row-resize;}' +
+    '.cfbe-divider::after{content:"";display:block;height:2px;margin-top:.2rem;' +
+    'background:#394b59;border-radius:1px;}' +
+    '.cfbe-divider:hover::after{background:#7cc4ff;}' +
     '.cfbe-readme{color:#7cc4ff;font-size:.8rem;margin-top:.35rem;display:inline-block;}' +
     // ── The settings page ───────────────────────────────────────────────────
     //
@@ -634,6 +645,36 @@
     var b = el('button', 'btn btn-secondary btn-sm' + (className ? ' ' + className : ''), label);
     b.type = 'button';
     return b;
+  }
+
+  // A drag handle that pins the height of the element above it, so the flex column
+  // below takes whatever is left. The listeners go on `document` rather than on the
+  // handle: a fast drag leaves the pointer behind, and a mouseup outside the 10px bar
+  // would otherwise never arrive and the drag would latch.
+  function splitter(above) {
+    var bar = el('div', 'cfbe-divider');
+    bar.title = 'Drag to give the log below more or less room.';
+    var y0 = 0, h0 = 0;
+    function move(ev) {
+      var room = above.parentNode ? above.parentNode.clientHeight : 0;
+      // The floor keeps the panes usable; the ceiling keeps the log and the footer on
+      // screen, since neither can shrink past its own `min-height`.
+      var max = Math.max(120, room - 200);
+      var want = Math.max(80, Math.min(h0 + (ev.clientY - y0), max));
+      above.style.flex = '0 0 ' + want + 'px';
+    }
+    function up() {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+    }
+    bar.addEventListener('mousedown', function (ev) {
+      y0 = ev.clientY;
+      h0 = above.offsetHeight || above.clientHeight || 0;
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+      if (ev.preventDefault) ev.preventDefault();   // no text selection while dragging
+    });
+    return bar;
   }
 
   function hasClass(node, name) {
@@ -2457,11 +2498,11 @@
     this.progressEl = el('div', 'cfbe-progress', 'Loading...');
     this.modal.appendChild(this.progressEl);
 
-    var panes = el('div', 'cfbe-panes');
+    var panes = this.panesEl = el('div', 'cfbe-panes');
     this.namesEl = el('div', 'cfbe-names');
     panes.appendChild(this.namesEl);
     var detail = el('div', 'cfbe-detail');
-    this.detailEl = el('div', 'cfbe-detail-head', 'Pick a custom field on the left.');
+    this.detailEl = el('div', 'cfbe-detail-head', DESC_HEAD + ' - pick a custom field on the left.');
     detail.appendChild(this.detailEl);
     this.textEl = el('textarea', 'cfbe-text');
     this.textEl.disabled = true;
@@ -2472,10 +2513,13 @@
       self.syncApply();
     });
     detail.appendChild(this.textEl);
+    this.usersHead = el('div', 'cfbe-detail-head', USERS_HEAD);
+    detail.appendChild(this.usersHead);
     this.usersEl = el('div', 'cfbe-users');
     detail.appendChild(this.usersEl);
     panes.appendChild(detail);
     this.modal.appendChild(panes);
+    this.modal.appendChild(splitter(panes));
 
     var listWrap = el('div', 'cfbe-log cfbe-listwrap cfbe-logshort');
     this.listEl = el('div', 'cfbe-list');
@@ -2727,10 +2771,13 @@
     this.sel = name;
     this.textEl.value = String(this.desc[name] || '');
     this.textEl.disabled = !this.editable();
+    this.sizeText();
     var users = this.fields[name] || [];
-    this.detailEl.textContent = 'Custom field "' + name + '" - ' + (users.length
-      ? plural(users.length, 'entity', 'entities') + ' carry it'
-      : 'no entity in this scan carries it (orphan). Clearing the box below removes it.');
+    this.detailEl.textContent = DESC_HEAD + ' of custom field "' + name + '"';
+    this.usersHead.textContent = USERS_HEAD + ' - ' + (users.length
+      ? plural(users.length, 'entity', 'entities') + ' carry "' + name + '"'
+      : 'no entity in this scan carries "' + name +
+        '" (orphan). Clearing the box above removes it.');
     while (this.usersEl.firstChild) this.usersEl.removeChild(this.usersEl.firstChild);
     var self = this;
     users.slice(0, LIST_RENDER_CAP).forEach(function (e) {
@@ -2746,6 +2793,22 @@
         '... and ' + plural(users.length - LIST_RENDER_CAP, 'more') + ' not shown.'));
     }
     this.renderNames();
+  };
+
+  // Grow the box to whatever description was just loaded, so a long one is read without
+  // scrolling, and stop at four fifths of the pane so the list under it never vanishes.
+  // Only ever on `pick()`: the box is `resize:vertical`, and re-sizing one the user has
+  // just dragged would fight them. The floor is the CSS `min-height`, which is why this
+  // clears the height first and then only ever sets a bigger one - a short description
+  // lands back on the default split rather than on one line.
+  DescRun.prototype.sizeText = function () {
+    var box = this.textEl;
+    if (!box.style) return;
+    box.style.height = '';
+    var room = this.panesEl ? this.panesEl.clientHeight : 0;
+    var want = box.scrollHeight;
+    if (!room || !want) return;
+    box.style.height = Math.min(want + 4, Math.round(room * 0.8)) + 'px';
   };
 
   DescRun.prototype.prune = function () {

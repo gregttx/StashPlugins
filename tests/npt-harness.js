@@ -30,6 +30,12 @@ function makeElement(tag) {
     disabled: false,
     scrollTop: 0,
     scrollHeight: 0,
+    // No layout here, so these stay 0 unless a test sets them - which is exactly how a
+    // sizing rule gets exercised: give the box a content height and the pane a height,
+    // and read back what the plugin wrote into `style`.
+    clientHeight: 0,
+    offsetHeight: 0,
+    style: {},
     childNodes: [],
     parentNode: null,
     handlers: {},

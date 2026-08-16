@@ -5,18 +5,20 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**0.9.0's two filter modes and all of 0.10.0 are unverified** — §5b's truth modes, §5c's fixed
-height, §6a's Rename and §6b's scope switch. 0.10.0's three came from live use of the dialogs
-(the shrinking window was reported, not deduced), but nothing in the fix has been clicked: it is
-`tests/cfbe.test.js` at 185 checks and eight mutants across the two releases.
+**0.9.0's two filter modes, all of 0.10.0 and all of 0.11.0 are unverified** — §5b's truth modes,
+§5c's fixed height, §5d's divider and box sizing, §6a's Rename and §6b's scope switch. Every one of
+them came from live use of the dialogs (the shrinking window was reported, not deduced; so was the
+description box being too small for what it holds), but nothing in any of the fixes has been
+clicked: it is `tests/cfbe.test.js` at 185 checks, `tests/cfbe-desc.test.js` at 83, and twelve
+mutants across the three releases.
 
-**Status: 0.10.0 — §22–§23 are being used, and the first two reports are in.** Everything those two
+**Status: 0.11.0 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
 until a Rescan (§22a), and both STRING settings read as empty until edited (§22b). What is still
 unverified: Undo, Prune, Migrate, the version gate, and every one of the six dropdowns §23 filters.
-The suite covers all of it — 75 checks in `tests/cfbe-desc.test.js`, each confirmed against a
+The suite covers all of it — 83 checks in `tests/cfbe-desc.test.js`, each confirmed against a
 deliberately broken copy — but it reproduces Stash's answers from notes, which is exactly the limit
 stated at the end of §9.
 
@@ -391,6 +393,36 @@ shared rule is untouched, the plugin-specific selector is invisible to the pinni
 in one plugin, so there is nothing to compare it against), and the panes inside now do the giving
 and taking that the window used to do. Do not "fix" this by editing `.cfbe-modal` — that changes
 three other plugins for a complaint about this one.
+
+## 5d. Who gets the room inside the descriptions dialog (0.11.0)
+
+Once §5c stopped the *window* moving, the question of how the fixed height is divided became the
+user's rather than the layout's. Three parts, and they are deliberately three different mechanisms:
+
+**The description box is dragged by the browser.** `.cfbe-text` is `resize:vertical`, which is a
+native grip and needs no code. Nothing here reimplements it.
+
+**The panes-over-log divider is the one place that needs a handle of its own**, because a flex
+column gives no grip between two boxes. `splitter(above)` returns a `.cfbe-split` bar that pins
+`above.style.flex` to a pixel height on drag, so the log below takes what is left. Three details
+worth keeping: the `mousemove`/`mouseup` listeners go on **`document`**, not on the bar — a fast
+drag leaves the pointer behind and a `mouseup` off the 10px bar would never arrive, latching the
+drag; `preventDefault` on `mousedown` stops the text selection a drag over a log otherwise makes;
+and the clamp has both ends, since `.cfbe-log` and `.cfbe-foot` have `min-height`s that stop them
+shrinking and an unclamped drag pushes the footer off the modal.
+
+**The description box grows to what was just loaded, and only then.** `sizeText()` clears the
+height, reads `scrollHeight`, and sets the smaller of the content and **four fifths of the pane** —
+so a long description is read without scrolling and the entity list under it never disappears. The
+floor is the CSS `min-height`, which is why it only ever sets a *bigger* height: a short
+description lands back on the default split rather than on one line. It is called from `pick()`
+alone. **Do not call it on input**: the box is user-resizable, and re-sizing a box someone has just
+dragged is the plugin fighting them.
+
+**The two boxes have titles because neither is obvious from its contents** — one is typed into and
+one is read-only, and before this the single head above the box described *the entity list*.
+`DESC_HEAD` / `USERS_HEAD` are constants because both strings are used twice, once in the empty
+state and once with the field name in them.
 
 ## 6. The four modes, and the one distinction the data allows
 

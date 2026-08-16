@@ -277,9 +277,12 @@ openDesc()
   // ── Picking a field, and writing one ──────────────────────────────────────
   .then((env) => {
     pick(env.body, 'colour').click();
-    h.check('picking a field shows what carries it', /3 entities carry it/
-      .test((one(env.body, 'cfbe-detail-head') || {}).textContent || ''),
-    (one(env.body, 'cfbe-detail-head') || {}).textContent);
+    // Two boxes, one typed into and one read-only, neither obvious from its contents.
+    const heads = byClass(env.body, 'cfbe-detail-head').map((n) => n.textContent);
+    h.check('the box you type in says it is the description',
+      heads[0] === 'Description of custom field "colour"', heads.join(' | '));
+    h.check('and the box under it says it is the list of entities, and what carries it',
+      heads[1] === 'List of entities - 3 entities carry "colour"', heads.join(' | '));
     h.check('with a line per entity, each linking to its own type',
       byClass(one(env.body, 'cfbe-users'), 'cfbe-pill-ent').map((p) => p.href).join(' ') ===
         '/scenes/1 /performers/1 /tags/1',
@@ -287,6 +290,43 @@ openDesc()
     h.check('and the box holds the description it already has',
       one(env.body, 'cfbe-text').value === 'The colour it is filed under.',
       one(env.body, 'cfbe-text').value);
+
+    // ── The room the two boxes and the log get ──────────────────────────────
+    //
+    // No layout in this DOM, so the heights are the test's to state: a pane 500 tall
+    // and a box whose content is however many pixels the check is about.
+    const box = one(env.body, 'cfbe-text');
+    const panes = one(env.body, 'cfbe-panes');
+    const modal = one(env.body, 'cfbe-modal');
+    h.check('nothing is sized while there is no layout to size against',
+      box.style.height === undefined || box.style.height === '', box.style.height);
+    panes.clientHeight = 500;
+    box.scrollHeight = 120;
+    pick(env.body, 'colour').click();
+    h.check('loading a description sizes the box to fit it',
+      box.style.height === '124px', box.style.height);
+    box.scrollHeight = 900;
+    pick(env.body, 'colour').click();
+    h.check('and a long one stops at four fifths of the pane, so the list stays visible',
+      box.style.height === '400px', box.style.height);
+
+    const bar = one(env.body, 'cfbe-divider');
+    h.check('a drag handle sits between the panes and the log',
+      !!bar && bar.previousSibling === panes && h.hasClass(bar.nextSibling, 'cfbe-log'),
+      bar && bar.nextSibling && bar.nextSibling.className);
+    modal.clientHeight = 800;
+    panes.offsetHeight = 300;
+    h.fire(bar, 'mousedown', { clientY: 100 });
+    h.fire(env.document, 'mousemove', { clientY: 160 });
+    h.check('dragging it down gives the log the room it takes off the panes',
+      panes.style.flex === '0 0 360px', panes.style.flex);
+    h.fire(env.document, 'mousemove', { clientY: 5000 });
+    h.check('and it stops before the log and the footer are squeezed off screen',
+      panes.style.flex === '0 0 600px', panes.style.flex);
+    h.fire(env.document, 'mouseup', {});
+    h.fire(env.document, 'mousemove', { clientY: 100 });
+    h.check('letting go ends the drag rather than latching it',
+      panes.style.flex === '0 0 600px', panes.style.flex);
 
     type(env, 'What colour it is.');
     h.check('typing enables Apply', !one(env.body, 'cfbe-apply').disabled);

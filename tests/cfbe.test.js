@@ -618,6 +618,59 @@ openDialog()
     h.check('and the box is usable again', valueFilter.disabled === false);
   })
 
+  // Truthiness (0.9.0). The same predicate the add-list filter reads, offered as two
+  // modes - and the fixture is the exact edge of it: "no" and "off" are true, "FALSE"
+  // and " 0 " are not, and a JSON false and a JSON 0 are not either.
+  .then(() => openDialog({
+    entities: {
+      1: { id: '1', title: 'S1', custom_fields: { keep: 'yes', zero: '0', blank: '', word: 'no' } },
+      2: { id: '2', title: 'S2', custom_fields: { keep: false, zero: 0, blank: 'FALSE', word: ' 0 ',
+        list: [] } },
+    },
+    select: ['1', '2'],
+  }))
+  .then((env) => {
+    const mode = one(env.body, 'cfbe-filter-mode');
+    const valueFilter = one(env.body, 'cfbe-filter-value');
+    mode.value = 'true';
+    h.fire(mode, 'change');
+    h.check('"is true" lists every value the add-list filter would call marked',
+      lines(env.body).join(' | ') === lines(env.body).filter((l) => /keep|word/.test(l)).join(' | ') &&
+      lines(env.body).length === 2, lines(env.body).join(' | '));
+    h.check('so a word that reads as negative is still true', /no/.test(lines(env.body)[1]),
+      lines(env.body)[1]);
+    h.check('and the box is disabled, since the mode is the whole query',
+      valueFilter.disabled === true);
+    mode.value = 'nottrue';
+    h.fire(mode, 'change');
+    h.check('"is not true" lists exactly the rest', lines(env.body).length === 7,
+      lines(env.body).join(' | '));
+    // The row shows `[]`, which reads as true as text and is not true as a value. The
+    // dropdown filter only ever sees the value, so the listing has to agree with it.
+    h.check('including an empty array, judged as the value it is and not as its text',
+      lines(env.body).some((l) => /list/.test(l)), lines(env.body).join(' | '));
+    h.check('empty, "0", "FALSE", " 0 ", a JSON false and a JSON 0 among them',
+      ['blank', 'zero'].every((n) => lines(env.body).filter((l) => l.indexOf(n) !== -1).length === 2),
+      lines(env.body).join(' | '));
+    h.check('the two modes partition the listing between them - no row is both or neither',
+      lines(env.body).length + 2 === 9, String(lines(env.body).length));
+    mode.value = 'true';
+    h.fire(mode, 'change');
+    one(env.body, 'cfbe-scope').value = 'filtered';
+    one(env.body, 'cfbe-mode').value = 'overwrite';
+    one(env.body, 'cfbe-field-name').value = 'note';
+    one(env.body, 'cfbe-field-value').value = 'x';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => {
+      const w = writes(env.calls);
+      h.check('and a truth mode scopes a write like any other filter',
+        w.length === 1 && JSON.stringify(w[0].variables.input.ids) === JSON.stringify(['1']),
+        w.map((c) => JSON.stringify(c.variables.input.ids)).join(' '));
+      return env;
+    });
+  })
+
   // The cap the pills cost: one node per line is back, so a listing longer than the
   // DOM should hold is cut off with a line saying so - and the scope is untouched.
   .then(() => {

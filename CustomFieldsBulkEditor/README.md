@@ -14,6 +14,22 @@
 > **Requires Stash 0.31.0 or newer.** `custom_fields` on the entity types, and `CustomFieldsInput`
 > on their update mutations, are what this plugin is built on.
 >
+> ## 0.9.0 — filter the listing by whether a value is true
+>
+> **Filter by Value** gains two modes beside *contains* and *is empty*: **is true** and **is
+> not true**. They read a value as a flag, exactly the way the **Hide from Add Lists**
+> filter reads the field that hides an entity from a dropdown — the same rule, in one place,
+> so a value can never be true in one half of the plugin and false in the other.
+>
+> The rule: empty, `0` and `false` are **not true** — in any case, and with spaces around
+> them — and **everything else is true**, `"no"` and `"off"` included. That last part is the
+> surprising half, so the dropdown carries it as a tooltip. **is not true** is the wider of
+> the two modes and covers the empty ones as well, which is usually what you want when a
+> field is being used as a yes/no.
+>
+> As with every other filter, **Apply to → Filtered list only** turns it into the scope of a
+> write: list the entities whose flag is not true, and set it on exactly those.
+>
 > ## 0.8.1 — the descriptions dialog stays open for the next edit
 >
 > **Apply no longer ends the editing.** It wrote what you had typed and then locked the box
@@ -254,10 +270,16 @@ with no colours to paste into anything.
   narrows the listing to one of the seven; **All types** puts them back.
 - **Filter by Name** and **Filter by Value** narrow that list as you type (case-insensitive
   substring, all of them applied together).
-- The dropdown beside **Filter by Value** switches it from *contains* to **is empty**, which lists
-  only the fields set to the empty string — the one thing an empty box cannot ask for, since an
-  empty box means no filter. The text box greys out: the mode is the whole query. Pair it with
-  **Apply to → Filtered list only** to write a value onto exactly the entities that have none.
+- The dropdown beside **Filter by Value** switches it from *contains* to one of three modes that
+  are the whole query on their own — the text box greys out for all three:
+  - **is empty** lists only the fields set to the empty string — the one thing an empty box cannot
+    ask for, since an empty box means no filter.
+  - **is true** and **is not true** read the value as a flag, exactly the way the **Hide from Add
+    Lists** filter does: empty, `0` and `false` are not true (in any case, and with spaces around
+    them), and **everything else is** — `"no"` and `"off"` included. **is not true** is the wider
+    of the two: it covers the empty ones as well.
+
+  Pair any of them with **Apply to → Filtered list only** to write onto exactly those entities.
 - Scroll it, select it, copy it — there is no export button because there does not need to be one.
 - Very long listings stop at **1000 lines on screen**, with a last line saying how many are not
   shown. Only the display is capped: the counters, Apply and Undo all still cover everything you

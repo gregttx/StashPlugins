@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.8.1';
+  var PLUGIN_VERSION = '0.9.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -704,6 +704,21 @@
     try { return JSON.stringify(v); } catch (e) { return String(v); }
   }
 
+  // Present and not obviously false. cf-tag-filter treats any NOT_NULL as marked and
+  // offers an exact-value setting beside it; this reads the value instead, so that
+  // clearing a field to `0` unmarks the entity without having to delete the key.
+  //
+  // **One predicate for both places a value is read as a yes/no**: the dropdown filter
+  // of §23 and the listing's "is true" mode. A custom field is a string map with no
+  // boolean in it, so this is the whole of what "true" means in this plugin - and two
+  // answers to it, one hiding an entity and one listing it, would be a bug waiting for
+  // whichever value fell between them.
+  function isMarked(v) {
+    if (v == null || v === false || v === 0) return false;
+    var s = String(v).replace(/^\s+|\s+$/g, '').toLowerCase();
+    return s !== '' && s !== '0' && s !== 'false';
+  }
+
   // ── Which list is on screen, and what is selected ─────────────────────────
 
   // The last path segment names the type: `/scenes`, `/performers/12/scenes` and
@@ -1171,7 +1186,14 @@
     // any sentinel the box could carry is also a value somebody is allowed to have.
     this.valueMode = this.select('cfbe-filter-mode', [
       ['contains', 'contains'], ['empty', 'is empty'],
+      ['true', 'is true'], ['nottrue', 'is not true'],
     ], 'contains');
+    // The two truth modes are one predicate away from being a lie about themselves -
+    // "no" and "off" are true by it - so the rule goes on the control rather than in a
+    // release note nobody has open.
+    this.valueMode.title = '"is true" reads a value the way the add-list filter does: ' +
+      'empty, 0 and false are not true, and everything else is - "no" and "off" included. ' +
+      '"is empty" is the narrower of the two.';
     filters.appendChild(this.valueMode);
     this.valueFilter = this.input('cfbe-filter-value');
     filters.appendChild(this.valueFilter);
@@ -1611,7 +1633,7 @@
       names.sort();
       names.forEach(function (k) {
         rows.push({ spec: e.spec, id: e.id, display: e.display,
-          name: k, value: valueText(e.fields[k]) });
+          name: k, value: valueText(e.fields[k]), raw: e.fields[k] });
       });
     });
     this.rows = rows;
@@ -1807,15 +1829,21 @@
     }
   };
 
+  // The value test is judged on the **raw** value, not on the text the row shows: an
+  // empty array is `[]` on screen and not-true underneath, and the mode has to agree
+  // with the dropdown filter that reads the same field, which never sees the text.
   Run.prototype.filtered = function () {
     var name = String(this.nameFilter.value || '').toLowerCase();
     var type = this.typeFilter ? this.typeFilter.value : '';
-    var empty = this.valueMode.value === 'empty';
-    var value = empty ? '' : String(this.valueFilter.value || '').toLowerCase();
+    var mode = this.valueMode.value;
+    var value = mode === 'contains' ? String(this.valueFilter.value || '').toLowerCase() : '';
     return this.rows.filter(function (r) {
-      return (!type || r.spec.key === type) &&
-        (!name || r.name.toLowerCase().indexOf(name) !== -1) &&
-        (empty ? r.value === '' : (!value || r.value.toLowerCase().indexOf(value) !== -1));
+      if (type && r.spec.key !== type) return false;
+      if (name && r.name.toLowerCase().indexOf(name) === -1) return false;
+      if (mode === 'empty') return r.value === '';
+      if (mode === 'true') return isMarked(r.raw);
+      if (mode === 'nottrue') return !isMarked(r.raw);
+      return !value || r.value.toLowerCase().indexOf(value) !== -1;
     });
   };
 
@@ -3155,15 +3183,6 @@
     FindPerformersForSelect: 'performers', FindStudiosForSelect: 'studios',
     FindGroupsForSelect: 'groups', FindTagsForSelect: 'tags',
   };
-
-  // Present and not obviously false. cf-tag-filter treats any NOT_NULL as marked and
-  // offers an exact-value setting beside it; this reads the value instead, so that
-  // clearing a field to `0` unmarks the entity without having to delete the key.
-  function isMarked(v) {
-    if (v == null || v === false || v === 0) return false;
-    var s = String(v).replace(/^\s+|\s+$/g, '').toLowerCase();
-    return s !== '' && s !== '0' && s !== 'false';
-  }
 
   var _marked = {};            // entity key -> Promise of { ids: {}, count: n }
   var _filterSettings = null;

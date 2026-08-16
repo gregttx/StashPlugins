@@ -5,7 +5,10 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**Status: 0.8.1 — §22–§23 are being used, and the first two reports are in.** Everything those two
+**0.9.0's two filter modes are unverified too** — §5b's addition, three checks and three mutants in
+`tests/cfbe.test.js`, and not a click behind them.
+
+**Status: 0.9.0 — §22–§23 are being used, and the first two reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
@@ -333,7 +336,28 @@ these inputs paint their own background, so the browser's disabled look does not
 
 **"is not empty" is deliberately absent.** Nobody has asked for it, and it is one more entry in the
 options array the day somebody does. Note that `contains` with an empty box does *not* cover it —
-that is no filter at all, and the empty ones show along with everything else.
+that is no filter at all, and the empty ones show along with everything else. **0.9.0 is the day
+somebody did**, near enough: what was asked for is the *truth* pair below, and "is not true" covers
+the empty ones along with `0` and `false` — which is what a user filtering on a flag actually wants.
+A bare "is not empty" is still absent, and now has even less reason to exist.
+
+**0.9.0: `is true` and `is not true`, on the same predicate §23 hides an entity by.** The trigger was
+a list of exactly which values read as false — `""`, `"0"`, `"false"`, a JSON `0`, a JSON `false`,
+and whitespace-padded versions of the strings — and the observation that nobody is going to type
+those one at a time into a `contains` box. Three things fix the shape of it:
+
+- **One predicate, not two.** `isMarked` moved up beside `valueText` and is now read by both the
+  listing and the fetch filter. A custom field is a string map with no boolean in it, so this
+  function *is* what "true" means in this plugin; a second answer to the same question — one hiding
+  an entity from a dropdown, one listing it as true — would be a bug waiting for whichever value
+  fell between them.
+- **Judged on the raw value, so `raw` joined `value` on the row.** `valueText([])` is `"[]"`, which
+  reads as true as text and is not true as a value — and the dropdown filter never sees the text at
+  all. The fixture pins that case for exactly this reason.
+- **The rule goes on the control.** `"no"` and `"off"` are *true* by this predicate, which is
+  surprising enough that leaving it to a release note would be a trap; the mode `<select>` carries a
+  `title` saying so. This is the one place in the plugin where a control explains its own semantics
+  rather than the head legend doing it — the legend describes the listing, and this is a definition.
 
 **0.2.4 did not load at all, and the reason is worth more than the feature.** The sentence added to the `.yml` description named the new mode in quotes, and that description is a double-quoted YAML scalar — which ends at the first unescaped quote. Stash could not parse the manifest, so it dropped the **whole plugin**, not the description. Every other quote in that string is `\"`; the two new ones were not, because they arrived through a `sed` and nothing read the result. `tests/version.test.js` now strips each backslash escape and fails on any quote still standing — a check that costs one line and catches the class. The reason the suite was silent before is that its description regex is greedy, so both files still captured the same broken string and the mismatch check passed.
 

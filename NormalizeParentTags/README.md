@@ -1,20 +1,5 @@
 # GTTx Normalize Parent Tags
 
-> ## 2.6.0 — a stale script says so, on the settings page and in the dialogs
->
-> **When your browser is still running an older copy of this plugin, it now says so in red.** Stash
-> serves plugin scripts with caching on, so an update can leave the new version installed on the
-> server while the page in front of you goes on running the old one — with nothing on screen to say
-> which you have. Two places tell you now:
->
-> - **The plugin's settings group**, at the top, above the description — so it shows even with the
->   group collapsed, and it disappears once the two versions agree.
-> - **Every dialog this plugin opens**, in a box of its own under the title rather than a sentence
->   among the run's other warnings. The run dialog already refused to write with a stale script; what changed is that you can see why at a glance. The hierarchy viewer says it too, and still shows you everything — it writes nothing.
->
-> Both name the version you are running, the version installed, and the fix: reload the page, and
-> if the warning comes back, hard-refresh with **Ctrl+Shift+R** (⌘+Shift+R on a Mac).
-
 > ## ⚠ Back up your database before the first run
 >
 > These tasks rewrite tag assignments across your entire library, and **Stash has no undo**. A
@@ -397,11 +382,18 @@ from the manifest, which is current the instant you reload plugins, even when th
 the page is older. That combination — new version in the heading, old behaviour on screen — is
 exactly what a cached script looks like.
 
-The plugin therefore says which script is running, in your browser's console (**F12** → Console) on
-every page load:
+**The plugin says so when it happens.** A stale script is called out in red, in two places, both
+naming the version you are running, the version installed, and the fix:
+
+- **Settings → Plugins → GTTx Normalize Parent Tags**, at the top of the group and above the
+  description — so it shows even with the group collapsed. It disappears once the two agree.
+- **Every dialog the plugin opens**, in a box of its own under the title.
+
+It says which script is running in your browser's console too (**F12** → Console), on every page
+load:
 
 ```
-[npt] NormalizeParentTags.js 1.5.2 loaded. This is the running script own version - the settings
+[npt] NormalizeParentTags.js <version> loaded. This is the running script own version - the settings
 page reads the manifest instead, which can be newer than the script your browser has cached.
 ```
 
@@ -410,11 +402,12 @@ reload (F5); check that the new `.js` really is in `<stash-config-dir>/plugins/`
 never copied cannot be refreshed into existence; then hard-refresh; then, if it still will not
 budge, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
 
-**The tasks check this for you.** Opening Prune or Roll Up asks Stash which version of the plugin
-is installed and compares it with the script that is running. If they differ, the dialog says so at
-the top and **Proceed stays disabled** until you reload the page — the plan would otherwise be
-computed by the code you replaced. Nothing is blocked when the answer is simply unknown (an older
-Stash, a failed request); only a definite mismatch holds a run back.
+**The tasks also refuse to write.** Opening Prune or Roll Up asks Stash which version is installed
+and compares it with the script that is running; on a mismatch **Proceed stays disabled** until you
+reload the page, since the plan would otherwise be computed by the code you replaced. The warning
+goes into the log as well as the head, so **Copy log** carries it. Nothing is blocked when the
+answer is simply unknown (an older Stash, a failed request); only a definite mismatch holds a run
+back.
 
 It cannot catch an edit made without changing the version — both numbers stay equal and there is
 nothing to compare.

@@ -5,10 +5,18 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 1.4.0.** Every step in the table below has landed, so the version left the
+**Status: released, 1.4.1.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**1.4.1 takes the release notes out of the README.** The standing rule is new and lives in the
+repo-root CLAUDE.md ("A README describes the plugin, not its history"): a block at the top of a
+README is for a **major** version only - a rename, a settings reset, something a user already
+running the plugin has to act on - and everything else belongs in the prose that describes the
+behaviour, in the present tense. This plugin had the most to lose and lost it: the 1.0.0 block, two headings' version parentheticals, and **eleven** mid-sentence references - "since 0.13.0", "up to 0.12.14 the answer was computed and thrown away", "(0.18.1)" - a changelog scattered one parenthesis at a time through an explanation of how the plugin behaves now. The two that stayed are requirements rather than history: Stash 0.31.0, and `MergePerformerTagsToScenes` 1.12.1 for the button dedup. Nothing was lost: each removed note had a section that
+already covered its area, which is the test of whether the note was needed at all. The per-version
+reasoning stays here, in a file that does not ship.
 
 **1.4.0 puts the same warning in the dialogs.** The version check was always there and always
 blocked Proceed; what changed is that its message is a box of its own (`.ptp2re-stale`, the settings

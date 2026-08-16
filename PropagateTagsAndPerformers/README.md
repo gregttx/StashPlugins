@@ -1,20 +1,5 @@
 # GTTx Propagate Tags and Performers to Related Entities
 
-> ## 1.4.0 — a stale script says so, on the settings page and in the dialogs
->
-> **When your browser is still running an older copy of this plugin, it now says so in red.** Stash
-> serves plugin scripts with caching on, so an update can leave the new version installed on the
-> server while the page in front of you goes on running the old one — with nothing on screen to say
-> which you have. Two places tell you now:
->
-> - **The plugin's settings group**, at the top, above the description — so it shows even with the
->   group collapsed, and it disappears once the two versions agree.
-> - **Every dialog this plugin opens**, in a box of its own under the title rather than a sentence
->   among the run's other warnings. The dialog already refused to write with a stale script; what changed is that you can see why at a glance.
->
-> Both name the version you are running, the version installed, and the fix: reload the page, and
-> if the warning comes back, hard-refresh with **Ctrl+Shift+R** (⌘+Shift+R on a Mac).
-
 > ## ⚠ Back up your database before the first library-wide run
 >
 > The task adds tags and performers to potentially **every scene, gallery, image and group in your
@@ -218,12 +203,11 @@ target already has all of them, the "common tags only" intersection is empty, or
 filters refuse everything that is left. An entity excluded outright by the entity-level filters
 shows no buttons at all.
 
-This costs nothing. Deciding whether to show the button already meant fetching the entity and its
-sources and running the diff — up to 0.12.14 the answer was computed and thrown away, and the
-button was drawn from the weaker question "is there a performer here at all".
+This costs nothing. Deciding whether to show the button already means fetching the entity and its
+sources and running the diff, so the answer is there to be used.
 
 **Source-side buttons stop one step short**, and it is a real limit rather than an oversight. They
-hide when the source reaches nothing (a performer in no scenes) and, since 0.13.0, when the source
+hide when the source reaches nothing (a performer in no scenes) and when the source
 carries nothing worth copying (a performer with no tags of its own — matching what
 `MergePerformerTagsToScenes`' performer button has always done). They do **not** check whether the
 scenes on the far side already have those tags: that means reading every scene a studio touches,
@@ -245,17 +229,15 @@ __GTTx__.StashPluginCoop.debugButtons = true
 
 Each button reports whether it is shown or hidden and why, prefixed `[ptp2re gate]`, on the next tick —
 no reload, no navigation, no setting to change. It works on the page you are already looking at,
-which is the point: since 0.13.2 the answer is restated from what the plugin already knows rather
+which is the point: the answer is restated from what the plugin already knows rather
 than only when it next re-checks. One switch covers every plugin in this repo that draws a control
 into Stash's own UI — two of them share these very rows, and "why is this missing" is rarely a
 question about only one. Set it to `false`, or reload the page, to turn it off again.
 
-**Each button copies its own path and nothing else** (0.16.0). With both the performer and studio
+**Each button copies its own path and nothing else.** With both the performer and studio
 paths enabled on a scene, "Copy all Tags from all Performers" copies the performers' tags and
-leaves the studio's alone; the studio's button is what copies those. Up to 0.15.0 either button ran
-every enabled path into the page, which is not what the caption, the tooltip or the setting
-description said, and made this plugin's scene button quietly do more than
-`MergePerformerTagsToScenes`' identically labelled one.
+leaves the studio's alone; the studio's button is what copies those — which is what the caption,
+the tooltip and the setting description each say it does.
 
 Clicking one does one of two things, depending on **Save Immediately**:
 
@@ -268,30 +250,28 @@ Clicking one does one of two things, depending on **Save Immediately**:
 - **On — reviews in a dialog.** The caption gains a trailing **"..."** to say so. The click opens
   the same dialog the library-wide task uses, scoped to this one entity and this one path: it lists
   every change, writes nothing until you press **Proceed**, and offers **Undo**, **Rescan** and
-  **Copy log** afterwards. **Rescan keeps the log** since 1.2.0 — it writes a `--- Rescan ---` line
-  and carries on below it, rather than clearing the view for the next pass. Up to 0.17.0 it copied and saved on the spot, with no plan and no undo;
-  since 0.18.0 nothing in this plugin writes from a click without either staging it or showing it
-  to you first. The dialog's heading names what it is scoped to — *Copy Tags to all Scenes - from
-  Performer "Jane" (100)* — so a dialog opened from a button says which entity it is about, by the
-  name you know it by (0.18.1).
+  **Copy log** afterwards. **Rescan keeps the log** — it writes a `--- Rescan ---` line and carries
+  on below it, rather than clearing the view for the next pass. Nothing in this plugin writes from a
+  click without either staging it or showing it to you first. The dialog's heading names what it is
+  scoped to — *Copy Tags to all Scenes - from Performer "Jane" (100)* — so a dialog opened from a
+  button says which entity it is about, by the name you know it by.
 
 A button that cannot find the tag or performer box — the Edit tab was never opened, or a fresh
 Stash version has changed markup this plugin has not seen yet — reports the problem in an alert
 rather than silently doing nothing. On a Stash too old to let a plugin observe those boxes at all,
 staging is impossible rather than merely failing, so the buttons **review in the dialog** there
-instead (they saved outright between 0.16.0 and 0.17.0), say so in their tooltip, and warn once in
-the browser console.
+instead, say so in their tooltip, and warn once in the browser console.
 
 **If `MergePerformerTagsToScenes` is also installed and showing its own button for the same path**
 ("Copy Tags to all Scenes" on the performer page, "Copy all Tags from all Performers" on the scene
 page — today the only path the two plugins share), this plugin does not add a second one next to
-it (0.8.3, and again for the new source-side button at 0.9.0 — see below). Nothing else changes:
+it, on the source side as well as the target side. Nothing else changes:
 click MPTTS's button and you get its behaviour; enable more paths here and you still get buttons
 for all of them, this one path aside. This needs `MergePerformerTagsToScenes` 1.12.1 or newer,
 which renamed its two buttons to match; an older copy's buttons will not be recognised and both
 plugins' buttons will show.
 
-### Source-side buttons (0.9.0)
+### Source-side buttons
 
 The buttons above pull tags or performers *in* to whatever page you are viewing. Eleven of the
 thirteen paths also offer the reverse: a button on the **source's own page** that pushes its tags
@@ -307,16 +287,15 @@ Source-side buttons have no staging option — one click can resolve to many dif
 across many different pages at once, and there is no single form to stage the result into. They
 therefore always end in **"..."** and always open the review dialog, which lists every change across
 every entity the source reaches before a single one is written. This is the widest write the plugin
-offers from one click, and up to 0.17.0 it was the only one with nothing to read first. Everything else works the same as the target-side buttons: the gating above, the
-dedup check against `MergePerformerTagsToScenes`, the same **Show Manual Buttons** toggle, and,
-since 0.9.1, landing before Delete rather than after it.
+offers from one click. Everything else works the same as the target-side buttons: the gating
+above, the dedup check against `MergePerformerTagsToScenes`, the same **Show Manual Buttons**
+toggle, and the same place in the row, before Delete.
 
 **Placement beyond the performer and studio pages is unverified against a running Stash**, except
-Scene and Gallery, whose markup was read off a live instance for 0.14.0 — see the note under the
-button table. The
-target-side buttons went through three rounds of live fixes (0.8.1 – 0.8.3) before all four of
-their pages were confirmed; the source-side buttons are new at 0.9.0 and have not had that
-round yet. If one is missing on a page it should be on, that is most likely it.
+Scene and Gallery, whose markup was read off a live instance — see the note under the button table.
+The target-side buttons have been through rounds of live fixes and all four of their pages are
+confirmed; the source-side buttons have not had that round. If one is missing on a page it should
+be on, that is most likely it.
 
 ### Every button, by page
 
@@ -364,7 +343,7 @@ button while **Save Immediately** is on or staging is unavailable.
 
 **Source buttons sit in one of two places, and the page decides which.** Performer and Group show a
 row of actions on their detail view (beside Delete), and the button joins it. Scene and Gallery show
-no such row at all — just a tab strip (Details / File Info / Chapters / Edit) — so since 0.14.0 the
+no such row at all — just a tab strip (Details / File Info / Chapters / Edit) — so the
 button gets a small row of its own directly under that strip. Image follows whichever shape it turns
 out to have.
 
@@ -415,11 +394,31 @@ plugins/PropagateTagsAndPerformers/README.md
 
 Then **Settings → Plugins → Reload plugins**, and reload the page in your browser.
 
-If the plugin appears in the settings list but nothing else happens, the browser is probably still
-running a cached copy of the script. The console prints the version it is actually running at load
-(`[ptp2re] PropagateTagsAndPerformers.js 0.12.8 loaded`); if that number is behind the one in the
-settings heading, press F5. The heading comes from the manifest and goes current the moment plugins
-are reloaded, so it proves nothing about the script.
+**Reload plugins cannot replace the script your browser is already running.** It re-reads the
+plugin folder on the server; the JavaScript in your open page was fetched when the page loaded and
+stays until the page reloads. The version beside the plugin's name in the settings list settles
+nothing either — it comes from the manifest, which goes current the instant you reload plugins even
+when the running script is older.
+
+The plugin says so when that happens, in red, in two places — both naming the version you are
+running, the version installed, and the fix:
+
+- **Settings → Plugins → GTTx Propagate Tags and Performers to Related Entities**, at the top of the
+  group and above the description, so it shows even with the group collapsed. It disappears once the
+  two agree.
+- **The dialog**, in a box of its own under the title. **Proceed stays disabled** while they
+  disagree, since the plan would otherwise be computed by the code you replaced, and the warning
+  goes into the log so **Copy log** carries it.
+
+Press **F5** first — Stash serves plugin scripts so that a normal reload picks up a changed file —
+and keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for when it does not. If neither works, check the new
+`.js` really is in your plugins folder: a file that was never copied cannot be refreshed into
+existence. The console prints the version it is actually running at every page load
+(`[ptp2re] PropagateTagsAndPerformers.js <version> loaded`), which is the one number a cached script
+cannot fake.
+
+None of this catches an edit made without changing the version: both numbers stay equal and there
+is nothing to compare.
 
 ## Settings
 
@@ -451,10 +450,10 @@ amber for the same reason.
   at once; both only ever add, so the overlap is redundant work rather than wrong data, and the
   task dialog names it in the log when both are covering `Tags: Performers → Scenes`. This works for
   any future plugin doing the same kind of copy too, not just this one by name. Where both plugins'
-  manual buttons land in the same row (Scene, Performer), the two agree on a fixed relative order
-  (0.10.0), both anchored the same way: between Save and Delete where both exist, before Save where
-  only Save does (0.11.0, 0.12.0) — never displacing either from the row, rather than whichever
-  plugin's eligibility check happens to finish first.
+  manual buttons land in the same row (Scene, Performer), the two agree on a fixed relative order,
+  both anchored the same way: between Save and Delete where both exist, before Save where only Save
+  does — never displacing either from the row, rather than whichever plugin's eligibility check
+  happens to finish first.
 - **`NormalizeParentTags`** walks the *tag hierarchy* instead of entity relationships, so the two
   compose rather than overlap: propagate tags onto an entity, then prune or roll up the parents. Its
   automatic modes and this plugin's stand down for one another while either is writing in bulk. And

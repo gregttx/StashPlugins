@@ -3,9 +3,17 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 2.6.0.** This file is both the design and the map of the code — the
+**Status: implemented at 2.6.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**2.6.1 takes the release notes out of the README.** The standing rule is new and lives in the
+repo-root CLAUDE.md ("A README describes the plugin, not its history"): a block at the top of a
+README is for a **major** version only - a rename, a settings reset, something a user already
+running the plugin has to act on - and everything else belongs in the prose that describes the
+behaviour, in the present tense. The 2.4.0 and 2.0.0 blocks are gone; the inspector's link was already described under *Browsing the tag hierarchy*, and the stale-script banner now reads as part of *Checking which version is actually running*, beside the console line and the task's own gate. Nothing was lost: each removed note had a section that
+already covered its area, which is the test of whether the note was needed at all. The per-version
+reasoning stays here, in a file that does not ship.
 
 **2.6.0 puts the same warning in the dialogs.** The version check was always there and always
 blocked Proceed; what changed is that its message is a box of its own (`.npt-stale`, the settings

@@ -5,8 +5,16 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 2.4.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 2.4.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**2.4.1 takes the release notes out of the README.** The standing rule is new and lives in the
+repo-root CLAUDE.md ("A README describes the plugin, not its history"): a block at the top of a
+README is for a **major** version only - a rename, a settings reset, something a user already
+running the plugin has to act on - and everything else belongs in the prose that describes the
+behaviour, in the present tense. The 2.0.0 rename block is gone, and so is the 1.1.1 settings-reset notice - a major-version note that had outlived the upgrade it was written for, which is the case the rule's own exception is not meant to cover forever. The stale-script banner moved into *Checking which version is actually running*. Nothing was lost: each removed note had a section that
+already covered its area, which is the test of whether the note was needed at all. The per-version
+reasoning stays here, in a file that does not ship.
 
 **2.4.0 puts the same warning in the dialogs.** The version check was always there and always
 blocked Proceed; what changed is that its message is a box of its own (`.cpt2s-stale`, the settings

@@ -1,20 +1,5 @@
 # GTTx Merge Performer Tags To Scenes
 
-> ## 2.4.0 — a stale script says so, on the settings page and in the dialogs
->
-> **When your browser is still running an older copy of this plugin, it now says so in red.** Stash
-> serves plugin scripts with caching on, so an update can leave the new version installed on the
-> server while the page in front of you goes on running the old one — with nothing on screen to say
-> which you have. Two places tell you now:
->
-> - **The plugin's settings group**, at the top, above the description — so it shows even with the
->   group collapsed, and it disappears once the two versions agree.
-> - **Every dialog this plugin opens**, in a box of its own under the title rather than a sentence
->   among the run's other warnings. The dialog already refused to write with a stale script; what changed is that you can see why at a glance.
->
-> Both name the version you are running, the version installed, and the fix: reload the page, and
-> if the warning comes back, hard-refresh with **Ctrl+Shift+R** (⌘+Shift+R on a Mac).
-
 > ## ⚠ Back up your database before the first library-wide run
 >
 > The task below adds tags to potentially **every scene in your library** in one go, and **Stash
@@ -37,12 +22,6 @@
 > **This plugin has not had a long life in other people's libraries.** It has automated tests
 > behind it, but that is not the same thing — which is another reason to take the backup above
 > and to read the review log before pressing Proceed.
-
-> **Upgrading to 1.1.1 from an earlier version resets the plugin's settings.** The settings were
-> renamed internally so that the settings page lists them in a sensible order instead of
-> alphabetically. Nothing else changed, but your previous choices are not carried over — open
-> **Settings → Plugins → GTTx Merge Performer Tags To Scenes** and set them again. Everything is off
-> until you do, so nothing merges by itself in the meantime.
 
 A front-end-only Stash plugin that adds two tag-merging buttons:
 
@@ -257,15 +236,20 @@ draw buttons into the same rows. Set it to `false`, or reload the page, to turn 
 
 The version beside the plugin's name in **Settings → Plugins** does not settle it — that comes from the manifest, which is current the instant you reload plugins even when the running script is older. New version in the heading with old behaviour on screen is exactly what a cached script looks like.
 
-So the plugin says which script is running, in the browser console (**F12** → Console) on every page load, whether or not merge logging is enabled:
+**The plugin says so when it happens.** A stale script is called out in red, in two places, both naming the version you are running, the version installed, and the fix:
+
+- **Settings → Plugins → GTTx Merge Performer Tags To Scenes**, at the top of the group and above the description — so it shows even with the group collapsed. It disappears once the two agree.
+- **Every dialog the plugin opens**, in a box of its own under the title.
+
+It says which script is running in the browser console too (**F12** → Console), on every page load, whether or not merge logging is enabled:
 
 ```
-[cpt2s] MergePerformerTagsToScenes.js 1.9.1 loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
+[cpt2s] MergePerformerTagsToScenes.js <version> loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
 ```
 
 If that is not the version you just installed, the page is running an old copy. In order: reload (F5); check the new `.js` really is in `<stash-config-dir>/plugins/`, since a file that was never copied cannot be refreshed into existence; then hard-refresh; then, if it still will not budge, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
 
-**The task checks this for you.** Opening the library-wide task asks Stash which version is installed and compares it with the running script. If they differ the dialog says so at the top and **Proceed stays disabled** until you reload the page. An unknown answer — an older Stash, a failed request — blocks nothing; only a definite mismatch does. It cannot catch an edit made without changing the version, since both numbers stay equal.
+**The task also refuses to write.** Opening the library-wide task asks Stash which version is installed and compares it with the running script; on a mismatch **Proceed stays disabled** until you reload the page. The warning goes into the log as well as the head, so **Copy log** carries it. An unknown answer — an older Stash, a failed request — blocks nothing; only a definite mismatch does. It cannot catch an edit made without changing the version, since both numbers stay equal.
 
 
 ## How it works

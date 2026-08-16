@@ -768,6 +768,35 @@ is what Apply says and Proceed would misdescribe. It also pairs with the **Apply
 it, which is the control deciding what that one press covers. Do not rename either side for
 symmetry; a shared word here would flatten a real difference in what pressing the button commits to.
 
+## A README describes the plugin, not its history
+
+**Only a major version earns a release-note block at the top of a README.** A major digit here means
+a rename, a settings reset, or something else a user already running the plugin has to *do*
+something about — that is worth interrupting them for before they read a word about what the plugin
+does. A minor or a patch is not: the new behaviour belongs in the prose that describes the
+behaviour, written in the present tense, where the person reading it is already looking.
+
+**Where the feature goes is the test of whether the note was needed.** Every note removed in this
+pass had a natural home in the body — the stale-script banner belongs under "Checking which version
+is actually running", `CustomFieldsBulkEditor`'s belongs in Troubleshooting — and none of them said
+anything there that the note had been the only record of. A release note that has nowhere else to go
+is usually describing a *change* rather than the plugin, and that is the thing this rule is against.
+
+**Nor in the middle of a sentence.** "since 0.13.0", "up to 0.12.14 the answer was computed and
+thrown away", "(0.18.1)" — a changelog scattered through an explanation of how the plugin behaves
+now, one parenthesis at a time. `PropagateTagsAndPerformers` had eleven of these and lost all of
+them: the reader wants to know what it does, and every clause spent on what it used to do is a
+clause they have to discard. Three shapes of version reference *are* kept, because each one is a
+fact about today: a **requirement** (`Requires Stash 0.31.0 or newer`, `needs MergePerformerTagsToScenes
+1.12.1 or newer`), the **plugin's own current version** where a file states it, and nothing else. A
+sample console line takes `<version>` rather than a number, which is the same rule applied to an
+example: the number in it was never the point, and a stale one reads as an instruction.
+
+**The reasoning still gets written down — in the plugin's own `CLAUDE.md`,** which is where a
+per-version note has always belonged and which does not ship to users (`files:` carries the `js`,
+the `yml` and the `README.md`). This rule moves nothing out of that file; it stops the same material
+being kept twice, once for a reader who wants it and once for a reader who does not.
+
 ## Tests
 
 `node tests/run.js` (or `npm test`) runs the suites in `tests/`. They evaluate a plugin inside a `vm` context holding a hand-rolled browser and drive it by answering its GraphQL requests — see `tests/README.md`.

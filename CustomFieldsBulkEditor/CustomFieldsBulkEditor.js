@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '0.12.0';
+  var PLUGIN_VERSION = '0.12.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -1827,8 +1827,12 @@
     if (text === '') p.appendChild(noneNode('empty - this field is set, to nothing'));
     var desc = named && hasOwn(_descriptions, text) ? String(_descriptions[text] || '') : '';
     // What the click does comes first, because it is true of every pill; the
-    // description is what only some of them have, and it is the longer half.
-    p.title = 'Click to copy' + (desc ? '\n\n' + desc : '');
+    // description is what only some of them have, and it is the longer half. A name
+    // pill says *which* of the two things on the line it copies, and labels the
+    // description rather than letting a sentence run on from the click.
+    p.title = named
+      ? 'Click to copy Name' + (desc ? '\nDescription: ' + desc : '')
+      : 'Click to copy';
     p.addEventListener('click', function () {
       // A drag-select that ends inside a pill fires a click, and copying the pill
       // there would take the clipboard off the selection the user just made. A plain

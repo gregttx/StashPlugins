@@ -11,15 +11,15 @@ Rename and §6b's scope switch. Every one of them came from live use of the dial
 window was reported, not deduced; so was the description box being too small for what it holds, and
 so was "Overwrite" reading as if it cleared an entity's whole set of fields), but nothing in any of
 the fixes has been clicked: it is `tests/cfbe.test.js` at 198 checks, `tests/cfbe-desc.test.js` at
-83, and seventeen mutants across the four releases.
+84, and eighteen mutants across the four releases.
 
-**Status: 0.12.0 — §22–§23 are being used, and the first reports are in.** Everything those two
+**Status: 0.12.1 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
 until a Rescan (§22a), and both STRING settings read as empty until edited (§22b). What is still
 unverified: Undo, Prune, Migrate, the version gate, and every one of the six dropdowns §23 filters.
-The suite covers all of it — 83 checks in `tests/cfbe-desc.test.js`, each confirmed against a
+The suite covers all of it — 84 checks in `tests/cfbe-desc.test.js`, each confirmed against a
 deliberately broken copy — but it reproduces Stash's answers from notes, which is exactly the limit
 stated at the end of §9.
 
@@ -1137,11 +1137,15 @@ A custom field's name is all Stash keeps of what it means, and a library with th
 library where nobody remembers what four of them were for. So each name gets one description, shown
 as a tooltip on the field-name pills in the bulk dialog and edited in a second dialog of its own.
 
-**The tooltip leads with "Click to copy" and puts the description under it** (0.12.0; it shipped the
-other way round). What the click does is true of *every* pill and is one line; the description is
-the longer half and only some pills have one — so the constant part first is what makes the tooltips
-scannable down a listing. It is also what stops a described field's tooltip reading as a different
-kind of thing from an undescribed one's.
+**The tooltip leads with "Click to copy Name" and labels the description under it** (0.12.0 put the
+click first; it had shipped the other way round, and 0.12.1 named the two halves). What the click
+does is true of *every* pill and is one line; the description is the longer half and only some pills
+have one — so the constant part first is what makes the tooltips scannable down a listing, and what
+stops a described field's tooltip reading as a different kind of thing from an undescribed one's.
+The word **Name** is there because a line carries a name pill and a value pill and both copy on a
+click, so "Click to copy" alone did not say which one this is; `named` already distinguished them
+for the description lookup, and the caption now reads off the same flag. **Description:** labels the
+second line rather than letting it run on from the first as an unmarked sentence.
 
 **The store is one tag's `description` string, not its `custom_fields` map.** The map was the
 obvious place — a 1-1 mapping is what a map is — and it is taken twice over: the same tag has to

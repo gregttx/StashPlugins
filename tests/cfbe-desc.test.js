@@ -517,12 +517,16 @@ openDesc()
       notes(env.body).some((l) => /left out of this listing/.test(l)),
       notes(env.body).join(' | '));
     // 0.12.0: what the click does leads, since it is true of every pill; the
-    // description is the longer half and only some of them have one.
+    // description is the longer half and only some of them have one. 0.12.1 names
+    // which half of the line the click takes, and labels the description.
     h.check('a field name in the listing carries its description as a tooltip, after the click',
       byClass(env.body, 'cfbe-pill-cf').some((p) =>
-        /^Click to copy\n\nThe colour it is filed under\./.test(p.title || '')),
+        /^Click to copy Name\nDescription: The colour it is filed under\./.test(p.title || '')),
       byClass(env.body, 'cfbe-pill-cf').map((p) => p.title).join(' | '));
-    h.check('and a value pill is not given one',
+    h.check('a name with no description still says which half of the line it copies',
+      byClass(env.body, 'cfbe-pill-cf').some((p) => p.title === 'Click to copy Name'),
+      byClass(env.body, 'cfbe-pill-cf').map((p) => p.title).join(' | '));
+    h.check('and a value pill is not given one, nor called a name',
       byClass(env.body, 'cfbe-pill-cf').some((p) =>
         p.textContent === 'blue' && p.title === 'Click to copy'),
       byClass(env.body, 'cfbe-pill-cf').map((p) => p.title).join(' | '));

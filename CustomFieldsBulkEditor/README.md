@@ -30,8 +30,9 @@
 > tooltip ("replacing whatever is there") could be read as clearing an entity's fields
 > wholesale, which it never did.
 >
-> **A field-name tooltip leads with *Click to copy***, and puts the field's description
-> underneath it.
+> **A field-name tooltip reads *Click to copy Name*, with *Description:* under it.** A line
+> has a name pill and a value pill and both copy on a click, so the tooltip now says which
+> one it is on.
 >
 > ## 0.11.0 — the descriptions dialog divides its own room
 >

@@ -780,6 +780,25 @@ difference. With nothing emptying the view, `lines.length` is the only honest an
 counter is gone. **A divergence maintained by two counters is worth checking for a third option: not
 diverging.**
 
+**A cursor cycles under the last line while work is in flight** (`NormalizeParentTags` 3.1.0 /
+`MergePerformerTagsToScenes` 3.1.0 / `PropagateTagsAndPerformers` 2.1.0 /
+`CustomFieldsBulkEditor` 2.1.0), in every dialog that has counters — `▙ ▛ ▜ ▟`, one four-frame
+cycle at 2Hz. The counters answer *how far*; a run that spends seconds on one page of a large
+library leaves *is it still going* unanswered, and a progress line that has not moved looks exactly
+like a hung tab.
+
+- **`state` is the only thing that decides**, so `spin(busy)` is one line at the end of each
+  plugin's `setState` and nothing else turns it on or off. Every path in and out of a read or a
+  write already goes through there, including the ones that end in a failure.
+- **It is a sibling of the log lines, not one of them.** It carries `<prefix>-spin` and never
+  `-line`, so nothing that reads the log back — the render cap, `dialog().lines`, a test counting
+  rows — mistakes it for content. Whatever appends under it (a flush, a message, a listing block)
+  moves it back to the end.
+- **The interval is cleared in `close()` as well as by `spin(false)`**, because a dialog closed
+  mid-write leaves no state change behind to switch it off.
+- `.<prefix>-spin{color:#a7b6c2;}` is the log's own INFO grey, and it is one of the pinned
+  overlapping rules — the same in all four.
+
 **The footer order is shared too, and majority decided it** — `CustomFieldsBulkEditor` 0.7.1 moved
 Apply from second-to-last to first, matching the three siblings' `Proceed · Cancel · Stop ·
 Copy log · Undo · Rescan · Close`. The write is the leading button in all four now. There was no

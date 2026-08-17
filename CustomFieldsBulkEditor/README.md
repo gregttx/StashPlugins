@@ -88,7 +88,9 @@ with no colours to paste into anything.
   shown. Only the display is capped: the counters, Apply and Undo all still cover everything you
   selected. Use the filters to see the rest.
 - The counters above it say how many entities were read, how many carry any custom field at all,
-  how many fields that is in total, and how many lines the filters leave showing.
+  how many fields that is in total, and how many lines the filters leave showing. While a read or a
+  write is running, a cursor cycles under the last line: the counters say how far it has got, the
+  cursor says it is still going.
 - After the listing, an `[INFO]` line names **every custom field found, with a count** —
   `Custom fields found: colour x1204, shoot x87.` That is the one question a listing of
   155,000 lines cannot answer by being scrolled. Every name in it **copies itself when

@@ -132,6 +132,10 @@ comes back empty is how you know the library has settled.
 On a large library the log can run to many thousands of lines. Only the most recent are kept on
 screen (the dialog says how many are hidden); **Copy log** always copies all of them.
 
+**A cursor cycles under the last line while the dialog is working** — scanning, applying or
+undoing. The counters say how far it has got; the cursor says it is still going, which is the
+question a pass that spends several seconds on one page of a large library leaves open.
+
 **The log stays until you close the dialog.** A **Rescan** writes a `--- Rescan ---` line and
 carries on below it, so a run you applied, rescanned and applied again reads top to bottom on
 screen and not only through **Copy log**. Once changes have been written the log is the only record of what happened, so copy it

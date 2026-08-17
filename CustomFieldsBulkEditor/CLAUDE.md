@@ -6,13 +6,21 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 reasoning that does not belong in either.
 
 **0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0, all of 1.0.0, all of
-1.1.0 and the stale-script banner of 1.2.0/1.3.0 are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
+1.1.0, the stale-script banner of 1.2.0/1.3.0 and 2.1.0's cursor are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
 filters, §6a's Rename, §6b's scope switch, §24's three and §25's. Every one of them came from live use of
 the dialogs (the shrinking window was reported, not deduced; so was the description box being too
 small for what it holds, so was "Overwrite" reading as if it cleared an entity's whole set of
 fields, and so was the hide field reading as an orphan), but nothing in any of the fixes has been
-clicked: it is `tests/cfbe.test.js` at 218 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
+clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
+
+**2.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` at the foot of the listing, one cycle at 2Hz, while either
+dialog is loading, applying or undoing — a read of 155,012 entities is the case it was asked for.
+`spin(busy)` hangs off both `setState`s (`DescRun` borrows the method, like everything else it
+borrows from `Run`) and off nothing else; `msg` and `fillList` move it back to the end after
+appending under it, which is what a failed chunk mid-write or a paged read would otherwise strand in
+the middle. It is `.cfbe-spin`, never `.cfbe-line`, so no check that reads messages back sees it.
+Shared design, in the repo-root CLAUDE.md; all four plugins took it in one release.
 
 **2.0.0 is a rename, and this plugin is the one it broke.** The `GTTx ` prefix is now `ᝯㄝₓ `, in
 the `.yml`, the `manifest`, `PLUGIN_NAME`, `PLUGIN_SHORT_NAME` and the fixtures in

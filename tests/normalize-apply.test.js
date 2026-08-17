@@ -162,6 +162,36 @@ Promise.resolve()
     });
   })
 
+  // ── The busy cursor (since 3.1.0) ────────────────────────────────────────
+  //
+  // The counters say how far a pass has got; the cursor says it is still going. Being
+  // the *last* thing in the log is the half a flush can break, since every log line is
+  // appended under whatever the box already holds.
+  .then(() => {
+    const responder = h.makeResponder({ entities: bigLibrary() });
+    const env = h.makeEnv({
+      quiet: true,
+      respond: (req, calls) => (/mutation NPT_bulk/.test(req.query || '')
+        ? h.HANG : responder(req, calls)),
+    });
+    h.run(env.ctx);
+    h.startTask(env.ctx, h.TASK_PRUNE);
+    const cursor = () => env.body.descendants().filter((n) => h.hasClass(n, 'npt-spin'))[0] || null;
+    return h.flush().then(() => {
+      h.check('no cursor once the review pass is over', !cursor());
+      h.dialog(env.body).button('Proceed').click();
+      return h.flush().then(() => {
+        const c = cursor();
+        h.check('a cursor is drawn while the write is in flight', !!c);
+        const log = c && c.parentNode;
+        h.check('and it is the last thing in the log',
+          !!log && h.hasClass(log, 'npt-log') && log.childNodes[log.childNodes.length - 1] === c);
+        h.check('and it is not read back as a log line',
+          !h.hasClass(c, 'npt-line'));
+      });
+    });
+  })
+
   // ── Sibling detection ────────────────────────────────────────────────────
   .then(() => scan({
     entities: bigLibrary(),

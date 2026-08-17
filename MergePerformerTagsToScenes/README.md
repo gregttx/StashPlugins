@@ -51,6 +51,9 @@ There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks*
   carries on below it, so a run you applied, rescanned and applied again reads top to bottom on
   screen and not only through **Copy log**.
 
+  **A cursor cycles under the last line while the dialog is working** — reviewing, merging or
+  undoing. The counters say how far it has got; the cursor says it is still going.
+
   A scene featuring several performers is written **once**, with the tags all of them contribute.
 
   Each phase ends with a one-line recap of **every distinct tag involved** and how many scenes it

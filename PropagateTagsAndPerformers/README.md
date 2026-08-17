@@ -251,7 +251,9 @@ Clicking one does one of two things, depending on **Save Immediately**:
   the same dialog the library-wide task uses, scoped to this one entity and this one path: it lists
   every change, writes nothing until you press **Proceed**, and offers **Undo**, **Rescan** and
   **Copy log** afterwards. **Rescan keeps the log** — it writes a `--- Rescan ---` line and carries
-  on below it, rather than clearing the view for the next pass. Nothing in this plugin writes from a
+  on below it, rather than clearing the view for the next pass. While the dialog is working —
+  scanning, applying or undoing — a cursor cycles under the last line: the counters say how far it
+  has got, the cursor says it is still going. Nothing in this plugin writes from a
   click without either staging it or showing it to you first. The dialog's heading names what it is
   scoped to — *Copy Tags to all Scenes - from Performer "Jane" (100)* — so a dialog opened from a
   button says which entity it is about, by the name you know it by.

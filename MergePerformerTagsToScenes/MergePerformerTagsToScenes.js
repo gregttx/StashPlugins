@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.0.0';
+  var PLUGIN_VERSION      = '3.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -94,6 +94,11 @@
   var TASK_FLUSH_MS    = 100;
   var TASK_UNDO_CHUNK  = 100;   // scene ids per undo mutation
   var TASK_UNDO_ARM_MS = 4000;  // how long Undo stays armed for its second click
+  // The busy cursor under the last log line. The counters say how far a pass has
+  // got; this says it is still going, which is the question a walk that spends
+  // seconds on one page of performers leaves unanswered.
+  var SPIN_FRAMES      = ['▙', '▛', '▜', '▟'];
+  var SPIN_MS          = 125;   // one four-frame cycle at 2Hz
 
   var settings = {
     showManualMergeButtons: false,
@@ -919,6 +924,7 @@
     '.cpt2s-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;' +
     'font-size:.8rem;line-height:1.35;min-height:14rem;}' +
     '.cpt2s-line{white-space:pre-wrap;word-break:break-word;}' +
+    '.cpt2s-spin{color:#a7b6c2;}' +
     '.cpt2s-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
     'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
     'font-weight:600;}' +
@@ -1404,6 +1410,31 @@
     // already added, and stranding the user with a merge they cannot reverse would be
     // worse than the mismatch it is protecting them from.
     this.proceedBtn.disabled = !ready || !this.plan.length || this.stale;
+    this.spin(scanning || applying || undoing);
+  };
+
+  // A cursor cycling under the last log line for as long as work is in flight, and
+  // gone the moment it is not. It is a sibling of the lines rather than part of one,
+  // so it survives a flush that appends under it - `flush` moves it back to the end -
+  // and it carries no `-line` class, since it is not a log line and must not be read
+  // back as one. `state` is the single source of truth for whether it runs: every
+  // path in and out of a write goes through setState.
+  TaskRun.prototype.spin = function (on) {
+    if (!on) {
+      if (this.spinTimer) clearInterval(this.spinTimer);
+      this.spinTimer = null;
+      if (this.spinEl && this.spinEl.parentNode) this.spinEl.parentNode.removeChild(this.spinEl);
+      this.spinEl = null;
+      return;
+    }
+    if (!this.spinEl) {
+      this.spinEl = taskEl('div', 'cpt2s-spin', SPIN_FRAMES[0]);
+      var self = this, i = 0;
+      this.spinTimer = setInterval(function () {
+        self.spinEl.textContent = SPIN_FRAMES[++i % SPIN_FRAMES.length];
+      }, SPIN_MS);
+    }
+    this.logEl.appendChild(this.spinEl);
   };
 
   // A run-level warning: into the log, where Copy log will carry it, and into the
@@ -1479,6 +1510,9 @@
     if (!this.pending.length) return;
     var pending = this.pending;
     this.pending = [];
+    // Out of the way while the lines land, so the cursor is neither counted against
+    // the render cap nor left in the middle of the log.
+    if (this.spinEl && this.spinEl.parentNode) this.logEl.removeChild(this.spinEl);
     pending.forEach(function (p) {
       var node = taskEl('div', 'cpt2s-line cpt2s-' + p.kind, p.parts ? null : p.line);
       // The line looks exactly like every other one: the spans exist to hang a
@@ -1497,6 +1531,7 @@
     while (this.logEl.childNodes && this.logEl.childNodes.length > TASK_LOG_CAP) {
       this.logEl.removeChild(this.logEl.firstChild);
     }
+    if (this.spinEl) this.logEl.appendChild(this.spinEl);
     if (typeof this.logEl.scrollHeight === 'number') this.logEl.scrollTop = this.logEl.scrollHeight;
     this.renderProgress();
   };
@@ -2238,6 +2273,7 @@
   TaskRun.prototype.close = function () {
     unwireEscape(this);
     this.disarmUndo();
+    this.spin(false);
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);

@@ -5,8 +5,16 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.0.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.1.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` under the last log line, one cycle at 2Hz, for as long as
+the task dialog is reviewing, applying or undoing — the performer walk can spend seconds on one page
+with the counters unchanged, which looks exactly like a hung tab. `spin(busy)` hangs off `setState`
+and nothing else, `flush()` lifts the cursor out before appending and puts it back at the end, and
+`close()` clears the interval for a dialog dismissed mid-write. It is `.cpt2s-spin`, never
+`.cpt2s-line`, so neither the render cap nor `dialog().lines` sees it. Shared design, in the
+repo-root CLAUDE.md; all four plugins took it in one release.
 
 **3.0.0 is the second rename, and the same kind of change as 2.0.0.** The `GTTx ` prefix is now
 `ᝯㄝₓ `, in the `.yml`, the `manifest`, `PLUGIN_NAME`, `PLUGIN_SHORT_NAME`, `SIBLING_NAME` and every

@@ -3,9 +3,19 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 3.0.0.** This file is both the design and the map of the code — the
+**Status: implemented at 3.1.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**3.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` under the last log line, one cycle at 2Hz, for as long as
+the run dialog is scanning, applying or undoing. The counters were the only signal a pass was alive,
+and a per-type figure that has not moved for several seconds over a large page reads as a hung tab.
+`spin(busy)` hangs off `setState` and nothing else — every path in and out of a write goes through
+there — and `flush()` lifts the cursor out before appending and puts it back at the end, so a log
+line can never land under it. It is `.npt-spin`, never `.npt-line`: the render cap counts children,
+and `dialog().lines` reads that class. The interval is also cleared in `close()`, for a dialog
+dismissed mid-write. The repo-root CLAUDE.md carries the shared design; all four plugins took it in
+one release.
 
 **3.0.0 is the second rename, and the same kind of change as 2.0.0.** The `GTTx ` prefix is now
 `ᝯㄝₓ `, in the `.yml`, the `manifest`, `PLUGIN_NAME`, `PLUGIN_SHORT_NAME`, `SIBLING_NAME` and every

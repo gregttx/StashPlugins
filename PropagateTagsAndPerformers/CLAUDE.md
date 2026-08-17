@@ -5,10 +5,19 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 2.0.0.** Every step in the table below has landed, so the version left the
+**Status: released, 2.1.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**2.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` under the last log line, one cycle at 2Hz, while the run
+dialog is scanning, applying or undoing. The sweep is the case that wanted it: reading every image
+in the library to find each gallery's leaves the counters still for a long time, and a progress line
+that has not moved reads as a hung tab. `spin(busy)` hangs off `setState` and nothing else; `flush()`
+lifts the cursor out before appending and puts it back at the end; `close()` clears the interval for
+a dialog dismissed mid-write. It is `.ptp2re-spin`, never `.ptp2re-line`, so neither the render cap
+nor a check reading log lines back sees it. Shared design, in the repo-root CLAUDE.md; all four
+plugins took it in one release.
 
 **2.0.0 is a rename, the second one, and the same kind of change as 1.0.0.** The `GTTx ` prefix is
 now `ᝯㄝₓ `, in the `.yml`, the `manifest`, `PLUGIN_NAME`, `PLUGIN_SHORT_NAME` (`ᝯㄝₓ Propagate Tags

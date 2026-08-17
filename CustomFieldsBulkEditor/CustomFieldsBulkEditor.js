@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.0.3';
+  var PLUGIN_VERSION = '2.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -65,6 +65,11 @@
   var OBSERVE_MS   = 100;   // a burst of DOM mutations coalesced into one tick
   var ROW_WALK_MAX = 8;     // ancestors climbed from a checkbox looking for its row
   var LIST_RENDER_CAP = 1000;  // listing rows put in the DOM; all of them stay in memory
+  // The busy cursor under the last line of the listing. The counters say how far a
+  // read or a write has got; this says it is still going, which is the question a
+  // page of 5,000 entities leaves unanswered for seconds at a time.
+  var SPIN_FRAMES = ['▙', '▛', '▜', '▟'];
+  var SPIN_MS = 125;           // one four-frame cycle at 2Hz
   // The two boxes in the descriptions dialog's right pane say what they are, since one
   // is typed into and the other is read-only and neither is obvious from its contents.
   var DESC_HEAD  = 'Description';
@@ -554,6 +559,7 @@
     '.cfbe-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;font-size:.8rem;' +
     'line-height:1.35;min-height:14rem;}' +
     '.cfbe-line{white-space:pre-wrap;word-break:break-word;}' +
+    '.cfbe-spin{color:#a7b6c2;}' +
     '.cfbe-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
     'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
     'font-weight:600;}' +
@@ -1530,6 +1536,31 @@
     });
     // After the loop, because Rename disables the value box in `listing` too.
     this.syncOps();
+    this.spin(state === 'loading' || busy);
+  };
+
+  // A cursor cycling under the last line of the log for as long as work is in flight,
+  // and gone the moment it is not. It sits in the log beside the blocks and the
+  // messages rather than inside one, and carries no `-line` class, since it is not a
+  // message and must not be read back as one; `msg` and `fillList` move it back to the
+  // end after appending under it. `state` is the single source of truth for whether it
+  // runs: every path in and out of a read or a write goes through setState.
+  Run.prototype.spin = function (on) {
+    if (!on) {
+      if (this.spinTimer) clearInterval(this.spinTimer);
+      this.spinTimer = null;
+      if (this.spinEl && this.spinEl.parentNode) this.spinEl.parentNode.removeChild(this.spinEl);
+      this.spinEl = null;
+      return;
+    }
+    if (!this.spinEl) {
+      this.spinEl = el('div', 'cfbe-spin', SPIN_FRAMES[0]);
+      var self = this, i = 0;
+      this.spinTimer = setInterval(function () {
+        self.spinEl.textContent = SPIN_FRAMES[++i % SPIN_FRAMES.length];
+      }, SPIN_MS);
+    }
+    this.listEl.appendChild(this.spinEl);
   };
 
   // Apply is enabled by the one rule the user asked for - a non-empty field name,
@@ -1569,6 +1600,7 @@
     var line = el('div', 'cfbe-line cfbe-' + kind);
     line.appendChild(textNode('[' + kind + '] ' + message));
     this.listEl.appendChild(line);
+    if (this.spinEl) this.listEl.appendChild(this.spinEl);   // back to the end
     this.scrollList();
     return line;
   };
@@ -2026,6 +2058,7 @@
     if (!block) {
       block = this.blockEl = el('div', 'cfbe-block');
       this.listEl.appendChild(block);
+      if (this.spinEl) this.listEl.appendChild(this.spinEl);   // back to the end
     }
     while (block.firstChild) block.removeChild(block.firstChild);
     block._text = items.map(function (item) { return text.call(self, item); });
@@ -2735,6 +2768,7 @@
 
   Run.prototype.close = function () {
     unwireEscape(this);
+    this.spin(false);
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);
     }
@@ -2906,6 +2940,7 @@
   DescRun.prototype.show = Run.prototype.show;
   DescRun.prototype.showStale = Run.prototype.showStale;
   DescRun.prototype.noun = Run.prototype.noun;
+  DescRun.prototype.spin = Run.prototype.spin;
 
   DescRun.prototype.begin = function () {
     var self = this;
@@ -3253,6 +3288,7 @@
     this.closeBtn.disabled = busy;
     this.textEl.disabled = !edit || this.sel == null;
     this.syncApply();
+    this.spin(state === 'loading' || busy);
   };
 
   // The orphans a press would actually clear, so the button and the press agree about

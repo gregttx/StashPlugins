@@ -1332,6 +1332,35 @@ openDialog()
     });
   })
 
+  // The busy cursor (since 2.1.0): on while a write is in flight, gone once it lands.
+  // That it stays *last* when a message or a block lands under it is pinned in
+  // `normalize-apply`, where a run logs while it writes; here nothing does, so this
+  // only asks that it is in the log box at all.
+  .then(() => openDialog({ hangAfter: 0 }))
+  .then((env) => {
+    const cursor = () => one(env.body, 'cfbe-spin');
+    h.check('no cursor while the dialog just sits there', !cursor());
+    one(env.body, 'cfbe-field-name').value = 'colour';
+    one(env.body, 'cfbe-field-value').value = 'green';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => {
+      const c = cursor();
+      h.check('a cursor is drawn while the write is in flight', !!c);
+      h.check('and it is drawn in the log box', !!c && h.hasClass(c.parentNode, 'cfbe-list'));
+    });
+  })
+  .then(() => openDialog())
+  .then((env) => {
+    one(env.body, 'cfbe-field-name').value = 'colour';
+    one(env.body, 'cfbe-field-value').value = 'green';
+    h.fire(one(env.body, 'cfbe-field-name'), 'input');
+    one(env.body, 'cfbe-apply').click();
+    return h.flush().then(() => {
+      h.check('and gone once the write lands', !one(env.body, 'cfbe-spin'));
+    });
+  })
+
   // Studio and Tag have no `custom_fields` on their bulk input, so they are written
   // one at a time. Nothing else about them differs.
   .then(() => {

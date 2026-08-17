@@ -916,7 +916,7 @@ openDialog()
       description: 'Managed by the plugin.\n\n' + JSON.stringify({ version: '1.0.0',
         hideField: 'Exclude_from_add_list',
         descriptions: { Exclude_from_add_list: 'Hides it from the add lists.' } }),
-      custom_fields: { cfbe_desc_store: '1', Exclude_from_add_list: '1' },
+      custom_fields: { 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store': '1', Exclude_from_add_list: '1' },
     },
   }))
   .then((env) => {
@@ -1004,7 +1004,7 @@ openDialog()
       description: 'Managed by the plugin.\n\n' + JSON.stringify({ version: '1.0.0',
         hideField: 'Hide_me',
         descriptions: { Exclude_from_add_list: 'A leftover under the old name.' } }),
-      custom_fields: { cfbe_desc_store: '1', Hide_me: '1' },
+      custom_fields: { 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store': '1', Hide_me: '1' },
     },
   }))
   .then((env) => {

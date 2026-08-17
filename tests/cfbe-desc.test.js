@@ -16,7 +16,8 @@ const SRC = process.env.SRC || path.join(
 const PLUGIN_NAME = 'ᝯㄝₓ Custom Fields Bulk Editor';
 const TASK = 'Manage Custom Field Descriptions...';
 const BULK_TASK = 'Edit Custom Fields Across the Whole Library...';
-const STORE_FIELD = 'cfbe_desc_store';
+const STORE_FIELD = 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store';
+const LEGACY_STORE_FIELD = 'cfbe_desc_store';
 const HIDE = 'Exclude_from_add_list';
 const STORE_TAG_NAME = 'ᱜ╦╦🞮 🗃️🔌 🛂🧲 🛠🛈🖫 ❌∙';
 // Read from the source rather than pinned: the blob carries whatever version wrote it,
@@ -84,7 +85,8 @@ function responder(opts) {
     // The store read: by marker custom field, never by name.
     if (/CFBE_Store/.test(q)) {
       if (opts.storeFails) return { errors: [{ message: 'store boom' }] };
-      const tags = (lib.tags || []).filter((t) => (t.custom_fields || {})[STORE_FIELD] != null);
+      const field = req.variables.f.custom_fields[0].field;
+      const tags = (lib.tags || []).filter((t) => (t.custom_fields || {})[field] != null);
       return { data: { findTags: { tags: JSON.parse(JSON.stringify(tags)) } } };
     }
     if (/CFBE_Marked/.test(q)) {
@@ -425,6 +427,13 @@ openDesc()
       h.check('and marked hidden from the add lists itself',
         call.variables.input.custom_fields[HIDE] === '1',
         JSON.stringify(call.variables.input.custom_fields));
+      // Since 2.0.1: the name is unreachable from an ASCII keyboard, and the tag is
+      // plumbing rather than something to file scenes under.
+      h.check('with an ASCII alias, and left out of auto-tagging',
+        String(call.variables.input.aliases) === 'GTTx Custom Field Description Store' &&
+        call.variables.input.ignore_auto_tag === true,
+        JSON.stringify(call.variables.input.aliases) + ' ' +
+        call.variables.input.ignore_auto_tag);
       h.check('under the name in the setting',
         call.variables.input.name === 'ᱜ╦╦🞮 🗃️🔌 🛂🧲 🛠🛈🖫 ❌∙', call.variables.input.name);
       h.check('the description opens with a sentence, not with the blob',
@@ -433,6 +442,31 @@ openDesc()
       h.check('and the blob in it parses', !!sentStore(env.calls));
       return env;
     });
+  })
+
+  // ── The marker rename, since 2.0.1 ───────────────────────────────────────
+  //
+  // A store wearing the old `cfbe_desc_store` marker is found and moved onto the
+  // prefixed one, without the user being told: the store is the same store.
+  .then(() => openDesc({ library: withStore(Object.assign({}, STORE_TAG,
+    { custom_fields: { [LEGACY_STORE_FIELD]: '1' } })) }))
+  .then((env) => {
+    const store = env.calls.filter((c) => /CFBE_Store/.test(c.query || ''));
+    h.check('the current marker is asked for first, the old one only after it misses',
+      store.length === 2 && store[0].variables.f.custom_fields[0].field === STORE_FIELD &&
+      store[1].variables.f.custom_fields[0].field === LEGACY_STORE_FIELD,
+      JSON.stringify(store.map((c) => c.variables.f.custom_fields[0].field)));
+    const moved = tagWrites(env.calls).filter((c) => /CFBE_TagUpdate/.test(c.query));
+    h.check('and the tag is moved onto the current marker on the way past',
+      moved.length === 1 && moved[0].variables.input.id === '9' &&
+      moved[0].variables.input.custom_fields.partial[STORE_FIELD] === '1' &&
+      String(moved[0].variables.input.custom_fields.remove) === LEGACY_STORE_FIELD,
+      JSON.stringify(moved.map((c) => c.variables.input)));
+    h.check('the descriptions in it are read as usual',
+      names(env.body).some((n) => /colour x3/.test(n)), names(env.body).join(' | '));
+    h.check('and nothing is said about it', !notes(env.body).some((l) => /marker/i.test(l)),
+      notes(env.body).join(' | '));
+    return env;
   })
 
   // ── The version gate ─────────────────────────────────────────────────────

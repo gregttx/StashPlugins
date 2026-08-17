@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.0.0';
+  var PLUGIN_VERSION = '2.0.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -100,8 +100,17 @@
   // and the value written into `c1ExcludeFromAddListField` on it. Neither is a setting:
   // the marker is this plugin's own plumbing, and the value is what §23's filter reads
   // as "marked".
-  var STORE_FIELD = 'cfbe_desc_store';
+  // The name carries the same prefix the plugins wear, because a custom field lives in
+  // one flat namespace shared with whatever the user (or another plugin) keeps there,
+  // and `cfbe_desc_store` was a name anyone could have picked. `LEGACY_STORE_FIELD` is
+  // that old name, upgraded silently the first time a store wearing it is found.
+  var STORE_FIELD = 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store';
+  var LEGACY_STORE_FIELD = 'cfbe_desc_store';
   var MARK_VALUE = '1';
+
+  // The alias the store tag is created with, so it stays findable by typing something
+  // an ASCII keyboard can produce.
+  var STORE_TAG_ALIAS = 'GTTx Custom Field Description Store';
 
   // The sentence above the JSON in the store tag's description. Stash renders that
   // description on the tag's card and detail page, so it opens with something a human
@@ -415,13 +424,39 @@
   // is invited to change, and a store that could be lost by renaming it would be a
   // store nobody should keep anything in. Two marked tags is a state nothing here
   // creates, so it is resolved rather than refused - the one whose name matches the
-  // setting, else the lowest id - and the dialog says which it took.
-  function findStoreTag(settings) {
+  // setting, else the lowest id - and the dialog says which it took. A store still
+  // wearing `LEGACY_STORE_FIELD` is moved onto the current marker on the way past,
+  // which costs a second query only while no upgraded store exists.
+  function markedTags(field) {
     return gqlRequest('query CFBE_Store($f: TagFilterType) { findTags(filter: { per_page: -1 }, ' +
       'tag_filter: $f) { tags { id name description custom_fields } } }',
-    { f: { custom_fields: [{ field: STORE_FIELD, modifier: 'NOT_NULL' }] } })
-      .then(function (data) {
-        var tags = ((data && data.findTags) || {}).tags || [];
+    { f: { custom_fields: [{ field: field, modifier: 'NOT_NULL' }] } })
+      .then(function (data) { return ((data && data.findTags) || {}).tags || []; });
+  }
+
+  // A store wearing the old marker is moved onto the new one where it is found, in one
+  // update per tag, and nothing about it is reported: the store is the same store, and
+  // the name of the field holding it together is not something a user chose.
+  function upgradeMarker(tags) {
+    if (!tags.length) return Promise.resolve(tags);
+    var marks = {};
+    marks[STORE_FIELD] = MARK_VALUE;
+    return Promise.all(tags.map(function (t) {
+      var fields = t.custom_fields || {};
+      delete fields[LEGACY_STORE_FIELD];
+      fields[STORE_FIELD] = MARK_VALUE;
+      t.custom_fields = fields;
+      return gqlRequest('mutation CFBE_TagUpdate($input: TagUpdateInput!) ' +
+        '{ tagUpdate(input: $input) { id name description } }',
+      { input: { id: t.id, custom_fields: { partial: marks, remove: [LEGACY_STORE_FIELD] } } });
+    })).then(function () { return tags; });
+  }
+
+  function findStoreTag(settings) {
+    return markedTags(STORE_FIELD).then(function (tags) {
+      return tags.length ? tags : markedTags(LEGACY_STORE_FIELD).then(upgradeMarker);
+    })
+      .then(function (tags) {
         if (!tags.length) return null;
         var wanted = settings.b1DescriptionTagName;
         for (var i = 0; i < tags.length; i++) {
@@ -3242,7 +3277,8 @@
         custom_fields: { partial: marks } } })
       : gqlRequest('mutation CFBE_TagCreate($input: TagCreateInput!) { tagCreate(input: $input) ' +
         '{ id name description } }',
-      { input: { name: name, description: description, custom_fields: marks } });
+      { input: { name: name, description: description, custom_fields: marks,
+        aliases: [STORE_TAG_ALIAS], ignore_auto_tag: true } });
 
     var lease = acquireLease('Custom field descriptions');
     write.then(function (data) {

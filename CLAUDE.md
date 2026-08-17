@@ -423,6 +423,15 @@ that configures it. `ᝯㄝₓ ` is four characters and buys the recognition; sh
 *rest* of the name, which is why `PropagateTagsAndPerformers` is the only one whose two constants
 differ.
 
+**Anything a plugin writes into a namespace it shares with the user takes a prefix too.** A custom
+field is the case this repo has: `CustomFieldsBulkEditor` marks its description-store tag with a
+field of its own, and until its 2.0.1 that field was `cfbe_desc_store` — a name any other plugin, or
+any user, could have picked, in a flat namespace with no owner. It is
+`ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store` now, underscored rather than spaced because it is a key rather than a
+display string, and the old name upgrades itself silently the first time a store wearing it is
+found. This is not the display prefix and it is not `__GTTx__`; it is the same reasoning applied to
+the third place these plugins can collide with something that is not theirs.
+
 **A sibling named in prose is named as the user will see it.** `SIBLING_NAME` / `NPT_NAME` — the
 strings the cross-plugin warnings print — carry the prefix, because their entire purpose is to send
 the user to a settings group they then have to find. The *id* those checks look the sibling up by

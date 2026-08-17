@@ -1251,11 +1251,25 @@ be right about at all.
 - **Read-modify-write of the whole store.** Two tabs editing descriptions is last-write-wins.
   That is the same bargain everything else here makes with a Stash that offers no better.
 
-**The tag is found by a marker custom field (`cfbe_desc_store`), never by its name.** The name is a
-setting the user is invited to change, so a store found by name is a store that a rename loses. It
-also means the rename *is* a rename: the dialog finds the tag it already has and writes the new
-name onto it. Two marked tags is a state nothing here creates, so it is resolved rather than
+**The tag is found by a marker custom field (`ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store`), never by its name.** The
+name is a setting the user is invited to change, so a store found by name is a store that a rename
+loses. It also means the rename *is* a rename: the dialog finds the tag it already has and writes
+the new name onto it. Two marked tags is a state nothing here creates, so it is resolved rather than
 refused — the one whose name matches the setting, else the lowest id — and the log says which.
+
+**The marker wears the plugins' own prefix, and the old name upgrades itself.** It was
+`cfbe_desc_store` until 2.0.1, which is a name anything else keeping custom fields could have
+picked — and a collision there would hand the store to a tag that is not one. `findStoreTag` asks
+for the current marker, and only when that misses asks for `LEGACY_STORE_FIELD` and moves whatever
+it finds across in one `tagUpdate` (`partial` the new key, `remove` the old). Silent on purpose:
+the store is the same store, and the name of the field holding it together is not something the
+user chose. The second query costs one round trip, and only while no upgraded store exists.
+
+**The tag is created with `ignore_auto_tag: true` and one ASCII alias.** Its name is unreachable
+from a keyboard, so `GTTx Custom Field Description Store` is what makes it findable in Stash's own search;
+and it is plumbing rather than a tag to file scenes under, so auto-tag has no business matching on
+it. Both go on `tagCreate` only — a store that already exists is the user's to configure, and an
+Apply that quietly re-asserted either would be this dialog writing something nobody staged.
 
 **Nothing is written until Apply, including this plugin's own housekeeping.** Creating the tag,
 seeding the description for the hide-from-add-lists field, and pruning orphans are all staged into

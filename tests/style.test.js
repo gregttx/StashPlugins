@@ -32,6 +32,10 @@ const PLUGINS = [
   // repo-root rule ("marking everything would mark nothing"). There is nothing here
   // that writes on its own to paint amber.
   { name: 'CustomFieldsBulkEditor', prefix: 'cfbe', decl: 'var CSS =', settings: true, toggles: false },
+  // Two settings, one of them coloured: the console toggle is teal like every sibling's,
+  // and the bundle limit keeps Stash's blue because it chooses what the clipboard holds
+  // rather than starting anything.
+  { name: 'TagBundleClipboard', prefix: 'tbc', decl: 'var CSS =', settings: true, toggles: true },
 ];
 
 // The CSS is a run of single-quoted fragments joined with +. Pull the block out,

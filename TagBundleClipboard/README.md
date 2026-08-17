@@ -1,0 +1,138 @@
+# ᝯㄝₓ Tag Bundle Clipboard
+
+Copy a set of tags off one entity and paste it onto another, however unrelated the two are.
+
+Stash has no "copy these tags over there" affordance, and the two other plugins in this repo that
+move tags only copy along Stash's own relationships — a scene's performers' tags, a gallery's
+images' tags. There is no relationship between two unrelated scenes to name, so there is no path to
+follow. This is the manual case: **you pick the source, you pick the target, and you pick which
+tags.**
+
+Requires Stash 0.31.0 or newer.
+
+---
+
+## How it works
+
+**Copy.** Open any Scene, Image, Gallery, Performer, Studio or Group and press **Copy Tags** on its
+detail view. Every tag it carries goes onto a clipboard as one bundle, named for the entity it came
+from.
+
+**Paste.** Open the Edit tab of any other entity of any of those six types and press
+**Paste Tags…**. A dialog lists the bundles on the clipboard, newest first. Pick one, tick the tags
+you want, and press Add — they go straight into the tag box on the form behind the dialog.
+
+Then press Stash's own **Save**, exactly as if you had picked each tag from the dropdown yourself.
+
+## Nothing is written to your library
+
+The plugin makes no changes of its own, at any point. A paste puts tags into the edit form; **Stash's
+Save is what commits them.** Close the form without saving and nothing has happened.
+
+That is why this dialog, alone among the plugins here, does not tell you to back up your database
+first, and why it has no Undo — the form's own Reset is the undo, and there is nothing else to take
+back.
+
+## The clipboard
+
+It holds several bundles at once — the number is a setting, five by default — and discards the
+oldest when it is full.
+
+It lives in your browser, not on the server, which has one consequence worth knowing in each
+direction:
+
+- **Every Stash tab in that browser shares it.** The source entity can be open in one tab and the
+  target in another, which is the way this is meant to be used.
+- **Another browser, another device and your database backup do not see it.** A bundle is scratch
+  data with a lifetime of minutes; it is not part of your library.
+
+## Tags the target already has
+
+They are listed, greyed out, and cannot be ticked. A paste only ever adds what is missing, so
+pressing Add twice does nothing the second time.
+
+What counts as "already there" is read from **the form in front of you**, not from the server — so a
+tag you have just added or removed by hand, without saving, is taken into account.
+
+## What is not offered
+
+**Tags** and **Scene Markers**, and both absences are deliberate:
+
+- A **Tag** carries parent and child tags rather than tags of its own, so a bundle of tags has
+  nowhere to land on one.
+- A **Scene Marker** does carry tags, but has no detail page to put a Copy button on.
+
+## Settings
+
+| Setting | |
+|---|---|
+| **Bundles Kept on the Clipboard** | How many bundles to keep before the oldest is discarded. Empty means 5. Anything from 1 to 50; a value outside that is clamped rather than refused. Lowering it discards nothing until the next copy. |
+| **Log to the Browser Console** | Print each copy and each paste under the `[tbc]` prefix, so a session can be read back after the dialog has been closed. |
+
+## Where the buttons are
+
+**Copy Tags** goes on the detail view — in the row of actions beside Delete on a Performer or a
+Group, and in a small row of its own under the tab strip on a Scene or a Gallery, which render no
+action row there. It is teal, because it only reads.
+
+**Paste Tags…** goes in the edit form's button row, between Save and Delete. It is amber, the colour
+every plugin here uses for a control that changes something — in this case the form, not the
+library. The trailing "…" is this repo's convention for a button that asks before it acts.
+
+If another of these plugins is installed, its buttons and these share the row in a fixed order
+rather than whichever loaded first.
+
+## Relationship to the other plugins in this repo
+
+- **ᝯㄝₓ Merge Performer Tags To Scenes** and **ᝯㄝₓ Propagate Tags and Performers to Related
+  Entities** copy tags along relationships, automatically or in bulk. This one copies them by hand
+  between entities with no relationship at all. They do not overlap, and all three can be installed
+  together.
+- **ᝯㄝₓ Normalize Parent Tags** rewrites tag *hierarchies* on entities. If you have its Auto Prune
+  mode on, it may remove a tag you pasted here for the same reason it removes one you added by
+  hand — that is what that mode is for, and this plugin is not doing anything different from you.
+- **ᝯㄝₓ Custom Fields Bulk Editor** is unrelated.
+
+## Troubleshooting
+
+**The Paste Tags button is not there.** Three things it needs, in order: you are on one of the six
+entity pages; the **Edit** tab is open, since the button sits in the edit form's own button row; and
+your Stash exposes plugin component patching, without which there is no way to put tags into a form.
+The last of those prints one line to the browser console saying so.
+
+**Neither button is there, and the settings page looks fine.** Check **Settings → Plugins** shows
+`ᝯㄝₓ Tag Bundle Clipboard`. If the folder was copied over an older version and only some files
+landed, the settings page can look completely normal while the buttons are gone — the settings are
+found by ids built from the plugin id, which no rename moves, while everything else matches on the
+name.
+
+**Why is this button hidden?** Type this into the browser console:
+
+```js
+__GTTx__.StashPluginCoop.debugButtons = true
+```
+
+Every plugin here that draws a control into Stash's own chrome then explains, in the console, which
+of its buttons it is showing and why. It takes effect on the next tick — no reload, no setting.
+Set it back to `false` to stop.
+
+**A bundle I copied in another tab is not in the list.** The list is read when the dialog opens.
+Close it and open it again.
+
+## Checking which version is actually running
+
+Stash serves plugin scripts with caching on, so a browser can go on running the old file after an
+update. The plugin says which one it loaded, in the console, when the page loads:
+
+```
+[tbc] TagBundleClipboard.js <version> loaded.
+```
+
+If that number disagrees with the one beside the plugin's name in **Settings → Plugins**, a red
+banner appears in the plugin's own settings group saying so, and the paste dialog carries the same
+warning in its head. Press **Ctrl+Shift+R** (⌘+Shift+R on a Mac).
+
+## Installing
+
+Copy the `TagBundleClipboard` folder into your Stash plugins directory (`<stash-config-dir>/plugins/`)
+and reload plugins in **Settings → Plugins**.

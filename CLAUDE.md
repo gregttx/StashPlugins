@@ -174,6 +174,14 @@ Rules that make this safe:
   therefore *say* a lease is held and carry on — an advisory the user can act on, not a lock.
 - **UI plugins only.** A server-side `hooks:` plugin runs in the Stash process, never sees this
   `window`, and cannot be leased against. Do not let documentation imply otherwise.
+- **A plugin that never writes at all takes no lease either.** `TagBundleClipboard` is the first,
+  and it is the case the three rules below do not cover: it registers no lease (there is no bulk
+  write to announce), no `respecters` entry (it reacts to nothing) and no `declares` entry (it
+  performs no relationship copy, so any path id would be a lie). Its only entries on the shared
+  object are `order` and the `debugButtons` it reads. **Each of those absences is the rule being
+  followed, not an omission** — its own suite pins all three together so a later edit cannot quietly
+  add one, and that is worth copying for the next plugin in this shape.
+
 - **A bulk-only plugin takes leases and registers no `respecters` entry.**
   `CustomFieldsBulkEditor` is the first of those: it never reacts to a save, so it has nothing to
   stand down. Registering anyway would be a claim a sibling's dialog repeats to the user ("it will
@@ -259,7 +267,10 @@ render.
 the shared dialog chrome's overlapping CSS is pinned byte-identical rather than left to drift.
 Higher sits closer to the anchor. `MergePerformerTagsToScenes` registers 20 (its buttons were on the
 page first); `PropagateTagsAndPerformers` registers 10, leaving a gap of 10 either side for a future
-third plugin to slot in without renumbering either existing value.
+third plugin to slot in without renumbering either existing value. `TagBundleClipboard` is that
+third plugin and took **5**, which is the gap being used as intended: its two buttons are the most
+casual pair in the repo — one copies to a clipboard, one opens a picker — so furthest from
+Save/Delete is where they belong, and no existing number moved.
 
 **Every button carries `_coopOwner = PLUGIN_ID`**, a plain JS property (not a DOM attribute — there
 is no need to serialise it) set at the point each plugin builds its own button element. This is
@@ -395,9 +406,9 @@ choose what a run covers rather than starting one.
 A sixth shared convention, and the only one the user reads before installing anything. Every
 plugin in this repo is named **`ᝯㄝₓ <name>`** — `ᝯㄝₓ Normalize Parent Tags`,
 `ᝯㄝₓ Merge Performer Tags To Scenes`, `ᝯㄝₓ Propagate Tags and Performers to Related Entities`,
-`ᝯㄝₓ Custom Fields Bulk Editor`. There has been a prefix since `NormalizeParentTags` 2.0.0 /
+`ᝯㄝₓ Custom Fields Bulk Editor`, `ᝯㄝₓ Tag Bundle Clipboard`. There has been a prefix since `NormalizeParentTags` 2.0.0 /
 `MergePerformerTagsToScenes` 2.0.0 / `PropagateTagsAndPerformers` 1.0.0 (and from its first release
-for `CustomFieldsBulkEditor`); it was the ASCII `GTTx ` until `NormalizeParentTags` 3.0.0 /
+for `CustomFieldsBulkEditor` and for `TagBundleClipboard`); it was the ASCII `GTTx ` until `NormalizeParentTags` 3.0.0 /
 `MergePerformerTagsToScenes` 3.0.0 / `PropagateTagsAndPerformers` 2.0.0 /
 `CustomFieldsBulkEditor` 2.0.0. Stash's plugin list is one flat alphabetical column of every
 plugin installed, from every source; the prefix is what collects them in it and says they
@@ -678,7 +689,7 @@ visible summary and a hover box, and the group description behind a **Show more*
 folder is copied as-is, with no build step and no shared module, so none can import another's
 stylesheet: each carries its own CSS string, `CSS` in `NormalizeParentTags`, `TASK_CSS` in
 `MergePerformerTagsToScenes`, `CSS` in `PropagateTagsAndPerformers`, `CSS` in
-`CustomFieldsBulkEditor`.
+`CustomFieldsBulkEditor`, `CSS` in `TagBundleClipboard`.
 
 **The settings-page rules are two halves, and only one of them is optional.** This shipped as one
 list waived wholesale for a plugin with no `settings:`, on the reasoning that Stash renders no group
@@ -687,7 +698,7 @@ group, a heading and a description**, whether or not it has anything to configur
 description is the first thing a user reads before installing. So `tests/style.test.js` splits them:
 
 - **`DESCRIPTION`** — `.own-group .sub-heading`, `.desc-collapsed .p:not(:first-child)`,
-  `.desc-toggle`. Required of **all four** plugins. This is the summary-plus-**Show more** design,
+  `.desc-toggle`. Required of **every** plugin here. This is the summary-plus-**Show more** design,
   and `CustomFieldsBulkEditor` 0.1.0 is when the fourth plugin stopped being the exception to it.
 - **`SETTING_TIPS`** — `.tipped`, `.tip`, `.tipbox`, `.tipped.tip-open .tipbox`. The per-*setting*
   hover box, so only a plugin with setting rows can have one. `CustomFieldsBulkEditor` carried a
@@ -720,17 +731,36 @@ rather than a stub — a no-op there would let a closed dialog go on answering t
 check about it still passing.
 
 **"Back up your database before proceeding." is now "Backing up your database before proceeding is
-recommended."**, in all four dialog heads, at the user's request. The sentence after it is
+recommended."**, in all four writing dialogs' heads, at the user's request. The sentence after it is
 unchanged and still states what Undo cannot reach — own writes, open dialog, blind to concurrent
 changes. This is a change of register, not of advice: it is still the first line of every head, and
 the standing rule that the backup instruction must not be edited out for brevity (§1 of
 `NormalizeParentTags`' CLAUDE.md) is unaffected.
 
+**And there is now one dialog that must not carry it at all.** `TagBundleClipboard`'s picker issues
+no mutation: it puts tags into an edit form and Stash's own Save commits them. Telling that user to
+back up first would be false, so its head says where the tags actually go instead, and it has no
+Undo for the same reason — the form's own Reset is the undo. **The rule above is about dialogs that
+write.** It has never been a rule that every head carries the sentence regardless of whether the
+dialog can change anything, and the distinction only became visible when a plugin arrived that
+cannot. Before waiving it for a *new* dialog, check the same thing the suite checks for that one:
+that no path in the plugin issues a mutation. A dialog that writes and skips the sentence is the
+failure this rule exists to prevent.
+
 **Keep the overlapping rules byte-identical.** They drifted once — the modal was `#202b33` in one
 and `#30404d` in the other, with a `font-size` and a `z-index` to match — because the second dialog
-was written a day after the first and nobody compared them. `tests/style.test.js` parses all four
-strings, strips the `npt-` / `cpt2s-` / `ptp2re-` / `cfbe-` prefixes, and fails on any selector two
-or more of them define differently.
+was written a day after the first and nobody compared them. `tests/style.test.js` parses all five
+strings, strips the `npt-` / `cpt2s-` / `ptp2re-` / `cfbe-` / `tbc-` prefixes, and fails on any
+selector two or more of them define differently.
+
+**It works, and the fifth plugin is the evidence.** `TagBundleClipboard` was written with a `.panes`
+and a `.tall` of its own, and the suite failed on both the first time it ran. The two resolutions
+are opposite and the reason is the same one: **a class name two plugins share has to mean the same
+thing in both.** `.tall` *is* the same thing in both — a modal whose content changes while the user
+reads it and must not resize under the pointer — so the newcomer took `CustomFieldsBulkEditor`'s
+88vh and dropped its own 70vh. `.panes` is not: one is a padded two-column body, the other a
+divided one, so the newcomer renamed its own to `.cols` rather than forcing two layouts to agree.
+Pick by what the rule *means*, never by which plugin got there first.
 
 Only the overlap is pinned. Rules the others have no use for — the hierarchy viewer's tree and
 inspector, each plugin's own log-line kinds (`REMOVE`/`ADD` against `MERGE` against `TAG`/`PERF`) —

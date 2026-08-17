@@ -429,7 +429,11 @@ field of its own, and until its 2.0.1 that field was `cfbe_desc_store` — a nam
 any user, could have picked, in a flat namespace with no owner. It is
 `ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store` now, underscored rather than spaced because it is a key rather than a
 display string, and the old name upgrades itself silently the first time a store wearing it is
-found. This is not the display prefix and it is not `__GTTx__`; it is the same reasoning applied to
+found. The same plugin's hide-from-add-lists field went with it (`Exclude_from_add_list` →
+`ᱜ╦╦🞮_exclude_from_add_list`), and that one is a *setting*: the upgrade rewrites the setting and the
+one mark the store tag wears to hide itself — which nothing else can reach — and leaves the entities
+to the Migrate button that plugin already had, because a name change must not start a bulk write on
+its own. This is not the display prefix and it is not `__GTTx__`; it is the same reasoning applied to
 the third place these plugins can collide with something that is not theirs.
 
 **A sibling named in prose is named as the user will see it.** `SIBLING_NAME` / `NPT_NAME` — the

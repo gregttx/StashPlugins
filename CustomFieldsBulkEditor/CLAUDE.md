@@ -1369,6 +1369,28 @@ because it writes to the plugin's own config rather than to the library: no enti
 the database backup is there to protect. Do not take it as a precedent for anything under §22's
 staging rule.
 
+**The one value it also *changes*: a hide field still named `Exclude_from_add_list`.** That was the
+default until 2.0.1, when the marker field took the plugins' prefix and this one went with it, for
+the same reason — a custom field lives in one flat namespace, and the old name is one anybody could
+have taken. `effective()` reads that value as `ᱜ╦╦🞮_exclude_from_add_list`, so every caller is on
+the new name from the first load rather than after the seed lands, and `seedDefaults` writes it back
+so the box agrees. A user who typed the old name in deliberately is moved with it; that is the
+trade, and it is the same one the marker rename makes.
+
+**It moves the setting and one tag's mark, not the library.** The store tag hides *itself* with the
+hide field, and every scan leaves that tag out — so nothing but the store read can reach its mark,
+which is the same reason `moveStoreMark` exists for a user-driven rename. `findStoreTag` moves it on
+the way past, in the same `moveTagField` the marker upgrade uses, and only while the setting reads
+the current default: a user who has named the field something else has a store tag already wearing
+that name.
+
+Entities still carrying the old key are a bulk write, and
+§22's staging rule holds for it: the descriptions dialog compares the store's recorded `hideField`
+with the setting, moves the description across, counts what still carries the old name and offers
+**Migrate**. That path existed for a user-driven rename and covers this one unchanged — which is
+why the upgrade needed no migration code of its own. Until Migrate is pressed, those entities are
+not hidden from the dropdowns, and the dialog's own log says so.
+
 ## 23. Hiding an entity from Stash's add lists (0.8.0)
 
 An entity carrying the field named by `c1ExcludeFromAddListField` is dropped from the six

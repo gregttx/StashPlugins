@@ -907,16 +907,16 @@ openDialog()
   // entity the user had hidden quietly comes back into Stash's add lists.
   .then(() => openDialog({
     entities: {
-      1: { id: '1', title: 'S1', custom_fields: { Exclude_from_add_list: '1' } },
-      2: { id: '2', title: 'S2', custom_fields: { Exclude_from_add_list: 'yes' } },
+      1: { id: '1', title: 'S1', custom_fields: { 'ᱜ╦╦🞮_exclude_from_add_list': '1' } },
+      2: { id: '2', title: 'S2', custom_fields: { 'ᱜ╦╦🞮_exclude_from_add_list': 'yes' } },
     },
     select: ['1', '2'],
     storeTag: {
       id: '9', name: 'plumbing',
       description: 'Managed by the plugin.\n\n' + JSON.stringify({ version: '1.0.0',
-        hideField: 'Exclude_from_add_list',
-        descriptions: { Exclude_from_add_list: 'Hides it from the add lists.' } }),
-      custom_fields: { 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store': '1', Exclude_from_add_list: '1' },
+        hideField: 'ᱜ╦╦🞮_exclude_from_add_list',
+        descriptions: { 'ᱜ╦╦🞮_exclude_from_add_list': 'Hides it from the add lists.' } }),
+      custom_fields: { 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store': '1', 'ᱜ╦╦🞮_exclude_from_add_list': '1' },
     },
   }))
   .then((env) => {
@@ -953,7 +953,7 @@ openDialog()
         marks.length === 1 && marks[0].variables.input.id === '9' &&
         marks[0].variables.input.custom_fields.partial.Hidden_here === '1' &&
         JSON.stringify(marks[0].variables.input.custom_fields.remove) ===
-          JSON.stringify(['Exclude_from_add_list']),
+          JSON.stringify(['ᱜ╦╦🞮_exclude_from_add_list']),
         JSON.stringify(marks.map((c) => c.variables.input)));
       // The description is filed under the name, so it has to move with it - and the
       // store's record of which field the setting names moves too, or the descriptions
@@ -962,7 +962,7 @@ openDialog()
       h.check('the field\'s description moves to the new name',
         store.length === 1 &&
         sentStore(store[0]).descriptions.Hidden_here === 'Hides it from the add lists.' &&
-        !('Exclude_from_add_list' in sentStore(store[0]).descriptions),
+        !('ᱜ╦╦🞮_exclude_from_add_list' in sentStore(store[0]).descriptions),
         JSON.stringify(store.map((c) => sentStore(c))));
       h.check('and the store\'s own record of the hide field with it',
         store.length && sentStore(store[0]).hideField === 'Hidden_here',
@@ -973,15 +973,15 @@ openDialog()
       const set = settingWrites();
       h.check('and an Undo takes the setting back with the field',
         set.length === 2 &&
-        set[1].variables.input.c1ExcludeFromAddListField === 'Exclude_from_add_list',
+        set[1].variables.input.c1ExcludeFromAddListField === 'ᱜ╦╦🞮_exclude_from_add_list',
         JSON.stringify(set.map((c) => c.variables.input)));
       h.check('with the store tag\'s mark back on the old name too',
         markWrites().length === 2 &&
-        markWrites()[1].variables.input.custom_fields.partial.Exclude_from_add_list === '1',
+        markWrites()[1].variables.input.custom_fields.partial['ᱜ╦╦🞮_exclude_from_add_list'] === '1',
         JSON.stringify(markWrites().map((c) => c.variables.input)));
       h.check('and the description back under it as well',
         storeWrites().length === 2 &&
-        sentStore(storeWrites()[1]).descriptions.Exclude_from_add_list ===
+        sentStore(storeWrites()[1]).descriptions['ᱜ╦╦🞮_exclude_from_add_list'] ===
           'Hides it from the add lists.' &&
         !('Hidden_here' in sentStore(storeWrites()[1]).descriptions),
         JSON.stringify(storeWrites().map((c) => sentStore(c))));
@@ -995,7 +995,7 @@ openDialog()
   // opens with the defaults rather than reading them.
   .then(() => openDialog({
     entities: {
-      1: { id: '1', title: 'S1', custom_fields: { Exclude_from_add_list: '1' } },
+      1: { id: '1', title: 'S1', custom_fields: { 'ᱜ╦╦🞮_exclude_from_add_list': '1' } },
     },
     select: ['1'],
     settings: { c1ExcludeFromAddListField: 'Hide_me' },
@@ -1003,7 +1003,7 @@ openDialog()
       id: '9', name: 'plumbing',
       description: 'Managed by the plugin.\n\n' + JSON.stringify({ version: '1.0.0',
         hideField: 'Hide_me',
-        descriptions: { Exclude_from_add_list: 'A leftover under the old name.' } }),
+        descriptions: { 'ᱜ╦╦🞮_exclude_from_add_list': 'A leftover under the old name.' } }),
       custom_fields: { 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store': '1', Hide_me: '1' },
     },
   }))

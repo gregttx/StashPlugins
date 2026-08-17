@@ -92,8 +92,11 @@
   var DEFAULTS = {
     a1SkipImagesInTask: false,
     b1DescriptionTagName: DEFAULT_STORE_TAG,
-    c1ExcludeFromAddListField: 'Exclude_from_add_list',
+    c1ExcludeFromAddListField: 'ᱜ╦╦🞮_exclude_from_add_list',
   };
+  // What that default was until 2.0.1: a name in a namespace with no owner, so a
+  // setting still reading it is moved onto the prefixed one wherever it is read.
+  var LEGACY_HIDE_FIELD = 'Exclude_from_add_list';
   var SKIP_IMAGES_NAME = 'Skip Images in the Whole-Library Task';
 
   // The custom field the store tag carries so it can be found again after any rename,
@@ -344,6 +347,12 @@
       input[k] = DEFAULTS[k];
       missing++;
     }
+    // And the one upgrade: a hide field still named the pre-2.0.1 default is written
+    // back under the prefixed one, so the box says what `effective` is already using.
+    if (input.c1ExcludeFromAddListField === LEGACY_HIDE_FIELD) {
+      input.c1ExcludeFromAddListField = DEFAULTS.c1ExcludeFromAddListField;
+      missing++;
+    }
     if (!missing) return;
     _seeded = true;
     gqlRequest('mutation CFBE_SeedSettings($id: ID!, $input: Map!) ' +
@@ -354,15 +363,23 @@
   // The effective value of one setting, out of the raw map: the same "absent means the
   // default, empty means cleared" rule `loadSettings` reads by, so the two can never
   // disagree about what the plugin is actually using.
+  //
+  // The one thing it does not answer literally: a `c1` still reading the old default is
+  // read as the new one, so every caller sees the upgraded name at once rather than
+  // after the seed below has landed. A user who had typed that name in themselves is
+  // moved with it, which is the same trade the marker rename makes - the old name is
+  // one anything could have taken, and being right about it is worth more than keeping
+  // a name nobody chose deliberately.
   function effective(raw, key) {
-    return hasOwn(raw, key) && raw[key] != null ? String(raw[key]) : DEFAULTS[key];
+    var v = hasOwn(raw, key) && raw[key] != null ? String(raw[key]) : DEFAULTS[key];
+    return key === 'c1ExcludeFromAddListField' && v === LEGACY_HIDE_FIELD ? DEFAULTS[key] : v;
   }
 
   // ── The description store ─────────────────────────────────────────────────
   //
   // One tag holds every custom field's description, in its own `description` string
   // rather than in its `custom_fields` map. The map was the obvious place and it is
-  // taken: the same tag has to carry the marker below, and `Exclude_from_add_list`,
+  // taken: the same tag has to carry the marker below, and `ᱜ╦╦🞮_exclude_from_add_list`,
   // and each of those would be indistinguishable from a description entry keyed on the
   // same name. The description is a `text` column (migration 36 of stashapp/stash), so
   // there is no length to design around, and one `tagUpdate` writes the whole store
@@ -434,37 +451,54 @@
       .then(function (data) { return ((data && data.findTags) || {}).tags || []; });
   }
 
-  // A store wearing the old marker is moved onto the new one where it is found, in one
-  // update per tag, and nothing about it is reported: the store is the same store, and
-  // the name of the field holding it together is not something a user chose.
-  function upgradeMarker(tags) {
+  // A tag wearing one of the pre-2.0.1 names is moved onto the current one where it is
+  // found, in one update per tag, and nothing about it is reported: the store is the
+  // same store, and neither name was something a user chose. Used for the marker, and
+  // for the mark the store tag wears to hide itself.
+  function moveTagField(tags, from, to) {
     if (!tags.length) return Promise.resolve(tags);
     var marks = {};
-    marks[STORE_FIELD] = MARK_VALUE;
+    marks[to] = MARK_VALUE;
     return Promise.all(tags.map(function (t) {
       var fields = t.custom_fields || {};
-      delete fields[LEGACY_STORE_FIELD];
-      fields[STORE_FIELD] = MARK_VALUE;
+      delete fields[from];
+      fields[to] = MARK_VALUE;
       t.custom_fields = fields;
       return gqlRequest('mutation CFBE_TagUpdate($input: TagUpdateInput!) ' +
         '{ tagUpdate(input: $input) { id name description } }',
-      { input: { id: t.id, custom_fields: { partial: marks, remove: [LEGACY_STORE_FIELD] } } });
+      { input: { id: t.id, custom_fields: { partial: marks, remove: [from] } } });
     })).then(function () { return tags; });
   }
 
   function findStoreTag(settings) {
     return markedTags(STORE_FIELD).then(function (tags) {
-      return tags.length ? tags : markedTags(LEGACY_STORE_FIELD).then(upgradeMarker);
+      return tags.length ? tags : markedTags(LEGACY_STORE_FIELD).then(function (old) {
+        return moveTagField(old, LEGACY_STORE_FIELD, STORE_FIELD);
+      });
     })
       .then(function (tags) {
         if (!tags.length) return null;
+        var tag = null;
         var wanted = settings.b1DescriptionTagName;
-        for (var i = 0; i < tags.length; i++) {
-          if (String(tags[i].name) === wanted) return tags[i];
+        for (var i = 0; i < tags.length && !tag; i++) {
+          if (String(tags[i].name) === wanted) tag = tags[i];
         }
-        return tags.slice().sort(function (a, b) {
-          return (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0);
-        })[0];
+        if (!tag) {
+          tag = tags.slice().sort(function (a, b) {
+            return (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0);
+          })[0];
+        }
+        // The store tag hides itself with the hide field, so that field's own rename at
+        // 2.0.1 has to reach this one mark - nothing else can, since every scan leaves
+        // the store tag out. The entities the *user* marked are left where they are:
+        // that is a bulk write, and Migrate in the descriptions dialog is where it
+        // belongs.
+        var hide = settings.c1ExcludeFromAddListField;
+        if (hide === DEFAULTS.c1ExcludeFromAddListField &&
+            hasOwn(tag.custom_fields || {}, LEGACY_HIDE_FIELD)) {
+          return moveTagField([tag], LEGACY_HIDE_FIELD, hide).then(function () { return tag; });
+        }
+        return tag;
       });
   }
 
@@ -2352,7 +2386,7 @@
 
   // Decided against the **live** setting rather than against `this.settings`: a
   // selection run opens without reading the settings at all (`startRun` hands it
-  // `DEFAULTS`), so its own copy would say "Exclude_from_add_list" for a user who has
+  // `DEFAULTS`), so its own copy would say "ᱜ╦╦🞮_exclude_from_add_list" for a user who has
   // named the field something else - and a rename of that default would then move a
   // setting that was never pointing at it. Resolves to whether the setting moved, which
   // is what an Undo needs to know.

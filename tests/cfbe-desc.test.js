@@ -18,7 +18,8 @@ const TASK = 'Manage Custom Field Descriptions...';
 const BULK_TASK = 'Edit Custom Fields Across the Whole Library...';
 const STORE_FIELD = 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store';
 const LEGACY_STORE_FIELD = 'cfbe_desc_store';
-const HIDE = 'Exclude_from_add_list';
+const HIDE = 'ᱜ╦╦🞮_exclude_from_add_list';
+const LEGACY_HIDE_FIELD = 'Exclude_from_add_list';
 const STORE_TAG_NAME = 'ᱜ╦╦🞮 🗃️🔌 🛂🧲 🛠🛈🖫 ❌∙';
 // Read from the source rather than pinned: the blob carries whatever version wrote it,
 // and a bump is not a thing this suite should have to be edited for.
@@ -268,7 +269,7 @@ openDesc()
     // plugin's own housekeeping too.
     h.check('the seeded description is staged rather than written',
       !one(env.body, 'cfbe-apply').disabled &&
-      notes(env.body).some((l) => /Seeded a description for "Exclude_from_add_list"/.test(l)),
+      notes(env.body).some((l) => /Seeded a description for "ᱜ╦╦🞮_exclude_from_add_list"/.test(l)),
       notes(env.body).join(' | '));
     h.check('the footer is the siblings\' order',
       foot(env.body).join(' ') === 'Apply Cancel Copy log Rescan',
@@ -449,7 +450,8 @@ openDesc()
   // A store wearing the old `cfbe_desc_store` marker is found and moved onto the
   // prefixed one, without the user being told: the store is the same store.
   .then(() => openDesc({ library: withStore(Object.assign({}, STORE_TAG,
-    { custom_fields: { [LEGACY_STORE_FIELD]: '1' } })) }))
+    { custom_fields: { [LEGACY_STORE_FIELD]: '1', [LEGACY_HIDE_FIELD]: '1' } }),
+  [{ id: '2', name: 'T2', custom_fields: { [LEGACY_HIDE_FIELD]: '1' } }]) }))
   .then((env) => {
     const store = env.calls.filter((c) => /CFBE_Store/.test(c.query || ''));
     h.check('the current marker is asked for first, the old one only after it misses',
@@ -457,11 +459,20 @@ openDesc()
       store[1].variables.f.custom_fields[0].field === LEGACY_STORE_FIELD,
       JSON.stringify(store.map((c) => c.variables.f.custom_fields[0].field)));
     const moved = tagWrites(env.calls).filter((c) => /CFBE_TagUpdate/.test(c.query));
+    const movedTo = (f) => moved.filter((c) => c.variables.input.custom_fields.partial[f] === '1');
     h.check('and the tag is moved onto the current marker on the way past',
-      moved.length === 1 && moved[0].variables.input.id === '9' &&
-      moved[0].variables.input.custom_fields.partial[STORE_FIELD] === '1' &&
-      String(moved[0].variables.input.custom_fields.remove) === LEGACY_STORE_FIELD,
+      movedTo(STORE_FIELD).length === 1 && movedTo(STORE_FIELD)[0].variables.input.id === '9' &&
+      String(movedTo(STORE_FIELD)[0].variables.input.custom_fields.remove) === LEGACY_STORE_FIELD,
       JSON.stringify(moved.map((c) => c.variables.input)));
+    // The store tag hides itself with the hide field, and nothing else can reach that
+    // mark - every scan leaves the store tag out.
+    h.check('its own hide mark moves with the field\'s rename',
+      movedTo(HIDE).length === 1 && movedTo(HIDE)[0].variables.input.id === '9' &&
+      String(movedTo(HIDE)[0].variables.input.custom_fields.remove) === LEGACY_HIDE_FIELD,
+      JSON.stringify(moved.map((c) => c.variables.input)));
+    h.check('and an entity the user marked is left alone', moved.length === 2 &&
+      !writes(env.calls).some((c) => !/CFBE_TagUpdate/.test(c.query)),
+      writes(env.calls).map((c) => c.query.slice(0, 40)).join(' | '));
     h.check('the descriptions in it are read as usual',
       names(env.body).some((n) => /colour x3/.test(n)), names(env.body).join(' | '));
     h.check('and nothing is said about it', !notes(env.body).some((l) => /marker/i.test(l)),
@@ -690,5 +701,19 @@ openDesc()
         .map((c) => JSON.stringify(c.variables.input)).join(' '));
     return env;
   })
+  // Since 2.0.1: a hide field still reading the pre-prefix default is moved onto the
+  // new name, in the settings and in what the page is using this load.
+  .then(() => openDesc({ settings: { c1ExcludeFromAddListField: LEGACY_HIDE_FIELD } }))
+  .then((env) => {
+    const seed = env.calls.filter((c) => /CFBE_SeedSettings/.test(c.query || ''));
+    h.check('the old hide-field default is written back under the prefixed one',
+      seed.length === 1 && seed[0].variables.input.c1ExcludeFromAddListField === HIDE,
+      seed.length && JSON.stringify(seed[0].variables.input));
+    h.check('and this load is already using it, rather than waiting for the seed',
+      notes(env.body).some((l) => new RegExp('Seeded a description for "' + HIDE + '"').test(l)),
+      notes(env.body).join(' | '));
+    return env;
+  })
+
   .then(() => h.finish())
   .catch((e) => { console.error(e); process.exit(1); });

@@ -1289,6 +1289,18 @@ a field cleared off every entity today is one that may come back tomorrow, and l
 that explains it would be worse than a stale line in a list. **Prune** clears them all in one go,
 and is staged like everything else.
 
+**Prune takes the rows out of the list too**, since 2.0.2. It left them showing, marked `*` and
+`[orphan]`, on the reasoning that a staged change is still a change and the list is what shows one —
+but an orphan row is a *description* with no field behind it, so once the description is staged for
+deletion there is nothing left for the row to be, and a list of rows the press was supposed to
+clear reads as a press that did nothing. The write is unaffected: `diff()` compares `desc` against
+`base` and never looks at `names`, and a Rescan re-lists whatever the library actually has.
+
+**And it is disabled while there is nothing to prune** (2.0.3), from `syncApply` rather than
+`setState`, because after a press the state has not changed and only `syncApply` runs again.
+`prunable()` is the one predicate behind both the button and the press — the press keeps its own
+early return, which is now unreachable through the UI and is the guard that keeps the two honest.
+
 **A renamed hide field moves its description here and offers to move the library.** The store
 records the field name it was last written with, so the dialog can tell a rename from a first run.
 The description follows the setting immediately, in the working copy; the entities still carrying

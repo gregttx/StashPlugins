@@ -223,7 +223,10 @@ Some details worth knowing:
   has an unsaved edit; `•` means it already has a description.
 - **`[orphan]`** is a description whose custom field no entity carries any more. It is kept rather
   than dropped — a field you cleared today may come back tomorrow — and **Prune orphans** clears
-  them all in one press, staged like everything else.
+  them all in one press, staged like everything else. The rows go with them: an orphan row is a
+  description with no field behind it, so once the description is gone there is nothing left to
+  show. The log lists what was pruned, and Apply writes it. With no orphan to clear, the button is
+  greyed out.
 - **`[store tag] x1`** is a field carried only by the tag the descriptions themselves live on — in
   practice the **Hide from Add Lists** field, which that tag wears to hide itself. The scan leaves
   that tag out, so this is what would otherwise read as an orphan; picking it names the tag, and

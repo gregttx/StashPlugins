@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.0.1';
+  var PLUGIN_VERSION = '2.0.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -3168,9 +3168,16 @@
 
   DescRun.prototype.prune = function () {
     var self = this;
-    var gone = (this.orphans || []).filter(function (n) { return hasOwn(self.desc, n); });
+    var gone = this.prunable();
     if (!gone.length) { this.msg('INFO', 'No orphan descriptions to prune.'); return; }
     gone.forEach(function (n) { delete self.desc[n]; });
+    // And out of the list with them: an orphan row is a *description* with no field
+    // behind it, so once the description is gone there is nothing left for the row to
+    // be. `diff()` reads `desc` against `base`, not `names`, so the write still goes
+    // out on Apply - and a Rescan lists whatever the library actually has.
+    var kept = function (n) { return gone.indexOf(n) === -1; };
+    this.names = this.names.filter(kept);
+    this.orphans = this.orphans.filter(kept);
     if (gone.indexOf(this.sel) !== -1) { this.sel = null; this.textEl.value = ''; }
     this.msg('INFO', 'Pruned ' + plural(gone.length, 'orphan description') +
       ': ' + gone.join(', ') + '. Apply writes it.');
@@ -3244,12 +3251,19 @@
     this.undoBtn.disabled = busy;
     this.rescanBtn.disabled = busy;
     this.closeBtn.disabled = busy;
-    this.pruneBtn.disabled = !edit;
     this.textEl.disabled = !edit || this.sel == null;
     this.syncApply();
   };
 
+  // The orphans a press would actually clear, so the button and the press agree about
+  // whether there is anything to do.
+  DescRun.prototype.prunable = function () {
+    var self = this;
+    return (this.orphans || []).filter(function (n) { return hasOwn(self.desc, n); });
+  };
+
   DescRun.prototype.syncApply = function () {
+    this.pruneBtn.disabled = !this.editable() || !this.prunable().length;
     this.applyBtn.disabled = !this.editable() || this.stale || !this.pending();
     this.applyBtn.title = this.blocked
       ? 'Editing is off: ' + this.blocked + '.'

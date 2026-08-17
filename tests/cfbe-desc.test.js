@@ -506,7 +506,15 @@ openDesc()
   // ── Prune ────────────────────────────────────────────────────────────────
   .then(() => openDesc())
   .then((env) => {
-    return press(env, 'cfbe-prune').then(() => press(env, 'cfbe-apply')).then(() => {
+    h.check('Prune is offered while there is an orphan to clear',
+      !one(env.body, 'cfbe-prune').disabled);
+    return press(env, 'cfbe-prune').then(() => {
+      h.check('Prune takes the orphan rows out of the list with the descriptions',
+        !names(env.body).some((n) => /gone|orphan/.test(n)), names(env.body).join(' | '));
+      h.check('and greys itself out, having nothing left to clear',
+        one(env.body, 'cfbe-prune').disabled);
+      return press(env, 'cfbe-apply');
+    }).then(() => {
       const sent = sentStore(env.calls);
       h.check('Prune drops the descriptions nothing carries',
         !Object.prototype.hasOwnProperty.call(sent.descriptions, 'gone'),

@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.6.0.** Three live passes in, and most of the guesses held — §11 records
+**Status: partly verified. 0.6.1.** Three live passes in, and most of the guesses held — §11 records
 what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
 empty, and the major digit is the claim that the whole thing works.
 
@@ -21,6 +21,7 @@ empty, and the major digit is the claim that the whole thing works.
 | 8 | The sibling's automatic modes warned about, scoped by the type being pasted onto | 0.4.0 |
 | 9 | The mirrored rules deleted: Prune and Roll Up are computed by `NormalizeParentTags` through the API it publishes at its 3.2.0 | 0.5.0 |
 | 10 | The bound planner re-bound when the tab comes back, so a settings change reaches a dialog that is already open | 0.6.0 |
+| 11 | The two mode marks cut to one word each, for the room the column has | 0.6.1 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over
@@ -570,6 +571,14 @@ Shorter than it was — §11 is what emptied most of it. What is left:
 ## 11. What the live passes settled
 
 Both on 2026-08-18, against the user's own Stash.
+
+### A mark is a label, not a sentence (0.6.1)
+
+`redundant - a tag below it is going on` and `rolled up - a tag under it is going on` explained the
+mode beside every row it applied to, in a narrow column that already has the tag name in it. They
+are `pruned` and `rolled up` now. The explanation is not lost: it is in the legend above the list,
+once, where the user reads it once — which is the right number of times for a rule that is the same
+on every row.
 
 ### The snapshot got a way to be refreshed (0.6.0)
 

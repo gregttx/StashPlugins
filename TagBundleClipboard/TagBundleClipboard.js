@@ -36,7 +36,7 @@
   // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
   // live Stash: the major digit is the claim that the thing works, and no test in this
   // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.6.0';
+  var PLUGIN_VERSION = '0.6.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -1513,8 +1513,8 @@
   PasteRun.prototype.stateMark = function (state) {
     var what = ENTITIES[this.type] ? ENTITIES[this.type].label : 'entity';
     if (state === 'have') return 'already on this ' + what;
-    if (state === 'pruned') return 'redundant - a tag below it is going on';
-    if (state === 'rolled') return 'rolled up - a tag under it is going on';
+    if (state === 'pruned') return 'pruned';
+    if (state === 'rolled') return 'rolled up';
     return null;
   };
 

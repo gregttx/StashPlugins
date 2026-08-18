@@ -70,7 +70,7 @@ function responder(opts) {
       // Every plugin's settings arrive in this one response, which is how the sibling's
       // exclusion filters reach this plugin without a second query.
       const plugins = { TagBundleClipboard: opts.settings || {} };
-      if (opts.npt) plugins.NormalizeParentTags = opts.nptSettings || {};
+      if (opts.npt || opts.nptSettings) plugins.NormalizeParentTags = opts.nptSettings || {};
       return { data: { configuration: { plugins } } };
     }
     if (/TBCPluginVersion/.test(q)) {
@@ -148,6 +148,9 @@ function start(opts) {
   // What `NormalizeParentTags` present in this page looks like: the `respecters` entry
   // it registers unconditionally at load. Set after the plugin has run, because that is
   // when the shared object exists - and it is read at call time, so it lands in time.
+  // `nptSettings` without `npt` is the sibling installed and configured but not
+  // running on this page - the case its settings linger in the config and nothing
+  // reacts to a save.
   if (opts.npt) env.ctx.__GTTx__.StashPluginCoop.respecters.NormalizeParentTags = true;
   // A render of the entity's TagSelect, which is how the plugin learns what the form
   // is holding. `values` is what the box shows *now*, hand-edits included.
@@ -1014,6 +1017,73 @@ const btn = (body, label) => body.descendants()
       !/c8Unset/.test(lines) && !/a1EnablePerformers/.test(lines), lines);
     h.check('nor is one this file does mirror',
       !/c2ExcludeAddTagNameContains/.test(lines) && / 1 tag rule /.test(lines), lines);
+  }
+
+  // ── The sibling's automatic modes act on the save this dialog defers to ───
+
+  const autoOpts = (extra) => Object.assign(
+    { storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true }, extra);
+
+  {
+    const env = start(autoOpts({
+      nptSettings: { a8AutoPruneOnUpdate: true, a5EnableScenes: true } }));
+    await openDialog(env, []);
+    await h.flush();
+    const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
+    // Not about which tags are protected: Stash's Save is what that plugin reacts to,
+    // and it will undo the paste in the same breath.
+    h.check('Auto Prune on this type is called out against the Save this dialog defers to',
+      /Auto Prune on Entity Updates enabled for Scenes/.test(lines) &&
+        /when you press Save/.test(lines), lines);
+  }
+
+  {
+    const env = start(autoOpts({
+      nptSettings: { a9AutoRollUpOnUpdate: true, a5EnableScenes: true } }));
+    await openDialog(env, []);
+    await h.flush();
+    h.check('and Auto Roll Up says what it will add instead',
+      /add every ancestor of the tags added here/
+        .test(h.dialog(env.body, 'tbc').lines.join(' | ')),
+      h.dialog(env.body, 'tbc').lines.join(' | '));
+  }
+
+  {
+    // The type it is being pasted onto is the whole question. Scenes off there means
+    // the mode does not fire on this save, so there is nothing to warn about.
+    const env = start(autoOpts({
+      nptSettings: { a8AutoPruneOnUpdate: true, a6EnableImages: true } }));
+    await openDialog(env, []);
+    await h.flush();
+    h.check('a mode enabled for a type this is not says nothing',
+      !/Auto Prune/.test(h.dialog(env.body, 'tbc').lines.join(' | ')),
+      h.dialog(env.body, 'tbc').lines.join(' | '));
+  }
+
+  {
+    // Both at once is that plugin's own documented no-op - exact inverses, so it runs
+    // neither - and a warning here would send the user to turn off something inert.
+    const env = start(autoOpts({ nptSettings: {
+      a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: true, a5EnableScenes: true } }));
+    await openDialog(env, []);
+    await h.flush();
+    h.check('both modes at once is that plugin’s no-op, and stays quiet',
+      !/Auto (Prune|Roll Up)/.test(h.dialog(env.body, 'tbc').lines.join(' | ')),
+      h.dialog(env.body, 'tbc').lines.join(' | '));
+  }
+
+  {
+    // Settings in the config but nothing registered on the page: either it is disabled
+    // in Stash and this cannot happen, or the installed copy predates the protocol and
+    // it can. There is no way to tell from here, so the line says both.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43',
+      nptSettings: { a8AutoPruneOnUpdate: true, a5EnableScenes: true } });
+    await openDialog(env, []);
+    await h.flush();
+    const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
+    h.check('an unregistered sibling is still warned about, with the doubt stated',
+      /Auto Prune/.test(lines) && /disabled in Stash/.test(lines) &&
+        /older than the protocol/.test(lines), lines);
   }
 
   // ── The property the whole design rests on ────────────────────────────────

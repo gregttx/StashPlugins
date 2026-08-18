@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.3.0.** Three live passes in, and most of the guesses held — §11 records
+**Status: partly verified. 0.4.0.** Three live passes in, and most of the guesses held — §11 records
 what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
 empty, and the major digit is the claim that the whole thing works.
 
@@ -18,6 +18,7 @@ empty, and the major digit is the claim that the whole thing works.
 | 5 | First live pass: icon captions, the settings-type fix, the tag hierarchy, Prune/Roll Up, the tag hover, column layout, Undo | 0.1.0 |
 | 6 | Second live pass: the column overrun, the caption's dots back, and Prune/Roll Up gated on `NormalizeParentTags` and obeying its tag exclusions | 0.2.0 |
 | 7 | Third live pass: the captions' words moved into the titles, amber on Add and on an armed mode, and the two questions about the sibling's settings answered in code | 0.3.0 |
+| 8 | The sibling's automatic modes warned about, scoped by the type being pasted onto | 0.4.0 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over
@@ -308,6 +309,19 @@ has marked as never-to-be-removed should not lose its place here either.
 touch; here the user opened this dialog, on this entity, by hand. Honouring them would mean a mode
 that silently does nothing on an organized scene with nothing on screen saying why.
 
+**Nor are its per-type scope settings** (`a1`–`a7`), and the reason is sharper than for `b1`/`b2`
+because that plugin's own settings page supplies it: `a6EnableImages` is described as "usually the
+largest type and the slowest to scan". That is what a user unticks a type *for* — the cost of a
+library walk — and it says nothing about whether a tag on an image should imply its parents. There
+is no walk here. Mirroring it would disable both modes on an image paste over a scan that is not
+happening.
+
+The rule that falls out of both, and the one to apply to whatever settings that plugin gains next:
+**mirror the rules that say "this tag is off limits, ever"; ignore the ones that scope a pass.**
+It is also why `nptUnknownRules` scans only `c`-prefixed keys — a new `a` or `b` key is correctly
+not reported as a rule this file is failing to apply, because this file was never applying that
+group.
+
 **A spared tag says so on its hover**, appended to the tag text: which plugin spared it and which
 filter did. Where the spared tag is not in the bundle it is simply not listed — a row for a tag
 nothing will do anything with is noise.
@@ -345,6 +359,34 @@ reporting it would be noise. The result is one WARN line in the dialog log namin
 That is a detector, not a mitigation: the modes stay available and the rule stays unapplied. Holding
 them shut on an unknown key would break a working page on the strength of a setting nobody may have
 meant to use, and the user is the one who can read what the new rule does.
+
+## 8b³. Its automatic modes act on the save this dialog defers to
+
+The one place that plugin's **entity-type** settings do matter here, and it is not about which tags
+are protected. `a8AutoPruneOnUpdate` / `a9AutoRollUpOnUpdate` react to Stash saving an entity — and
+Stash's Save is the click this entire plugin exists to defer to. So a paste can be rewritten in the
+same breath that commits it: Auto Prune removing tags the dialog just added, Auto Roll Up adding
+their ancestors. `checkAutoMode` logs one WARN when the mode is on **and** the type being pasted
+onto is one that plugin includes, which is what decides whether it fires at all.
+
+Three things it is not:
+
+- **Not a mirror of the exclusions.** It is the opposite direction — what that plugin will do to
+  this entity, not what it forbids this dialog from doing.
+- **Not conditional on the redundancy dropdown.** It fires whatever the mode is set to, including
+  *leave as they are*: the auto mode acts on the tags being added, not on how this dialog chose
+  them. That is why the call sits outside the graph-loaded if/else chain rather than in it.
+- **Not a lease question, and this is where it differs from the siblings' `checkSibling`.** Theirs
+  has an "it will stand down while this task writes" branch, because their write is their own and a
+  lease covers it. Nothing here writes, and a lease cannot cover Stash's own save, so there is no
+  such branch — the warning is unconditional on the protocol. `respecters` still changes the
+  *wording*: unregistered means the plugin is disabled in Stash (so nothing will happen) or the
+  installed copy predates the protocol (so it will), and the line says both rather than asserting
+  the alarming one.
+
+**Both modes on at once is that plugin's own documented no-op** — they are exact inverses, so it
+runs neither — and warning about it would send the user to turn off something already inert. Copied
+from `checkSibling`, which had the same thought first.
 
 ## 8c. Five states, two axes, one `accent-color`
 
@@ -442,6 +484,10 @@ select left plain while armed, the graph cache keyed on nothing (so a `custom_fi
 refetched), the unknown-rule scan returning nothing, it reporting a rule left at its default, and it
 reporting one of the six this file does mirror.
 
+From the 0.4.0 pass, five: the auto-mode check never called, the both-modes-on no-op removed, the
+type scope ignored, the unregistered doubt dropped, and the two effect sentences flattened into one
+string.
+
 **The one that did not fail is the one worth remembering.** A Prune walking a single edge passed
 every check, because the fixture chain was fully populated in the bundle — one edge and the closure
 prune the same three rows there. It took a bundle with a *gap* in the chain to tell them apart
@@ -480,6 +526,17 @@ Shorter than it was — §11 is what emptied most of it. What is left:
 ## 11. What the live passes settled
 
 Both on 2026-08-18, against the user's own Stash.
+
+### A question, not a pass (0.4.0)
+
+Asked whether the dialog honours that plugin's entity-type settings. It does not, and should not
+(§8b²) — but the question found a real gap next door: those settings *do* decide whether its
+automatic modes fire on the save this dialog hands off to, and the dialog said nothing about it
+while both siblings warn about the same collision from the other side. §8b³ is the answer.
+
+**Worth keeping as a shape.** "Does it honour X?" was answered "no, and here is why" — and the
+useful part was the sentence after it. A settings key that is correctly ignored in one mechanism
+can still be load-bearing in another.
 
 ### Third pass (0.3.0)
 

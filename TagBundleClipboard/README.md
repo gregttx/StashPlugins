@@ -99,6 +99,13 @@ entities you did not mean it to touch, and you opened this dialog on this entity
 The choice needs the tag hierarchy, which is read once per page. If that read fails, both modes are
 held unavailable and the dialog says so.
 
+What is *not* borrowed is which entity types that plugin is set to include. Those scope its library
+sweep — its own settings page notes that images are "usually the largest type and the slowest to
+scan", which is a reason to untick a type that has nothing to do with whether a tag on an image
+should imply its parents. There is no sweep here: one entity, chosen by hand. Its per-entity
+exclusions are left out for the same reason, and its automatic modes are a separate matter covered
+at the end of this file.
+
 Its settings are re-read every few seconds, so changing an exclusion in another tab reaches an open
 page shortly afterwards without a reload — and the hierarchy is refetched with them if the change is
 one that alters what has to be read about each tag. What does *not* travel that way is a newer
@@ -148,9 +155,13 @@ rather than whichever loaded first.
   Entities** copy tags along relationships, automatically or in bulk. This one copies them by hand
   between entities with no relationship at all. They do not overlap, and all three can be installed
   together.
-- **ᝯㄝₓ Normalize Parent Tags** rewrites tag *hierarchies* on entities. If you have its Auto Prune
-  mode on, it may remove a tag you pasted here for the same reason it removes one you added by
-  hand — that is what that mode is for, and this plugin is not doing anything different from you.
+- **ᝯㄝₓ Normalize Parent Tags** rewrites tag *hierarchies* on entities, and lends this plugin its
+  Prune and Roll Up (above). Its two **automatic** modes are the one thing worth knowing before you
+  paste: they react to Stash's Save, which is the click this dialog defers to, so a paste can be
+  rewritten in the same breath that commits it — Auto Prune removing tags you just added, Auto Roll
+  Up adding their ancestors. The dialog says so when the mode is on **and** switched on for the type
+  you are pasting onto, since that is what decides whether it fires. Nothing here can prevent it:
+  that mode is doing exactly what it was turned on to do, to a save it cannot tell from any other.
 - **ᝯㄝₓ Custom Fields Bulk Editor** is unrelated.
 
 ## Troubleshooting

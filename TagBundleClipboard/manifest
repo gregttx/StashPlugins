@@ -2,8 +2,8 @@ id: TagBundleClipboard
 name: ᝯㄝₓ Tag Bundle Clipboard
 metadata:
   description: "Copy a set of tags off one entity and paste it onto another, however unrelated the two are.\n\nOpen any Scene, Image, Gallery, Performer, Studio or Group and press \"⮺ Tags\" on its detail view: every tag it carries goes onto a clipboard as one bundle. Then open the Edit tab of any other entity of any of those six types, press \"📋Tags...\", pick a bundle, tick the tags you want, and they go into the tag box in front of you.\n\nThe clipboard holds several bundles at once - the number is set below - and discards the oldest when it is full. It lives in your browser rather than on the server, so it is shared by every Stash tab in that browser: the source and the target can be open side by side in two tabs. It is not shared with another browser, another device, or your database backup.\n\nTags the target already has are listed and cannot be ticked, so a paste only ever adds what is missing. Each tag's aliases, parents, children and description are on its hover text, and where ᝯㄝₓ Normalize Parent Tags is also installed, the dialog can optionally prune the parent tags a selection makes redundant, or roll a selection up to its parents instead - honouring that plugin's own tag exclusions. Undo puts the tag box back the way it was.\n\nNothing is written to your library at any point: the tags are put into the edit form and Stash's own Save is what commits them, exactly as if you had picked each one from the dropdown yourself. Closing the form without saving leaves nothing behind.\n\nTags and Scene Markers are not offered: a tag carries parent and child tags rather than tags of its own, and a marker has no detail page to put a button on.\n\nRequires Stash 0.31.0 or newer."
-version: 0.3.0
-date: "2026-08-18 03:40:44"
+version: 0.4.0
+date: "2026-08-18 04:20:13"
 requires: []
 files:
 - TagBundleClipboard.js

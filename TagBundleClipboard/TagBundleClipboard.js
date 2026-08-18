@@ -36,7 +36,7 @@
   // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
   // live Stash: the major digit is the claim that the thing works, and no test in this
   // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.3.0';
+  var PLUGIN_VERSION = '0.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -604,6 +604,18 @@
     c1ExcludeTagWithIgnoreAutoTag: true, c2ExcludeAddTagNameContains: true,
     c3ExcludeRemoveTagNameContains: true, c4TagNameSeparator: true,
     c5ExcludeAddTagWithCustomFieldName: true, c6ExcludeRemoveTagWithCustomFieldName: true,
+  };
+
+  // Its per-type scope settings, which this file reads for exactly one purpose - see
+  // `checkAutoMode`. They are deliberately *not* mirrored into Prune and Roll Up: an
+  // unticked type there scopes that plugin's library sweep, and its own description for
+  // Images ("usually the largest type and the slowest to scan") says why a user unticks
+  // one. That is a fact about the cost of a walk, not about whether a tag on an image
+  // should imply its parents, and there is no walk here - one entity, chosen by hand.
+  // The same call, for the same reason, as its entity-level filters above.
+  var NPT_TYPE_SETTING = {
+    performer: 'a1EnablePerformers', studio: 'a2EnableStudios', group: 'a3EnableGroups',
+    gallery: 'a4EnableGalleries', scene: 'a5EnableScenes', image: 'a6EnableImages',
   };
 
   // A rule this file has never heard of cannot be applied, and there is nothing
@@ -1180,6 +1192,9 @@
             'what they add before using either mode.');
         }
       }
+      // Outside that chain on purpose: it is about what happens on Save, so it holds
+      // whether or not the hierarchy loaded and whatever the dropdown is set to.
+      self.checkAutoMode();
       self.render();
     });
   }
@@ -1285,6 +1300,51 @@
       self.log('WARN', 'the running script is ' + PLUGIN_VERSION + ' and ' + installed +
         ' is installed - reload the page');
     });
+  };
+
+  // Its two automatic modes are the one place its *entity-type* settings matter here,
+  // and it is not about which tags are protected: it is that Stash's Save - the click
+  // this whole dialog defers to - is what that plugin reacts to. Add a tag here, press
+  // Save, and it rewrites the entity in the same breath, doing the exact inverse of
+  // what the mode above just did. The siblings' `checkSibling` warns about the same
+  // collision from the other side, where the write is their own.
+  //
+  // Narrower than theirs in one way and wider in another: there is no lease to offer,
+  // because nothing here writes and Stash's own save is not something a lease covers -
+  // so there is no "it will stand down" branch. And it fires whatever the redundancy
+  // dropdown is set to, since the tags being added are what that plugin acts on, not
+  // the way this dialog chose them.
+  PasteRun.prototype.checkAutoMode = function () {
+    var ps = _nptSettings;
+    if (!ps) return;
+    var prune = !!ps.a8AutoPruneOnUpdate, rollup = !!ps.a9AutoRollUpOnUpdate;
+    // Both at once is that plugin's own documented no-op - they are exact inverses, so
+    // it runs neither - and warning about a mode that is not running would send the
+    // user to turn off something already inert.
+    if (prune === rollup) return;
+    // Scoped by the type it is being pasted onto, which is what the question was: the
+    // mode only fires on a type that plugin is set to include.
+    var key = NPT_TYPE_SETTING[this.type];
+    if (!key || !ps[key]) return;
+
+    var label = ENTITIES[this.type] ? ENTITIES[this.type].label : 'entity';
+    var msg = NPT_NAME + ' has ' + (prune ? 'Auto Prune' : 'Auto Roll Up') +
+      ' on Entity Updates enabled for ' + (ENTITIES[this.type] ?
+        ENTITIES[this.type].plural : 'this type') + ', so when you press Save it will ' +
+      (prune
+        ? 'immediately remove any tag added here that another tag on the same ' + label +
+          ' already implies'
+        : 'immediately add every ancestor of the tags added here') + '.';
+    if (!nptPresent()) {
+      // The siblings' ambiguity, and it cuts the other way here: not registered means
+      // that plugin is disabled in Stash, or the copy installed predates the protocol.
+      // A disabled plugin reacts to nothing, so this is the one case where the warning
+      // may be about a mode that cannot fire.
+      msg += ' It has not registered on this page, so either it is disabled in Stash - ' +
+        'in which case nothing will happen - or the installed copy is older than the ' +
+        'protocol and it will.';
+    }
+    this.log('WARN', msg);
   };
 
   PasteRun.prototype.log = function (kind, message) {

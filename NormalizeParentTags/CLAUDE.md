@@ -1144,6 +1144,51 @@ response". Convenient, and dangerous on large types — see §5.
 Neither plugin is misbehaving; they simply disagree about direction. The fix is a cooperation
 lease (see below) plus three fallbacks for when the lease is not honoured.
 
+### The API this plugin publishes (3.2.0)
+
+`coop().api.NormalizeParentTags` — one entry, `prepare(opts)`, plus a `version` number. It exists
+because `TagBundleClipboard` offers Prune and Roll Up in its paste dialog, and until 0.5.0 it did
+that by **copying this plugin's tag-exclusion rules** — `splitTerms`, `nameMatchesAny` and
+`blockReason`, byte-for-byte, with a scan that named any `c`-prefixed setting key it did not
+recognise so a newer version here could not drift past unnoticed.
+
+**That scan working as designed is what retired the copy.** A plugin whose best answer to "are my
+rules still yours?" is "here is a list of things I could not check" should stop guessing and ask.
+The copy is gone and the caller now gets whatever this plugin's rules are on the day it runs.
+
+Three properties, and each one is a decision:
+
+- **`prepare` resolves to a bound planner, not an answer.** A caller drawing a list of tags
+  re-plans on every tick as the user changes what is ticked, so the settings and the hierarchy are
+  read once and `plan(...)` is **synchronous** from there. A checkbox that had to await a round trip
+  would be worse than no feature. Both reads go through `autoSettings()`/`autoGraph()` — the auto
+  mode's own caches — so a page where auto mode is already running pays nothing extra.
+- **`autoMode` is a question, not a settings read.** It answers `'prune'`, `'rollup'` or `null` for
+  a given entity type: what this plugin will do *by itself* the next time Stash saves one. Today
+  that is `a8`/`a9` scoped by the type's `aN` toggle, with both-on collapsing to `null` (§5b's
+  no-op). The day those nine settings become fourteen — a mode per type — every caller keeps
+  working. A caller reading `a8` directly would break that day, and that is the entire argument for
+  the API existing rather than the settings being documented.
+- **One options object per call, always.** A field can be added without a new signature. Two are
+  already there for that reason rather than for a caller today: `entityType` on both calls, and
+  `plan({ typeFilter: true })`, which applies the per-type toggle to the plan as well. Nobody wants
+  the second yet — a hand-picked tag list is not an entity update — and having it ready is what
+  stops the day somebody does from being a breaking change.
+
+**`version` is a floor for a log line, not a handshake.** Callers feature-detect the function they
+want (`typeof api.prepare === 'function'`); the number is so a dialog can say *"the copy running
+here is older than 3.2.0"* instead of *"something is missing"*.
+
+**What it deliberately does not do: the entity-level exclusions.** `b1ExcludeEntityWithTagName` and
+`b2ExcludeOrganized` need an entity, and a caller passes tag ids. Inventing an answer would be worse
+than leaving the question with the one side that knows what it is looking at.
+
+**`planTagSet` is the seam that made this cheap.** `planEntity` was split in two: the entity half
+(Organized, the marker's primary tag, the exclusion tag) and the tag-set half, which is the whole of
+the planning. The API calls the second directly. A second planner beside this one is exactly the
+drift the API exists to end, so if this ever needs to diverge, do it inside `planTagSet` where both
+callers see it.
+
 ### The bulk-edit lease
 
 Both plugins live in the same browser tab and therefore share one `window`. That is enough for a

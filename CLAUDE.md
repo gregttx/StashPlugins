@@ -123,6 +123,12 @@ function coop() {
 }
 ```
 
+**`coop().api` is created by the plugins that use it, and deliberately not added to the other
+three.** `declares` was given to every plugin for shape-consistency because any of them might scan
+it; an `api` entry is only meaningful to a publisher or to a caller, and an absent one reads as
+"nobody published", exactly the way an absent `respecters` entry already reads. Adding the field to
+three plugins that neither publish nor call would be three version bumps for a key nothing looks at.
+
 **`window.__GTTx__` is the only global this repo takes, and everything shared hangs off it.**
 `StashPluginCoop` on its own was a name any third-party plugin could have picked, and a collision
 would hand someone else's object our leases. Nothing else here needs a global: every CSS class is
@@ -231,10 +237,71 @@ vocabulary (categories, not path ids, plus a collision matrix between them) that
 needs yet; forcing today's problem into that shape now would have been a false generalisation. If a
 fourth plugin ever adds a *second* hierarchy-rewriter, this is the seam to revisit — not before.
 
+**Neither is `declares` what the `api` registry replaced.** That one is about two plugins doing the
+*same* relationship copy, where the answer is "you are both doing it, here is a note in your log";
+the API is about one plugin doing the *other's* operation, where the answer is to stop having a
+second implementation. A plugin can legitimately be in both: `declares` is a claim, `api` is a
+service.
+
 **`NormalizeParentTags` declares nothing.** It has no relationship-copy paths to publish, so its
 `coop()` gained the `declares` field only for shape-consistency across all three plugins' shared
 object — nothing reads an absent entry as anything other than "declares nothing", the same way
 `respecters` already treats an unregistered plugin.
+
+## Cross-plugin cooperation: one plugin computing another's operation
+
+The newest of the shared mechanisms and the only one that is a *call* rather than a flag.
+`coop().api[<pluginId>]` holds whatever a plugin is willing to answer for another; today
+`NormalizeParentTags` publishes one entry (`prepare`, at its 3.2.0) and `TagBundleClipboard` is the
+one caller (at its 0.5.0).
+
+**It exists because the alternative was tried and documented before it failed.** That dialog offers
+Prune and Roll Up, which are the other plugin's two operations, and it honoured that plugin's tag
+exclusions by **copying the rules** — `splitTerms`, `nameMatchesAny`, `blockReason`, byte-for-byte,
+the way `coopObject` and the CSS are copied. That is right for a shape and wrong for a *decision*:
+a filter added on one side is silently not applied on the other, and the copy cannot know. The
+copy even grew a scan that named any exclusion setting it did not recognise, so a newer sibling
+could not drift past unnoticed — and **that scan working as designed is the argument against the
+whole approach.** A plugin whose best answer to "are my rules still yours?" is a list of things it
+could not check should stop guessing and ask.
+
+**When to reach for this rather than another copy.** Copy a *mechanism* — the lease helper, the
+dialog CSS, `plural` — because there is no build step and the alternative is a module this repo does
+not have. Call an *owner* when the thing being duplicated is a decision that plugin's settings can
+change: exclusion filters, what an automatic mode covers, anything a user configures over there and
+expects to hold everywhere. The test is whether a future release of the other plugin can make your
+copy wrong without either plugin being edited.
+
+Four properties, and each one is a decision the next API here should repeat:
+
+- **Resolve to a bound worker, not to an answer.** `prepare(opts)` returns a Promise of an object
+  whose `plan(...)` is **synchronous**. A caller drawing a list re-plans on every tick as the user
+  ticks boxes, and a checkbox that had to await a round trip would be worse than no feature. The
+  publisher reads its settings and its hierarchy once, through the caches it already had.
+- **Publish questions, not settings.** `autoMode` answers `'prune'`, `'rollup'` or `null` for an
+  entity type — what the publisher will do by itself on the next save. Today that is two toggles
+  scoped by a per-type switch; the day it becomes a mode per type, every caller keeps working. A
+  caller reading the setting keys directly breaks that day *while sounding confident*, which is the
+  whole reason the mechanism is a function call.
+- **One options object per call.** A field can be added without a new signature, which is what lets
+  a reserved parameter exist at all. Two are already there for a caller that does not exist yet.
+- **`version` is a floor for a log line, not a handshake.** Callers feature-detect
+  (`typeof api.prepare === 'function'`); the number is so a dialog can say *"the copy running here
+  is older than 3.2.0"* rather than *"something is missing"*.
+
+**A caller with no publisher does without, and says so.** There is no fallback to a local
+approximation — that is the thing being deleted. `TagBundleClipboard` hides both modes and names the
+version to upgrade to, which is a worse experience than a stale copy exactly once and a better one
+every time after.
+
+**`respecters` is still what says the publisher is *there*.** The `api` entry says it is new enough
+to be asked. Those are different questions and both dialogs distinguish them in their logs.
+
+**Testing it needs both halves, and one of them is an integration test.**
+`tests/normalize-api.test.js` pins the contract from the publisher's side; `tests/tagclip.test.js`
+loads the real publisher into the same `vm` context as the caller and answers both plugins'
+queries from one fixture, so what reaches the caller's UI is the publisher's own code. A fake
+planner would have tested a fake. Neither suite alone proves the pair works.
 
 ## Cross-plugin cooperation: deterministic button ordering
 

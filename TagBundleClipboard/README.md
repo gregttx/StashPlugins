@@ -70,9 +70,10 @@ Hover any tag for its aliases, its parents, its children and its description.
 
 ## Redundant parent tags
 
-**This part needs ᝯㄝₓ Normalize Parent Tags installed and running on the same page.** Prune and
-Roll Up are its two operations, borrowed; where it is absent the dropdown below is not shown and the
-dialog says so in its log.
+**This part needs ᝯㄝₓ Normalize Parent Tags 3.2.0 or newer installed and running on the same
+page.** Prune and Roll Up are its two operations and it is the one that works them out, so where it
+is absent — or too old to be asked — the dropdown below is not shown and the dialog says so in its
+log.
 
 A dropdown beside Add decides what to do about a selection that carries both a tag and its parent:
 
@@ -89,12 +90,12 @@ back as an ordinary, tickable row.
 already carries is what **ᝯㄝₓ Normalize Parent Tags** does, with a review dialog and an Undo that
 reaches the library.
 
-**They honour that plugin's tag exclusions**, so a tag it is set never to remove is not pruned here
-and a tag it is set never to add is not rolled up here — its Ignore-auto-tag toggle, its two
-name filters with their separator, and its two custom-field filters, all read from its own settings.
-A tag spared that way says which filter spared it on its hover text. Its *entity* filters (Organized,
-excluded by tag name) are deliberately not applied: those exist to keep an automatic pass off
-entities you did not mean it to touch, and you opened this dialog on this entity by hand.
+**That plugin works them out, rather than this one copying its rules.** So every exclusion you have
+set there applies here — its Ignore-auto-tag toggle, its name filters, its custom-field filters — and
+so will any it gains in a future version, with nothing to update on this side. A tag spared that way
+says which filter spared it on its hover text. Its *entity* filters (Organized, excluded by tag name)
+are not applied: those exist to keep an automatic pass off entities you did not mean it to touch, and
+you opened this dialog on this entity by hand.
 
 The choice needs the tag hierarchy, which is read once per page. If that read fails, both modes are
 held unavailable and the dialog says so.
@@ -102,18 +103,12 @@ held unavailable and the dialog says so.
 What is *not* borrowed is which entity types that plugin is set to include. Those scope its library
 sweep — its own settings page notes that images are "usually the largest type and the slowest to
 scan", which is a reason to untick a type that has nothing to do with whether a tag on an image
-should imply its parents. There is no sweep here: one entity, chosen by hand. Its per-entity
-exclusions are left out for the same reason, and its automatic modes are a separate matter covered
-at the end of this file.
+should imply its parents. There is no sweep here: one entity, chosen by hand.
 
-Its settings are re-read every few seconds, so changing an exclusion in another tab reaches an open
-page shortly afterwards without a reload — and the hierarchy is refetched with them if the change is
-one that alters what has to be read about each tag. What does *not* travel that way is a newer
-version of that plugin: an exclusion rule this one has never heard of cannot be applied, because the
-setting's name arrives over the wire and what it excludes lives in that plugin's code. So the dialog
-says so instead — it names any tag rule it does not recognise, and you can update this plugin or
-leave the dropdown at *leave as they are*. A rule left at its default is silent, since it excludes
-nothing either way.
+**If you have Auto Prune or Auto Roll Up switched on for the type you are pasting onto, the dropdown
+is not offered at all** and the log says why: that plugin acts on Stash's **Save**, which is the
+button this dialog hands off to, so the decision is already being made on every save and choosing
+differently for one paste would not survive it.
 
 ## What is not offered
 
@@ -155,13 +150,14 @@ rather than whichever loaded first.
   Entities** copy tags along relationships, automatically or in bulk. This one copies them by hand
   between entities with no relationship at all. They do not overlap, and all three can be installed
   together.
-- **ᝯㄝₓ Normalize Parent Tags** rewrites tag *hierarchies* on entities, and lends this plugin its
-  Prune and Roll Up (above). Its two **automatic** modes are the one thing worth knowing before you
-  paste: they react to Stash's Save, which is the click this dialog defers to, so a paste can be
-  rewritten in the same breath that commits it — Auto Prune removing tags you just added, Auto Roll
-  Up adding their ancestors. The dialog says so when the mode is on **and** switched on for the type
-  you are pasting onto, since that is what decides whether it fires. Nothing here can prevent it:
-  that mode is doing exactly what it was turned on to do, to a save it cannot tell from any other.
+- **ᝯㄝₓ Normalize Parent Tags** rewrites tag *hierarchies* on entities, and computes this plugin's
+  Prune and Roll Up (above) — they are its operations, and it is asked rather than imitated. Its two
+  **automatic** modes are the one thing worth knowing before you paste: they react to Stash's Save,
+  which is the click this dialog defers to, so a paste can be rewritten in the same breath that
+  commits it — Auto Prune removing tags you just added, Auto Roll Up adding their ancestors. Where
+  that applies to the type you are pasting onto, the dialog says so and withdraws the choice.
+  Nothing here can prevent it: that mode is doing exactly what it was turned on to do, to a save it
+  cannot tell from any other.
 - **ᝯㄝₓ Custom Fields Bulk Editor** is unrelated.
 
 ## Troubleshooting

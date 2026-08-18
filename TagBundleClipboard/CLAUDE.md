@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.4.0.** Three live passes in, and most of the guesses held — §11 records
+**Status: partly verified. 0.5.0.** Three live passes in, and most of the guesses held — §11 records
 what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
 empty, and the major digit is the claim that the whole thing works.
 
@@ -19,6 +19,7 @@ empty, and the major digit is the claim that the whole thing works.
 | 6 | Second live pass: the column overrun, the caption's dots back, and Prune/Roll Up gated on `NormalizeParentTags` and obeying its tag exclusions | 0.2.0 |
 | 7 | Third live pass: the captions' words moved into the titles, amber on Add and on an armed mode, and the two questions about the sibling's settings answered in code | 0.3.0 |
 | 8 | The sibling's automatic modes warned about, scoped by the type being pasted onto | 0.4.0 |
+| 9 | The mirrored rules deleted: Prune and Roll Up are computed by `NormalizeParentTags` through the API it publishes at its 3.2.0 | 0.5.0 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over
@@ -283,110 +284,104 @@ nothing. The select is disabled and the dialog says so in its log.
 has nothing to add where the tag is already on, so the row says the truer of the two things. It
 *is* listed, though: the row is what explains why Roll Up stopped there.
 
-## 8b². The modes are borrowed, so they are gated on the lender and obey its rules
+## 8b². The modes are borrowed, so the lender computes them
 
 Prune and Roll Up are `NormalizeParentTags`' operations. Two consequences, and they are one
 decision rather than two:
 
 - **They are only offered where that plugin is running in this page**, detected by
   `coop().respecters['NormalizeParentTags']` — the entry it registers unconditionally at load. Not
-  an installed-plugin query: an installed copy this page never loaded has no settings worth
-  mirroring either, and the `respecters` flag is the signal a sibling's dialog already reads to tell
-  "will stand down" from "too old to know". Where it is absent the select is **hidden** rather than
+  an installed-plugin query: an installed copy this page never loaded cannot be asked anything
+  either, and the `respecters` flag is the signal a sibling's dialog already reads to tell "will
+  stand down" from "too old to know". Where it is absent the select is **hidden** rather than
   disabled (a one-option select is noise) and one INFO line in the log says why.
-- **They honour its tag exclusions.** `splitTerms`, `nameMatchesAny` and `blockReason` are copied
-  from it byte-for-byte, deliberately: the point is that a tag it protects is a tag this dialog
-  leaves alone, and a near-miss in the matching would be a silent disagreement about which tags
-  those are. Keep them in step the way the CSS and `coopObject` are kept in step.
+- **They are computed by it, through `coop().api['NormalizeParentTags'].prepare(...)`** — a planner
+  this dialog binds once per open and then calls synchronously on every tick. So its tag exclusions
+  apply without this file containing, or even naming, a single one of them.
 
-**The mapping between the two vocabularies is the only translation, and it is worth stating.** Roll
-Up adds, so it answers to the "never **add**" filters. Prune declines to add a parent, which reaches
-the same end state as that plugin removing one — so it answers to "never **remove**". A tag its owner
-has marked as never-to-be-removed should not lose its place here either.
+### The copy that came first, and what retired it
 
-**Its entity-level filters are deliberately not mirrored** (`b1ExcludeEntityWithTagName`,
-`b2ExcludeOrganized`). Those keep an *automatic* pass off entities the user did not mean it to
-touch; here the user opened this dialog, on this entity, by hand. Honouring them would mean a mode
-that silently does nothing on an organized scene with nothing on screen saying why.
+Until 0.5.0 this file **mirrored** those rules: `splitTerms`, `nameMatchesAny` and `blockReason`
+copied byte-for-byte, with `NPT_TAG_RULES` listing the six settings that were mirrored and
+`nptUnknownRules` naming any `c`-prefixed key that was not, so a newer sibling could not drift past
+in silence. That scan was the right thing to build, and **it working as designed is the argument
+against the whole approach**: a plugin whose best answer to "are my rules still yours?" is a list of
+things it could not check should stop guessing and ask. The user asked for exactly that, and it
+deleted more than it added.
 
-**Nor are its per-type scope settings** (`a1`–`a7`), and the reason is sharper than for `b1`/`b2`
-because that plugin's own settings page supplies it: `a6EnableImages` is described as "usually the
-largest type and the slowest to scan". That is what a user unticks a type *for* — the cost of a
-library walk — and it says nothing about whether a tag on an image should imply its parents. There
-is no walk here. Mirroring it would disable both modes on an image paste over a scan that is not
-happening.
+What the change bought, in the order it matters:
 
-The rule that falls out of both, and the one to apply to whatever settings that plugin gains next:
-**mirror the rules that say "this tag is off limits, ever"; ignore the ones that scope a pass.**
-It is also why `nptUnknownRules` scans only `c`-prefixed keys — a new `a` or `b` key is correctly
-not reported as a rule this file is failing to apply, because this file was never applying that
-group.
+- **A filter added over there applies here the day it ships**, with nothing to update, nothing to
+  warn about, and no version of this plugin that is subtly wrong.
+- **`autoMode` is a question, not a settings read** (§8b³).
+- **The hierarchy query is a constant again.** It had grown a `custom_fields` clause — a map per tag
+  over the whole library — solely to answer a filter this file no longer evaluates, and with it went
+  `ignore_auto_tag`, `settingsReady()` from `loadTagGraph`, the graph cache keyed on its own query,
+  and `_nptSettings` entirely. Two rounds of design about when to invalidate a cached hierarchy
+  became "there is nothing to invalidate".
+- **`ancestorsOf`, `descendantsOf` and the cycle-safe `walk` went too.** The closure walks existed to
+  answer *which parents are redundant*; that is the planner's question now. The graph that remains is
+  for the hover text and for naming a row.
 
-**A spared tag says so on its hover**, appended to the tag text: which plugin spared it and which
-filter did. Where the spared tag is not in the bundle it is simply not listed — a row for a tag
-nothing will do anything with is noise.
+The cost is a floor: an older sibling publishes no `api`, so both modes are hidden and the log names
+`NPT_API_MIN`. That is the right trade — the alternative is a copy of the rules that is wrong in a
+way nobody can see.
 
-**Its settings cost no query.** `{ configuration { plugins } }` returns every plugin's block; Stash
-cannot scope it, so the sibling's arrives with ours. The one thing that ordering costs is that the
-hierarchy query has to wait for it (`settingsReady`), because whether to ask for `custom_fields` —
-a map per tag, over the whole library — depends on whether either of its custom-field filters names
-a key. Same conditional, same reason, as that plugin's own `tagQuery`.
+### What this dialog still decides for itself
 
-**When the sibling's settings change, and what that invalidates.** They are re-read on the same
-`SETTINGS_TTL_MS` timer as our own — one query answers for both — so an exclusion edited in another
-tab reaches an open page within ten seconds, with no listener and no reload. The cached hierarchy is
-the part that needed thinking about, and the answer is smaller than the first attempt at it:
+The planner answers about tags; three things about *this paste* are not its business:
 
-- **Only one setting can invalidate the graph**, and it is not any of the rules. `custom_fields`
-  is asked for or not; every other filter reads the same tags through the same fields, so a graph
-  fetched before the change is still the right graph after it.
-- So the cache is **keyed on the query it came from** (`_graph.q === tagGraphQuery()`) rather than
-  invalidated when the settings move. That was the second design: the first watched the settings,
-  dropped the graph on any difference, and then needed a generation counter so a fetch already in
-  flight could not resolve and reinstate the graph it had asked for under the old answer. Comparing
-  the query has no race to guard — a graph of the wrong shape simply is not a hit — and it stops
-  refetching the whole tag table because a name filter gained a comma.
+- **Prune is planned over what the entity will carry** (its own tags plus the ones being added,
+  since that is what makes a parent redundant) but **applied only to the live rows.** Nothing here
+  ever takes a tag off the target, so an id in `remove` that the target already has is an answer to a
+  question this dialog is not asking.
+- **Roll Up is planned over the tags going on, not over what is already there.** An ancestor of
+  something the target already carries is that plugin's business on the next save.
+- **Already-on-target beats both rolled-up and protected**, and it has to be decided here: the
+  planner has no idea what the target holds. It is read off `implied` rather than off `add`, which is
+  why the API returns the closure as well as the plan.
 
-**A newer sibling is a different question, and the honest answer is to say so.** An exclusion rule
-this file has never heard of cannot be applied: the setting's *name* arrives in the settings
-response, but what it excludes lives in that plugin's code, and there is nothing generic to fall
-back on. Silently pruning a tag it would have protected is the failure to avoid, so `nptUnknownRules`
-names it instead — a `c`-prefixed key (its own grouping for tag exclusions: `a` covers what a run
-covers, `b` entity exclusions, `c` tag exclusions) that is not one of the six mirrored here, **and
-that the user has actually set**. A rule left at its default excludes nothing in either plugin, so
-reporting it would be noise. The result is one WARN line in the dialog log naming the keys.
+**Its entity-level filters are not applied, and that is now the API's decision rather than this
+file's** — no entity is passed to `plan`, only tag ids. It remains the right answer for the reason it
+was when this file made it: they keep an *automatic* pass off entities the user did not mean it to
+touch, and here the user opened this dialog, on this entity, by hand.
 
-That is a detector, not a mitigation: the modes stay available and the rule stays unapplied. Holding
-them shut on an unknown key would break a working page on the strength of a setting nobody may have
-meant to use, and the user is the one who can read what the new rule does.
+**Its per-type toggles are reachable** — `plan({ typeFilter: true })` — and deliberately unused.
+Unticking a type there is about the cost of a library walk (its own settings page calls Images
+"usually the largest type and the slowest to scan"), and there is no walk here. The general rule, and
+the one to apply to whatever settings that plugin gains next: **the rules that say "this tag is off
+limits, ever" are the lender's; the ones that scope a pass belong to whoever is making the pass.**
 
 ## 8b³. Its automatic modes act on the save this dialog defers to
 
-The one place that plugin's **entity-type** settings do matter here, and it is not about which tags
-are protected. `a8AutoPruneOnUpdate` / `a9AutoRollUpOnUpdate` react to Stash saving an entity — and
-Stash's Save is the click this entire plugin exists to defer to. So a paste can be rewritten in the
-same breath that commits it: Auto Prune removing tags the dialog just added, Auto Roll Up adding
-their ancestors. `checkAutoMode` logs one WARN when the mode is on **and** the type being pasted
-onto is one that plugin includes, which is what decides whether it fires at all.
+`autoMode` on the prepared planner is `'prune'`, `'rollup'` or `null` for the type being pasted
+onto: what that plugin will do *by itself* the next time Stash saves one. And Stash's Save is the
+click this entire plugin exists to defer to — so a paste can be rewritten in the same breath that
+commits it. Two things follow, and they are why this is one method rather than two:
 
-Three things it is not:
+- **The dropdown is withdrawn.** Choosing between Prune and Roll Up for this paste is choosing
+  between two operations that plugin is about to overrule anyway; it already has the answer, applied
+  to every save rather than to this one. Withdrawn in `classify` as well as on the control — a hidden
+  select is a statement about the UI, not about what a press does.
+- **The line fires whatever the dropdown said**, because it is about the tags being added, not about
+  how this dialog chose them.
 
-- **Not a mirror of the exclusions.** It is the opposite direction — what that plugin will do to
-  this entity, not what it forbids this dialog from doing.
-- **Not conditional on the redundancy dropdown.** It fires whatever the mode is set to, including
-  *leave as they are*: the auto mode acts on the tags being added, not on how this dialog chose
-  them. That is why the call sits outside the graph-loaded if/else chain rather than in it.
-- **Not a lease question, and this is where it differs from the siblings' `checkSibling`.** Theirs
-  has an "it will stand down while this task writes" branch, because their write is their own and a
-  lease covers it. Nothing here writes, and a lease cannot cover Stash's own save, so there is no
-  such branch — the warning is unconditional on the protocol. `respecters` still changes the
-  *wording*: unregistered means the plugin is disabled in Stash (so nothing will happen) or the
-  installed copy predates the protocol (so it will), and the line says both rather than asserting
-  the alarming one.
+**Asked, never derived, and this is the case that justifies the whole API.** The answer today is
+`a8`/`a9` scoped by the type's `aN` toggle, with both-on collapsing to null. The user's own reason
+for wanting a function here: that partitioning may well become a mode *per type* — fourteen settings
+rather than nine — and a file that had read `a8` directly would break on that day while telling the
+user something confident and wrong. This one does not change.
 
-**Both modes on at once is that plugin's own documented no-op** — they are exact inverses, so it
-runs neither — and warning about it would send the user to turn off something already inert. Copied
-from `checkSibling`, which had the same thought first.
+**What it lost, deliberately.** 0.4.0 read those settings directly and could therefore warn about a
+sibling whose settings were in the config but which had not registered on the page — "either it is
+disabled in Stash, or the copy is older than the protocol". There is no such warning now: a plugin
+that is not there cannot be asked, and nothing in this tab's save will reach it either. Saying
+nothing is the same rule as everywhere else here.
+
+**Both modes on at once is that plugin's own documented no-op** — exact inverses, so it runs
+neither — and the API collapses that to `null` on its side, so this file never sees the case. The
+siblings' `checkSibling` had the same thought first and still implements it itself, because it reads
+the settings.
 
 ## 8c. Five states, two axes, one `accent-color`
 
@@ -484,6 +479,20 @@ select left plain while armed, the graph cache keyed on nothing (so a `custom_fi
 refetched), the unknown-rule scan returning nothing, it reporting a rule left at its default, and it
 reporting one of the six this file does mirror.
 
+From the 0.5.0 pass, nine — five against the lender and four against this file. On its side: the
+per-type scope dropped from `autoMode`, `typeFilter` ignored, the `rollUp` spelling not accepted, the
+singular entity name not resolved, and each protection check dropped from `planTagSet`. On this side:
+the auto-mode gate removed from `redundancyOffered` (as opposed to from the control, which is a
+second mutant), the select shown while an automatic mode is running, each of the two protection
+lookups dropped, already-on-target no longer beating rolled-up, the "too old to ask" branch removed,
+and the target's own tags left out of the Prune input.
+
+**Both sides are driven together**, which is the part worth keeping: `tests/tagclip.test.js` loads
+the real `NormalizeParentTags` into the same `vm` context and answers both plugins' tag queries from
+one fixture, so a plan reaching a row is that plugin's own code answering. A fake planner would have
+tested a fake. `tests/normalize-api.test.js` is the other half — the contract from the publisher's
+side — and neither suite alone proves the pair works.
+
 From the 0.4.0 pass, five: the auto-mode check never called, the both-modes-on no-op removed, the
 type scope ignored, the unregistered doubt dropped, and the two effect sentences flattened into one
 string.
@@ -526,6 +535,25 @@ Shorter than it was — §11 is what emptied most of it. What is left:
 ## 11. What the live passes settled
 
 Both on 2026-08-18, against the user's own Stash.
+
+### The rules moved to their owner (0.5.0)
+
+The 0.4.0 answer above stopped one step short. Asked whether the entity-type filter applies to the
+automatic modes as well as the task — it does, and this file already scoped by it — the user's real
+proposal was the one after: **call a function in that plugin instead of copying its settings**, with
+`isOnAuto(entityType)` named specifically, because the partitioning of its nine auto/scope settings
+may well become fourteen.
+
+That is §8b² and §8b³. Two things about how it went that are worth carrying to the next one:
+
+- **The 0.3.0 unknown-rule detector paid for itself by being deleted.** It existed to name what this
+  file could not check; the fix was to stop needing to check. A diagnostic that keeps reporting the
+  same class of gap is evidence about the design, not a feature to refine.
+- **The API was shaped by a caller that does not exist yet.** `entityType` on both calls,
+  `typeFilter` on `plan`, one options object per call, `version` as a floor rather than a handshake —
+  all of it so the day the settings are repartitioned is not a day either plugin has to be edited.
+  That was the user's framing, and it is a better reason to generalise than any this repo's rules
+  usually accept.
 
 ### A question, not a pass (0.4.0)
 

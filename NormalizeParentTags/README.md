@@ -343,6 +343,13 @@ but never removed, plus one that sets how the two name filters are written:
   looked at, so any value at all (including a blank one) applies the exclusion. To lift it,
   remove the field from the tag rather than setting it to something falsy.
 
+These filters also apply wherever **another plugin borrows Prune or Roll Up**. ᝯㄝₓ Tag Bundle
+Clipboard's paste dialog offers both, and asks this plugin to work them out rather than working
+them out itself — so everything set here governs what that dialog does, and a filter you add later
+applies there the day you add it, with nothing to update. Where you have an automatic mode switched
+on for the entity type in question, that dialog does not offer the choice at all: this plugin is
+already making it on every save.
+
 Two things worth knowing about the tag-level filters:
 
 - Skipping a tag does not stop the climb. If Roll Up is not allowed to add `Hair Colour`, it
@@ -492,6 +499,21 @@ you have two options: turn its auto-merge off for the duration of the run, or pr
 afterwards and apply the second, much smaller plan. Performers are processed first either way, so
 that the wider scene-fanning merge happens before the scene and image passes rather than after
 them. If both auto-merge settings are off, there is no interaction at all.
+
+## If you also use the Tag Bundle Clipboard plugin
+
+Its paste dialog can prune the parent tags a paste makes redundant, or roll a paste up to its
+parents. Those are this plugin's two operations, and it asks this plugin to work out the answer —
+so your [exclusion filters](#exclusion-filters) apply there without that plugin knowing what they
+are, and both modes disappear from its dialog if this plugin is not running on the page. It needs
+this plugin at **3.2.0 or newer**; with an older copy it says so and offers neither.
+
+If you have **Auto Prune** or **Auto Roll Up** on for the entity type being pasted onto, that dialog
+withdraws the choice and says why: pressing Stash's **Save** is what this plugin reacts to, so the
+decision is already being made on every save and choosing differently for one paste would not
+survive it.
+
+## Notes on other plugins
 
 This only covers plugins running in your browser. A plugin with server-side **hooks** — the
 Python or executable kind that Stash runs on `Scene.Update.Post` and similar — runs inside Stash

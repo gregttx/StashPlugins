@@ -12,6 +12,7 @@
 const path = require('path');
 const h = require('./npt-harness');
 
+const NPT_SRC = path.join(__dirname, '..', 'NormalizeParentTags', 'NormalizeParentTags.js');
 const SRC = process.env.SRC || path.join(
   __dirname, '..', 'TagBundleClipboard', 'TagBundleClipboard.js');
 
@@ -76,8 +77,16 @@ function responder(opts) {
     if (/TBCPluginVersion/.test(q)) {
       return { data: { plugins: opts.installed ? [{ id: PLUGIN_ID, version: opts.installed }] : [] } };
     }
+    // Both plugins ask for the whole tag table, under their own operation names. The
+    // sibling loaded into this page is the real one, so its query is answered from the
+    // same fixture - a plan it returns is its own code's answer, not a restatement of
+    // this plugin's expectations.
     if (/TBCTagGraph/.test(q)) {
       if (opts.failGraph) return { errors: [{ message: 'no hierarchy for you' }] };
+      return { data: { findTags: { tags: opts.tags || TAGS } } };
+    }
+    if (/NPTTags/.test(q)) {
+      if (opts.failNptGraph) return { errors: [{ message: 'no hierarchy for you either' }] };
       return { data: { findTags: { tags: opts.tags || TAGS } } };
     }
     if (/TBCEntityTags/.test(q)) {
@@ -148,10 +157,20 @@ function start(opts) {
   // What `NormalizeParentTags` present in this page looks like: the `respecters` entry
   // it registers unconditionally at load. Set after the plugin has run, because that is
   // when the shared object exists - and it is read at call time, so it lands in time.
+  // The sibling, for real, into the same page. Prune and Roll Up are its operations
+  // and this plugin no longer computes them, so a fake would be testing a fake: what
+  // these checks are actually about is whether the two agree, and only the real one
+  // can answer that. It registers its own `respecters` entry and its own `api` on the
+  // way past, which is exactly what the plugin under test looks for.
+  //
   // `nptSettings` without `npt` is the sibling installed and configured but not
   // running on this page - the case its settings linger in the config and nothing
   // reacts to a save.
-  if (opts.npt) env.ctx.__GTTx__.StashPluginCoop.respecters.NormalizeParentTags = true;
+  if (opts.npt) {
+    h.run(env.ctx, NPT_SRC);
+    // Installed and running, but from before it published a planner.
+    if (opts.nptOld) delete env.ctx.__GTTx__.StashPluginCoop.api.NormalizeParentTags;
+  }
   // A render of the entity's TagSelect, which is how the plugin learns what the form
   // is holding. `values` is what the box shows *now*, hand-edits included.
   env.renderTagSelect = (values) => {
@@ -874,29 +893,23 @@ const btn = (body, label) => body.descendants()
   }
 
   {
-    // The custom-field filter, and the query that pays for it. `custom_fields` is a map
-    // per tag on a whole-library query, so it is only asked for when a filter names a
-    // key - the same conditional the sibling makes, for the same reason.
+    // The custom-field filter, excluding on presence alone. The check that matters is
+    // not that this passes - it is *where* it passes from: this plugin's own query
+    // asks for neither `custom_fields` nor `ignore_auto_tag`, so nothing in this file
+    // could evaluate either filter. The sibling fetched what it needed, on its own
+    // query, and applied its own rules.
     const marked = TAGS.map((t) => (t.id === '1' ? Object.assign({}, t, { custom_fields: { keep: 'yes' } }) : t));
     const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
       tags: marked, nptSettings: { c6ExcludeRemoveTagWithCustomFieldName: 'keep' } });
     await openDialog(env, []);
     await h.flush();
     await setMode(env, 'prune');
-    h.check('the hierarchy query asks for custom_fields only when a filter names one',
-      /custom_fields/.test(graphQuery(env)), graphQuery(env));
     const hair = rowsOf(env).filter((r) => r.textContent.indexOf('Hair') === 0)[0];
-    h.check('and a tag carrying that field is spared, on presence alone',
+    h.check('a tag carrying that field is spared, on presence alone',
       stateOf(hair) === 'add' && /custom field "keep"/.test(hair.title),
       JSON.stringify(hair.title));
-  }
-
-  {
-    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true });
-    await openDialog(env, []);
-    await h.flush();
-    h.check('and does not ask for it when no filter does',
-      !/custom_fields/.test(graphQuery(env)) && /ignore_auto_tag/.test(graphQuery(env)),
+    h.check('and this plugin asked for no field a tag exclusion is read from',
+      !/custom_fields/.test(graphQuery(env)) && !/ignore_auto_tag/.test(graphQuery(env)),
       graphQuery(env));
   }
 
@@ -965,58 +978,43 @@ const btn = (body, label) => body.descendants()
       modeSel(env).className);
   }
 
-  // ── The sibling's settings can move under a cached hierarchy ──────────────
+  // ── Where the rules live now ──────────────────────────────────────────────
 
   {
-    // Changed in another tab, so nothing here saw the edit: the settings are re-read
-    // on a timer, and the hierarchy has to be dropped with them. One of those settings
-    // decides whether `custom_fields` was asked for at all, so a graph fetched under
-    // the old answer cannot be filtered under the new one.
-    const opts = { storage: { [KEY]: CHAIN }, pathname: '/scenes/42', npt: true,
-      nptSettings: {} };
-    const env = start(opts);
+    // Two questions this plugin used to have to answer - what happens when the
+    // sibling's exclusions change in another tab, and what happens when it gains a
+    // rule this file has never heard of - and one answer to both: it is not this
+    // plugin's business. It reads none of those settings, so there is nothing here to
+    // go stale and nothing to fail to recognise. The hierarchy it does read is for the
+    // hover text, and is fetched once.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/42', npt: true,
+      nptSettings: { c7ExcludeSomethingNewer: 'x', c2ExcludeAddTagNameContains: 'Hair' } });
     detailNavbar(env.body);
     await openDialog(env, []);
     await h.flush();
     btn(env.body, 'Close').click();
-    const queries = () => env.calls.filter((c) => /TBCTagGraph/.test(c.query || ''));
-    h.check('the hierarchy is fetched once and cached',
-      queries().length === 1 && !/custom_fields/.test(queries()[0].query),
-      queries().map((c) => c.query).join(' | '));
-
-    opts.nptSettings = { c5ExcludeAddTagWithCustomFieldName: 'keep' };
-    const realNow = Date.now;
-    try {
-      Date.now = () => realNow.call(Date) + 60000;   // past SETTINGS_TTL_MS
-      btn(env.body, '⮺ Tags').click();               // any path that reads the settings
-      await h.flush();
-      btn(env.body, '📋Tags...').click();
-      await h.flush();
-    } finally {
-      Date.now = realNow;
-    }
-    h.check('a settings change drops it, and the refetch asks for the new field',
-      queries().length === 2 && /custom_fields/.test(queries()[1].query),
-      queries().map((c) => c.query).join(' | '));
+    btn(env.body, '📋Tags...').click();
+    await h.flush();
+    const queries = env.calls.filter((c) => /TBCTagGraph/.test(c.query || ''));
+    h.check('the hierarchy is fetched once and never invalidated',
+      queries.length === 1, queries.map((c) => c.query).join(' | '));
+    const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
+    h.check('and no settings key of the sibling’s is named in the log',
+      !/c7ExcludeSomethingNewer/.test(lines) && !/c2ExcludeAddTagNameContains/.test(lines),
+      lines);
   }
 
   {
-    // A newer NormalizeParentTags can carry a tag rule this file has never heard of,
-    // and there is nothing generic to fall back on: the name arrives in the settings
-    // response, what it excludes lives in that plugin's code. Saying so is the honest
-    // answer; pruning a tag it protects is not.
-    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
-      nptSettings: { c7ExcludeSomethingNew: 'x', c8Unset: '',
-        c2ExcludeAddTagNameContains: 'Hair', a1EnablePerformers: true } });
+    // Installed, running, and older than the release that publishes a planner. The
+    // modes are not offered rather than computed here, and the line names the version
+    // to upgrade to - this dialog cannot work them out on its own any more.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43',
+      npt: true, nptOld: true });
     await openDialog(env, []);
     await h.flush();
     const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
-    h.check('an exclusion rule this version does not know is named rather than ignored',
-      /c7ExcludeSomethingNew/.test(lines) && /does not know/.test(lines), lines);
-    h.check('and a rule left at its default is not, since it excludes nothing',
-      !/c8Unset/.test(lines) && !/a1EnablePerformers/.test(lines), lines);
-    h.check('nor is one this file does mirror',
-      !/c2ExcludeAddTagNameContains/.test(lines) && / 1 tag rule /.test(lines), lines);
+    h.check('a sibling too old to be asked hides the modes and names the version',
+      /older than 3\.2\.0/.test(lines) && h.hasClass(modeSel(env), 'tbc-hidden'), lines);
   }
 
   // ── The sibling's automatic modes act on the save this dialog defers to ───
@@ -1031,10 +1029,23 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
     // Not about which tags are protected: Stash's Save is what that plugin reacts to,
-    // and it will undo the paste in the same breath.
-    h.check('Auto Prune on this type is called out against the Save this dialog defers to',
-      /Auto Prune on Entity Updates enabled for Scenes/.test(lines) &&
+    // and it will undo the paste in the same breath. Asked of it rather than read off
+    // its settings, so the day it partitions those differently this still holds.
+    h.check('an automatic mode on this type is called out against the Save this dialog defers to',
+      /set to prune Scenes automatically/.test(lines) &&
         /when you press Save/.test(lines), lines);
+    // And the dropdown goes with it: choosing here would be choosing between two
+    // operations it is about to overrule anyway.
+    h.check('and the redundancy choice is withdrawn, since it is already being made',
+      h.hasClass(modeSel(env), 'tbc-hidden'), modeSel(env).className);
+    // Withdrawn in `classify` as well as on the control, the same as the gate for a
+    // sibling that is not there at all: a hidden select is a statement about the UI,
+    // not about what a press does.
+    await setMode(env, 'prune');
+    h.check('and a mode set anyway is still not applied',
+      JSON.stringify(rowsOf(env).map((r) => stateOf(r))) ===
+        JSON.stringify(['add', 'add', 'add']),
+      rowsOf(env).map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
   }
 
   {
@@ -1073,17 +1084,19 @@ const btn = (body, label) => body.descendants()
   }
 
   {
-    // Settings in the config but nothing registered on the page: either it is disabled
-    // in Stash and this cannot happen, or the installed copy predates the protocol and
-    // it can. There is no way to tell from here, so the line says both.
+    // Settings in the config but nothing running on the page. This used to warn from
+    // those settings, with a sentence about not being able to tell a disabled plugin
+    // from one too old to register. It says nothing now, and that is the same rule as
+    // everywhere else here: the question is answered by asking that plugin, and a
+    // plugin that is not there cannot be asked. Nothing in this tab's save will reach
+    // it either.
     const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43',
       nptSettings: { a8AutoPruneOnUpdate: true, a5EnableScenes: true } });
     await openDialog(env, []);
     await h.flush();
     const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
-    h.check('an unregistered sibling is still warned about, with the doubt stated',
-      /Auto Prune/.test(lines) && /disabled in Stash/.test(lines) &&
-        /older than the protocol/.test(lines), lines);
+    h.check('a sibling that is not on the page prompts no claim about what it will do',
+      !/automatically/.test(lines) && /not running on this page/.test(lines), lines);
   }
 
   // ── The property the whole design rests on ────────────────────────────────

@@ -36,7 +36,7 @@
   // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
   // live Stash: the major digit is the claim that the thing works, and no test in this
   // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.4.0';
+  var PLUGIN_VERSION = '0.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -297,19 +297,12 @@
 
   function loadSettings() {
     return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
-      var all = (data.configuration || {}).plugins || {};
-      var raw = all[PLUGIN_ID] || {};
+      var raw = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
       var s = {};
       for (var k in DEFAULTS) {
         if (!hasOwn(DEFAULTS, k)) continue;
         s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (raw[k] == null ? '' : String(raw[k]));
       }
-      // Every plugin's settings arrive in this one response - Stash cannot scope it -
-      // so the sibling's are already paid for. Kept as the raw object rather than
-      // unpacked into named flags, exactly as MergePerformerTagsToScenes keeps them:
-      // they are somebody else's wire names, and the one place that reads them is the
-      // one place that should know them.
-      _nptSettings = all[NPT_ID] || null;
       return s;
     });
   }
@@ -448,34 +441,19 @@
   // are held disabled while there is no hierarchy to reason about.
   var _graph = null, _graphWait = null;
 
-  // `ignore_auto_tag` is one boolean per tag and always asked for; `custom_fields` is
-  // a map per tag and only asked for when one of NormalizeParentTags' two custom-field
-  // filters names a key - the same conditional, for the same reason, as that plugin's
-  // own `tagQuery`.
-  function tagGraphQuery() {
-    var fields = 'id name sort_name description aliases ignore_auto_tag parents { id }';
-    if (nptWantsCustomFields()) fields += ' custom_fields';
-    return 'query TBCTagGraph { findTags(filter: { per_page: -1 }) { tags { ' +
-      fields + ' } } }';
-  }
+  // Everything here is for the hover text and for naming a row: the parent edge is
+  // what the hover shows and what the child edge is inverted from. Nothing in this
+  // file evaluates a tag exclusion any more, so the fields no longer depend on the
+  // sibling's settings and the query is a constant again.
+  var TAG_GRAPH_QUERY = 'query TBCTagGraph { findTags(filter: { per_page: -1 }) ' +
+    '{ tags { id name sort_name description aliases parents { id } } } }';
 
   function loadTagGraph() {
-    // Cached for the life of the page, and keyed on the query it came from. The
-    // sibling's settings are re-read on the same timer as our own, so a change made in
-    // another tab lands here within SETTINGS_TTL_MS - but only one of those settings
-    // can invalidate this: whether `custom_fields` was asked for at all. Every other
-    // rule filters the same tags with the same fields, so a graph fetched before the
-    // change is still the right graph after it. Comparing the query rather than
-    // watching the settings means there is nothing to invalidate and no race with a
-    // fetch already in flight: a graph of the wrong shape simply is not a hit.
-    if (_graph && _graph.q === tagGraphQuery()) return Promise.resolve(_graph);
+    // Cached for the life of the page. It answers no question about the sibling's
+    // settings now, so there is nothing about it left to invalidate.
+    if (_graph) return Promise.resolve(_graph);
     if (_graphWait) return _graphWait;
-    // Behind the settings, not beside them: the query's own shape depends on the
-    // sibling's settings, which arrive in our settings response. One extra await on a
-    // dialog open, and no second query.
-    var q = null;
-    _graphWait = settingsReady()
-      .then(function () { q = tagGraphQuery(); return gqlRequest(q, null); })
+    _graphWait = gqlRequest(TAG_GRAPH_QUERY, null)
       .then(function (data) {
         var tags = ((data.findTags || {}).tags) || [];
         var byId = {}, children = {};
@@ -489,42 +467,10 @@
           });
         });
         _graphWait = null;
-        _graph = { byId: byId, children: children, q: q };
+        _graph = { byId: byId, children: children };
         return _graph;
       }, function () { _graphWait = null; return null; });
     return _graphWait;
-  }
-
-  // Every strict ancestor or descendant, breadth-first over a `seen` set. The set is
-  // not an optimisation: nothing in Stash forbids a cycle in the tag hierarchy, and a
-  // plain recursion would hang the dialog on one.
-  function walk(id, edgesOf) {
-    var out = {}, queue = [String(id)], seen = {};
-    seen[String(id)] = true;
-    while (queue.length) {
-      var next = edgesOf(queue.shift());
-      for (var i = 0; i < next.length; i++) {
-        var n = String(next[i]);
-        if (seen[n]) continue;
-        seen[n] = true;
-        out[n] = true;
-        queue.push(n);
-      }
-    }
-    return out;
-  }
-
-  function ancestorsOf(id) {
-    if (!_graph) return {};
-    return walk(id, function (cur) {
-      var t = _graph.byId[cur];
-      return (t && t.parents) ? t.parents.map(function (p) { return String(p.id); }) : [];
-    });
-  }
-
-  function descendantsOf(id) {
-    if (!_graph) return {};
-    return walk(id, function (cur) { return _graph.children[cur] || []; });
   }
 
   function graphName(id) {
@@ -579,141 +525,59 @@
   // ── NormalizeParentTags' exclusion rules, mirrored ────────────────────────
   //
   // **Prune and Roll Up are only offered where `NormalizeParentTags` is loaded in this
-  // page**, and they honour its tag exclusions when they are. Both halves are the same
-  // decision: these two operations are that plugin's, borrowed, and a borrowed
-  // operation that ignored the owner's "never touch this tag" settings would be worse
-  // than not offering it - the user would have one plugin protecting a tag and another
-  // quietly acting on it in the same library.
+  // page, and they are computed by it rather than here.** Both halves are the same
+  // decision: these two operations are that plugin's, and a borrowed operation that
+  // ignored the owner's "never touch this tag" settings would be worse than not
+  // offering it - the user would have one plugin protecting a tag and another quietly
+  // acting on it in the same library.
   //
-  // Presence is `coop().respecters[NPT_ID]`, which that plugin sets unconditionally at
-  // load. It says its script is running *here*, which is the question - an installed
-  // copy that this page never loaded cannot have settings worth mirroring either. The
-  // same signal a sibling's dialog already reads to tell "will stand down" from "too
-  // old to know".
+  // This file used to mirror those settings: `splitTerms`, `nameMatchesAny` and
+  // `blockReason` were copied from it byte-for-byte, with a scan that named any
+  // exclusion key it did not recognise so a newer sibling could not drift past
+  // silently. That scan working as designed is what retired the copy - a plugin whose
+  // best answer to "is this still right?" is "here is what I could not check" should
+  // stop guessing and ask. Everything the copy did is now one `prepare()` call:
+  //
+  //   - a new exclusion filter over there applies here the day it ships, with nothing
+  //     to update and nothing to warn about;
+  //   - `autoMode` is a **question** rather than a settings read, so the day that
+  //     plugin splits its two auto toggles into a mode per entity type, this file does
+  //     not care;
+  //   - the hierarchy query here stops paying for `custom_fields`, which was only ever
+  //     fetched to answer a filter this file no longer evaluates.
+  //
+  // The cost is a floor: an older sibling has no `api` entry, so both modes are hidden
+  // and the log says what to upgrade. That is the right trade - the alternative is a
+  // copy of the rules that is wrong in a way nobody can see.
+  //
+  // Presence is still `coop().respecters[NPT_ID]`, which that plugin sets
+  // unconditionally at load, and it is what tells "installed but too old" apart from
+  // "not on this page" for the message.
   var NPT_ID   = 'NormalizeParentTags';
   var NPT_NAME = 'ᝯㄝₓ Normalize Parent Tags';
-
-  var _nptSettings = null;   // its raw settings block, from our own settings query
+  var NPT_API_MIN = '3.2.0';   // the release that publishes `prepare`, for the log line
 
   function nptPresent() { return !!coop().respecters[NPT_ID]; }
 
-  // The six tag-exclusion settings this file mirrors. NormalizeParentTags groups its
-  // settings by prefix - `a` for what a run covers, `b` for entity exclusions, `c` for
-  // tag exclusions - and every `c` key it has today is in this list.
-  var NPT_TAG_RULES = {
-    c1ExcludeTagWithIgnoreAutoTag: true, c2ExcludeAddTagNameContains: true,
-    c3ExcludeRemoveTagNameContains: true, c4TagNameSeparator: true,
-    c5ExcludeAddTagWithCustomFieldName: true, c6ExcludeRemoveTagWithCustomFieldName: true,
-  };
-
-  // Its per-type scope settings, which this file reads for exactly one purpose - see
-  // `checkAutoMode`. They are deliberately *not* mirrored into Prune and Roll Up: an
-  // unticked type there scopes that plugin's library sweep, and its own description for
-  // Images ("usually the largest type and the slowest to scan") says why a user unticks
-  // one. That is a fact about the cost of a walk, not about whether a tag on an image
-  // should imply its parents, and there is no walk here - one entity, chosen by hand.
-  // The same call, for the same reason, as its entity-level filters above.
-  var NPT_TYPE_SETTING = {
-    performer: 'a1EnablePerformers', studio: 'a2EnableStudios', group: 'a3EnableGroups',
-    gallery: 'a4EnableGalleries', scene: 'a5EnableScenes', image: 'a6EnableImages',
-  };
-
-  // A rule this file has never heard of cannot be applied, and there is nothing
-  // generic to fall back on: a setting's *name* arrives in the settings response, but
-  // what it excludes lives in the sibling's code. So the honest answer to a newer
-  // NormalizeParentTags is to say so rather than to quietly prune a tag it protects -
-  // a `c` key we do not know, and that the user has actually set, is that signal.
-  // Anything left at its default is silent, since an unconfigured rule excludes
-  // nothing in either plugin.
-  function nptUnknownRules() {
-    var s = _nptSettings || {}, out = [];
-    for (var k in s) {
-      if (!hasOwn(s, k) || k.charAt(0) !== 'c' || hasOwn(NPT_TAG_RULES, k)) continue;
-      var v = s[k];
-      if (v === true || (typeof v === 'string' && v.trim())) out.push(k);
-    }
-    return out.sort();
+  function nptApi() {
+    var a = coop().api && coop().api[NPT_ID];
+    return (a && typeof a.prepare === 'function') ? a : null;
   }
 
-  // Whether either custom-field filter is set, which is what decides if the hierarchy
-  // query has to pay for `custom_fields` on every tag. Conditional for the reason
-  // NormalizeParentTags makes it conditional: a map per tag on a whole-library query
-  // that no code path would look at.
-  function nptWantsCustomFields() {
-    var s = _nptSettings || {};
-    return !!(String(s.c5ExcludeAddTagWithCustomFieldName || '').trim() ||
-              String(s.c6ExcludeRemoveTagWithCustomFieldName || '').trim());
-  }
-
-  // These three are NormalizeParentTags' own, copied rather than approximated. Keep
-  // them byte-identical with that plugin's: the point is that a tag it protects is a
-  // tag this dialog leaves alone, and a near-miss in the matching is a silent
-  // disagreement about which tags those are.
-  function splitTerms(value, sep) {
-    var raw = String(value == null ? '' : value);
-    var out = [];
-    (sep ? raw.split(sep) : raw.split(/\s+/)).forEach(function (term) {
-      var t = term.trim();
-      if (t) out.push(t);
-    });
-    return out;
-  }
-
-  function nameMatchesAny(name, terms) {
-    for (var i = 0; i < terms.length; i++) {
-      if (name.indexOf(terms[i]) !== -1) return true;
-    }
-    return false;
-  }
-
-  // A tag is in a cycle exactly when it is its own ancestor. Derived on demand rather
-  // than precomputed over the whole library the way NormalizeParentTags does it: that
-  // plugin walks every tag on every run and gets the set for free, while this one asks
-  // about a handful per render and would be paying for a library-wide pass to answer.
-  function inCycle(id) { return !!ancestorsOf(id)[String(id)]; }
-
-  // Why the tag is blocked, or null - a reason string rather than a boolean, so the
-  // row's hover text can say *which* filter is protecting it.
-  function blockReason(id, cfName, terms) {
-    var t = _graph && _graph.byId[String(id)];
-    if (!t) return 'unknown to Stash';
-    if (inCycle(id)) return 'in a hierarchy cycle';
-    var s = _nptSettings || {};
-    if (s.c1ExcludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return 'Ignore auto tag';
-    // Presence alone excludes; the value is never inspected. hasOwnProperty rather
-    // than `in`, or inherited keys like "constructor" match every tag.
-    if (cfName && t.custom_fields && hasOwn(t.custom_fields, cfName)) {
-      return 'custom field "' + cfName + '"';
-    }
-    if (terms.length && nameMatchesAny(t.name || '', terms)) return 'name filter';
-    return null;
-  }
-
-  function nptSep() { return String((_nptSettings || {}).c4TagNameSeparator || '').trim(); }
-
-  // **Roll Up adds, so it answers to the "never add" filters; Prune declines to add a
-  // parent, which reaches the same end state as removing one, so it answers to "never
-  // remove".** That mapping is the whole of the translation between the two plugins:
-  // NormalizeParentTags' Prune deletes the tag off the entity and this one keeps it
-  // off, and a tag its owner has marked as never-to-be-removed should not lose its
-  // place here either.
-  function blockedFromAdd(id) {
-    var s = _nptSettings || {};
-    return blockReason(id, String(s.c5ExcludeAddTagWithCustomFieldName || '').trim(),
-      splitTerms(s.c2ExcludeAddTagNameContains, nptSep()));
-  }
-
-  function blockedFromRemove(id) {
-    var s = _nptSettings || {};
-    return blockReason(id, String(s.c6ExcludeRemoveTagWithCustomFieldName || '').trim(),
-      splitTerms(s.c3ExcludeRemoveTagNameContains, nptSep()));
-  }
+  // The prepared planner for the dialog that is open, or null. Module-level beside
+  // `_graph` rather than on the run, because only one dialog is ever open and both are
+  // read by the same render path.
+  var _npt = null;
 
   // Its *entity*-level filters (`b1ExcludeEntityWithTagName`, `b2ExcludeOrganized`) are
-  // deliberately not mirrored. They exist to keep an automatic pass off entities the
-  // user did not mean it to touch; here the user opened this dialog, on this entity, by
-  // hand. Honouring them would mean a mode that silently does nothing on an organized
-  // scene with nothing on screen saying why.
+  // not applied, and that is the API's decision rather than this file's: no entity is
+  // passed to `plan`, only tag ids. It is the right answer for the same reason it was
+  // when this file made it - they exist to keep an automatic pass off entities the user
+  // did not mean it to touch, and here the user opened this dialog, on this entity, by
+  // hand. Its per-*type* toggles are available through `plan({ typeFilter: true })` and
+  // deliberately not used: unticking a type there is about the cost of a library walk
+  // (its own settings page calls Images "usually the largest type and the slowest to
+  // scan"), and there is no walk here.
 
   var MODE_ASIS = 'asis', MODE_PRUNE = 'prune', MODE_ROLLUP = 'rollup';
   var MODES = [
@@ -723,7 +587,9 @@
   ];
   var _mode = MODE_ASIS;
 
-  function redundancyOffered() { return nptPresent() && !!_graph; }
+  // Not offered where that plugin is already doing it on every save: the dropdown
+  // would be choosing between two operations it is about to overrule.
+  function redundancyOffered() { return !!_npt && !_npt.autoMode && !!_graph; }
 
   // ── Styles ────────────────────────────────────────────────────────────────
 
@@ -1174,26 +1040,38 @@
     // neither of which the dialog needs to open. It is fetched behind the dialog and
     // the list is redrawn when it lands.
     var self = this;
-    loadTagGraph().then(function (graph) {
+    // Two reads, neither of which the dialog waits for: the hierarchy is ours and is
+    // wanted for the hover text, and the planner is the sibling's. A `prepare` that
+    // rejects is that plugin failing to read its own settings or hierarchy, which is
+    // its problem to report - here it means only that the two modes stay shut.
+    var api = nptApi();
+    _npt = null;
+    Promise.all([
+      loadTagGraph(),
+      api ? api.prepare({ entityType: this.type }).then(null, function () { return null; })
+          : Promise.resolve(null),
+    ]).then(function (r) {
       if (_active !== self) return;
-      if (!graph) {
+      _npt = r[1];
+      if (!r[0]) {
         self.log('WARN', 'the tag hierarchy could not be read, so Prune and Roll Up are ' +
           'unavailable and a tag hover shows its name only');
       } else if (!nptPresent()) {
         self.log('INFO', 'Prune and Roll Up are not offered: they are ' + NPT_NAME +
           '’s operations, and it is not running on this page.');
-      } else {
-        var unknown = nptUnknownRules();
-        if (unknown.length) {
-          self.log('WARN', NPT_NAME + ' has ' + plural(unknown.length, 'tag rule') +
-            ' this version of ' + PLUGIN_SHORT_NAME + ' does not know (' +
-            unknown.join(', ') + '), so Prune and Roll Up will not apply ' +
-            (unknown.length > 1 ? 'them' : 'it') + '. Update this plugin, or check ' +
-            'what they add before using either mode.');
-        }
+      } else if (!api) {
+        // Installed and running, but from before it published a planner. Naming the
+        // version is the whole of the fix, and it is a fact about today rather than a
+        // changelog: this dialog cannot compute those two operations itself any more.
+        self.log('INFO', 'Prune and Roll Up are not offered: they are computed by ' +
+          NPT_NAME + ', and the copy running here is older than ' + NPT_API_MIN +
+          ', which is the release that lets another plugin ask it.');
+      } else if (!_npt) {
+        self.log('WARN', NPT_NAME + ' could not answer, so Prune and Roll Up are ' +
+          'unavailable. Its own settings or hierarchy read failed - check the console.');
       }
       // Outside that chain on purpose: it is about what happens on Save, so it holds
-      // whether or not the hierarchy loaded and whatever the dropdown is set to.
+      // whatever the dropdown is set to.
       self.checkAutoMode();
       self.render();
     });
@@ -1302,49 +1180,35 @@
     });
   };
 
-  // Its two automatic modes are the one place its *entity-type* settings matter here,
-  // and it is not about which tags are protected: it is that Stash's Save - the click
-  // this whole dialog defers to - is what that plugin reacts to. Add a tag here, press
-  // Save, and it rewrites the entity in the same breath, doing the exact inverse of
-  // what the mode above just did. The siblings' `checkSibling` warns about the same
-  // collision from the other side, where the write is their own.
+  // What that plugin says it will do on its own, the next time Stash saves an entity
+  // of this type - which is the click this whole dialog defers to. Add a tag here,
+  // press Save, and it rewrites the entity in the same breath. The siblings'
+  // `checkSibling` warns about the same collision from the other side, where the write
+  // is their own.
   //
-  // Narrower than theirs in one way and wider in another: there is no lease to offer,
-  // because nothing here writes and Stash's own save is not something a lease covers -
-  // so there is no "it will stand down" branch. And it fires whatever the redundancy
-  // dropdown is set to, since the tags being added are what that plugin acts on, not
-  // the way this dialog chose them.
+  // Two things follow, and the second is the reason this is one method and not two:
+  //
+  //   - **The dropdown is not offered.** Choosing between Prune and Roll Up for this
+  //     paste is choosing between two operations that plugin is about to overrule
+  //     anyway. It already has the answer, applied to every save rather than this one.
+  //   - **The warning fires whatever the dropdown said**, because it is about the tags
+  //     being added, not about how this dialog chose them.
+  //
+  // `autoMode` is asked rather than derived: it is 'prune', 'rollup' or null, and what
+  // today is two toggles scoped by a per-type switch can become anything over there
+  // without this line changing. That is the whole reason the API exists.
   PasteRun.prototype.checkAutoMode = function () {
-    var ps = _nptSettings;
-    if (!ps) return;
-    var prune = !!ps.a8AutoPruneOnUpdate, rollup = !!ps.a9AutoRollUpOnUpdate;
-    // Both at once is that plugin's own documented no-op - they are exact inverses, so
-    // it runs neither - and warning about a mode that is not running would send the
-    // user to turn off something already inert.
-    if (prune === rollup) return;
-    // Scoped by the type it is being pasted onto, which is what the question was: the
-    // mode only fires on a type that plugin is set to include.
-    var key = NPT_TYPE_SETTING[this.type];
-    if (!key || !ps[key]) return;
-
-    var label = ENTITIES[this.type] ? ENTITIES[this.type].label : 'entity';
-    var msg = NPT_NAME + ' has ' + (prune ? 'Auto Prune' : 'Auto Roll Up') +
-      ' on Entity Updates enabled for ' + (ENTITIES[this.type] ?
-        ENTITIES[this.type].plural : 'this type') + ', so when you press Save it will ' +
-      (prune
-        ? 'immediately remove any tag added here that another tag on the same ' + label +
-          ' already implies'
-        : 'immediately add every ancestor of the tags added here') + '.';
-    if (!nptPresent()) {
-      // The siblings' ambiguity, and it cuts the other way here: not registered means
-      // that plugin is disabled in Stash, or the copy installed predates the protocol.
-      // A disabled plugin reacts to nothing, so this is the one case where the warning
-      // may be about a mode that cannot fire.
-      msg += ' It has not registered on this page, so either it is disabled in Stash - ' +
-        'in which case nothing will happen - or the installed copy is older than the ' +
-        'protocol and it will.';
-    }
-    this.log('WARN', msg);
+    if (!_npt || !_npt.autoMode) return;
+    var prune = _npt.autoMode === 'prune';
+    var e = ENTITIES[this.type];
+    this.log('INFO', NPT_NAME + ' is set to ' + (prune ? 'prune' : 'roll up') +
+      ' ' + (e ? e.plural : 'entities of this type') + ' automatically, so when you ' +
+      'press Save it will ' + (prune
+        ? 'remove any tag added here that another tag on the same ' +
+          (e ? e.label : 'entity') + ' already implies'
+        : 'add every ancestor of the tags added here') +
+      '. The redundancy choice below is not offered here for that reason - it is ' +
+      'already being made, on every save.');
   };
 
   PasteRun.prototype.log = function (kind, message) {
@@ -1449,7 +1313,8 @@
     this.modeSel.value = _mode;
     // Hidden rather than disabled where the sibling is absent: a one-option select is
     // noise, and the log line below is what answers "where did Prune go".
-    this.modeSel.className = 'tbc-mode' + (nptPresent() ? '' : ' tbc-hidden') +
+    this.modeSel.className = 'tbc-mode' +
+      ((_npt && !_npt.autoMode) ? '' : ' tbc-hidden') +
       (redundancyOffered() && _mode !== MODE_ASIS ? ' tbc-mode-on' : '');
     this.modeSel.disabled = !redundancyOffered();
     this._counts = { bundles: bundles.length, noForm: !!bundle && have === null };
@@ -1496,55 +1361,59 @@
     var live = rows.filter(function (r) { return r.state === 'add'; });
 
     if (mode === MODE_PRUNE) {
-      // Redundant against everything the entity will carry - its own tags and the
-      // ones being added. A tag whose only descendant here is itself pruned stays
-      // pruned, because that descendant was pruned for having a descendant of its
-      // own, which is a descendant of this one too. So one pass settles it.
-      var eventual = {};
-      for (var k in haveMap) if (hasOwn(haveMap, k)) eventual[k] = true;
-      live.forEach(function (r) { eventual[r.key] = true; });
+      // Planned against everything the entity will carry - its own tags and the ones
+      // being added - because that is what makes a parent redundant. Only the *live*
+      // rows are then acted on: nothing here ever takes a tag off the target, so a
+      // tag it already has appearing in `remove` is that plugin's answer to a
+      // question this dialog is not asking.
+      var eventual = [];
+      for (var k in haveMap) if (hasOwn(haveMap, k)) eventual.push(k);
+      live.forEach(function (r) { eventual.push(r.key); });
+      var p = _npt.plan({ mode: 'prune', tagIds: eventual, entityType: self.type }) ||
+        { remove: [], 'protected': {} };
+      var drop = {};
+      (p.remove || []).forEach(function (id) { drop[String(id)] = true; });
       live.forEach(function (r) {
-        var below = descendantsOf(r.key);
-        for (var d in below) {
-          if (!hasOwn(below, d) || !eventual[d]) continue;
-          var why = blockedFromRemove(r.key);
-          if (why) {
-            r.protect = NPT_NAME + ' never removes this tag (' + why + '), so Prune ' +
-              'leaves it in place.';
-            return;
-          }
-          r.state = 'pruned';
-          return;
+        if (drop[r.key]) { r.state = 'pruned'; return; }
+        var why = p['protected'][r.key];
+        if (why) {
+          r.protect = NPT_NAME + ' never removes this tag (' + why + '), so Prune ' +
+            'leaves it in place.';
         }
       });
     } else if (mode === MODE_ROLLUP) {
-      live.forEach(function (r) {
-        var above = ancestorsOf(r.key);
-        for (var a in above) {
-          if (!hasOwn(above, a)) continue;
-          var known = _graph.byId[a];
-          if (!known) continue;
-          var existing = byId[a];
-          // An ancestor the entity already carries reads as already-there, whether it
-          // was in the bundle or is only on this list because Roll Up reached it:
-          // already-on-target wins over rolled-up, and it is the truer of the two -
-          // Roll Up has nothing to add where the tag is already on.
-          if (haveMap[a]) { if (!existing) put({ id: a, name: known.name }, 'have'); continue; }
-          var why = blockedFromAdd(a);
-          if (why) {
-            // Protected from being added: it is not rolled up, and if it is not in the
-            // bundle it is not listed at all - a row for a tag nothing will do anything
-            // with is noise.
-            if (existing) existing.protect = NPT_NAME + ' never adds this tag (' + why +
-              '), so Roll Up leaves it out.';
-            continue;
-          }
-          // Roll Up overrides an unticked box on purpose: the ancestor is implied by
-          // a tag that *is* going on, so leaving it out would not honour the mode.
-          if (existing) existing.state = 'rolled';
-          else put({ id: a, name: known.name }, 'rolled');
+      // Only the tags going *on* are rolled up. An ancestor of something the target
+      // already carries is that plugin's business on the next save, not this paste's.
+      var liveIds = live.map(function (r) { return r.key; }), onList = {};
+      liveIds.forEach(function (id) { onList[id] = true; });
+      var up = _npt.plan({ mode: 'rollup', tagIds: liveIds, entityType: self.type }) ||
+        { implied: {}, 'protected': {} };
+      for (var a in up.implied) {
+        if (!hasOwn(up.implied, a) || onList[a]) continue;
+        var known = _graph.byId[a];
+        if (!known) continue;
+        var existing = byId[a];
+        // An ancestor the entity already carries reads as already-there, whether it
+        // was in the bundle or is only on this list because Roll Up reached it:
+        // already-on-target wins over rolled-up, and it is the truer of the two -
+        // Roll Up has nothing to add where the tag is already on. It wins over
+        // protected too, which is why this is decided here rather than read off the
+        // plan: that plugin has no way of knowing what the target already holds.
+        if (haveMap[a]) { if (!existing) put({ id: a, name: known.name }, 'have'); continue; }
+        var block = up['protected'][a];
+        if (block) {
+          // Protected from being added: it is not rolled up, and if it is not in the
+          // bundle it is not listed at all - a row for a tag nothing will do anything
+          // with is noise.
+          if (existing) existing.protect = NPT_NAME + ' never adds this tag (' + block +
+            '), so Roll Up leaves it out.';
+          continue;
         }
-      });
+        // Roll Up overrides an unticked box on purpose: the ancestor is implied by
+        // a tag that *is* going on, so leaving it out would not honour the mode.
+        if (existing) existing.state = 'rolled';
+        else put({ id: a, name: known.name }, 'rolled');
+      }
     }
 
     // The user's order: what you can still change first (on, then off), then what was

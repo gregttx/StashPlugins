@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '3.1.0';
+  var PLUGIN_VERSION = '3.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -188,6 +188,7 @@
     if (!c.leases) c.leases = [];
     if (!c.respecters) c.respecters = {};
     if (!c.declares) c.declares = {};
+    if (!c.api) c.api = {};
     return c;
   }
 
@@ -216,6 +217,91 @@
   // auto mode is enabled, is deliberate: the flag says this copy honours the
   // protocol, which is true whatever the settings happen to be.
   coop().respecters[PLUGIN_ID] = true;
+
+  // ── The API this plugin publishes ─────────────────────────────────────────
+  //
+  // Prune and Roll Up are this plugin's operations, and another plugin offering them
+  // has two ways to do it: copy the rules, or call the plugin that owns them. The
+  // first was tried - `TagBundleClipboard` mirrored the tag-exclusion filters
+  // byte-for-byte - and it has the failure a copy always has: a filter added here is
+  // silently not applied there, and the copy cannot even know it is out of date.
+  //
+  // So this is the second. It is deliberately small and deliberately shaped to
+  // outlive its own settings:
+  //
+  //   - **`autoMode` is a question, not a setting.** A caller asks what will happen
+  //     automatically when Stash saves an entity of a given type, and gets 'prune',
+  //     'rollup' or null. Today that is `a8`/`a9` scoped by the type's `aN` toggle;
+  //     if this plugin ever splits those into a mode per type, every caller keeps
+  //     working and nothing about the API changes. A caller reading the settings
+  //     itself would break on that day, which is the whole argument.
+  //   - **Every call takes one options object**, so a field can be added without a
+  //     new signature. `entityType` is taken by both calls, and `plan` takes
+  //     `typeFilter` to apply the per-type toggle to the plan as well - which no
+  //     caller wants today (a hand-picked list is not an entity update) and which
+  //     costs nothing to have ready.
+  //   - **`version` is a floor, not a handshake.** Callers should feature-detect the
+  //     function they want; the number is for a log line telling a user what to
+  //     upgrade.
+  //
+  // What it deliberately does *not* do: the entity-level exclusions (`b1`, `b2`).
+  // There is no entity here - a caller passes tag ids, not something Organized can be
+  // true of - and inventing an answer would be worse than leaving the question to the
+  // caller, which is the one side that knows what it is looking at.
+  var API_VERSION = 1;
+
+  // Accepts this plugin's own key ('scenes'), or the singular a caller is more likely
+  // to have ('scene'). Two vocabularies meeting is not a thing to be strict about.
+  function apiType(name) {
+    var want = String(name || '').toLowerCase();
+    for (var i = 0; i < TYPES.length; i++) {
+      var t = TYPES[i];
+      if (t.key === want || t.label.toLowerCase() === want ||
+          t.plural.toLowerCase() === want) return t;
+    }
+    return null;
+  }
+
+  // Resolves to a bound planner rather than answering one question, because a caller
+  // drawing a list re-plans on every tick as the user changes what is selected. The
+  // settings and the hierarchy are read once, here, and the returned `plan` is
+  // synchronous - a checkbox that had to await a round trip would be worse than no
+  // feature at all. Both reads are this plugin's own auto-mode caches, so a page with
+  // auto mode running pays nothing extra.
+  function apiPrepare(opts) {
+    var o = opts || {};
+    var type = apiType(o.entityType);
+    var settings = null;
+    return autoSettings().then(function (s) {
+      settings = s;
+      return autoGraph(s);
+    }).then(function (graph) {
+      var filters = makeFilters(settings, graph);
+      var includes = !!(type && settings[type.setting]);
+      var ctx = { settings: settings, graph: graph, filters: filters };
+      return {
+        version: API_VERSION,
+        entityType: type ? type.key : null,
+        includesType: includes,
+        // Null where nothing happens on its own: either no mode is on, both are (this
+        // plugin's own no-op), or this type is not one it touches.
+        autoMode: includes ? autoMode(settings) : null,
+        plan: function (req) {
+          var r = req || {};
+          if (r.typeFilter && !includes) return null;
+          var mode = r.mode === 'prune' ? 'prune'
+            : (r.mode === 'rollup' || r.mode === 'rollUp' ? 'rollup' : null);
+          if (!mode) return null;
+          var ids = (r.tagIds || []).map(String);
+          var present = {};
+          ids.forEach(function (id) { present[id] = true; });
+          return planTagSet(ids, present, mode, ctx);
+        },
+      };
+    });
+  }
+
+  coop().api[PLUGIN_ID] = { version: API_VERSION, prepare: apiPrepare };
 
   var _standDownAnnounced = false;
   function autoSuppressed() {
@@ -711,21 +797,20 @@
   // Returns { add: [], remove: [], reason: {} } - both lists may be empty. `mode`
   // is 'prune' or 'rollup'; only one direction is ever populated. `reason` maps
   // each tag being written to the present tag that implies it.
-  function planEntity(type, ent, mode, ctx) {
-    var s = ctx.settings;
-    if (s.b2ExcludeOrganized && type.organized && ent.organized) return null;
-
-    var tagIds = (ent.tags || []).map(function (t) { return t.id; });
-
-    // A marker's primary tag lives in its own required field. It counts as present -
-    // so it can imply the removal of its own ancestors from the marker's tag list -
-    // but it is never itself added or removed.
-    var present = {};
-    tagIds.forEach(function (id) { present[id] = true; });
-    if (type.key === 'markers' && ent.primary_tag) present[ent.primary_tag.id] = true;
-
-    if (ctx.excludeTagId && present[ctx.excludeTagId]) return null;
-
+  // The planner proper, over a bare set of tag ids rather than an entity. Split out
+  // of `planEntity` when the API below needed the same answer for a tag list that is
+  // not on anything yet - a second copy of these rules living beside this one is the
+  // exact drift the API exists to stop.
+  //
+  // `candidates` is the removable list, in the order the caller wants them reported;
+  // `present` is everything that counts as being there. They differ for a marker,
+  // whose primary tag counts as present - so it can imply the removal of its own
+  // ancestors from the marker's other tags - but is never itself added or removed.
+  //
+  // Always returns a full record, including what it declined to touch and why: the
+  // scan wants "is there anything to do", a caller drawing a list wants to explain a
+  // tag it is leaving alone, and only one of those can be expressed as `null`.
+  function planTagSet(candidates, present, mode, ctx) {
     // Maps an implied tag to the present tag that implies it, rather than to a
     // bare `true`: that tag is the "due to" in the log, and it is what makes a
     // planned change explainable without the reader rebuilding the hierarchy in
@@ -741,28 +826,55 @@
       }
     }
 
+    var out = { add: [], remove: [], protected: {}, implied: implied, reason: {} };
+
     if (mode === 'prune') {
-      // Computed against the entity's original tag set, never against a set being
-      // mutated as the loop runs: ancestry belongs to the tag graph, not to the
-      // entity, so the result does not depend on the order tags are visited.
-      var remove = tagIds.filter(function (tid) {
-        return hasOwn(implied, tid) && ctx.filters.canRemove(tid);
+      // Computed against the original tag set, never against a set being mutated as
+      // the loop runs: ancestry belongs to the tag graph, not to the entity, so the
+      // result does not depend on the order tags are visited.
+      candidates.forEach(function (tid) {
+        if (!hasOwn(implied, tid)) return;
+        var why = ctx.filters.protections(tid).remove;
+        if (why) { out.protected[tid] = why; return; }
+        out.remove.push(tid);
       });
       // The tag named as the reason is never itself removed here: anything that
       // implied it would be a strictly lower candidate for the same ancestor, and
       // would have won. So a Prune line always points at a tag that survives.
-      return remove.length ? { add: [], remove: remove, reason: reasonsFor(implied, remove) } : null;
+      out.reason = reasonsFor(implied, out.remove);
+      return out;
     }
 
-    var add = [];
     for (k in implied) {
       if (!hasOwn(implied, k)) continue;
       if (hasOwn(present, k)) continue;
       // A tag the filters reject is skipped on its own; its parents are still
       // added. The filters describe a tag, not a wall in the hierarchy.
-      if (ctx.filters.canAdd(k)) add.push(k);
+      var w = ctx.filters.protections(k).add;
+      if (w) { out.protected[k] = w; continue; }
+      out.add.push(k);
     }
-    return add.length ? { add: add, remove: [], reason: reasonsFor(implied, add) } : null;
+    out.reason = reasonsFor(implied, out.add);
+    return out;
+  }
+
+  function planEntity(type, ent, mode, ctx) {
+    var s = ctx.settings;
+    if (s.b2ExcludeOrganized && type.organized && ent.organized) return null;
+
+    var tagIds = (ent.tags || []).map(function (t) { return t.id; });
+
+    var present = {};
+    tagIds.forEach(function (id) { present[id] = true; });
+    if (type.key === 'markers' && ent.primary_tag) present[ent.primary_tag.id] = true;
+
+    if (ctx.excludeTagId && present[ctx.excludeTagId]) return null;
+
+    var p = planTagSet(tagIds, present, mode, ctx);
+    if (mode === 'prune') {
+      return p.remove.length ? { add: [], remove: p.remove, reason: p.reason } : null;
+    }
+    return p.add.length ? { add: p.add, remove: [], reason: p.reason } : null;
   }
 
   function entityQuery(type, withSort) {

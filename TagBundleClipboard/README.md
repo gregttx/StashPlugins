@@ -99,6 +99,15 @@ entities you did not mean it to touch, and you opened this dialog on this entity
 The choice needs the tag hierarchy, which is read once per page. If that read fails, both modes are
 held unavailable and the dialog says so.
 
+Its settings are re-read every few seconds, so changing an exclusion in another tab reaches an open
+page shortly afterwards without a reload — and the hierarchy is refetched with them if the change is
+one that alters what has to be read about each tag. What does *not* travel that way is a newer
+version of that plugin: an exclusion rule this one has never heard of cannot be applied, because the
+setting's name arrives over the wire and what it excludes lives in that plugin's code. So the dialog
+says so instead — it names any tag rule it does not recognise, and you can update this plugin or
+leave the dropdown at *leave as they are*. A rule left at its default is silent, since it excludes
+nothing either way.
+
 ## What is not offered
 
 **Tags** and **Scene Markers**, and both absences are deliberate:
@@ -122,7 +131,13 @@ action row there. It is teal, because it only reads.
 
 **📋Tags…** goes in the edit form's button row, between Save and Delete. It is amber, the colour
 every plugin here uses for a control that changes something — in this case the form, not the
-library. The trailing "…" is this repo's convention for a button that asks before it acts.
+library. The trailing "…" is this repo's convention for a button that asks before it acts. **Add**
+in the dialog wears the same amber, and so does the redundancy dropdown beside it once it is set to
+Prune or Roll Up: that is the press, and the control deciding what the press covers.
+
+Both captions are an icon and a noun, which only says what the button is about to somebody who
+already knows. **Hover either one**: its title opens with the words the caption gave up — *Copy
+Tags*, *Paste Tags* — and then explains what pressing it does.
 
 If another of these plugins is installed, its buttons and these share the row in a fixed order
 rather than whichever loaded first.

@@ -923,6 +923,99 @@ const btn = (body, label) => body.descendants()
       btn(env.body, 'Undo').disabled === true);
   }
 
+  // ── What the captions gave up, and what the colour says ───────────────────
+
+  {
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/42' });
+    detailNavbar(env.body);
+    await openDialog(env, []);
+    // Both captions are a pictogram and a noun, which says what the button is about
+    // only to someone who already knows. The words they dropped lead the title.
+    h.check('the copy button spells its caption out on the first line of its title',
+      btn(env.body, '⮺ Tags').title.indexOf('Copy Tags\n\n') === 0,
+      JSON.stringify(btn(env.body, '⮺ Tags').title));
+    h.check('and the paste button the same, without the caption’s dots',
+      btn(env.body, '📋Tags...').title.indexOf('Paste Tags\n\n') === 0,
+      JSON.stringify(btn(env.body, '📋Tags...').title));
+    // Amber is this repo's "a plugin wrote this": Add changes the form behind the
+    // dialog, and it is the same colour as the button that opened it.
+    h.check('Add wears the same amber as the button that opened the dialog',
+      h.hasClass(btn(env.body, 'Add 3 tags'), 'btn-warning') &&
+        h.hasClass(btn(env.body, '📋Tags...'), 'btn-warning'),
+      btn(env.body, 'Add 3 tags').className);
+    h.check('while the copy button, which only reads, stays teal',
+      h.hasClass(btn(env.body, '⮺ Tags'), 'btn-info'),
+      btn(env.body, '⮺ Tags').className);
+  }
+
+  {
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true });
+    await openDialog(env, []);
+    await h.flush();
+    h.check('the mode select is plain while it is leaving things alone',
+      !h.hasClass(modeSel(env), 'tbc-mode-on'), modeSel(env).className);
+    await setMode(env, 'prune');
+    h.check('and goes amber once it is deciding what the press adds or drops',
+      h.hasClass(modeSel(env), 'tbc-mode-on'), modeSel(env).className);
+    await setMode(env, 'asis');
+    h.check('and back again', !h.hasClass(modeSel(env), 'tbc-mode-on'),
+      modeSel(env).className);
+  }
+
+  // ── The sibling's settings can move under a cached hierarchy ──────────────
+
+  {
+    // Changed in another tab, so nothing here saw the edit: the settings are re-read
+    // on a timer, and the hierarchy has to be dropped with them. One of those settings
+    // decides whether `custom_fields` was asked for at all, so a graph fetched under
+    // the old answer cannot be filtered under the new one.
+    const opts = { storage: { [KEY]: CHAIN }, pathname: '/scenes/42', npt: true,
+      nptSettings: {} };
+    const env = start(opts);
+    detailNavbar(env.body);
+    await openDialog(env, []);
+    await h.flush();
+    btn(env.body, 'Close').click();
+    const queries = () => env.calls.filter((c) => /TBCTagGraph/.test(c.query || ''));
+    h.check('the hierarchy is fetched once and cached',
+      queries().length === 1 && !/custom_fields/.test(queries()[0].query),
+      queries().map((c) => c.query).join(' | '));
+
+    opts.nptSettings = { c5ExcludeAddTagWithCustomFieldName: 'keep' };
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow.call(Date) + 60000;   // past SETTINGS_TTL_MS
+      btn(env.body, '⮺ Tags').click();               // any path that reads the settings
+      await h.flush();
+      btn(env.body, '📋Tags...').click();
+      await h.flush();
+    } finally {
+      Date.now = realNow;
+    }
+    h.check('a settings change drops it, and the refetch asks for the new field',
+      queries().length === 2 && /custom_fields/.test(queries()[1].query),
+      queries().map((c) => c.query).join(' | '));
+  }
+
+  {
+    // A newer NormalizeParentTags can carry a tag rule this file has never heard of,
+    // and there is nothing generic to fall back on: the name arrives in the settings
+    // response, what it excludes lives in that plugin's code. Saying so is the honest
+    // answer; pruning a tag it protects is not.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
+      nptSettings: { c7ExcludeSomethingNew: 'x', c8Unset: '',
+        c2ExcludeAddTagNameContains: 'Hair', a1EnablePerformers: true } });
+    await openDialog(env, []);
+    await h.flush();
+    const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
+    h.check('an exclusion rule this version does not know is named rather than ignored',
+      /c7ExcludeSomethingNew/.test(lines) && /does not know/.test(lines), lines);
+    h.check('and a rule left at its default is not, since it excludes nothing',
+      !/c8Unset/.test(lines) && !/a1EnablePerformers/.test(lines), lines);
+    h.check('nor is one this file does mirror',
+      !/c2ExcludeAddTagNameContains/.test(lines) && / 1 tag rule /.test(lines), lines);
+  }
+
   // ── The property the whole design rests on ────────────────────────────────
 
   {

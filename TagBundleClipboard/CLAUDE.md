@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.2.0.** Two live passes in, and most of the guesses held — §11 records
+**Status: partly verified. 0.3.0.** Three live passes in, and most of the guesses held — §11 records
 what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
 empty, and the major digit is the claim that the whole thing works.
 
@@ -17,6 +17,7 @@ empty, and the major digit is the claim that the whole thing works.
 | 4 | The `debugButtons` channel, README, `tests/tagclip.test.js` | 0.0.1 |
 | 5 | First live pass: icon captions, the settings-type fix, the tag hierarchy, Prune/Roll Up, the tag hover, column layout, Undo | 0.1.0 |
 | 6 | Second live pass: the column overrun, the caption's dots back, and Prune/Roll Up gated on `NormalizeParentTags` and obeying its tag exclusions | 0.2.0 |
+| 7 | Third live pass: the captions' words moved into the titles, amber on Add and on an armed mode, and the two questions about the sibling's settings answered in code | 0.3.0 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over
@@ -187,6 +188,21 @@ reads; Paste changes the form, which is what the siblings' amber staging buttons
 It also does something worth keeping: it tells the user at a glance which of the two is the safe
 one. Do not harmonise them for symmetry.
 
+**The rule carries into the dialog.** `Add` is amber — it is the press that changes the form, so
+grey would have made it the one control here that understates itself, sitting among Copy log, Undo
+and Close as though it were their equal. The **mode select beside it goes amber too, but only while
+it is set to Prune or Roll Up**: as-is is the answer nobody has to think about, and colouring it
+would say a decision had been taken where none had. A `<select>` has no Bootstrap variant to borrow,
+so `.tbc-mode-on` writes the colour — the same `#ffb648` the rolled-up rows already wear, which is
+what makes the connection between the control and what it does to the list.
+
+**The two titles carry the words the captions gave up.** An icon says what a button is *about* only
+to somebody who already knows; `⮺ Tags` and `📋Tags...` are both an icon and a noun, and neither
+says "copy" or "paste" anywhere on the page. So each title opens with the caption spelled out on its
+own line — `Copy Tags`, `Paste Tags` — and the sentence follows underneath, the same heading-then-
+detail shape `tagTitle` uses for a tag row. The dots come off in the title, per the repo rule: they
+are what a *caption* promises, not part of the name.
+
 The **settings** toggles follow the same rule and land on one colour: the console switch is teal like
 every sibling's, and the bundle limit keeps Stash's blue, because it chooses what the clipboard
 *holds* rather than starting anything. `tests/style.test.js` checks that every `#plugin-<id>-<key>`
@@ -302,6 +318,34 @@ hierarchy query has to wait for it (`settingsReady`), because whether to ask for
 a map per tag, over the whole library — depends on whether either of its custom-field filters names
 a key. Same conditional, same reason, as that plugin's own `tagQuery`.
 
+**When the sibling's settings change, and what that invalidates.** They are re-read on the same
+`SETTINGS_TTL_MS` timer as our own — one query answers for both — so an exclusion edited in another
+tab reaches an open page within ten seconds, with no listener and no reload. The cached hierarchy is
+the part that needed thinking about, and the answer is smaller than the first attempt at it:
+
+- **Only one setting can invalidate the graph**, and it is not any of the rules. `custom_fields`
+  is asked for or not; every other filter reads the same tags through the same fields, so a graph
+  fetched before the change is still the right graph after it.
+- So the cache is **keyed on the query it came from** (`_graph.q === tagGraphQuery()`) rather than
+  invalidated when the settings move. That was the second design: the first watched the settings,
+  dropped the graph on any difference, and then needed a generation counter so a fetch already in
+  flight could not resolve and reinstate the graph it had asked for under the old answer. Comparing
+  the query has no race to guard — a graph of the wrong shape simply is not a hit — and it stops
+  refetching the whole tag table because a name filter gained a comma.
+
+**A newer sibling is a different question, and the honest answer is to say so.** An exclusion rule
+this file has never heard of cannot be applied: the setting's *name* arrives in the settings
+response, but what it excludes lives in that plugin's code, and there is nothing generic to fall
+back on. Silently pruning a tag it would have protected is the failure to avoid, so `nptUnknownRules`
+names it instead — a `c`-prefixed key (its own grouping for tag exclusions: `a` covers what a run
+covers, `b` entity exclusions, `c` tag exclusions) that is not one of the six mirrored here, **and
+that the user has actually set**. A rule left at its default excludes nothing in either plugin, so
+reporting it would be noise. The result is one WARN line in the dialog log naming the keys.
+
+That is a detector, not a mitigation: the modes stay available and the rule stays unapplied. Holding
+them shut on an unknown key would break a working page on the strength of a setting nobody may have
+meant to use, and the user is the one who can read what the new rule does.
+
 ## 8c. Five states, two axes, one `accent-color`
 
 *Ticked* says whether the tag ends up on the entity; *colour* says who decided. Blue is the only
@@ -393,6 +437,11 @@ custom-field filter reading a *value* rather than presence, the `ignore_auto_tag
 term separator ignored, `custom_fields` asked for unconditionally, and — for the column overrun,
 which no harness here can lay out — each half of the CSS fix and the class on the element.
 
+From the 0.3.0 pass, seven: each title's leading line removed, `Add`'s amber dropped, the mode
+select left plain while armed, the graph cache keyed on nothing (so a `custom_fields` change is not
+refetched), the unknown-rule scan returning nothing, it reporting a rule left at its default, and it
+reporting one of the six this file does mirror.
+
 **The one that did not fail is the one worth remembering.** A Prune walking a single edge passed
 every check, because the fixture chain was fully populated in the bundle — one edge and the closure
 prune the same three rows there. It took a bundle with a *gap* in the chain to tell them apart
@@ -431,6 +480,18 @@ Shorter than it was — §11 is what emptied most of it. What is left:
 ## 11. What the live passes settled
 
 Both on 2026-08-18, against the user's own Stash.
+
+### Third pass (0.3.0)
+
+- **The captions' words moved into the titles**, and `Add` and an armed mode select went amber
+  (§6). Both are the same observation from a live page: the two buttons say what they are about
+  with a pictogram and say nothing about what they do, and the one control in the dialog that
+  changes anything looked like the four beside it that do not.
+- **Two questions rather than defects, and both were worth answering in code** — what happens when
+  the sibling's exclusions change in another tab, and what happens when a newer version of it adds
+  a rule this file does not know. §8b² has both answers. The second is the one that could have been
+  left as prose and should not have been: a plugin that borrows another's rules and silently
+  applies a subset of them is exactly the failure the gating in the 0.2.0 pass was for.
 
 ### Second pass (0.2.0)
 

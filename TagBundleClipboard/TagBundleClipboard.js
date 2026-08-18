@@ -36,7 +36,7 @@
   // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
   // live Stash: the major digit is the claim that the thing works, and no test in this
   // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.2.0';
+  var PLUGIN_VERSION = '0.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -460,13 +460,22 @@
   }
 
   function loadTagGraph() {
-    if (_graph) return Promise.resolve(_graph);
+    // Cached for the life of the page, and keyed on the query it came from. The
+    // sibling's settings are re-read on the same timer as our own, so a change made in
+    // another tab lands here within SETTINGS_TTL_MS - but only one of those settings
+    // can invalidate this: whether `custom_fields` was asked for at all. Every other
+    // rule filters the same tags with the same fields, so a graph fetched before the
+    // change is still the right graph after it. Comparing the query rather than
+    // watching the settings means there is nothing to invalidate and no race with a
+    // fetch already in flight: a graph of the wrong shape simply is not a hit.
+    if (_graph && _graph.q === tagGraphQuery()) return Promise.resolve(_graph);
     if (_graphWait) return _graphWait;
     // Behind the settings, not beside them: the query's own shape depends on the
     // sibling's settings, which arrive in our settings response. One extra await on a
     // dialog open, and no second query.
+    var q = null;
     _graphWait = settingsReady()
-      .then(function () { return gqlRequest(tagGraphQuery(), null); })
+      .then(function () { q = tagGraphQuery(); return gqlRequest(q, null); })
       .then(function (data) {
         var tags = ((data.findTags || {}).tags) || [];
         var byId = {}, children = {};
@@ -480,7 +489,7 @@
           });
         });
         _graphWait = null;
-        _graph = { byId: byId, children: children };
+        _graph = { byId: byId, children: children, q: q };
         return _graph;
       }, function () { _graphWait = null; return null; });
     return _graphWait;
@@ -587,6 +596,32 @@
   var _nptSettings = null;   // its raw settings block, from our own settings query
 
   function nptPresent() { return !!coop().respecters[NPT_ID]; }
+
+  // The six tag-exclusion settings this file mirrors. NormalizeParentTags groups its
+  // settings by prefix - `a` for what a run covers, `b` for entity exclusions, `c` for
+  // tag exclusions - and every `c` key it has today is in this list.
+  var NPT_TAG_RULES = {
+    c1ExcludeTagWithIgnoreAutoTag: true, c2ExcludeAddTagNameContains: true,
+    c3ExcludeRemoveTagNameContains: true, c4TagNameSeparator: true,
+    c5ExcludeAddTagWithCustomFieldName: true, c6ExcludeRemoveTagWithCustomFieldName: true,
+  };
+
+  // A rule this file has never heard of cannot be applied, and there is nothing
+  // generic to fall back on: a setting's *name* arrives in the settings response, but
+  // what it excludes lives in the sibling's code. So the honest answer to a newer
+  // NormalizeParentTags is to say so rather than to quietly prune a tag it protects -
+  // a `c` key we do not know, and that the user has actually set, is that signal.
+  // Anything left at its default is silent, since an unconfigured rule excludes
+  // nothing in either plugin.
+  function nptUnknownRules() {
+    var s = _nptSettings || {}, out = [];
+    for (var k in s) {
+      if (!hasOwn(s, k) || k.charAt(0) !== 'c' || hasOwn(NPT_TAG_RULES, k)) continue;
+      var v = s[k];
+      if (v === true || (typeof v === 'string' && v.trim())) out.push(k);
+    }
+    return out.sort();
+  }
 
   // Whether either custom-field filter is set, which is what decides if the hierarchy
   // query has to pay for `custom_fields` on every tag. Conditional for the reason
@@ -797,6 +832,11 @@
     // one press covers, the same place CustomFieldsBulkEditor puts its "Apply to".
     '.tbc-mode{background:#30404d;color:#f5f8fa;border:1px solid #394b59;' +
     'border-radius:3px;padding:.15rem .35rem;font-size:.85rem;max-width:100%;}' +
+    // Amber while it is set to something, the same amber the rolled-up rows wear
+    // and the same rule the repo's buttons follow: this is the control that makes
+    // the press add or drop a tag the bundle did not name. A <select> has no
+    // Bootstrap variant to borrow, so the colour has to be written.
+    '.tbc-mode-on{border-color:#ffb648;color:#ffb648;}' +
     // Stash's own .sub-heading is white-space: normal, so this plugin's description
     // would collapse into one paragraph. Scoped to the group we marked, never to
     // .sub-heading at large: another plugin's description is not ours to reflow.
@@ -1130,6 +1170,15 @@
       } else if (!nptPresent()) {
         self.log('INFO', 'Prune and Roll Up are not offered: they are ' + NPT_NAME +
           '’s operations, and it is not running on this page.');
+      } else {
+        var unknown = nptUnknownRules();
+        if (unknown.length) {
+          self.log('WARN', NPT_NAME + ' has ' + plural(unknown.length, 'tag rule') +
+            ' this version of ' + PLUGIN_SHORT_NAME + ' does not know (' +
+            unknown.join(', ') + '), so Prune and Roll Up will not apply ' +
+            (unknown.length > 1 ? 'them' : 'it') + '. Update this plugin, or check ' +
+            'what they add before using either mode.');
+        }
       }
       self.render();
     });
@@ -1186,7 +1235,10 @@
     // Add leads, matching the four plugins' harmonised footer order. The caption is
     // **Add**, not the siblings' Proceed, for the reason CustomFieldsBulkEditor says
     // Apply: there is no plan above to proceed with - the press is the whole action.
+    // Amber, not the footer's grey: it is the press that changes the form behind the
+    // dialog, and it is the same colour as the button that opened it.
     this.addBtn = button('Add');
+    this.addBtn.className = 'btn ' + PASTE_BTN_VARIANT + ' btn-sm';
     this.addBtn.addEventListener('click', function () { self.add(); });
     // Beside Add, because it is the control deciding what one press covers - the same
     // place and the same reason as CustomFieldsBulkEditor's "Apply to".
@@ -1337,7 +1389,8 @@
     this.modeSel.value = _mode;
     // Hidden rather than disabled where the sibling is absent: a one-option select is
     // noise, and the log line below is what answers "where did Prune go".
-    this.modeSel.className = 'tbc-mode' + (nptPresent() ? '' : ' tbc-hidden');
+    this.modeSel.className = 'tbc-mode' + (nptPresent() ? '' : ' tbc-hidden') +
+      (redundancyOffered() && _mode !== MODE_ASIS ? ' tbc-mode-on' : '');
     this.modeSel.disabled = !redundancyOffered();
     this._counts = { bundles: bundles.length, noForm: !!bundle && have === null };
     this.updateCounts();
@@ -2328,15 +2381,20 @@
     openPaste(rt.type, rt.id, e.label + ' ' + rt.id);
   }
 
+  // Both titles open with the words the caption gave up when it took an icon. A
+  // pictogram says what a button is about only to someone who already knows; the
+  // title is where that is spelled out, and it belongs on the first line rather than
+  // buried in the sentence. The same shape as `tagTitle`: a heading, then the detail.
   function copyTitle() {
-    return 'Put every tag on this entity onto the clipboard as one bundle, ready to ' +
-      'paste onto another entity. Nothing is written and nothing is removed.';
+    return 'Copy Tags\n\nPut every tag on this entity onto the clipboard as one ' +
+      'bundle, ready to paste onto another entity. Nothing is written and nothing ' +
+      'is removed.';
   }
 
   function pasteTitle() {
-    return 'Pick a bundle from the clipboard and choose which of its tags to add to ' +
-      'the tag box on this form. Tags already here cannot be picked, and Stash’s ' +
-      'own Save is what commits what you add.';
+    return 'Paste Tags\n\nPick a bundle from the clipboard and choose which of its ' +
+      'tags to add to the tag box on this form. Tags already here cannot be picked, ' +
+      'and Stash’s own Save is what commits what you add.';
   }
 
   // Reconciliation, not tracking: React can tear down and rebuild these rows on a

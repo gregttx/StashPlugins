@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '2.1.0';
+  var PLUGIN_VERSION = '2.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -226,31 +226,31 @@
     // Stage 1 - performer assignments, before anything reads performers.
     { id: 'performers:image>gallery', kind: 'performers', stage: 1, hops: 1,
       setting: 'c2PerformersImagesToGalleries', target: 'gallery', sourceType: 'image',
-      source: 'Images', button: 'Copy all Perfs from all Images',
+      source: 'Images', button: 'Add all Perfs from all Images',
       reverse: { backRef: 'galleries' } },
     { id: 'performers:gallery>scene', kind: 'performers', stage: 1, hops: 1,
       setting: 'b5PerformersGalleriesToScenes', target: 'scene', sourceType: 'gallery',
-      source: 'Galleries', button: 'Copy all Perfs from all Galleries',
+      source: 'Galleries', button: 'Add all Perfs from all Galleries',
       walk: ['galleries'] },
 
     // Stage 2 - tags onto scenes.
     { id: 'tags:marker>scene', kind: 'tags', stage: 2, hops: 1,
       setting: 'b3TagsMarkersToScenes', target: 'scene', sourceType: 'marker',
-      source: 'Markers', button: 'Copy all Tags from all Markers',
+      source: 'Markers', button: 'Add all Tags from all Markers',
       walk: ['scene_markers'], markerTags: true },
     { id: 'tags:performer>scene', kind: 'tags', stage: 2, hops: 1,
       setting: 'b1TagsPerformersToScenes', target: 'scene', sourceType: 'performer',
-      source: 'Performers', button: 'Copy all Tags from all Performers',
+      source: 'Performers', button: 'Add all Tags from all Performers',
       walk: ['performers'] },
     { id: 'tags:studio>scene', kind: 'tags', stage: 2, hops: 1,
       setting: 'b2TagsStudioToScenes', target: 'scene', sourceType: 'studio',
-      source: 'Studio', button: 'Copy Tags from Studio',
+      source: 'Studio', button: 'Add Tags from Studio',
       walk: ['studio'] },
 
     // Stage 3 - tags onto galleries.
     { id: 'tags:image>gallery', kind: 'tags', stage: 3, hops: 1,
       setting: 'c1TagsImagesToGalleries', target: 'gallery', sourceType: 'image',
-      source: 'Images', button: 'Copy all Tags from all Images',
+      source: 'Images', button: 'Add all Tags from all Images',
       pair: 'tags:gallery>image',
       reverse: { backRef: 'galleries' } },
 
@@ -258,27 +258,27 @@
     // own, so those two are two-hop traversals through its scenes.
     { id: 'tags:scene>group', kind: 'tags', stage: 4, hops: 1,
       setting: 'e1TagsScenesToGroups', target: 'group', sourceType: 'scene',
-      source: 'Scenes', button: 'Copy {mode} Tags from all Scenes',
+      source: 'Scenes', button: 'Add {mode} Tags from all Scenes',
       mode: 'e2TagsScenesToGroupsCommonOnly', pair: 'tags:group>scene',
       walk: ['scenes'] },
     { id: 'tags:studio>group', kind: 'tags', stage: 4, hops: 1,
       setting: 'e3TagsStudioToGroups', target: 'group', sourceType: 'studio',
-      source: 'Studio', button: 'Copy Tags from Studio',
+      source: 'Studio', button: 'Add Tags from Studio',
       walk: ['studio'] },
     { id: 'tags:performer>group', kind: 'tags', stage: 4, hops: 2,
       setting: 'e4TagsPerformersToGroups', target: 'group', sourceType: 'performer',
-      source: 'Performers', button: 'Copy all Tags from all Performers',
+      source: 'Performers', button: 'Add all Tags from all Performers',
       walk: ['scenes', 'performers'] },
     { id: 'tags:marker>group', kind: 'tags', stage: 4, hops: 2,
       setting: 'e5TagsMarkersToGroups', target: 'group', sourceType: 'marker',
-      source: 'Markers', button: 'Copy all Tags from all Markers',
+      source: 'Markers', button: 'Add all Tags from all Markers',
       walk: ['scenes', 'scene_markers'], markerTags: true },
 
     // Stage 5 - sub-groups roll up into their containing group. Group.sub_groups is
     // a list of GroupDescription, not of Group, hence the `group` step.
     { id: 'tags:subgroup>group', kind: 'tags', stage: 5, hops: 1,
       setting: 'e6TagsSubGroupsToGroups', target: 'group', sourceType: 'group',
-      source: 'Sub-groups', button: 'Copy {mode} Tags from all Sub-groups',
+      source: 'Sub-groups', button: 'Add {mode} Tags from all Sub-groups',
       mode: 'e7TagsSubGroupsToGroupsCommonOnly',
       walk: ['sub_groups', 'group'] },
 
@@ -287,12 +287,12 @@
     // cooldown above exists; see CLAUDE.md.
     { id: 'tags:group>scene', kind: 'tags', stage: 6, hops: 1,
       setting: 'b4TagsGroupsToScenes', target: 'scene', sourceType: 'group',
-      source: 'Groups', button: 'Copy all Tags from all Groups',
+      source: 'Groups', button: 'Add all Tags from all Groups',
       pair: 'tags:scene>group',
       walk: ['groups', 'group'] },
     { id: 'tags:gallery>image', kind: 'tags', stage: 6, hops: 1,
       setting: 'd1TagsGalleriesToImages', target: 'image', sourceType: 'gallery',
-      source: 'Galleries', button: 'Copy all Tags from all Galleries',
+      source: 'Galleries', button: 'Add all Tags from all Galleries',
       pair: 'tags:image>gallery',
       walk: ['galleries'] },
   ];
@@ -3837,7 +3837,7 @@
   // the caption names one source, and the setting description promises "one button per
   // path". `runManualSource` had this right from the start and carries the same note;
   // this side did not, so on a scene with both the performer and studio paths enabled,
-  // "Copy all Tags from all Performers" also copied the studio's tags. It also made
+  // "Add all Tags from all Performers" also copied the studio's tags. It also made
   // this plugin's button silently wider than `MergePerformerTagsToScenes`' identically
   // labelled one, which copies performer tags and nothing else.
   //
@@ -4646,17 +4646,17 @@
   // short tables. A path missing here gets no source button - both marker paths, on
   // purpose (see above).
   var SOURCE_BUTTON_LABELS = {
-    'tags:performer>scene': 'Copy Tags to all Scenes',
-    'tags:performer>group': 'Copy Tags to all Groups',
-    'tags:studio>scene': 'Copy Tags to all Scenes',
-    'tags:studio>group': 'Copy Tags to all Groups',
-    'tags:scene>group': 'Copy {mode} Tags to all Groups from their Scenes',
-    'performers:gallery>scene': 'Copy Perfs to all Scenes',
-    'tags:gallery>image': 'Copy Tags to all Images',
-    'performers:image>gallery': 'Copy Perfs to all Galleries',
-    'tags:image>gallery': 'Copy Tags to all Galleries',
-    'tags:group>scene': 'Copy Tags to all Scenes',
-    'tags:subgroup>group': 'Copy {mode} Tags to all Containing Groups from their Sub-groups',
+    'tags:performer>scene': 'Add Tags to all Scenes',
+    'tags:performer>group': 'Add Tags to all Groups',
+    'tags:studio>scene': 'Add Tags to all Scenes',
+    'tags:studio>group': 'Add Tags to all Groups',
+    'tags:scene>group': 'Add {mode} Tags to all Groups from their Scenes',
+    'performers:gallery>scene': 'Add Perfs to all Scenes',
+    'tags:gallery>image': 'Add Tags to all Images',
+    'performers:image>gallery': 'Add Perfs to all Galleries',
+    'tags:image>gallery': 'Add Tags to all Galleries',
+    'tags:group>scene': 'Add Tags to all Scenes',
+    'tags:subgroup>group': 'Add {mode} Tags to all Containing Groups from their Sub-groups',
   };
 
   function sourceButtonLabel(path, s) {
@@ -4763,7 +4763,7 @@
 
   // Whether the tab showing this path's *targets* is the one currently open.
   //
-  // Live feedback: "Copy Tags to all Groups from their Scenes" is only meaningful while
+  // Live feedback: "Add Tags to all Groups from their Scenes" is only meaningful while
   // you are looking at the scene's groups, and the tab strip it is anchored under is
   // present on every tab - so without this it sits over the Details panel, over File
   // Info, and just above the target-side buttons on Edit.

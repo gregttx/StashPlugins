@@ -1033,7 +1033,7 @@ oversight; §8's discussion flagged it and the user's decision did not ask it to
   `manualSourceButtonsTick`, reading `sourceButtonLabel(p, s)` in place of `buttonLabel(p, s)`. This
   is *why* `MergePerformerTagsToScenes` 1.12.1 renamed its own two buttons in the same change: its
   Performer-page button covers the identical `tags:performer>scene` path this plugin's new
-  Performer-page button does, and the dedup check only works because both plugins now say "Copy Tags
+  Performer-page button does, and the dedup check only works because both plugins now say "Add Tags
   to all Scenes" for it — an unrenamed sibling would have shown both, the exact duplicate the whole
   mechanism exists to prevent.
 
@@ -1121,7 +1121,7 @@ that call needed no branch. It spaces its own children with `column-gap`, which 
 
 **0.14.0 showed it on every tab, and 0.15.0 stopped.** The strip is the tab selector, so a source
 button anchored under it sat over Details, over File Info, and just above the target-side buttons on
-Edit. Live feedback, and right: "Copy Tags to all Groups from their Scenes" means something while you
+Edit. Live feedback, and right: "Add Tags to all Groups from their Scenes" means something while you
 are looking at the scene's groups and is noise everywhere else. `targetTabSelected(path)` matches the
 open tab against the path's **target** type, so each button appears on the tab showing the things it
 writes to. Performer and Group are unaffected — they have a navbar and no strip, and a page with no
@@ -1157,13 +1157,13 @@ not copy *this* entity's payload outward: it finds the targets this entity reach
 of them from **all** of their own sources. For the two `{mode}` paths that is the difference between
 something and nothing — a scene's tag is copied to its group only if every *other* scene in that
 group carries it too — so 0.15.0 puts it in the caption, in the user's own wording:
-`Copy {mode} Tags to all Groups from their Scenes` and `Copy {mode} Tags to all Containing Groups
+`Add {mode} Tags to all Groups from their Scenes` and `Add {mode} Tags to all Containing Groups
 from their Sub-groups`. The other nine keep their captions, because their extra sources only ever
 *add* on top of what the user expected; `manualSourceButtonTitle` states the aggregation for all
 eleven and names the common-mode consequence where it applies. Renaming these two is safe against
 §5c's cross-plugin dedup contract, which only ever matches on `tags:performer>scene`.
 
-**A studio with no tags of its own showed "Copy Tags to all Scenes" until 0.13.0.** The source
+**A studio with no tags of its own showed "Add Tags to all Scenes" until 0.13.0.** The source
 button's gate asked only whether any *target* existed, never whether the source carried anything to
 copy. §5e added the second half; the boundary that remains is one step further out — whether those
 scenes already have the tags — and that one is unbounded, so it stays.
@@ -1276,7 +1276,7 @@ every one is about what happens around the write.
 
 **A target-side button ran every enabled path into the page, not the one that was clicked.**
 `runManual` took `(target, id)` and planned `enabledPaths(s).filter(p => p.target === target)`, so
-with the performer and studio paths both on, "Copy all Tags from all Performers" copied the studio's
+with the performer and studio paths both on, "Add all Tags from all Performers" copied the studio's
 tags too. It now takes the path. **`runManualSource` had this right from the start and carries a
 comment naming the hazard** — "not `runAutoTargets`' replan everything enabled for this target,
 which would pull in *other* sources' paths too and do more than the button that was clicked
@@ -1383,7 +1383,7 @@ before the cross-plugin dedup compares, because the sibling appends its own on i
 and one plugin staging while the other reviews must not read as two different buttons.
 
 **The title (0.18.1), which 0.18.0 shipped as a sentence made of three unhelpful parts.** It read
-`Propagate Tags and Performers to Related Entities - Copy Tags to all Scenes... - Group 57`. Three
+`Propagate Tags and Performers to Related Entities - Add Tags to all Scenes... - Group 57`. Three
 fixes, one per part:
 
 - **The "..." comes back off.** It is a promise a *caption* makes — "this click asks before it acts"
@@ -1406,6 +1406,22 @@ target side, which is the direction the copy runs in each case. **The title wrap
 clipped** when all of that exceeds a line: `.ptp2re-title` is a plain block and nothing in `CSS`
 makes it a flex child or sets `white-space`, so this is the default holding rather than a rule — but
 it is now a default worth not breaking.
+
+## 5i. Copy became Add (2.2.0)
+
+Every manual button here said **Copy** — `Copy all Tags from all Performers`, and twenty-odd more between this plugin and its
+sibling. That was unambiguous while these two were the only plugins in the repo that moved tags.
+`TagBundleClipboard` made it ambiguous: it has a real clipboard, and a row could end up carrying two
+buttons both saying "Copy" and meaning different things.
+
+They all say **Add** now, in the same release as the sibling's, so the cross-plugin dedup — which
+compares two plugins' live button *text* — still matches. `Copy log` in the footer is untouched: it
+copies to the system clipboard, which is what the word means outside this repo.
+
+Minor, not major: nothing matches on these strings except that dedup, and both sides moved together.
+The major digit is for a rename users have to act on, which is what `ownSettingGroup` and
+`ownTaskName` matching on the plugin **name** made the `ᝯㄝₓ ` prefix. The full reasoning, including
+why `Add` beat Import/Export and Propagate, is in the repo-root `CLAUDE.md` under "One verb per idea".
 
 ## 6. Anchoring in Stash's markup
 

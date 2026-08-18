@@ -25,10 +25,10 @@
 
 A front-end-only Stash plugin that adds two tag-merging buttons:
 
-- **"Copy Tags to all Scenes..."** on each performer's detail view — copies that performer's tags onto every scene featuring them, regardless of any filter or selection in the scene list below.
-- **"Copy all Tags from all Performers"** on each scene's Edit tab — puts all tags from all of that scene's performers into the scene's tag box for you to review and save.
+- **"Add Tags to all Scenes..."** on each performer's detail view — copies that performer's tags onto every scene featuring them, regardless of any filter or selection in the scene list below.
+- **"Add all Tags from all Performers"** on each scene's Edit tab — puts all tags from all of that scene's performers into the scene's tag box for you to review and save.
 
-**A button whose caption ends in "..." opens a dialog first** — the same review the library-wide task uses, listing every change before any of it is written, with Proceed, Stop, Copy log, Rescan and Undo. The performer button always does; the scene button does when **Save Tags Immediately** is on, or on a Stash where staging into the form is unavailable. No button here writes anything without either staging it in the form or showing you the plan. The dialog's heading names what it is scoped to — *Copy Tags to all Scenes - from Performer "Ann" (7)* — so a dialog opened from a button says which entity it is about, by the name you know it by.
+**A button whose caption ends in "..." opens a dialog first** — the same review the library-wide task uses, listing every change before any of it is written, with Proceed, Stop, Copy log, Rescan and Undo. The performer button always does; the scene button does when **Save Tags Immediately** is on, or on a Stash where staging into the form is unavailable. No button here writes anything without either staging it in the form or showing you the plan. The dialog's heading names what it is scoped to — *Add Tags to all Scenes - from Performer "Ann" (7)* — so a dialog opened from a button says which entity it is about, by the name you know it by.
 
 Buttons are hidden by default and can be enabled in **Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and — since 1.16.0 — the scene button needs the scene to be actually missing at least one of its performers' tags, rather than merely having a performer. Both re-check themselves when you save that scene or performer, so a button appears or disappears without a page reload. Tags are **added** (not replaced) — existing tags are always kept.
 
@@ -128,7 +128,7 @@ and none of them has an undo. Back up your database before a first library-wide 
 
 **Press Escape** to close the dialog, exactly as Cancel or Close would. While a write is actually in flight it does nothing - there is no Cancel to reach at that moment, and Stop is not something a stray keypress should do.
 
-**"Copy all Tags from all Performers"** stops short of saving by default. The performer tags are dropped into the scene's own tag box, Stash's **Save** button lights up, and nothing is written until you press it. You can remove any tag you don't want first, and Cancel discards the lot.
+**"Add all Tags from all Performers"** stops short of saving by default. The performer tags are dropped into the scene's own tag box, Stash's **Save** button lights up, and nothing is written until you press it. You can remove any tag you don't want first, and Cancel discards the lot.
 
 Because nothing is saved, there is also no refresh and no jump back to the Edit tab — the tags simply appear in the box you're already looking at. The button reports what it did without changing width: *"Added 2"* then *"Save pending"*, or *"No changes"*, or *"Scene excluded"*.
 
@@ -207,7 +207,7 @@ Four of the settings are colour-coded on the same principle. **Save Tags Immedia
 first — and the logging switch below is teal, for one that only talks to the console. Everything
 else stays Stash's blue.
 
-**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, a **"Copy Tags to all Scenes..."** button appears in the button bar on the detail view, just before the Delete button. Clicking it opens the review dialog scoped to that performer: it lists every tag it would add to every one of their scenes, and writes nothing until you press **Proceed**. Scenes already having all the tags are skipped, and **Undo** takes the merge back while the dialog stays open.
+**Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, a **"Add Tags to all Scenes..."** button appears in the button bar on the detail view, just before the Delete button. Clicking it opens the review dialog scoped to that performer: it lists every tag it would add to every one of their scenes, and writes nothing until you press **Proceed**. Scenes already having all the tags are skipped, and **Undo** takes the merge back while the dialog stays open.
 
 ### Why is a button missing?
 
@@ -225,9 +225,9 @@ which is the point: since 1.16.2 the answer is restated from what the plugin alr
 than only when it next re-checks. One switch covers both this plugin and its sibling, since they
 draw buttons into the same rows. Set it to `false`, or reload the page, to turn it off again.
 
-**The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Copy all Tags from all Performers" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
+**The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Add all Tags from all Performers" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
 
-**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it is missing at least one tag that one of its performers carries, an **"Copy all Tags from all Performers"** button appears in the button bar, just before the Save/Delete buttons of the edit form. Before 1.16.0 the button showed whenever the scene had any performer at all, so a scene already carrying every one of their tags offered a button that could only report "No changes"; it now asks the same question the click answers, including the Organized and exclusion-tag filters. Note that the check reads the server, while a staged click diffs against the open form — remove a tag from the form without saving and the button stays hidden until you press Save, which re-checks it at once. Click it to add all tags from all performers in that scene into the scene's tag box — or, where the caption ends in "...", to open the review dialog for that one scene.
+**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it is missing at least one tag that one of its performers carries, an **"Add all Tags from all Performers"** button appears in the button bar, just before the Save/Delete buttons of the edit form. Before 1.16.0 the button showed whenever the scene had any performer at all, so a scene already carrying every one of their tags offered a button that could only report "No changes"; it now asks the same question the click answers, including the Organized and exclusion-tag filters. Note that the check reads the server, while a staged click diffs against the open form — remove a tag from the form without saving and the button stays hidden until you press Save, which re-checks it at once. Click it to add all tags from all performers in that scene into the scene's tag box — or, where the caption ends in "...", to open the review dialog for that one scene.
 
 ### The README link in settings
 

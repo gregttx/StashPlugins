@@ -1017,7 +1017,7 @@ Promise.resolve()
     }).then(() => {
       const btn = ourButton(env, 'cpt2s-merge-to-scenes-btn');
       h.check('the performer button says it opens a dialog',
-        !!btn && btn.textContent === 'Copy Tags to all Scenes...', btn && btn.textContent);
+        !!btn && btn.textContent === 'Add Tags to all Scenes...', btn && btn.textContent);
       btn.click();
       return h.flush(150).then(() => {
         const d = h.dialog(env.body, 'cpt2s');
@@ -1027,7 +1027,7 @@ Promise.resolve()
         // named rather than numbered.
         h.check('scoped to that performer, named rather than numbered',
           (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent ===
-          'ᝯㄝₓ Merge Performer Tags To Scenes - Copy Tags to all Scenes - from Performer "Ann" (1)',
+          'ᝯㄝₓ Merge Performer Tags To Scenes - Add Tags to all Scenes - from Performer "Ann" (1)',
           (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent);
         h.check('and writes nothing before Proceed', sceneUpdates(env.calls).length === 0,
           h.plural(sceneUpdates(env.calls).length, 'write'));
@@ -1063,7 +1063,7 @@ Promise.resolve()
     }).then(() => {
       const btn = ourButton(env, 'cpt2s-merge-from-perfs-btn');
       h.check('the scene button carries the dots where staging is unavailable',
-        !!btn && btn.textContent === 'Copy all Tags from all Performers...', btn && btn.textContent);
+        !!btn && btn.textContent === 'Add all Tags from all Performers...', btn && btn.textContent);
       btn.click();
       return h.flush(150).then(() => {
         const d = h.dialog(env.body, 'cpt2s');
@@ -1075,7 +1075,7 @@ Promise.resolve()
         // so a title and a log line cannot disagree about how one is written.
         h.check('and the title names the scene, not just its id',
           (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent ===
-          'ᝯㄝₓ Merge Performer Tags To Scenes - Copy all Tags from all Performers - for Scene "S102" (102)',
+          'ᝯㄝₓ Merge Performer Tags To Scenes - Add all Tags from all Performers - for Scene "S102" (102)',
           (env.body.descendants().filter((n) => h.hasClass(n, 'cpt2s-title'))[0] || {}).textContent);
         d.button('Proceed').click();
         return h.flush(150);

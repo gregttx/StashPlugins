@@ -353,7 +353,7 @@ function nodeListLikeContainer() {
     h.check('one button for the one enabled path into scenes', btns.length === 1,
       btns.map((b) => b.textContent).join(','));
     h.check('labelled from the path table, not a second copy of the string',
-      btns[0].textContent === 'Copy all Tags from all Performers', btns[0].textContent);
+      btns[0].textContent === 'Add all Tags from all Performers', btns[0].textContent);
     // `.edit-buttons` defaults to flex `align-items: stretch`, so a button sharing a
     // row with a taller sibling (Stash's own Save/Delete, or a non-`btn-sm` button
     // from another plugin) stretches to match it while one that wraps alone does
@@ -421,7 +421,7 @@ function nodeListLikeContainer() {
     // copied from - it carries `_coopOwner`, which is exactly what tells them apart.
     const { env } = start({ settings: { a1ShowManualButtons: true, b1TagsPerformersToScenes: true } });
     const container = editButtonsContainer(env);
-    const foreign = stashAction(h, 'Copy all Tags from all Performers', { marginLeft: '7px', marginRight: '7px' });
+    const foreign = stashAction(h, 'Add all Tags from all Performers', { marginLeft: '7px', marginRight: '7px' });
     foreign._coopOwner = 'MergePerformerTagsToScenes';
     container.appendChild(foreign);
     container.appendChild(stashAction(h, 'Save', { marginLeft: '0px', marginRight: '10px' }));
@@ -760,7 +760,7 @@ function nodeListLikeContainer() {
     // half the time, since our own insertion always targeted "immediately before
     // Delete" with no regard for what was already there.
     const foreign = h.makeElement('button');
-    foreign.textContent = 'Copy Tags to all Scenes';
+    foreign.textContent = 'Add Tags to all Scenes';
     foreign._coopOwner = 'MergePerformerTagsToScenes';
     container.insertBefore(foreign, del);
     env.tick();
@@ -916,7 +916,7 @@ function nodeListLikeContainer() {
     await h.flush(60);
     const labels = manualButtons(env).map((b) => b.textContent);
     h.check('a path whose source is absent is gated independently of its sibling',
-      labels.length === 1 && labels[0] === 'Copy all Tags from all Performers', labels.join(','));
+      labels.length === 1 && labels[0] === 'Add all Tags from all Performers', labels.join(','));
   }
   {
     // A failed existence probe (the tag query `autoContext` needs) must not silently
@@ -1109,7 +1109,7 @@ function nodeListLikeContainer() {
     await h.flush(60);
     const labels = manualButtons(env).map((b) => b.textContent).sort();
     h.check('one button per enabled path, not one that tries to name both',
-      labels.join(',') === 'Copy Tags from Studio,Copy all Tags from all Performers', labels.join(','));
+      labels.join(',') === 'Add Tags from Studio,Add all Tags from all Performers', labels.join(','));
   }
 
   // ── Not duplicating another plugin's identical button ─────────────────────────
@@ -1123,7 +1123,7 @@ function nodeListLikeContainer() {
     env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
     const foreign = h.makeElement('button');
     foreign.className = 'cpt2s-merge-from-perfs-btn';
-    foreign.textContent = 'Copy all Tags from all Performers';
+    foreign.textContent = 'Add all Tags from all Performers';
     container.appendChild(foreign);
     env.tick();
     await h.flush(60);
@@ -1148,7 +1148,7 @@ function nodeListLikeContainer() {
     const container = editButtonsContainer(env);
     env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
     const foreign = h.makeElement('button');
-    foreign.textContent = 'Copy all Tags from all Performers';
+    foreign.textContent = 'Add all Tags from all Performers';
     container.appendChild(foreign);
     env.tick();
     await h.flush(60);
@@ -1215,7 +1215,7 @@ function nodeListLikeContainer() {
     btn.click();
     await h.flush(80);
     h.check('with no captured control the button recovers rather than sticking on "Working..."',
-      btn.textContent === 'Copy all Tags from all Performers', btn.textContent);
+      btn.textContent === 'Add all Tags from all Performers', btn.textContent);
     h.check('and reports the error', /open the Edit tab/.test(env.ctx._alert || ''), env.ctx._alert);
   }
 
@@ -1248,13 +1248,13 @@ function nodeListLikeContainer() {
       w[0].variables.input.tag_ids.mode === 'ADD' &&
       w[0].variables.input.tag_ids.ids.join() === '1');
     h.check('and the button is back to its caption, the dialog having done the reporting',
-      /^Copy all Tags from all Performers/.test(btn.textContent), btn.textContent);
+      /^Add all Tags from all Performers/.test(btn.textContent), btn.textContent);
   }
 
   // ── A button copies its own path and nothing else (0.15.1) ──────────────────
   //
   // `runManual` planned *every* enabled path into the target regardless of which
-  // button was clicked, so "Copy all Tags from all Performers" on a scene with the
+  // button was clicked, so "Add all Tags from all Performers" on a scene with the
   // studio path also enabled copied the studio's tags too. The caption names one
   // source, the tooltip names one path and the setting promises one button per path;
   // `runManualSource` had this right from the start. It also made this plugin's button
@@ -1534,7 +1534,7 @@ function nodeListLikeContainer() {
   // ── A source button shows only while its targets' tab is open (0.15.0) ───────
   //
   // Live feedback: the tab strip the row hangs under is present on every tab, so
-  // "Copy Tags to all Groups from their Scenes" sat over the Details panel, over File
+  // "Add Tags to all Groups from their Scenes" sat over the Details panel, over File
   // Info, and just above the target-side buttons on Edit.
   {
     const opts = {
@@ -1828,7 +1828,7 @@ function nodeListLikeContainer() {
     h.check('a source button appears on the performer detail view', btns.length === 1,
       btns.map((b) => b.textContent).join(','));
     h.check('labelled for the push direction, not the target-side pull label',
-      btns.length && btns[0].textContent === 'Copy Tags to all Scenes...', btns[0] && btns[0].textContent);
+      btns.length && btns[0].textContent === 'Add Tags to all Scenes...', btns[0] && btns[0].textContent);
   }
   {
     // No scenes at all for this performer - the same existence-gating philosophy as
@@ -1934,7 +1934,7 @@ function nodeListLikeContainer() {
     await h.flush(60);
     const labels = sourceButtons(env).map((b) => b.textContent).sort();
     h.check('two source paths on one page are probed and gated independently',
-      labels.length === 2 && labels.join('|') === 'Copy Tags to all Groups...|Copy Tags to all Scenes...',
+      labels.length === 2 && labels.join('|') === 'Add Tags to all Groups...|Add Tags to all Scenes...',
       labels.join(','));
   }
   {
@@ -1999,7 +1999,7 @@ function nodeListLikeContainer() {
     // here - and the entity named rather than numbered.
     const title = (env.body.descendants().filter((n) => h.hasClass(n, 'ptp2re-title'))[0] || {}).textContent || '';
     h.check('the title names the scope by name, not by id alone',
-      title === 'ᝯㄝₓ Propagate Tags & Performers - Copy Tags to all Scenes - from Performer "Jane" (100)',
+      title === 'ᝯㄝₓ Propagate Tags & Performers - Add Tags to all Scenes - from Performer "Jane" (100)',
       title);
     const d = await proceed(env);
     const w = writes(env.calls);
@@ -2020,7 +2020,7 @@ function nodeListLikeContainer() {
     const container = detailsEditContainer(env, true);
     env.ctx.window.StashPluginCoop.declares.MergePerformerTagsToScenes = ['tags:performer>scene'];
     const foreign = h.makeElement('button');
-    foreign.textContent = 'Copy Tags to all Scenes';
+    foreign.textContent = 'Add Tags to all Scenes';
     container.appendChild(foreign);
     env.tick();
     await h.flush(60);
@@ -2149,7 +2149,7 @@ function nodeListLikeContainer() {
     // its own insertBeforeDelete - which lands immediately to Delete's left, exactly
     // where a second plugin's insertBeforeDelete would also target.
     const foreign = h.makeElement('button');
-    foreign.textContent = 'Copy Tags to all Scenes';
+    foreign.textContent = 'Add Tags to all Scenes';
     foreign._coopOwner = 'MergePerformerTagsToScenes';
     container.insertBefore(foreign, del);
     env.tick();

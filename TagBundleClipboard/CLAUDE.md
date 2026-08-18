@@ -5,10 +5,9 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: written, not verified. 0.0.1.** Every step below has landed and the suite passes, and
-neither of those is the thing the major digit claims. Nobody has clicked one of these buttons in a
-running Stash. See "What is unverified" at the bottom — that list emptying is what moves this to
-1.0.0, and the repo has shipped a 1.0.0 twice on "the code is complete" and been wrong both times.
+**Status: partly verified. 0.1.0.** The first live pass happened and most of the guesses held —
+§11 records what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it
+was and not empty, and the major digit is the claim that the whole thing works.
 
 | Step | | Version |
 | --- | --- | --- |
@@ -16,8 +15,9 @@ running Stash. See "What is unverified" at the bottom — that list emptying is 
 | 2 | The clipboard, the `ENTITIES` table, the detail container, the **Copy** button | 0.0.1 |
 | 3 | The `TagSelect` capture, the **Paste** button and its dialog | 0.0.1 |
 | 4 | The `debugButtons` channel, README, `tests/tagclip.test.js` | 0.0.1 |
+| 5 | First live pass: icon captions, the settings-type fix, the tag hierarchy, Prune/Roll Up, the tag hover, column layout, Undo | 0.1.0 |
 
-All four landed in one pass, so they share a version rather than each taking a minor. The table is
+Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over
 this file needs.
 
@@ -32,7 +32,9 @@ That single fact removes, in one go, most of what the three sibling plugins spen
 
 - no `guarded()` / `_writeDepth`, because there is no write for a reactive plugin to see;
 - no **lease**, because a lease announces a bulk write;
-- no **Undo**, because the form's own Reset is the undo and there is nothing else to take back;
+- an **Undo that is not a second mechanism** — it hands the control the list it held before, which
+  is the same one call an Add is (§8e). The siblings' Undo has to put a mutation back and can only
+  reach its own writes; this one has neither problem;
 - no **backup warning** in the dialog head — the standing rule that the backup sentence must not be
   edited out for brevity is about dialogs that write, and here it would simply be false. What sits
   in its place says where the tags actually go.
@@ -170,14 +172,14 @@ the anchor is right. It fits the gaps of 10 the protocol reserved either side.
 
 **No existence or eligibility gating**, and this is a deliberate departure from both siblings.
 `PropagateTagsAndPerformers` spent five releases on a probe because its buttons ask an expensive
-question the user cannot see the answer to. Here Copy Tags on a tagless entity flashes `No tags` —
-one query, on a click, with an honest answer — and Paste Tags is meaningful whenever the form is
+question the user cannot see the answer to. Here `⮺ Tags` on a tagless entity flashes `No tags` —
+one query, on a click, with an honest answer — and `📋 Tags` is meaningful whenever the form is
 open. A probe per page view to hide a button that costs nothing to press would be the tail wagging
 the dog. If the empty click turns out to be common in practice, the hook is `copyBundle`'s own query.
 
 ## 6. Two colours, in one plugin
 
-Copy Tags is `btn-info`, Paste Tags is `btn-warning`. The repo rule is "amber where a plugin wrote
+`⮺ Tags` is `btn-info`, `📋 Tags` is `btn-warning`. The repo rule is "amber where a plugin wrote
 this, teal where it only reads", and this plugin is the first here to have one of each. Copy only
 reads; Paste changes the form, which is what the siblings' amber staging buttons do.
 
@@ -229,16 +231,119 @@ now. Two plugin-local additions and one near-miss:
 declared and always null: this dialog has no mid-write state to cancel, and a special case in
 `escapeButton` would be a fifth copy of that function that is not the same function.
 
+## 8b. Redundant parent tags: Prune and Roll Up in a dialog that removes nothing
+
+The two operations `NormalizeParentTags` names, scoped to one paste and applied to **the plan**
+rather than to the library. That scoping is the whole reason they can live here at all: this plugin
+issues no mutation, so Prune cannot mean "take the parent off the entity" — it means "do not add
+it". Roll Up is the same shape in the other direction, and both are inverses, which is why the
+control is one three-way select instead of two toggles that can contradict each other.
+
+**They are defined over the transitive closure, not over one edge.** `descendantsOf`/`ancestorsOf`
+walk breadth-first with a `seen` set — the set is not an optimisation, it is a cycle guard, because
+nothing in Stash forbids a cycle in the tag hierarchy and a plain recursion would hang the dialog on
+one. The distinction is worth a test of its own: a chain the bundle carries *completely* prunes the
+same rows either way, and only a bundle with a gap in it (`Hair` and `Platinum`, no `Blonde`) tells
+a transitive walk from a one-edge one. That mutant passed the suite until the gap fixture existed.
+
+**One pass settles Prune, and that is a property rather than a shortcut.** A tag pruned for having a
+descendant on the entity cannot be un-pruned by that descendant later being pruned itself: the
+descendant was pruned for having a descendant of *its* own, which is a descendant of the first tag
+too. So there is no fixpoint loop here, and adding one would be dead code.
+
+**The states are computed on every tick of a checkbox, not once.** Both modes are defined against
+the *current* selection, so unticking the tag that was making a parent redundant has to bring the
+parent back as an ordinary row immediately. That is why the change handler calls `render()` rather
+than `updateCounts()` — a box can change its neighbours' states and the list's order, not just the
+total.
+
+**Held at `asis` while `_graph` is null.** A failed hierarchy read with the modes still live would
+silently mean "nothing is redundant", which looks exactly like the mode having run and found
+nothing. The select is disabled and the dialog says so in its log.
+
+**Already-on-target beats rolled-up**, including for an ancestor the bundle never carried — Roll Up
+has nothing to add where the tag is already on, so the row says the truer of the two things. It
+*is* listed, though: the row is what explains why Roll Up stopped there.
+
+## 8c. Five states, two axes, one `accent-color`
+
+*Ticked* says whether the tag ends up on the entity; *colour* says who decided. Blue is the only
+combination meaning "you decided, and it is on".
+
+| | box | colour | live |
+|---|---|---|---|
+| `add` | ticked | blue (Stash's) | yes |
+| `off` | clear | red | yes |
+| `rolled` | ticked | amber | no |
+| `pruned` | clear | grey | no |
+| `have` | ticked | grey | no |
+
+**`have` is ticked, and that was a change.** It shipped clear-and-disabled, which read as the
+opposite of what the row beside it said — "already on this Scene" with an empty box. The tick is the
+honest mark; the grey is what says it is not yours to change.
+
+**One CSS property does all of it.** `accent-color` on the browser's own checkbox, never a rebuilt
+control: five one-line rules, and the browser mutes the accent on a disabled box, which is the
+effect wanted anyway — the three fixed states are meant to read quieter than the two live ones.
+
+## 8d. Layout: columns from the platform, not from a breakpoint
+
+The tag pane scrolls and the list **inside** it is left at auto height. That is what makes the
+browser balance the rows across the columns rather than laying out one tall column and overflowing
+sideways — a multicol box with a definite height fragments into more columns instead of getting
+taller, which with `overflow:auto` becomes horizontal scrolling.
+
+`column-width` is a *minimum*: the browser fits as many as it can and widens them to fill. So a wide
+modal gets fewer, wider columns and a narrow one gets a single column, with no media query of ours
+to keep in step with the modal's own `width:min(100rem,94vw)`. The user asked for columns sized to
+the longest row; CSS gives equal columns instead, which is close enough that a hand-rolled measure
+pass would be paying real complexity for the difference.
+
+## 8e. Undo, which the siblings cannot have and this one can
+
+The three sibling dialogs write to the library, so their Undo has to put a mutation back and can
+only reach its own writes. This one only ever handed a list to a control, so its Undo is **the same
+one call an Add is**, with an earlier list.
+
+Snapshots, not diffs: `pasteTags` returns what the box held before, and `undo()` hands that back.
+A tag added by hand between two presses therefore goes with the undo. That is said in the log rather
+than guarded against — reconstructing which of the box's entries were the user's would be guessing,
+and Stash's own Reset is behind it.
+
+`setFormTags` is the single writer into the control, which is what stops Add and Undo from
+disagreeing about what "put this list in the box" means.
+
+## 8f. The diff is re-derived at the press, in `render()` and nowhere else
+
+`picked()` reads `this._rows`, which `render()` built. So `add()` calls `render()` **first** and
+reads the selection after. Without that line the press would use the answer computed when the list
+was last drawn, and a tag typed into the box by hand since would be staged a second time — the exact
+behaviour §4's deleted duplicate was there to prevent, arriving back through a different door.
+
+The rule is unchanged and now has one home instead of two: **one place reads the control, and
+everything else reads what that produced.**
+
 ## 9. Testing
 
 `node tests/run.js`, or `node tests/tagclip.test.js` alone. One suite, because the plugin is small
 enough for one. It runs on `npt-harness.js` with a fake `localStorage` of its own.
 
-Nine mutants confirmed, each failing exactly the check written for it: a strip found by class, no
-queue trim, every stored entry accepted, ordering that ignores priority, a copy that stores an empty
-bundle, `picked()` answering from the render instead of the live control, `picked()` ignoring the
-form, a missing control read as an empty entity, and the diff removed from the one place it lives. A
-tenth passed the whole suite and led to a deletion instead of a check (§4).
+Mutants confirmed, each failing exactly the check written for it. From the first pass: a strip found
+by class, no queue trim, every stored entry accepted, ordering that ignores priority, a copy that
+stores an empty bundle, `picked()` answering from the render instead of the live control, `picked()`
+ignoring the form, a missing control read as an empty entity, and the diff removed from the one
+place it lives. A tenth passed the whole suite and led to a deletion instead of a check (§4).
+
+From the 0.1.0 pass, eleven more: Prune and Roll Up each walking one edge instead of the closure,
+Roll Up skipping the ancestors the bundle does not carry, Roll Up ignoring already-on-target, the
+group ranking dropped from the sort, `sort_name` ignored, `have` drawn clear, the mode select left
+live with no hierarchy, the children edge dropped from the hover text, `undo()` popping without
+handing the list back, and `add()` reading the selection without re-deriving it first.
+
+**The one that did not fail is the one worth remembering.** A Prune walking a single edge passed
+every check, because the fixture chain was fully populated in the bundle — one edge and the closure
+prune the same three rows there. It took a bundle with a *gap* in the chain to tell them apart
+(§8b).
 
 Two things the suite deliberately does *not* prove, and both are §10:
 
@@ -248,23 +353,52 @@ Two things the suite deliberately does *not* prove, and both are §10:
 
 ## 10. What is unverified
 
-Not one line of this has run against a Stash. The list, most likely to be wrong first:
+Shorter than it was — §11 is what emptied most of it. What is left:
 
-1. **`.details-edit`-without-a-Delete is the edit form on Performer and Studio.** Neither page has
-   been checked for it. Scene is confirmed (`.edit-buttons`); Group is confirmed for the fallback.
-2. **The detail container on Studio and Image.** `PropagateTagsAndPerformers` 0.13.3 confirmed
+1. **The detail container on Studio and Image.** `PropagateTagsAndPerformers` 0.13.3 confirmed
    Performer and Group render a navbar and Scene and Gallery do not; these two were never observed.
-   They will reach `ensureTabStripRow`, which is the safe direction.
-3. **`TagSelect` on the Performer, Studio and Image edit panels.** The capture is confirmed live on
-   Scene, and the design plan for `PropagateTagsAndPerformers` records that `TagSelect` is used
-   across all of Stash's edit panels — but "used" and "its `onSelect` updates the chips" are two
-   claims and only the first is sourced.
-4. **The tag pill area on a detail view.** The README says Copy Tags is in the action row, which is
+   They reach `ensureTabStripRow`, which is the safe direction.
+2. **`⮺ Tags` shows on every tab, not only the detail one.** Confirmed live on Scene, Image and
+   Gallery, where the row sits under the tab strip and the tab strip does not go away when the Edit
+   tab is open. It contradicts the original spec and was left alone at the user's call ("no big
+   deal"); the fix, if it is ever wanted, is to read the strip's active tab rather than to guess a
+   container. Note it is not obviously an improvement: copying the tags off the entity you are
+   editing is a real thing to want, and hiding the button would mean switching tabs to do it.
+3. **The tag pill area on a detail view.** The README says `⮺ Tags` is in the action row, which is
    where it is. The user asked for it *next to the tag pills*, and that markup has never been read,
    so it was not guessed at. Moving it needs one `outerHTML` paste from a Scene and a Performer
-   detail view. If `PluginApi.patch.after` turns out to exist, the same paste settles whether Paste
-   Tags can render straight after the `TagSelect` instead — which would be *less* code than the row
-   placement, not more.
+   detail view. If `PluginApi.patch.after` turns out to exist, the same paste settles whether
+   `📋 Tags` can render straight after the `TagSelect` instead — which would be *less* code than
+   the row placement, not more.
+4. **The tag hierarchy query on a large library.** `findTags(filter:{per_page:-1})` with
+   `description` and `aliases` on every row is the biggest payload this plugin asks for, and it has
+   only been reasoned about. It is one query per page, cached for the page's life; if it turns out
+   to hurt, the cheap first move is dropping `description` and fetching it per bundle instead.
+
+## 11. What the first live pass settled
+
+2026-08-18, against the user's own Stash. Four of §10's five items closed:
+
+- **`TagSelect`'s `onSelect` updates the chips on Group, Image, Performer, Studio and Scene.** This
+  was the assumption the whole plugin rests on and it held on every panel checked. §4's reasoning
+  about `useTagsEdit()` is confirmed rather than merely sourced.
+- **`.details-edit`-without-a-Delete is the edit form on Performer and Studio.** `📋 Tags` lands
+  just before Save on both, exactly as it does everywhere else.
+- **The two icon captions.** `Copy Tags` / `Paste Tags...` became `⮺ Tags` / `📋 Tags` at the
+  user's request. The paste button dropping the repo's `"..."` suffix is a deliberate exception,
+  reasoned in the source beside the constants: the convention marks a caption that asks before it
+  acts, and a two-token caption built around an icon has no room for a third token that reads as
+  punctuation. The icon does what the dots did.
+- **`type: NUMBER` renders `0` for an unset setting.** Not blank, not the documented 5 — a number
+  that is neither, in the only NUMBER setting in this repo. It is `STRING` now, which is what every
+  other free-text setting here already used and what `maxBundles` was parsing either way. **A
+  setting type is a UI decision as much as a storage one**, and "unset" has to be a state the box
+  can show.
+
+One thing observed and not ours to fix: **Stash's Image and Gallery edit panels render Save and
+Delete with no Cancel**, where Scene and the others have one. Read off `develop` on the same day —
+`ImageEditPanel.tsx` and `GalleryEditPanel.tsx` build their `.edit-buttons` row from those two
+buttons only. No issue is filed for it upstream.
 
 **Read "Anchoring in Stash's markup" in `PropagateTagsAndPerformers`' CLAUDE.md before changing any
 anchor here.** Its lesson, paid for over four releases: a class confirmed on one page is evidence

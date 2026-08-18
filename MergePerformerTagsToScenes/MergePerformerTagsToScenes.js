@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.1.0';
+  var PLUGIN_VERSION      = '3.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -62,8 +62,8 @@
   // a dialog rather than acting. The performer button always does; the scene button
   // does only where staging is unavailable, so it resolves its caption per tick and the
   // sibling's dedup compares with the dots stripped.
-  var PERFORMER_BTN_LABEL = 'Copy Tags to all Scenes...';
-  var SCENE_BTN_LABEL     = 'Copy all Tags from all Performers';
+  var PERFORMER_BTN_LABEL = 'Add Tags to all Scenes...';
+  var SCENE_BTN_LABEL     = 'Add all Tags from all Performers';
 
   // Every button this plugin puts on a page, and the task button Stash renders for
   // it, in amber. Stash's own row actions are `btn-secondary`, so a button of ours
@@ -260,7 +260,7 @@
     if (_warnedNoStaging || settings.saveTagsImmediately || _tagPatchInstalled) return;
     _warnedNoStaging = true;
     console.warn('[cpt2s] tag staging is unavailable — this Stash does not expose PluginApi ' +
-      'component patching, so "Copy all Tags from all Performers" will merge and save directly.');
+      'component patching, so "Add all Tags from all Performers" will merge and save directly.');
   }
   // Depth of merge work currently in flight. A counter rather than a boolean so
   // that overlapping flows (a bulk update racing a single update, a manual button
@@ -2539,7 +2539,7 @@
     return p;
   };
 
-  // ── Performer page: "Copy Tags to all Scenes" ─────────────────────────────
+  // ── Performer page: "Add Tags to all Scenes" ─────────────────────────────
 
   var performerCheck = null; // { id, status: 'pending'|'yes'|'no' }
 
@@ -2954,7 +2954,7 @@
     // margins inline and adds `mx-2` back itself when there is nothing to copy. A
     // Bootstrap `mx-*` is `!important` and would outrank the copied margins.
     button.className = 'btn ' + PLUGIN_BTN_VARIANT + ' ' + PERFORMER_BTN_CLASS;
-    // "Copy Tags to all Scenes", not the older "Add Tags to Scene(s)": harmonized
+    // "Add Tags to all Scenes", not the older "Add Tags to Scene(s)": harmonized
     // with PropagateTagsAndPerformers' naming convention, since that plugin's own
     // manual-button dedup (§7d's `declares`) matches on this exact label text to
     // decide whether its own identical-path button is already showing here.
@@ -2982,7 +2982,7 @@
     insertBeforeImportantAction(container, button);
   }
 
-  // ── Scene page: "Copy all Tags from all Performers" ───────────────────────
+  // ── Scene page: "Add all Tags from all Performers" ───────────────────────
 
   var sceneCheck = null; // { id, status: 'pending'|'yes'|'no' }
   var _sceneFlashToken = 0;
@@ -3090,7 +3090,7 @@
     // landing *between* Save and Delete rather than at the row's end) is now applied by
     // `applyButtonSpacing` only when the row has no margins of its own to copy.
     button.className = 'btn ' + PLUGIN_BTN_VARIANT + ' ' + SCENE_BTN_CLASS;
-    // "Copy all Tags from all Performers", not the older "Add Perf Tags" - same
+    // "Add all Tags from all Performers", not the older "Add Perf Tags" - same
     // harmonization as the performer button above. `_cpt2sLabel` is what the caption
     // is *supposed* to read, held apart from `textContent` because a click overwrites
     // that with "Adding..."/"Added 3" while a flash is in flight.

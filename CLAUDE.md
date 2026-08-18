@@ -514,6 +514,14 @@ consequences worth knowing:
 in "Added 3", it now restores its caption immediately: the modal covers the row, and a caption
 restored two seconds into a review nobody can see is worse than none.
 
+**An icon can do the job the dots do, and then the dots come off.** `TagBundleClipboard`'s two
+buttons are `⮺ Tags` and `📋 Tags`, and the paste one opens a dialog without saying "...". That is
+the convention read for what it means rather than applied as a string: the dots mark a caption that
+asks before it acts, and a caption already built around an icon has no room for a third token that
+reads as punctuation next to a pictogram. The exception is narrow — it is about a caption whose
+*whole* text is an icon and one word — and it does not touch the five task buttons or any spelled-out
+caption. A plugin adding a third icon button copies the reasoning, not the fact that this one did it.
+
 **And the dots come straight back off in the title** (`MergePerformerTagsToScenes` 1.18.1 /
 `PropagateTagsAndPerformers` 0.18.1), which is not a contradiction: "..." is what a *caption*
 promises, and a title quotes the caption inside a sentence, where trailing dots are just punctuation
@@ -739,9 +747,8 @@ the standing rule that the backup instruction must not be edited out for brevity
 
 **And there is now one dialog that must not carry it at all.** `TagBundleClipboard`'s picker issues
 no mutation: it puts tags into an edit form and Stash's own Save commits them. Telling that user to
-back up first would be false, so its head says where the tags actually go instead, and it has no
-Undo for the same reason — the form's own Reset is the undo. **The rule above is about dialogs that
-write.** It has never been a rule that every head carries the sentence regardless of whether the
+back up first would be false, so its head says where the tags actually go instead. **The rule above
+is about dialogs that write.** It has never been a rule that every head carries the sentence regardless of whether the
 dialog can change anything, and the distinction only became visible when a plugin arrived that
 cannot. Before waiving it for a *new* dialog, check the same thing the suite checks for that one:
 that no path in the plugin issues a mutation. A dialog that writes and skips the sentence is the
@@ -850,6 +857,33 @@ until there is one. `CustomFieldsBulkEditor`'s log lists what the entities carry
 is what Apply says and Proceed would misdescribe. It also pairs with the **Apply to** select beside
 it, which is the control deciding what that one press covers. Do not rename either side for
 symmetry; a shared word here would flatten a real difference in what pressing the button commits to.
+
+## One verb per idea, across all five plugins
+
+`MergePerformerTagsToScenes` and `PropagateTagsAndPerformers` labelled every one of their manual
+buttons **Copy** — `Copy Tags to all Scenes...`, `Copy all Tags from all Performers`,
+`Copy Tags from Studio`, twenty-odd captions between them. That was unambiguous while they were the
+only two plugins here that moved tags. `TagBundleClipboard` made it ambiguous: it has an actual
+clipboard, its copy button puts a bundle *on* that clipboard, and a row could end up holding two
+buttons both saying "Copy" and meaning different things.
+
+**Every one of those captions is now `Add`** (`MergePerformerTagsToScenes` 3.2.0 /
+`PropagateTagsAndPerformers` 2.2.0). Three letters, the shortest of the candidates, and the only one
+that is *true of both directions* — these paths only ever add, which is already the reason running
+both plugins at once is never wrong. It reads correctly with either preposition the captions use:
+`Add Tags to all Scenes...`, `Add all Tags from all Performers`. Import/Export needed two words and
+a direction the caption already states; Propagate is long and describes the mechanism rather than
+the effect.
+
+**`Copy log` is untouched, in all five footers.** That button copies to the *system* clipboard,
+which is what "copy" means everywhere outside this repo, and it is the one place the word is not
+about moving metadata between entities.
+
+**A caption rename is a minor, not a major.** Nothing here matches on those strings except the
+cross-plugin dedup, which compares two plugins' live button text — and both plugins changed in the
+same release, so the comparison still holds. The major digit is for a rename users have to *act* on:
+`ownSettingGroup` and `ownTaskName` match on the plugin **name**, which is why the `ᝯㄝₓ ` prefix
+cost one and this does not.
 
 ## A README describes the plugin, not its history
 

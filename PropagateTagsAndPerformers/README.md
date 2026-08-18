@@ -178,7 +178,7 @@ With **Show Manual Buttons** on, each enabled path adds a small button to the Ed
 target — a scene with the performer-tags and studio-tags paths both enabled shows two buttons, not
 one that tries to name both, and a path with no button setting simply has no button. Each button
 is labelled consistently: `"Copy [all|common] [Tags|Perfs] from all <plural>"` —
-for example **"Copy all Tags from all Performers"** on a scene, or **"Copy common Tags from all
+for example **"Add all Tags from all Performers"** on a scene, or **"Copy common Tags from all
 Scenes"** on a group if you have turned on that path's "common tags only" setting.
 
 A button lands **between Save and Delete** — grouped with Stash's own non-destructive actions,
@@ -235,7 +235,7 @@ into Stash's own UI — two of them share these very rows, and "why is this miss
 question about only one. Set it to `false`, or reload the page, to turn it off again.
 
 **Each button copies its own path and nothing else.** With both the performer and studio
-paths enabled on a scene, "Copy all Tags from all Performers" copies the performers' tags and
+paths enabled on a scene, "Add all Tags from all Performers" copies the performers' tags and
 leaves the studio's alone; the studio's button is what copies those — which is what the caption,
 the tooltip and the setting description each say it does.
 
@@ -255,7 +255,7 @@ Clicking one does one of two things, depending on **Save Immediately**:
   scanning, applying or undoing — a cursor cycles under the last line: the counters say how far it
   has got, the cursor says it is still going. Nothing in this plugin writes from a
   click without either staging it or showing it to you first. The dialog's heading names what it is
-  scoped to — *Copy Tags to all Scenes - from Performer "Jane" (100)* — so a dialog opened from a
+  scoped to — *Add Tags to all Scenes - from Performer "Jane" (100)* — so a dialog opened from a
   button says which entity it is about, by the name you know it by.
 
 A button that cannot find the tag or performer box — the Edit tab was never opened, or a fresh
@@ -265,7 +265,7 @@ staging is impossible rather than merely failing, so the buttons **review in the
 instead, say so in their tooltip, and warn once in the browser console.
 
 **If `MergePerformerTagsToScenes` is also installed and showing its own button for the same path**
-("Copy Tags to all Scenes" on the performer page, "Copy all Tags from all Performers" on the scene
+("Add Tags to all Scenes" on the performer page, "Add all Tags from all Performers" on the scene
 page — today the only path the two plugins share), this plugin does not add a second one next to
 it, on the source side as well as the target side. Nothing else changes:
 click MPTTS's button and you get its behaviour; enable more paths here and you still get buttons
@@ -278,7 +278,7 @@ plugins' buttons will show.
 The buttons above pull tags or performers *in* to whatever page you are viewing. Eleven of the
 thirteen paths also offer the reverse: a button on the **source's own page** that pushes its tags
 or performers *out* to everything an enabled path reaches — a performer's own page gets **"Copy
-Tags to all Scenes"** and **"Copy Tags to all Groups"**, a studio's page the same two, and a
+Tags to all Scenes"** and **"Add Tags to all Groups"**, a studio's page the same two, and a
 scene, gallery, image or group's own page (not its Edit tab — its ordinary detail view) gets
 whichever of its own outgoing paths are enabled.
 
@@ -311,32 +311,32 @@ Group's Edit tab has no Delete, so everything there appends after Save.
 
 | Page | View | Button | Plugin | Path / setting |
 |---|---|---|---|---|
-| `/scenes/<id>` | Edit tab | Copy all Perfs from all Galleries | this | `b5` |
-| `/scenes/<id>` | Edit tab | Copy all Tags from all Markers | this | `b3` |
-| `/scenes/<id>` | Edit tab | Copy all Tags from all Performers | this | `b1` — **hidden when MPTTS shows its own** |
-| `/scenes/<id>` | Edit tab | Copy Tags from Studio | this | `b2` |
-| `/scenes/<id>` | Edit tab | Copy all Tags from all Groups | this | `b4` |
-| `/scenes/<id>` | Edit tab | Copy all Tags from all Performers | MPTTS | its only scene button |
+| `/scenes/<id>` | Edit tab | Add all Perfs from all Galleries | this | `b5` |
+| `/scenes/<id>` | Edit tab | Add all Tags from all Markers | this | `b3` |
+| `/scenes/<id>` | Edit tab | Add all Tags from all Performers | this | `b1` — **hidden when MPTTS shows its own** |
+| `/scenes/<id>` | Edit tab | Add Tags from Studio | this | `b2` |
+| `/scenes/<id>` | Edit tab | Add all Tags from all Groups | this | `b4` |
+| `/scenes/<id>` | Edit tab | Add all Tags from all Performers | MPTTS | its only scene button |
 | `/scenes/<id>` | Groups tab | Copy *all\|common* Tags to all Groups from their Scenes | this | `e1` — under the tab strip |
-| `/galleries/<id>` | Edit tab | Copy all Perfs from all Images | this | `c2` |
-| `/galleries/<id>` | Edit tab | Copy all Tags from all Images | this | `c1` |
-| `/galleries/<id>` | Scenes tab | Copy Perfs to all Scenes | this | `b5` — under the tab strip |
-| `/galleries/<id>` | Images tab | Copy Tags to all Images | this | `d1` — under the tab strip |
-| `/images/<id>` | Edit tab | Copy all Tags from all Galleries | this | `d1` |
-| `/images/<id>` | Galleries tab | Copy Perfs to all Galleries | this | `c2` — under the tab strip, if Image has one |
-| `/images/<id>` | Galleries tab | Copy Tags to all Galleries | this | `c1` — under the tab strip, if Image has one |
+| `/galleries/<id>` | Edit tab | Add all Perfs from all Images | this | `c2` |
+| `/galleries/<id>` | Edit tab | Add all Tags from all Images | this | `c1` |
+| `/galleries/<id>` | Scenes tab | Add Perfs to all Scenes | this | `b5` — under the tab strip |
+| `/galleries/<id>` | Images tab | Add Tags to all Images | this | `d1` — under the tab strip |
+| `/images/<id>` | Edit tab | Add all Tags from all Galleries | this | `d1` |
+| `/images/<id>` | Galleries tab | Add Perfs to all Galleries | this | `c2` — under the tab strip, if Image has one |
+| `/images/<id>` | Galleries tab | Add Tags to all Galleries | this | `c1` — under the tab strip, if Image has one |
 | `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Scenes | this | `e1` |
-| `/groups/<id>` | Edit tab | Copy Tags from Studio | this | `e3` |
-| `/groups/<id>` | Edit tab | Copy all Tags from all Performers | this | `e4` |
-| `/groups/<id>` | Edit tab | Copy all Tags from all Markers | this | `e5` |
+| `/groups/<id>` | Edit tab | Add Tags from Studio | this | `e3` |
+| `/groups/<id>` | Edit tab | Add all Tags from all Performers | this | `e4` |
+| `/groups/<id>` | Edit tab | Add all Tags from all Markers | this | `e5` |
 | `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Sub-groups | this | `e6` |
-| `/groups/<id>` | Detail | Copy Tags to all Scenes | this | `b4` |
+| `/groups/<id>` | Detail | Add Tags to all Scenes | this | `b4` |
 | `/groups/<id>` | Detail | Copy *all\|common* Tags to all Containing Groups from their Sub-groups | this | `e6` |
-| `/performers/<id>` | Detail | Copy Tags to all Scenes | this | `b1` — **hidden when MPTTS shows its own** |
-| `/performers/<id>` | Detail | Copy Tags to all Groups | this | `e4` |
-| `/performers/<id>` | Detail | Copy Tags to all Scenes | MPTTS | its only performer button |
-| `/studios/<id>` | Detail | Copy Tags to all Scenes | this | `b2` |
-| `/studios/<id>` | Detail | Copy Tags to all Groups | this | `e3` |
+| `/performers/<id>` | Detail | Add Tags to all Scenes | this | `b1` — **hidden when MPTTS shows its own** |
+| `/performers/<id>` | Detail | Add Tags to all Groups | this | `e4` |
+| `/performers/<id>` | Detail | Add Tags to all Scenes | MPTTS | its only performer button |
+| `/studios/<id>` | Detail | Add Tags to all Scenes | this | `b2` |
+| `/studios/<id>` | Detail | Add Tags to all Groups | this | `e3` |
 
 *all\|common* is whichever the path's own "common tags only" setting says; the button's label
 changes with it. The captions above are the base text: a button whose click opens the review dialog
@@ -373,7 +373,7 @@ is computed from **every scene in it** — this one is merely how the groups wer
 
 With **common tags only** on, a tag is copied only if *every* scene in that group carries it. So a
 tag unique to the scene you are on adds nothing, and the button can honestly report "No changes".
-Turn the setting off and the label becomes "Copy all Tags…", the union, and it lands.
+Turn the setting off and the label becomes "Add all Tags…", the union, and it lands.
 
 The same is true of the other source buttons, less dramatically: they aggregate too, but without a
 "common" mode the extra sources only ever add on top of what you expected. Every source button's

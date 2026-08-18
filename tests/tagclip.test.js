@@ -45,6 +45,23 @@ const PERFORMERS = {
   100: { id: '100', name: 'Jane', tags: [{ id: '7', name: 'Blonde' }] },
 };
 
+// A three-deep chain, Hair > Blonde > Platinum, plus one tag standing on its own.
+// Three levels rather than two on purpose: Prune and Roll Up are defined over *all*
+// descendants and ancestors, and a two-level fixture would pass against a plugin that
+// only ever looked one edge away.
+//
+// `sort_name` on the deepest one is what Stash sorts by when it is set, so the group
+// ordering below is not just alphabetical on `name`.
+const TAGS = [
+  { id: '1', name: 'Hair', sort_name: null, aliases: ['Coiffure'],
+    description: 'Everything about hair', parents: [] },
+  { id: '7', name: 'Blonde', sort_name: null, aliases: [], description: null,
+    parents: [{ id: '1' }] },
+  { id: '12', name: 'Platinum', sort_name: 'aaa platinum', aliases: [], description: null,
+    parents: [{ id: '7' }] },
+  { id: '9', name: 'Tattoo', sort_name: null, aliases: [], description: null, parents: [] },
+];
+
 function responder(opts) {
   opts = opts || {};
   return function (req) {
@@ -54,6 +71,10 @@ function responder(opts) {
     }
     if (/TBCPluginVersion/.test(q)) {
       return { data: { plugins: opts.installed ? [{ id: PLUGIN_ID, version: opts.installed }] : [] } };
+    }
+    if (/TBCTagGraph/.test(q)) {
+      if (opts.failGraph) return { errors: [{ message: 'no hierarchy for you' }] };
+      return { data: { findTags: { tags: opts.tags || TAGS } } };
     }
     if (/TBCEntityTags/.test(q)) {
       if (opts.failTags) return { errors: [{ message: 'boom' }] };
@@ -69,7 +90,7 @@ function responder(opts) {
 // ── Fixtures ────────────────────────────────────────────────────────────────
 
 // The detail-view navbar: a `.details-edit` carrying a Delete button. Performer and
-// Group render this; it is where Copy Tags goes.
+// Group render this; it is where ⮺ Tags goes.
 function detailNavbar(body) {
   const nav = h.makeElement('div');
   nav.className = 'details-edit';
@@ -112,7 +133,7 @@ function start(opts) {
   env.ctx.alert = () => {};
   env.patches = {};
   // `noPluginApi` is what a Stash too old to expose component patching looks like -
-  // the branch that hides Paste Tags rather than offering a click that cannot work.
+  // the branch that hides 📋 Tags rather than offering a click that cannot work.
   if (!opts.noPluginApi) {
     env.ctx.PluginApi = {
       patch: { before: (name, fn) => { env.patches[name] = fn; } },
@@ -148,8 +169,8 @@ const btn = (body, label) => body.descendants()
     env.tick();
     await h.flush();
 
-    const copy = btn(env.body, 'Copy Tags');
-    h.check('Copy Tags lands on the detail navbar', !!copy);
+    const copy = btn(env.body, '⮺ Tags');
+    h.check('⮺ Tags lands on the detail navbar', !!copy);
 
     copy.click();
     await h.flush();
@@ -187,7 +208,7 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    const copy = btn(env.body, 'Copy Tags');
+    const copy = btn(env.body, '⮺ Tags');
     for (let i = 0; i < 7; i++) { copy.click(); await h.flush(); }
     h.check('an unset bundle limit falls back to five, not to one or to no limit',
       bundlesIn(env.store).length === 5, h.plural(bundlesIn(env.store).length, 'bundle'));
@@ -203,7 +224,7 @@ const btn = (body, label) => body.descendants()
     env.tick();
     await h.flush();
     env.renderTagSelect([]);
-    btn(env.body, 'Paste Tags...').click();
+    btn(env.body, '📋 Tags').click();
     await h.flush();
     const d = h.dialog(env.body, 'tbc');
     h.check('a clipboard that does not parse reads as empty rather than throwing',
@@ -218,7 +239,7 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    btn(env.body, 'Copy Tags').click();
+    btn(env.body, '⮺ Tags').click();
     await h.flush();
     const list = bundlesIn(env.store);
     h.check('entries that are not bundles are dropped rather than kept alongside ours',
@@ -231,7 +252,7 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    const copy = btn(env.body, 'Copy Tags');
+    const copy = btn(env.body, '⮺ Tags');
     copy.click();
     await h.flush();
     h.check('copying an entity with no tags stores nothing and says so',
@@ -249,7 +270,7 @@ const btn = (body, label) => body.descendants()
     env.tick();
     await h.flush();
     h.check('neither button appears off one of the six entity pages',
-      !btn(env.body, 'Copy Tags') && !btn(env.body, 'Paste Tags...'));
+      !btn(env.body, '⮺ Tags') && !btn(env.body, '📋 Tags'));
   }
 
   {
@@ -258,7 +279,7 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    const copy = btn(env.body, 'Copy Tags');
+    const copy = btn(env.body, '⮺ Tags');
     copy.click();
     await h.flush();
     h.check('the six types are reached by route, not just Scene',
@@ -297,8 +318,8 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    const copy = btn(env.body, 'Copy Tags');
-    h.check('with no navbar, Copy Tags goes in our own row under the tab strip',
+    const copy = btn(env.body, '⮺ Tags');
+    h.check('with no navbar, ⮺ Tags goes in our own row under the tab strip',
       !!copy && h.hasClass(copy.parentNode, 'tbc-src-row'));
     h.check('and that row sits after the strip rather than inside it',
       !!copy && copy.parentNode.parentNode === wrap &&
@@ -311,10 +332,10 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    const paste = btn(env.body, 'Paste Tags...');
+    const paste = btn(env.body, '📋 Tags');
     const labels = row.childNodes.map((n) => n.textContent.trim());
-    h.check('Paste Tags lands between Save and Delete, not after Delete',
-      JSON.stringify(labels) === JSON.stringify(['Save', 'Paste Tags...', 'Delete']),
+    h.check('📋 Tags lands between Save and Delete, not after Delete',
+      JSON.stringify(labels) === JSON.stringify(['Save', '📋 Tags', 'Delete']),
       JSON.stringify(labels));
     h.check('and it carries the owner the ordering protocol reads',
       paste._coopOwner === PLUGIN_ID);
@@ -347,7 +368,7 @@ const btn = (body, label) => body.descendants()
     const labels = row.childNodes.map((n) => n.textContent.trim());
     h.check('a higher-priority sibling keeps its place next to the anchor',
       JSON.stringify(labels) ===
-        JSON.stringify(['Save', 'Paste Tags...', 'Add Perf Tags', 'Delete']),
+        JSON.stringify(['Save', '📋 Tags', 'Add Perf Tags', 'Delete']),
       JSON.stringify(labels));
   }
 
@@ -358,8 +379,8 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    h.check('a Stash with no component patching gets Copy Tags and no Paste Tags',
-      !!btn(env.body, 'Copy Tags') && !btn(env.body, 'Paste Tags...'));
+    h.check('a Stash with no component patching gets ⮺ Tags and no 📋 Tags',
+      !!btn(env.body, '⮺ Tags') && !btn(env.body, '📋 Tags'));
   }
 
   // ── The paste dialog ──────────────────────────────────────────────────────
@@ -380,7 +401,7 @@ const btn = (body, label) => body.descendants()
       return h.flush();
     }).then(() => {
       const sel = env.renderTagSelect(values);
-      btn(env.body, 'Paste Tags...').click();
+      btn(env.body, '📋 Tags').click();
       return h.flush().then(() => sel);
     });
   }
@@ -413,12 +434,21 @@ const btn = (body, label) => body.descendants()
     const boxes = rows.map((r) => r.descendants().filter((n) => n.tagName === 'INPUT')[0]);
     h.check('both of the bundle tags are listed', rows.length === 2,
       h.plural(rows.length, 'row'));
-    h.check('the one the form already holds is disabled and unticked',
-      boxes[0].disabled === true && boxes[0].checked === false);
-    h.check('and says so beside the name',
-      /already on this Scene/.test(rows[0].textContent), rows[0].textContent);
+    // The order is the point as much as the states: what you can still change comes
+    // first, so Tattoo is above Blonde even though the bundle lists Blonde first.
+    h.check('what is still selectable sorts above what was decided for you',
+      /Tattoo/.test(rows[0].textContent) && /Blonde/.test(rows[1].textContent),
+      rows.map((r) => r.textContent).join(' | '));
     h.check('the one it does not hold is selectable and ticked',
-      boxes[1].disabled === false && boxes[1].checked === true);
+      boxes[0].disabled === false && boxes[0].checked === true);
+    // Ticked, not clear: the tag *is* on the entity, and a clear box beside "already
+    // on this Scene" said the opposite of what the row was reporting. The grey is
+    // what says the tick is not the user's to change.
+    h.check('the one the form already holds is disabled and ticked grey',
+      boxes[1].disabled === true && boxes[1].checked === true &&
+        h.hasClass(rows[1], 'tbc-tag-have'), rows[1].className);
+    h.check('and says so beside the name',
+      /already on this Scene/.test(rows[1].textContent), rows[1].textContent);
 
     const add = btn(env.body, 'Add 1 tag');
     h.check('the Add caption counts only what would actually be added', !!add);
@@ -513,7 +543,7 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    btn(env.body, 'Paste Tags...').click();     // no renderTagSelect
+    btn(env.body, '📋 Tags').click();     // no renderTagSelect
     await h.flush();
     // The Add button is found by prefix, not by its exact caption: a plugin that read a
     // missing control as an empty entity would label it "Add 1 tag", and looking for
@@ -573,6 +603,201 @@ const btn = (body, label) => body.descendants()
       h.dialog(env.body, 'tbc').stale);
   }
 
+  // ── Redundant parents: hover text, Prune, Roll Up ─────────────────────────
+
+  // One bundle carrying the whole chain, so it is auto-selected on open.
+  const CHAIN = JSON.stringify([
+    { v: 1, at: 3000, type: 'scene', id: '42', label: 'Scene "Hairy" (42)',
+      tags: [{ id: '1', name: 'Hair' }, { id: '7', name: 'Blonde' },
+        { id: '12', name: 'Platinum' }] },
+  ]);
+
+  const rowsOf = (env) => env.body.descendants().filter((n) => h.hasClass(n, 'tbc-tagrow'));
+  const boxesOf = (env) => rowsOf(env)
+    .map((r) => r.descendants().filter((n) => n.tagName === 'INPUT')[0]);
+  const stateOf = (row) => ['add', 'off', 'have', 'pruned', 'rolled']
+    .filter((s) => h.hasClass(row, 'tbc-tag-' + s))[0] || null;
+  const modeSel = (env) => env.body.descendants()
+    .filter((n) => h.hasClass(n, 'tbc-mode'))[0] || null;
+
+  function setMode(env, mode) {
+    const sel = modeSel(env);
+    sel.value = mode;
+    h.fire(sel, 'change');
+    return h.flush();
+  }
+
+  {
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43' });
+    await openDialog(env, []);
+    await h.flush();
+    const rows = rowsOf(env);
+    // The hover text is a plain `title`, and it is the one place the aliases, the
+    // description and the *children* edge reach the user - none of which is in the
+    // bundle, all of which comes from the one hierarchy query.
+    const hair = rows.filter((r) => /Hair/.test(r.textContent))[0];
+    h.check('a tag hover names its aliases, parents, children and description',
+      /Also: Coiffure/.test(hair.title) && /Children: Blonde/.test(hair.title) &&
+        /Everything about hair/.test(hair.title), JSON.stringify(hair.title));
+    const platinum = rows.filter((r) => /Platinum/.test(r.textContent))[0];
+    h.check('and the parent edge it does have', /Parents: Blonde/.test(platinum.title),
+      JSON.stringify(platinum.title));
+    // sort_name is what Stash sorts by where it is set, so Platinum leads its group
+    // despite being last alphabetically by name.
+    h.check('a group sorts by sort_name where there is one, like Stash does',
+      JSON.stringify(rows.map((r) => stateOf(r))) ===
+        JSON.stringify(['add', 'add', 'add']) &&
+        /Platinum/.test(rows[0].textContent), rows.map((r) => r.textContent).join(' | '));
+  }
+
+  {
+    // Prune: the entity will carry Platinum, so both of its ancestors are redundant.
+    // Two levels up as well as one - Hair is nobody's *parent* here, it is Platinum's
+    // grandparent, and a one-edge check would leave it addable.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43' });
+    const sel = await openDialog(env, []);
+    await h.flush();
+    await setMode(env, 'prune');
+    const rows = rowsOf(env);
+    h.check('Prune drops every ancestor of a tag that is going on, at any depth',
+      JSON.stringify(rows.map((r) => stateOf(r))) ===
+        JSON.stringify(['add', 'pruned', 'pruned']),
+      rows.map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+    h.check('a pruned box is clear and cannot be ticked back',
+      boxesOf(env)[1].checked === false && boxesOf(env)[1].disabled === true);
+    btn(env.body, 'Add 1 tag').click();
+    await h.flush();
+    h.check('and only the survivor reaches the control',
+      JSON.stringify(sel.selected[0].map((t) => t.id)) === JSON.stringify(['12']),
+      JSON.stringify(sel.selected));
+  }
+
+  {
+    // Prune reaches *past* a level the bundle does not carry. Hair and Platinum with
+    // no Blonde between them: one edge down from Hair finds only Blonde, which is not
+    // going on, so a one-edge check leaves Hair addable and the fully-populated chain
+    // above cannot tell the difference - it prunes the same three rows either way.
+    const GAP = JSON.stringify([
+      { v: 1, at: 3000, type: 'scene', id: '42', label: 'Scene "Gap" (42)',
+        tags: [{ id: '1', name: 'Hair' }, { id: '12', name: 'Platinum' }] },
+    ]);
+    const env = start({ storage: { [KEY]: GAP }, pathname: '/scenes/43' });
+    await openDialog(env, []);
+    await h.flush();
+    await setMode(env, 'prune');
+    const rows = rowsOf(env);
+    h.check('Prune reaches past a level the bundle does not contain',
+      JSON.stringify(rows.map((r) => stateOf(r))) === JSON.stringify(['add', 'pruned']),
+      rows.map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+  }
+
+  {
+    // Prune depends on the *current* selection, which is the half a static plan would
+    // get wrong: untick the tag that was making the others redundant and they come
+    // back as ordinary, tickable rows.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43' });
+    await openDialog(env, []);
+    await h.flush();
+    await setMode(env, 'prune');
+    const platinum = boxesOf(env)[0];
+    platinum.checked = false;
+    h.fire(platinum, 'change');
+    await h.flush();
+    const rows = rowsOf(env);
+    // Blonde is addable again (its only descendant is no longer going on), Platinum
+    // is the box the user cleared, and Hair is still redundant - Blonde is below it.
+    h.check('unticking the deepest tag un-prunes what it was making redundant',
+      JSON.stringify(rows.map((r) => stateOf(r))) === JSON.stringify(['add', 'off', 'pruned']),
+      rows.map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+  }
+
+  {
+    // Roll Up is the inverse, and it reaches tags the bundle never carried: a bundle
+    // of one deep tag brings both levels above it.
+    const DEEP = JSON.stringify([
+      { v: 1, at: 3000, type: 'scene', id: '42', label: 'Scene "Deep" (42)',
+        tags: [{ id: '12', name: 'Platinum' }] },
+    ]);
+    const env = start({ storage: { [KEY]: DEEP }, pathname: '/scenes/43' });
+    const sel = await openDialog(env, []);
+    await h.flush();
+    await setMode(env, 'rollup');
+    const rows = rowsOf(env);
+    h.check('Roll Up lists the ancestors the bundle does not contain',
+      rows.length === 3 && JSON.stringify(rows.map((r) => stateOf(r))) ===
+        JSON.stringify(['add', 'rolled', 'rolled']),
+      rows.map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+    h.check('a rolled-up box is ticked and fixed, not merely suggested',
+      boxesOf(env)[1].checked === true && boxesOf(env)[1].disabled === true);
+    btn(env.body, 'Add 3 tags').click();
+    await h.flush();
+    h.check('and all three reach the control',
+      JSON.stringify(sel.selected[0].map((t) => t.id).sort()) ===
+        JSON.stringify(['1', '12', '7']), JSON.stringify(sel.selected));
+  }
+
+  {
+    // The user's tie-break: a rolled-up tag the entity already carries reads as
+    // already-there, which is the truer of the two - Roll Up has nothing to add.
+    const DEEP = JSON.stringify([
+      { v: 1, at: 3000, type: 'scene', id: '42', label: 'Scene "Deep" (42)',
+        tags: [{ id: '12', name: 'Platinum' }] },
+    ]);
+    const env = start({ storage: { [KEY]: DEEP }, pathname: '/scenes/43' });
+    await openDialog(env, [{ id: '1', name: 'Hair' }]);
+    await h.flush();
+    await setMode(env, 'rollup');
+    const rows = rowsOf(env);
+    // By prefix: a row's textContent runs the tag name straight into its state mark.
+    const byName = {};
+    ['Hair', 'Blonde', 'Platinum'].forEach((n) => {
+      const row = rows.filter((r) => r.textContent.indexOf(n) === 0)[0];
+      byName[n] = row ? stateOf(row) : null;
+    });
+    h.check('already-on-target beats rolled-up, and the rest still rolls up',
+      byName.Hair === 'have' && byName.Blonde === 'rolled' && byName.Platinum === 'add',
+      JSON.stringify(byName));
+  }
+
+  {
+    // No hierarchy, no redundancy modes: holding them at "leave as they are" is the
+    // honest answer, where applying either against an empty graph would silently mean
+    // "nothing is redundant" and look like the mode had run.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', failGraph: true });
+    await openDialog(env, []);
+    await h.flush();
+    h.check('a hierarchy that cannot be read disables the modes and says so',
+      modeSel(env).disabled === true &&
+        h.dialog(env.body, 'tbc').lines.some((l) => /tag hierarchy could not be read/.test(l)),
+      h.dialog(env.body, 'tbc').lines.join(' | '));
+  }
+
+  // ── Undo ──────────────────────────────────────────────────────────────────
+
+  {
+    const env = start({ storage: { [KEY]: CLIP }, pathname: '/scenes/43' });
+    const sel = await openDialog(env, [{ id: '11', name: 'Rare' }]);
+    await h.flush();
+    env.body.descendants().filter((n) => h.hasClass(n, 'tbc-bundle'))[1].click();
+    await h.flush();
+    h.check('Undo is dead until there is a paste to take back',
+      btn(env.body, 'Undo').disabled === true);
+    btn(env.body, 'Add 2 tags').click();
+    await h.flush();
+    h.check('and live once there is', btn(env.body, 'Undo').disabled === false);
+    btn(env.body, 'Undo').click();
+    await h.flush();
+    // The control is handed the *earlier list*, not a removal instruction: this plugin
+    // issues no mutation, so an undo is the same one call an Add is.
+    h.check('Undo hands the control back exactly what the box held before',
+      sel.selected.length === 2 &&
+        JSON.stringify(sel.selected[1].map((t) => t.id)) === JSON.stringify(['11']),
+      JSON.stringify(sel.selected));
+    h.check('the tags are offered again afterwards', !!btn(env.body, 'Add 2 tags'));
+    h.check('and Undo goes dead again with nothing left to take back',
+      btn(env.body, 'Undo').disabled === true);
+  }
+
   // ── The property the whole design rests on ────────────────────────────────
 
   {
@@ -583,7 +808,7 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     btn(env.body, 'Add 2 tags').click();
     await h.flush();
-    btn(env.body, 'Copy Tags').click();
+    btn(env.body, '⮺ Tags').click();
     await h.flush();
     h.check('the tags reached the form', sel.selected.length === 1);
     const mutations = env.calls.filter((c) => /\bmutation\b/.test(c.query || ''));

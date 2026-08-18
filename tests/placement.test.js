@@ -1,5 +1,5 @@
 // Reproduces Stash's two performer-page markup states in jsdom and checks where the
-// "Copy Tags to all Scenes" button lands.
+// "Add Tags to all Scenes" button lands.
 //
 // This is the only suite needing a real DOM: the plugin has to distinguish two
 // containers Stash gives the same class, which a stub document cannot express.
@@ -114,7 +114,7 @@ const SCENE_EDIT_VIEW_NO_MARGINS = '<div id="scene-page"><div class="edit-button
 // fixture, not the plugin.
 const SCENE_EDIT_VIEW_WITH_FOREIGN = '<div id="scene-page"><div class="edit-buttons">' +
   '<button class="btn btn-secondary" type="button">Save</button>' +
-  '<button class="btn btn-secondary" id="foreign-btn">Copy Tags to all Scenes</button>' +
+  '<button class="btn btn-secondary" id="foreign-btn">Add Tags to all Scenes</button>' +
   '<button class="btn btn-danger delete">Delete</button></div></div>';
 
 // DetailsEditNavbar: the read-only detail view. Delete is rendered only when not editing.

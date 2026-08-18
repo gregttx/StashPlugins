@@ -129,7 +129,7 @@ is the warning to anyone matching on it. See "Cross-plugin cooperation: one name
 repo-root `CLAUDE.md`.
 
 **The button-label text is a cross-plugin contract, not cosmetics.** Both manual buttons read
-"Copy Tags to all Scenes" / "Copy all Tags from all Performers", matching the convention
+"Add Tags to all Scenes" / "Add all Tags from all Performers", matching the convention
 `PropagateTagsAndPerformers` uses ("Copy [all|common] [Tags|Perfs] [to|from] all <plural>"). That
 plugin's manual-button dedup matches on this exact visible text to tell "another plugin's button is
 showing" from "it only could be"; reword one side and the two plugins' buttons for
@@ -165,8 +165,8 @@ Five entry points share one core:
 
 | Path | Trigger | Saves? |
 | --- | --- | --- |
-| Performer button, "Copy Tags to all Scenes..." | click on the performer detail view | **reviews** in the dialog, scoped to that performer (§7e) |
-| Scene button, "Copy all Tags from all Performers" | click on the scene Edit tab | **stages** by default; **reviews** in the dialog if `saveTagsImmediately`, or where staging is unavailable |
+| Performer button, "Add Tags to all Scenes..." | click on the performer detail view | **reviews** in the dialog, scoped to that performer (§7e) |
+| Scene button, "Add all Tags from all Performers" | click on the scene Edit tab | **stages** by default; **reviews** in the dialog if `saveTagsImmediately`, or where staging is unavailable |
 | Auto-merge on scene update | `sceneUpdate` / `bulkSceneUpdate` seen in `fetch` | yes |
 | Auto-merge on performer update | `performerUpdate` / `bulkPerformerUpdate` seen in `fetch` | yes, every scene of the performer |
 | Library-wide task (1.2.0, review pass 1.3.0) | click in Settings - Tasks - Plugin Tasks | yes, after the user presses **Proceed** |
@@ -416,7 +416,7 @@ about this plugin's copy:
   switched on. A diagnostic that only speaks when a cache misses is silent exactly when it is
   wanted.
 
-**Caption flashing.** The scene button's messages are each shorter than "Copy all Tags from all Performers" so the
+**Caption flashing.** The scene button's messages are each shorter than "Add all Tags from all Performers" so the
 button never changes width, and `_sceneFlashToken` makes a later click supersede a running
 sequence instead of the two fighting over the caption.
 
@@ -780,6 +780,22 @@ the dialog just wrote, rendered from `Scene:<id>`. `evictWritten` now drops both
 **What is deliberately unchanged:** `mergeTagsIntoScene` and `mergeTagsIntoAllPerformerScenes` still
 exist and still write directly — they are what the two *automatic* modes call, and those write
 without a dialog by design. Nothing else calls them.
+
+## 7f. Copy became Add (3.2.0)
+
+Every manual button here said **Copy** — `Copy Tags to all Scenes...`, and twenty-odd more between this plugin and its
+sibling. That was unambiguous while these two were the only plugins in the repo that moved tags.
+`TagBundleClipboard` made it ambiguous: it has a real clipboard, and a row could end up carrying two
+buttons both saying "Copy" and meaning different things.
+
+They all say **Add** now, in the same release as the sibling's, so the cross-plugin dedup — which
+compares two plugins' live button *text* — still matches. `Copy log` in the footer is untouched: it
+copies to the system clipboard, which is what the word means outside this repo.
+
+Minor, not major: nothing matches on these strings except that dedup, and both sides moved together.
+The major digit is for a rename users have to act on, which is what `ownSettingGroup` and
+`ownTaskName` matching on the plugin **name** made the `ᝯㄝₓ ` prefix. The full reasoning, including
+why `Add` beat Import/Export and Propagate, is in the repo-root `CLAUDE.md` under "One verb per idea".
 
 ## 8. Logging
 

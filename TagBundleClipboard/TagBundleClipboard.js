@@ -36,7 +36,7 @@
   // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
   // live Stash: the major digit is the claim that the thing works, and no test in this
   // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.0.1';
+  var PLUGIN_VERSION = '0.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -63,8 +63,8 @@
   // that only reads. This plugin has one of each, which is unusual here and is the
   // rule read literally rather than a decoration:
   //
-  //   Copy Tags   reads the entity and puts a bundle in this browser. Teal.
-  //   Paste Tags  puts tags into the edit form, which is what the sibling plugins'
+  //   ⮺ Tags   reads the entity and puts a bundle in this browser. Teal.
+  //   📋 Tags   puts tags into the edit form, which is what the sibling plugins'
   //               amber staging buttons do. Amber.
   //
   // A Bootstrap variant class rather than a colour of our own, so the hover, focus and
@@ -195,6 +195,13 @@
   // reads as empty and the default has to live here. Clamped rather than refused: a
   // number outside the range is a typo, and refusing it would leave the clipboard
   // behaving as if the setting were unset with nothing saying why.
+  //
+  // **The setting is declared STRING, not NUMBER, and that is what makes "empty" a
+  // state the user can see.** A NUMBER setting renders `0` in the box when nothing is
+  // stored - neither the 5 it behaves as nor the blank the description promises - and
+  // there is no value this plugin could store to mean "unset" that the box would show
+  // as empty. STRING is what every other free-text setting in this repo already uses,
+  // and this function was parsing a string either way.
   function maxBundles(s) {
     var n = parseInt((s && s.a1MaxBundles) || '', 10);
     if (!(n > 0)) return DEFAULT_BUNDLES;
@@ -408,6 +415,138 @@
     return plural(Math.round(s / 86400), 'day') + ' ago';
   }
 
+  // ── The tag hierarchy ─────────────────────────────────────────────────────
+  //
+  // Fetched once, on the first dialog that needs it, and kept for the life of the
+  // page. It buys two things at once, which is why it is one query rather than two:
+  // the hover text on a tag row (aliases, parents, children, description) and the
+  // ancestor/descendant walks Prune and Roll Up are defined in terms of.
+  //
+  // The whole table rather than `findTags(ids:)` for the bundle's own tags, because
+  // both of those need tags the bundle does not contain - a parent two levels up, a
+  // child the entity happens to carry - and asking for those one round trip at a time
+  // would put a chain of queries between a checkbox and its own colour. `per_page: -1`
+  // is the repo's convention for tags specifically: thousands at most, and the same
+  // call NormalizeParentTags makes for the same reason.
+  //
+  // A failed fetch resolves to null rather than throwing. Everything it feeds degrades
+  // cleanly: the hover text falls back to the tag's name, and the two redundancy modes
+  // are held disabled while there is no hierarchy to reason about.
+  var _graph = null, _graphWait = null;
+
+  function loadTagGraph() {
+    if (_graph) return Promise.resolve(_graph);
+    if (_graphWait) return _graphWait;
+    _graphWait = gqlRequest('query TBCTagGraph { findTags(filter: { per_page: -1 }) ' +
+      '{ tags { id name sort_name description aliases parents { id } } } }', null)
+      .then(function (data) {
+        var tags = ((data.findTags || {}).tags) || [];
+        var byId = {}, children = {};
+        tags.forEach(function (t) { byId[String(t.id)] = t; });
+        // Stash only stores the parent edge, so the child edge is inverted here once
+        // rather than queried a second time.
+        tags.forEach(function (t) {
+          (t.parents || []).forEach(function (p) {
+            var k = String(p.id);
+            (children[k] || (children[k] = [])).push(String(t.id));
+          });
+        });
+        _graphWait = null;
+        _graph = { byId: byId, children: children };
+        return _graph;
+      }, function () { _graphWait = null; return null; });
+    return _graphWait;
+  }
+
+  // Every strict ancestor or descendant, breadth-first over a `seen` set. The set is
+  // not an optimisation: nothing in Stash forbids a cycle in the tag hierarchy, and a
+  // plain recursion would hang the dialog on one.
+  function walk(id, edgesOf) {
+    var out = {}, queue = [String(id)], seen = {};
+    seen[String(id)] = true;
+    while (queue.length) {
+      var next = edgesOf(queue.shift());
+      for (var i = 0; i < next.length; i++) {
+        var n = String(next[i]);
+        if (seen[n]) continue;
+        seen[n] = true;
+        out[n] = true;
+        queue.push(n);
+      }
+    }
+    return out;
+  }
+
+  function ancestorsOf(id) {
+    if (!_graph) return {};
+    return walk(id, function (cur) {
+      var t = _graph.byId[cur];
+      return (t && t.parents) ? t.parents.map(function (p) { return String(p.id); }) : [];
+    });
+  }
+
+  function descendantsOf(id) {
+    if (!_graph) return {};
+    return walk(id, function (cur) { return _graph.children[cur] || []; });
+  }
+
+  function graphName(id) {
+    var t = _graph && _graph.byId[String(id)];
+    return t ? t.name : null;
+  }
+
+  // Stash sorts a tag by `sort_name` where it is set and by `name` otherwise; the
+  // dialog's groups sort the same way so a list here and a list there read alike.
+  function sortKey(tag) {
+    var g = _graph && _graph.byId[String(tag.id)];
+    return String((g && g.sort_name) || tag.name || '').toLowerCase();
+  }
+
+  // The hover text on a tag row. A plain `title`, not the settings page's built
+  // tooltip: that one exists because Stash's own opens under the pointer over the very
+  // text it is explaining, and a tag row has no such problem - the native box is free,
+  // it wraps, and it is reachable by keyboard.
+  function tagTitle(tag) {
+    var lines = [tag.name];
+    var g = _graph && _graph.byId[String(tag.id)];
+    if (!g) return lines.join('\n');
+    var aliases = (g.aliases || []).filter(function (a) { return !!a; });
+    if (aliases.length) lines.push('Also: ' + aliases.join(', '));
+    var parents = (g.parents || []).map(function (p) { return graphName(p.id); })
+      .filter(function (n) { return !!n; }).sort();
+    if (parents.length) lines.push('Parents: ' + parents.join(', '));
+    var children = (_graph.children[String(tag.id)] || []).map(graphName)
+      .filter(function (n) { return !!n; }).sort();
+    if (children.length) lines.push('Children: ' + children.join(', '));
+    if (g.description) lines.push('', oneLine(g.description));
+    return lines.join('\n');
+  }
+
+  // ── Redundant parent tags: leave them, prune them, or roll up to them ─────
+  //
+  // The same two operations NormalizeParentTags names, scoped to one paste and applied
+  // to the *plan* rather than to the library - nothing here removes a tag the entity
+  // already carries, which is what keeps this plugin additive.
+  //
+  //   prune   a tag being added is dropped when the entity will also carry one of its
+  //           descendants: the child already implies the parent.
+  //   rollup  every ancestor of a tag being added is added too.
+  //
+  // They are exact inverses, so the control is one three-way choice rather than two
+  // toggles that can contradict each other. It lives in the dialog and not in the
+  // settings, because it is a decision about this paste: a setting would need a
+  // manifest key, a storage slot and a settings row to hold a value the user wants to
+  // change between two presses. It is a module variable so the choice survives closing
+  // the dialog, and is deliberately not persisted past a reload - `as they are` is the
+  // answer nobody has to think about, and it is where every page starts.
+  var MODE_ASIS = 'asis', MODE_PRUNE = 'prune', MODE_ROLLUP = 'rollup';
+  var MODES = [
+    { key: MODE_ASIS,   label: 'Redundant parents: leave as they are' },
+    { key: MODE_PRUNE,  label: 'Redundant parents: prune' },
+    { key: MODE_ROLLUP, label: 'Redundant parents: roll up' },
+  ];
+  var _mode = MODE_ASIS;
+
   // ── Styles ────────────────────────────────────────────────────────────────
 
   var CSS =
@@ -457,8 +596,18 @@
     // name two plugins share has to mean the same thing in both.
     '.tbc-cols{flex:1 1 auto;display:flex;min-height:0;border-bottom:1px solid #394b59;}' +
     '.tbc-pane{overflow:auto;padding:.5rem 0;}' +
-    '.tbc-pane-bundles{flex:0 0 34%;border-right:1px solid #394b59;}' +
+    // The bundle list holds one line each; the tag list holds everything. A quarter
+    // and three quarters, rather than the third the two panes started at - the tag
+    // pane is where the columns below have to fit.
+    '.tbc-pane-bundles{flex:0 0 24%;border-right:1px solid #394b59;}' +
     '.tbc-pane-tags{flex:1 1 auto;}' +
+    // Native CSS multi-column, with the pane as the scroll container and the list
+    // inside it left at auto height: that is what makes the browser *balance* the
+    // rows across however many columns fit, rather than laying out one tall column
+    // and overflowing sideways. `column-width` is a minimum - the browser widens the
+    // columns to fill the pane - so a wide modal gets fewer, wider columns and a
+    // narrow one gets a single column, with no breakpoint of ours to maintain.
+    '.tbc-taglist{column-width:20rem;column-gap:1.5rem;padding:0 1rem;}' +
     '.tbc-empty{padding:.5rem 1rem;color:#7d8f9c;}' +
     '.tbc-bundle{display:flex;align-items:baseline;gap:.5rem;padding:.35rem 1rem;' +
     'cursor:pointer;border-left:3px solid transparent;}' +
@@ -469,12 +618,38 @@
     '.tbc-bundle-drop{border:0;background:none;color:#7d8f9c;cursor:pointer;padding:0 .25rem;' +
     'font-size:.9rem;line-height:1;}' +
     '.tbc-bundle-drop:hover{color:#ff7373;}' +
-    '.tbc-tagrow{display:flex;align-items:baseline;gap:.5rem;padding:.2rem 1rem;margin:0;' +
-    'cursor:pointer;}' +
+    // `break-inside:avoid` is what keeps a row from being split across two columns.
+    '.tbc-tagrow{display:flex;align-items:baseline;gap:.5rem;padding:.2rem .25rem;margin:0;' +
+    'cursor:pointer;break-inside:avoid;-webkit-column-break-inside:avoid;}' +
     '.tbc-tagrow:hover{background:#3c4f5d;}' +
-    '.tbc-tagrow-have{cursor:default;color:#7d8f9c;}' +
-    '.tbc-tagrow-have:hover{background:none;}' +
+    '.tbc-tagrow-fixed{cursor:default;color:#7d8f9c;}' +
+    '.tbc-tagrow-fixed:hover{background:none;}' +
     '.tbc-have-mark{font-size:.8rem;color:#7d8f9c;}' +
+    // ── One colour per reason a box is in the state it is in ────────────────
+    //
+    // Five states, and the two axes are independent: *ticked* says whether the tag
+    // will end up on the entity, and *colour* says who decided. Stash's blue is the
+    // only one that means "you decided, and it is on"; everything else is the plugin
+    // or the entity answering for it.
+    //
+    //   add     blue,  ticked, live    - you picked it
+    //   off     red,   clear,  live    - you unpicked it
+    //   rolled  amber, ticked, fixed   - Roll Up implies it, so it goes on regardless
+    //   pruned  grey,  clear,  fixed   - Prune found it redundant
+    //   have    grey,  ticked, fixed   - the entity already carries it
+    //
+    // `accent-color` is the whole mechanism: one property, the browser's own
+    // checkbox, no rebuilt control. It is muted on a disabled box, which is the
+    // effect wanted anyway - the three fixed states are meant to read as quieter
+    // than the two live ones.
+    '.tbc-tag-off input{accent-color:#ff7373;}' +
+    '.tbc-tag-have input,.tbc-tag-pruned input{accent-color:#7d8f9c;}' +
+    '.tbc-tag-rolled input{accent-color:#ffb648;}' +
+    '.tbc-tag-rolled,.tbc-tag-rolled .tbc-have-mark{color:#ffb648;}' +
+    // The redundancy mode, in the footer beside Add - the control that decides what
+    // one press covers, the same place CustomFieldsBulkEditor puts its "Apply to".
+    '.tbc-mode{background:#30404d;color:#f5f8fa;border:1px solid #394b59;' +
+    'border-radius:3px;padding:.15rem .35rem;font-size:.85rem;max-width:100%;}' +
     // Stash's own .sub-heading is white-space: normal, so this plugin's description
     // would collapse into one paragraph. Scoped to the group we marked, never to
     // .sub-heading at large: another plugin's description is not ours to reflow.
@@ -625,7 +800,7 @@
     if (_patchInstalled || _warnedNoPatch) return;
     _warnedNoPatch = true;
     console.warn('[tbc] this Stash does not expose PluginApi component patching, so there ' +
-      'is no way to put tags into an edit form. The Paste Tags button is not shown. Copy ' +
+      'is no way to put tags into an edit form. The "📋 Tags" button is not shown. "⮺ ' +
       'Tags still works, and the bundles are waiting for a Stash that can paste them.');
   }
 
@@ -662,8 +837,7 @@
   // Edit tab first" rather than as an empty entity - the two are different facts and
   // conflating them would hide a placement failure behind a normal-looking no-op.
   function formTagIds(type, id) {
-    var expected = (_pasted.type === type && _pasted.id === id) ? _pasted.ids : null;
-    var control = findControl(type, id, expected);
+    var control = currentControl(type, id);
     if (!control) return null;
     return (control.values || []).map(function (t) { return String(t.id); });
   }
@@ -679,20 +853,33 @@
   // places to be right about a rule that has one answer, so this one is gone rather
   // than covered by a second check. What is left is honest about what it does: it
   // appends what it is handed.
-  function pasteTags(type, id, tags) {
+  // The one writer into the form, so an Add and an Undo cannot disagree about what
+  // "put this list in the box" means.
+  function setFormTags(control, type, id, values) {
+    control.props.onSelect(values);
+    control.values = values;
+    _pasted = { type: type, id: id, ids: values.map(function (t) { return String(t.id); }) };
+  }
+
+  function currentControl(type, id) {
     var expected = (_pasted.type === type && _pasted.id === id) ? _pasted.ids : null;
-    var control = findControl(type, id, expected);
+    return findControl(type, id, expected);
+  }
+
+  // Returns what the box held *before*, which is the whole of this plugin's undo: it
+  // issues no mutation, so taking a paste back is handing the control the exact list
+  // it had. A snapshot rather than a diff - the user may edit the box by hand between
+  // two presses, and a diff would have to guess which of those edits were ours.
+  function pasteTags(type, id, tags) {
+    var control = currentControl(type, id);
     if (!control) throw new Error('could not find the tag box - open the Edit tab first');
-    var current = control.values || [];
+    var before = (control.values || []).slice();
     var added = tags.map(function (t) {
       return { id: String(t.id), name: t.name, aliases: [], image_path: null };
     });
-    if (!added.length) return 0;
-    var next = current.concat(added);
-    control.props.onSelect(next);
-    control.values = next;
-    _pasted = { type: type, id: id, ids: next.map(function (t) { return String(t.id); }) };
-    return added.length;
+    if (!added.length) return null;
+    setFormTags(control, type, id, before.concat(added));
+    return { added: added.length, before: before };
   }
 
   // ── Copying a bundle ──────────────────────────────────────────────────────
@@ -779,10 +966,21 @@
     this.lines = [];
     this.selected = null;     // the bundle's `at`, which is its identity in the list
     this.checked = {};        // tag id -> true, for the selected bundle only
+    this._undo = [];          // one snapshot of the form's tag list per Add
     injectStyle();
     this.build();
     wireEscape(this);
     this.render();
+    // The hierarchy is only wanted for the hover text and the two redundancy modes,
+    // neither of which the dialog needs to open. It is fetched behind the dialog and
+    // the list is redrawn when it lands.
+    var self = this;
+    loadTagGraph().then(function (graph) {
+      if (_active !== self) return;
+      if (!graph) self.log('WARN', 'the tag hierarchy could not be read, so Prune and ' +
+        'Roll Up are unavailable and a tag hover shows its name only');
+      self.render();
+    });
   }
 
   PasteRun.prototype.build = function () {
@@ -806,9 +1004,13 @@
     this.noteEl = el('div', 'tbc-warn');
     head.appendChild(this.noteEl);
     head.appendChild(el('div', 'tbc-legend', 'A bundle is named for the entity it was ' +
-      'copied from, with its database id in brackets. Tags this ' +
+      'copied from, with its database id in brackets. A box you can tick is blue when ' +
+      'it is on and red when you have turned it off; a box you cannot tick says who ' +
+      'decided instead - grey and ticked for a tag this ' +
       (ENTITIES[this.type] ? ENTITIES[this.type].label : 'entity') +
-      ' already carries are listed but cannot be ticked.'));
+      ' already carries, grey and clear for one Prune found redundant, amber and ' +
+      'ticked for one Roll Up brings in. Hover a tag for its aliases, parents, ' +
+      'children and description.'));
     this.modal.appendChild(head);
 
     this.progressEl = el('div', 'tbc-progress');
@@ -816,9 +1018,13 @@
 
     var panes = el('div', 'tbc-cols');
     this.bundlesEl = el('div', 'tbc-pane tbc-pane-bundles');
-    this.tagsEl = el('div', 'tbc-pane tbc-pane-tags');
+    // The pane scrolls; the list inside it is what carries the columns, at auto
+    // height, which is what makes the browser balance the rows across them.
+    this.tagsPane = el('div', 'tbc-pane tbc-pane-tags');
+    this.tagsEl = el('div', 'tbc-taglist');
+    this.tagsPane.appendChild(this.tagsEl);
     panes.appendChild(this.bundlesEl);
-    panes.appendChild(this.tagsEl);
+    panes.appendChild(this.tagsPane);
     this.modal.appendChild(panes);
 
     this.logEl = el('div', 'tbc-log');
@@ -830,15 +1036,37 @@
     // Apply: there is no plan above to proceed with - the press is the whole action.
     this.addBtn = button('Add');
     this.addBtn.addEventListener('click', function () { self.add(); });
+    // Beside Add, because it is the control deciding what one press covers - the same
+    // place and the same reason as CustomFieldsBulkEditor's "Apply to".
+    this.modeSel = document.createElement('select');
+    this.modeSel.className = 'tbc-mode';
+    MODES.forEach(function (m) {
+      var opt = document.createElement('option');
+      opt.value = m.key;
+      opt.textContent = m.label;
+      self.modeSel.appendChild(opt);
+    });
+    this.modeSel.value = _mode;
+    this.modeSel.title = 'Prune drops a tag the entity will already imply through one ' +
+      'of its descendants. Roll Up adds every ancestor of a tag you are adding. ' +
+      'Either way nothing already on the entity is removed.';
+    this.modeSel.addEventListener('change', function () {
+      _mode = self.modeSel.value;
+      self.render();
+    });
     this.copyBtn = button('Copy log');
     this.copyBtn.addEventListener('click', function () { self.copyLog(); });
+    this.undoBtn = button('Undo');
+    this.undoBtn.addEventListener('click', function () { self.undo(); });
     this.closeBtn = button('Close');
     this.closeBtn.addEventListener('click', function () { self.close(); });
     // Declared so `escapeButton` can look for it without a special case; this dialog
     // has no mid-write state, so it is never shown.
     this.cancelBtn = null;
     foot.appendChild(this.addBtn);
+    foot.appendChild(this.modeSel);
     foot.appendChild(this.copyBtn);
+    foot.appendChild(this.undoBtn);
     foot.appendChild(this.closeBtn);
     this.modal.appendChild(foot);
 
@@ -905,7 +1133,7 @@
     this.bundlesEl.textContent = '';
     if (!bundles.length) {
       this.bundlesEl.appendChild(el('div', 'tbc-empty', 'The clipboard is empty. Press ' +
-        '"Copy Tags" on the detail view of any Scene, Image, Gallery, Performer, Studio ' +
+        '"⮺ Tags" on the detail view of any Scene, Image, Gallery, Performer, Studio ' +
         'or Group to put a bundle on it.'));
     }
     bundles.forEach(function (b) {
@@ -937,7 +1165,9 @@
     for (var i = 0; i < bundles.length; i++) if (bundles[i].at === this.selected) bundle = bundles[i];
 
     this.tagsEl.textContent = '';
-    var addable = 0, already = 0;
+    this._bundle = bundle;
+    this._rows = (bundle && have !== null) ? this.classify(bundle, haveMap) : [];
+
     if (!bundle) {
       this.tagsEl.appendChild(el('div', 'tbc-empty', 'Pick a bundle on the left.'));
     } else if (have === null) {
@@ -946,89 +1176,204 @@
       // belongs in put it somewhere the form is not.
       this.tagsEl.appendChild(el('div', 'tbc-empty', 'The tag box on this page has not ' +
         'been found. Open the Edit tab and reopen this dialog.'));
+    } else if (!bundle.tags.length) {
+      this.tagsEl.appendChild(el('div', 'tbc-empty', 'That bundle carries no tags.'));
     } else {
-      bundle.tags.forEach(function (t) {
-        var mine = haveMap[String(t.id)];
-        if (mine) already++; else addable++;
-        // Unchecked *and* disabled, which is the user's "selected out, unselectable":
-        // the tag is still listed, so the bundle reads as what was copied, and it can
-        // never be part of what is added.
-        var row = el('label', 'tbc-tagrow' + (mine ? ' tbc-tagrow-have' : ''));
-        var box = document.createElement('input');
-        box.type = 'checkbox';
-        box.disabled = !!mine;
-        box.checked = !mine && self.checked[String(t.id)] !== false;
-        box.addEventListener('change', function () {
-          self.checked[String(t.id)] = !!box.checked;
-          self.updateCounts();
-        });
-        row.appendChild(box);
-        row.appendChild(el('span', null, t.name));
-        if (mine) {
-          row.appendChild(el('span', 'tbc-have-mark', 'already on this ' +
-            (ENTITIES[self.type] ? ENTITIES[self.type].label : 'entity')));
-        }
-        self.tagsEl.appendChild(row);
-      });
-      if (!bundle.tags.length) {
-        this.tagsEl.appendChild(el('div', 'tbc-empty', 'That bundle carries no tags.'));
-      }
+      this._rows.forEach(function (r) { self.tagsEl.appendChild(self.tagRow(r)); });
     }
 
-    this._bundle = bundle;
-    this._counts = { addable: addable, already: already, bundles: bundles.length,
-      noForm: !!bundle && have === null };
+    this.modeSel.value = _mode;
+    this.modeSel.disabled = !_graph;
+    this._counts = { bundles: bundles.length, noForm: !!bundle && have === null };
     this.updateCounts();
   };
 
-  // What is currently ticked, in the bundle's own order so the log reads the way the
-  // list does. Reads the checkboxes' model rather than the DOM: a tag defaults to
-  // ticked, and `checked[id] === false` is the only thing that unticks it.
+  // ── What state each tag is in, and why ────────────────────────────────────
+  //
+  // Five states over two independent facts - will the tag end up on the entity, and
+  // who decided. `add` and `off` are the user's and stay live; `have`, `pruned` and
+  // `rolled` are decided for them and are fixed.
+  //
+  // Recomputed on every tick of a checkbox, because Prune and Roll Up are defined
+  // against *the current selection*: unticking one tag can make its parent stop being
+  // redundant, and that has to show immediately rather than at the press.
+  //
+  // Neither mode ever removes a tag the entity already carries. Prune only declines to
+  // *add* one, which is what keeps this plugin additive - the sibling that removes
+  // them is NormalizeParentTags, with a review dialog and an Undo that reaches the
+  // library.
+  PasteRun.prototype.classify = function (bundle, haveMap) {
+    var self = this;
+    var rows = [], byId = {};
+
+    function put(tag, state) {
+      var key = String(tag.id);
+      if (byId[key]) return byId[key];
+      var row = { tag: tag, state: state, key: key };
+      byId[key] = row;
+      rows.push(row);
+      return row;
+    }
+
+    bundle.tags.forEach(function (t) {
+      var key = String(t.id);
+      if (haveMap[key]) put(t, 'have');
+      else put(t, self.checked[key] === false ? 'off' : 'add');
+    });
+
+    // Held at `asis` while the hierarchy is unread: there is nothing to be redundant
+    // against, and guessing would be worse than the mode simply not applying yet.
+    var mode = _graph ? _mode : MODE_ASIS;
+    var live = rows.filter(function (r) { return r.state === 'add'; });
+
+    if (mode === MODE_PRUNE) {
+      // Redundant against everything the entity will carry - its own tags and the
+      // ones being added. A tag whose only descendant here is itself pruned stays
+      // pruned, because that descendant was pruned for having a descendant of its
+      // own, which is a descendant of this one too. So one pass settles it.
+      var eventual = {};
+      for (var k in haveMap) if (hasOwn(haveMap, k)) eventual[k] = true;
+      live.forEach(function (r) { eventual[r.key] = true; });
+      live.forEach(function (r) {
+        var below = descendantsOf(r.key);
+        for (var d in below) {
+          if (hasOwn(below, d) && eventual[d]) { r.state = 'pruned'; return; }
+        }
+      });
+    } else if (mode === MODE_ROLLUP) {
+      live.forEach(function (r) {
+        var above = ancestorsOf(r.key);
+        for (var a in above) {
+          if (!hasOwn(above, a)) continue;
+          var known = _graph.byId[a];
+          if (!known) continue;
+          var existing = byId[a];
+          // An ancestor the entity already carries reads as already-there, whether it
+          // was in the bundle or is only on this list because Roll Up reached it:
+          // already-on-target wins over rolled-up, and it is the truer of the two -
+          // Roll Up has nothing to add where the tag is already on.
+          if (haveMap[a]) { if (!existing) put({ id: a, name: known.name }, 'have'); continue; }
+          // Roll Up overrides an unticked box on purpose: the ancestor is implied by
+          // a tag that *is* going on, so leaving it out would not honour the mode.
+          if (existing) existing.state = 'rolled';
+          else put({ id: a, name: known.name }, 'rolled');
+        }
+      });
+    }
+
+    // The user's order: what you can still change first (on, then off), then what was
+    // decided for you (Prune/Roll Up, then already-there). Within a group, Stash's own
+    // sort, so a list here reads like a list anywhere else in the app.
+    var rank = { add: 0, off: 1, rolled: 2, pruned: 2, have: 3 };
+    rows.sort(function (a, b) {
+      var d = rank[a.state] - rank[b.state];
+      if (d) return d;
+      var ka = sortKey(a.tag), kb = sortKey(b.tag);
+      return ka < kb ? -1 : (ka > kb ? 1 : 0);
+    });
+    return rows;
+  };
+
+  var STATE_CLASS = {
+    add: 'tbc-tag-add', off: 'tbc-tag-off', have: 'tbc-tag-have',
+    pruned: 'tbc-tag-pruned', rolled: 'tbc-tag-rolled',
+  };
+  var TICKED = { add: true, have: true, rolled: true };
+  var LIVE   = { add: true, off: true };
+
+  PasteRun.prototype.stateMark = function (state) {
+    var what = ENTITIES[this.type] ? ENTITIES[this.type].label : 'entity';
+    if (state === 'have') return 'already on this ' + what;
+    if (state === 'pruned') return 'redundant - a tag below it is going on';
+    if (state === 'rolled') return 'rolled up - a tag under it is going on';
+    return null;
+  };
+
+  PasteRun.prototype.tagRow = function (r) {
+    var self = this;
+    var live = !!LIVE[r.state];
+    var row = el('label', 'tbc-tagrow ' + STATE_CLASS[r.state] +
+      (live ? '' : ' tbc-tagrow-fixed'));
+    row.title = tagTitle(r.tag);
+    var box = document.createElement('input');
+    box.type = 'checkbox';
+    box.disabled = !live;
+    box.checked = !!TICKED[r.state];
+    if (live) {
+      box.addEventListener('change', function () {
+        self.checked[r.key] = !!box.checked;
+        // A full render, not just the counters: Prune and Roll Up both depend on this
+        // box, so its neighbours' states and the list's order can change with it.
+        self.render();
+      });
+    }
+    row.appendChild(box);
+    row.appendChild(el('span', null, r.tag.name));
+    var mark = this.stateMark(r.state);
+    if (mark) row.appendChild(el('span', 'tbc-have-mark', mark));
+    return row;
+  };
+
+  // What Add would put in the box: the live ticks and the tags Roll Up brings with
+  // them, in the order the list shows.
   //
   // **A missing control means nothing is pickable, not that the entity is empty.**
-  // `formTagIds` returns null there, and reading that as "holds no tags" would offer
-  // every tag in the bundle, disable nothing, and end in `pasteTags` throwing on the
-  // press - an error where the pane above it is already explaining the real problem.
+  // `formTagIds` returns null there, `classify` is never run, and `_rows` is empty -
+  // where reading the null as "holds no tags" would offer every tag in the bundle,
+  // fix nothing, and end in `pasteTags` throwing on the press, over a pane already
+  // explaining the real problem.
   PasteRun.prototype.picked = function () {
-    var self = this;
-    if (!this._bundle) return [];
-    var have = formTagIds(this.type, this.id);
-    if (have === null) return [];
-    var haveMap = {};
-    have.forEach(function (tid) { haveMap[tid] = true; });
-    return this._bundle.tags.filter(function (t) {
-      return !haveMap[String(t.id)] && self.checked[String(t.id)] !== false;
-    });
+    return (this._rows || []).filter(function (r) {
+      return r.state === 'add' || r.state === 'rolled';
+    }).map(function (r) { return r.tag; });
+  };
+
+  PasteRun.prototype.count = function (state) {
+    var n = 0;
+    (this._rows || []).forEach(function (r) { if (r.state === state) n++; });
+    return n;
   };
 
   PasteRun.prototype.updateCounts = function () {
-    var c = this._counts || { addable: 0, already: 0, bundles: 0, noForm: false };
+    var c = this._counts || { bundles: 0, noForm: false };
     var n = this.picked().length;
-    this.progressEl.textContent =
-      plural(c.bundles, 'bundle') + ' on the clipboard' +
+    var parts = [plural(c.bundles, 'bundle') + ' on the clipboard'];
+    if (c.noForm) {
       // With no control found there is nothing to compare against, and printing
       // "0 tags already there" would read as an answer rather than as the absence of
-      // one - the same conflation `picked()`'s null guard exists to prevent, one line
-      // further out.
-      (c.noForm ? ' · no tag box on this page to compare against'
-        : ' · ' + plural(c.addable, 'tag') + ' this ' +
-          (ENTITIES[this.type] ? ENTITIES[this.type].label : 'entity') + ' does not have · ' +
-          plural(c.already, 'tag') + ' already there');
+      // one.
+      parts.push('no tag box on this page to compare against');
+    } else {
+      parts.push(plural(n, 'tag') + ' to add');
+      parts.push(plural(this.count('have'), 'tag') + ' already there');
+      var pruned = this.count('pruned');
+      if (pruned) parts.push(plural(pruned, 'tag') + ' pruned');
+      var rolled = this.count('rolled');
+      if (rolled) parts.push(plural(rolled, 'tag') + ' rolled up');
+    }
+    this.progressEl.textContent = parts.join(' · ');
     this.addBtn.textContent = n ? ('Add ' + plural(n, 'tag')) : 'Add';
     this.addBtn.disabled = !n;
+    this.undoBtn.disabled = !this._undo.length;
   };
 
   PasteRun.prototype.add = function () {
+    // Re-derived before the selection is read, not after: the diff is against the form
+    // **at the press**, and the box may have been hand-edited since the list was drawn.
+    // `render()` is the only thing that reads the control, so re-entering it is what
+    // keeps one answer rather than a second copy of the rule here.
+    this.render();
     var picked = this.picked();
     if (!picked.length) return;
-    var self = this;
     var names = picked.map(function (t) { return t.name; }).join(', ');
     try {
-      var n = pasteTags(this.type, this.id, picked);
-      this.log('TAG', 'added ' + plural(n, 'tag') + ' to ' + this.scope + ': ' + names);
+      var result = pasteTags(this.type, this.id, picked);
+      this._undo.push(result.before);
+      this.log('TAG', 'added ' + plural(result.added, 'tag') + ' to ' + this.scope +
+        ': ' + names);
       this.log('INFO', 'they are in the form behind this dialog - press Save there to ' +
         'keep them.');
-      logToConsole('pasted ' + plural(n, 'tag') + ' onto ' + this.scope +
+      logToConsole('pasted ' + plural(result.added, 'tag') + ' onto ' + this.scope +
         ' from ' + (this._bundle ? this._bundle.label : 'a bundle'));
     } catch (err) {
       this.log('ERROR', (err && err.message) || String(err));
@@ -1037,7 +1382,32 @@
     // Re-derived rather than adjusted: the pasted tags are now what the form holds, so
     // the same render that drew them as addable draws them as already there, and a
     // second Add is correctly a no-op.
-    self.render();
+    this.render();
+  };
+
+  // The undo the sibling dialogs cannot have, and the one this dialog can: they write
+  // to the library and have to put a mutation back, while this one only ever handed a
+  // list to a control, so taking it back is handing the earlier list over.
+  //
+  // It restores a *snapshot*, so a tag added by hand between two presses goes with it.
+  // Said in the log rather than guarded against: reconstructing which of the box's
+  // entries were the user's would be guessing, and the form's own Reset is behind this
+  // if the snapshot is not what was wanted.
+  PasteRun.prototype.undo = function () {
+    var before = this._undo.pop();
+    if (!before) return;
+    var control = currentControl(this.type, this.id);
+    if (!control) {
+      this.log('ERROR', 'the tag box is no longer on this page, so there is nothing to ' +
+        'put back - reopen the Edit tab');
+      this.updateCounts();
+      return;
+    }
+    setFormTags(control, this.type, this.id, before);
+    this.log('INFO', 'undone - the tag box is back to the ' + plural(before.length, 'tag') +
+      ' it held before that Add, including any you had added by hand since');
+    logToConsole('undid a paste onto ' + this.scope);
+    this.render();
   };
 
   // ── Is this script the one Stash has installed? ───────────────────────────
@@ -1744,10 +2114,17 @@
     setTimeout(function () { btn.textContent = btn._tbcLabel; }, FLASH_MS);
   }
 
-  var COPY_LABEL  = 'Copy Tags';
-  // "..." because the click opens a dialog rather than acting - the repo-wide
-  // convention. The copy button has none: it acts immediately and writes nothing.
-  var PASTE_LABEL = 'Paste Tags...';
+  // An icon and one word, because these two sit in a row where every other button
+  // spells out what it does to the whole library and these do neither - one reads an
+  // entity, one opens a picker. The icons carry the direction: out to the clipboard,
+  // back off it.
+  //
+  // **Neither takes the repo's "..." suffix, and the paste button is the exception
+  // being made.** The convention marks a caption whose click asks before it acts, and
+  // a two-token caption built around an icon has no room for a third that reads as
+  // punctuation rather than as a promise. The icon is doing the work the dots did.
+  var COPY_LABEL  = '⮺ Tags';
+  var PASTE_LABEL = '📋 Tags';
 
   function onCopy(btn) {
     var rt = currentRoute();
@@ -1808,7 +2185,7 @@
     var copy = document.getElementById(COPY_BTN_ID);
     if (!copyBox) {
       gateLogOnce('copy', 'no detail button row or tab strip on ' + ENTITIES[rt.type].label +
-        ' - Copy Tags not shown');
+        ' - "⮺ Tags" not shown');
       if (copy && copy.parentNode) copy.parentNode.removeChild(copy);
     } else {
       if (copy && (copy.parentNode !== copyBox || copy._tbcEntity !== rt.type + ':' + rt.id)) {
@@ -1821,7 +2198,7 @@
         ensureRowSpacing(copyBox);
         insertBeforeImportantAction(copyBox, copy);
       }
-      gateLogOnce('copy', 'Copy Tags shown on ' + ENTITIES[rt.type].label + ' ' + rt.id);
+      gateLogOnce('copy', '"⮺ Tags" shown on ' + ENTITIES[rt.type].label + ' ' + rt.id);
     }
 
     // The paste button, on the edit form. It needs somewhere to put the tags, so a
@@ -1831,14 +2208,14 @@
     var paste = document.getElementById(PASTE_BTN_ID);
     if (!_patchInstalled) {
       warnNoPatchOnce();
-      gateLogOnce('paste', 'PluginApi component patching is unavailable - Paste Tags not shown');
+      gateLogOnce('paste', 'PluginApi component patching is unavailable - "📋 Tags" not shown');
       if (paste && paste.parentNode) paste.parentNode.removeChild(paste);
       return;
     }
     var editBox = findEditContainer();
     if (!editBox) {
       gateLogOnce('paste', 'no edit form open on ' + ENTITIES[rt.type].label +
-        ' - Paste Tags not shown');
+        ' - "📋 Tags" not shown');
       if (paste && paste.parentNode) paste.parentNode.removeChild(paste);
       return;
     }
@@ -1852,7 +2229,7 @@
       ensureRowSpacing(editBox);
       insertBeforeImportantAction(editBox, paste);
     }
-    gateLogOnce('paste', 'Paste Tags shown on ' + ENTITIES[rt.type].label + ' ' + rt.id);
+    gateLogOnce('paste', '"📋 Tags" shown on ' + ENTITIES[rt.type].label + ' ' + rt.id);
   }
 
   // ── Wiring ────────────────────────────────────────────────────────────────

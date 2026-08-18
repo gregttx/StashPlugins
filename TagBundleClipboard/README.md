@@ -14,13 +14,13 @@ Requires Stash 0.31.0 or newer.
 
 ## How it works
 
-**Copy.** Open any Scene, Image, Gallery, Performer, Studio or Group and press **Copy Tags** on its
+**Copy.** Open any Scene, Image, Gallery, Performer, Studio or Group and press **⮺ Tags** on its
 detail view. Every tag it carries goes onto a clipboard as one bundle, named for the entity it came
 from.
 
 **Paste.** Open the Edit tab of any other entity of any of those six types and press
-**Paste Tags…**. A dialog lists the bundles on the clipboard, newest first. Pick one, tick the tags
-you want, and press Add — they go straight into the tag box on the form behind the dialog.
+**📋 Tags**. A dialog lists the bundles on the clipboard, newest first. Pick one, tick the tags you
+want, and press Add — they go straight into the tag box on the form behind the dialog.
 
 Then press Stash's own **Save**, exactly as if you had picked each tag from the dropdown yourself.
 
@@ -30,8 +30,8 @@ The plugin makes no changes of its own, at any point. A paste puts tags into the
 Save is what commits them.** Close the form without saving and nothing has happened.
 
 That is why this dialog, alone among the plugins here, does not tell you to back up your database
-first, and why it has no Undo — the form's own Reset is the undo, and there is nothing else to take
-back.
+first. Its **Undo** hands the tag box back exactly what it held before the last Add — including
+anything you had typed in by hand since — and Stash's own Reset is still behind it.
 
 ## The clipboard
 
@@ -46,13 +46,47 @@ direction:
 - **Another browser, another device and your database backup do not see it.** A bundle is scratch
   data with a lifetime of minutes; it is not part of your library.
 
-## Tags the target already has
+## Reading the tag list
 
-They are listed, greyed out, and cannot be ticked. A paste only ever adds what is missing, so
-pressing Add twice does nothing the second time.
+Every tag in the bundle is listed. A box you can tick is **blue** when it is on and **red** when you
+have turned it off; a box you cannot tick tells you who decided instead:
 
-What counts as "already there" is read from **the form in front of you**, not from the server — so a
-tag you have just added or removed by hand, without saving, is taken into account.
+| | |
+|---|---|
+| **grey, ticked** | the entity already carries this tag |
+| **grey, clear** | Prune found it redundant |
+| **amber, ticked** | Roll Up brings it in |
+
+The list is ordered the same way: what you can still change first (on, then off), then what was
+decided for you, with the tags the entity already has last. Within each group it sorts the way Stash
+sorts tags anywhere else.
+
+A paste only ever adds what is missing, so pressing Add twice does nothing the second time. What
+counts as "already there" is read from **the form in front of you**, not from the server — so a tag
+you have just added or removed by hand, without saving, is taken into account, and it is re-read at
+the moment you press Add rather than when the dialog was drawn.
+
+Hover any tag for its aliases, its parents, its children and its description.
+
+## Redundant parent tags
+
+A dropdown beside Add decides what to do about a selection that carries both a tag and its parent:
+
+| | |
+|---|---|
+| **leave as they are** | the default — what you tick is what goes on |
+| **prune** | a tag is dropped when the entity will also carry one of its descendants, at any depth |
+| **roll up** | every ancestor of a tag you are adding is added too, whether or not the bundle carried it |
+
+Both follow the ticks live: unticking the tag that was making a parent redundant brings the parent
+back as an ordinary, tickable row.
+
+**Neither ever removes anything.** Prune only declines to add. Removing a redundant tag an entity
+already carries is what **ᝯㄝₓ Normalize Parent Tags** does, with a review dialog and an Undo that
+reaches the library.
+
+The choice needs the tag hierarchy, which is read once per page. If that read fails, both modes are
+held unavailable and the dialog says so.
 
 ## What is not offered
 
@@ -66,18 +100,18 @@ tag you have just added or removed by hand, without saving, is taken into accoun
 
 | Setting | |
 |---|---|
-| **Bundles Kept on the Clipboard** | How many bundles to keep before the oldest is discarded. Empty means 5. Anything from 1 to 50; a value outside that is clamped rather than refused. Lowering it discards nothing until the next copy. |
+| **Bundles Kept on the Clipboard** | How many bundles to keep before the oldest is discarded. Leave it empty for 5. Anything from 1 to 50; a value outside that is clamped rather than refused. Lowering it discards nothing until the next copy. |
 | **Log to the Browser Console** | Print each copy and each paste under the `[tbc]` prefix, so a session can be read back after the dialog has been closed. |
 
 ## Where the buttons are
 
-**Copy Tags** goes on the detail view — in the row of actions beside Delete on a Performer or a
+**⮺ Tags** goes on the detail view — in the row of actions beside Delete on a Performer or a
 Group, and in a small row of its own under the tab strip on a Scene or a Gallery, which render no
 action row there. It is teal, because it only reads.
 
-**Paste Tags…** goes in the edit form's button row, between Save and Delete. It is amber, the colour
+**📋 Tags** goes in the edit form's button row, between Save and Delete. It is amber, the colour
 every plugin here uses for a control that changes something — in this case the form, not the
-library. The trailing "…" is this repo's convention for a button that asks before it acts.
+library.
 
 If another of these plugins is installed, its buttons and these share the row in a fixed order
 rather than whichever loaded first.
@@ -95,7 +129,7 @@ rather than whichever loaded first.
 
 ## Troubleshooting
 
-**The Paste Tags button is not there.** Three things it needs, in order: you are on one of the six
+**The 📋 Tags button is not there.** Three things it needs, in order: you are on one of the six
 entity pages; the **Edit** tab is open, since the button sits in the edit form's own button row; and
 your Stash exposes plugin component patching, without which there is no way to put tags into a form.
 The last of those prints one line to the browser console saying so.

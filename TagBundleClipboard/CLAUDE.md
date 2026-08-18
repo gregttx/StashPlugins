@@ -5,9 +5,9 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.1.0.** The first live pass happened and most of the guesses held —
-§11 records what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it
-was and not empty, and the major digit is the claim that the whole thing works.
+**Status: partly verified. 0.2.0.** Two live passes in, and most of the guesses held — §11 records
+what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
+empty, and the major digit is the claim that the whole thing works.
 
 | Step | | Version |
 | --- | --- | --- |
@@ -16,6 +16,7 @@ was and not empty, and the major digit is the claim that the whole thing works.
 | 3 | The `TagSelect` capture, the **Paste** button and its dialog | 0.0.1 |
 | 4 | The `debugButtons` channel, README, `tests/tagclip.test.js` | 0.0.1 |
 | 5 | First live pass: icon captions, the settings-type fix, the tag hierarchy, Prune/Roll Up, the tag hover, column layout, Undo | 0.1.0 |
+| 6 | Second live pass: the column overrun, the caption's dots back, and Prune/Roll Up gated on `NormalizeParentTags` and obeying its tag exclusions | 0.2.0 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over
@@ -173,13 +174,13 @@ the anchor is right. It fits the gaps of 10 the protocol reserved either side.
 **No existence or eligibility gating**, and this is a deliberate departure from both siblings.
 `PropagateTagsAndPerformers` spent five releases on a probe because its buttons ask an expensive
 question the user cannot see the answer to. Here `⮺ Tags` on a tagless entity flashes `No tags` —
-one query, on a click, with an honest answer — and `📋 Tags` is meaningful whenever the form is
+one query, on a click, with an honest answer — and `📋Tags...` is meaningful whenever the form is
 open. A probe per page view to hide a button that costs nothing to press would be the tail wagging
 the dog. If the empty click turns out to be common in practice, the hook is `copyBundle`'s own query.
 
 ## 6. Two colours, in one plugin
 
-`⮺ Tags` is `btn-info`, `📋 Tags` is `btn-warning`. The repo rule is "amber where a plugin wrote
+`⮺ Tags` is `btn-info`, `📋Tags...` is `btn-warning`. The repo rule is "amber where a plugin wrote
 this, teal where it only reads", and this plugin is the first here to have one of each. Copy only
 reads; Paste changes the form, which is what the siblings' amber staging buttons do.
 
@@ -265,6 +266,42 @@ nothing. The select is disabled and the dialog says so in its log.
 has nothing to add where the tag is already on, so the row says the truer of the two things. It
 *is* listed, though: the row is what explains why Roll Up stopped there.
 
+## 8b². The modes are borrowed, so they are gated on the lender and obey its rules
+
+Prune and Roll Up are `NormalizeParentTags`' operations. Two consequences, and they are one
+decision rather than two:
+
+- **They are only offered where that plugin is running in this page**, detected by
+  `coop().respecters['NormalizeParentTags']` — the entry it registers unconditionally at load. Not
+  an installed-plugin query: an installed copy this page never loaded has no settings worth
+  mirroring either, and the `respecters` flag is the signal a sibling's dialog already reads to tell
+  "will stand down" from "too old to know". Where it is absent the select is **hidden** rather than
+  disabled (a one-option select is noise) and one INFO line in the log says why.
+- **They honour its tag exclusions.** `splitTerms`, `nameMatchesAny` and `blockReason` are copied
+  from it byte-for-byte, deliberately: the point is that a tag it protects is a tag this dialog
+  leaves alone, and a near-miss in the matching would be a silent disagreement about which tags
+  those are. Keep them in step the way the CSS and `coopObject` are kept in step.
+
+**The mapping between the two vocabularies is the only translation, and it is worth stating.** Roll
+Up adds, so it answers to the "never **add**" filters. Prune declines to add a parent, which reaches
+the same end state as that plugin removing one — so it answers to "never **remove**". A tag its owner
+has marked as never-to-be-removed should not lose its place here either.
+
+**Its entity-level filters are deliberately not mirrored** (`b1ExcludeEntityWithTagName`,
+`b2ExcludeOrganized`). Those keep an *automatic* pass off entities the user did not mean it to
+touch; here the user opened this dialog, on this entity, by hand. Honouring them would mean a mode
+that silently does nothing on an organized scene with nothing on screen saying why.
+
+**A spared tag says so on its hover**, appended to the tag text: which plugin spared it and which
+filter did. Where the spared tag is not in the bundle it is simply not listed — a row for a tag
+nothing will do anything with is noise.
+
+**Its settings cost no query.** `{ configuration { plugins } }` returns every plugin's block; Stash
+cannot scope it, so the sibling's arrives with ours. The one thing that ordering costs is that the
+hierarchy query has to wait for it (`settingsReady`), because whether to ask for `custom_fields` —
+a map per tag, over the whole library — depends on whether either of its custom-field filters names
+a key. Same conditional, same reason, as that plugin's own `tagQuery`.
+
 ## 8c. Five states, two axes, one `accent-color`
 
 *Ticked* says whether the tag ends up on the entity; *colour* says who decided. Blue is the only
@@ -298,6 +335,16 @@ modal gets fewer, wider columns and a narrow one gets a single column, with no m
 to keep in step with the modal's own `width:min(100rem,94vw)`. The user asked for columns sized to
 the longest row; CSS gives equal columns instead, which is close enough that a hand-rolled measure
 pass would be paying real complexity for the difference.
+
+**A column box does not clip, so anything too wide prints over its neighbour** — which is what a
+long tag name with no space in it did on the first live pass. The fix is two rules and **neither
+works alone**: a flex item will not shrink below the width of its longest word until `min-width:0`
+releases that floor, and once released the word still needs `overflow-wrap:anywhere` to be allowed
+to break mid-word. `word-break:break-word` is not a substitute — it leaves the item's min-content
+contribution unchanged, so the column stays too wide and nothing has moved. The floor has to be
+released on the row as well as on the name, and the checkbox pinned at `flex:0 0 auto` so it is not
+squashed by the same release. No test here has a layout engine, so the suite pins the class on the
+element and the declarations in the sheet, and three mutants confirm it.
 
 ## 8e. Undo, which the siblings cannot have and this one can
 
@@ -334,11 +381,17 @@ stores an empty bundle, `picked()` answering from the render instead of the live
 ignoring the form, a missing control read as an empty entity, and the diff removed from the one
 place it lives. A tenth passed the whole suite and led to a deletion instead of a check (§4).
 
-From the 0.1.0 pass, eleven more: Prune and Roll Up each walking one edge instead of the closure,
+From the 0.1.0 pass, eleven: Prune and Roll Up each walking one edge instead of the closure,
 Roll Up skipping the ancestors the bundle does not carry, Roll Up ignoring already-on-target, the
 group ranking dropped from the sort, `sort_name` ignored, `have` drawn clear, the mode select left
 live with no hierarchy, the children edge dropped from the hover text, `undo()` popping without
 handing the list back, and `add()` reading the selection without re-deriving it first.
+
+From the 0.2.0 pass, twelve: the sibling gate removed from `classify` (not only from the control),
+the select shown where the sibling is absent, each of the two protection checks dropped, the
+custom-field filter reading a *value* rather than presence, the `ignore_auto_tag` rule dropped, the
+term separator ignored, `custom_fields` asked for unconditionally, and — for the column overrun,
+which no harness here can lay out — each half of the CSS fix and the class on the element.
 
 **The one that did not fail is the one worth remembering.** A Prune walking a single edge passed
 every check, because the fixture chain was fully populated in the bundle — one edge and the closure
@@ -368,27 +421,43 @@ Shorter than it was — §11 is what emptied most of it. What is left:
    where it is. The user asked for it *next to the tag pills*, and that markup has never been read,
    so it was not guessed at. Moving it needs one `outerHTML` paste from a Scene and a Performer
    detail view. If `PluginApi.patch.after` turns out to exist, the same paste settles whether
-   `📋 Tags` can render straight after the `TagSelect` instead — which would be *less* code than
+   `📋Tags...` can render straight after the `TagSelect` instead — which would be *less* code than
    the row placement, not more.
 4. **The tag hierarchy query on a large library.** `findTags(filter:{per_page:-1})` with
    `description` and `aliases` on every row is the biggest payload this plugin asks for, and it has
    only been reasoned about. It is one query per page, cached for the page's life; if it turns out
    to hurt, the cheap first move is dropping `description` and fetching it per bundle instead.
 
-## 11. What the first live pass settled
+## 11. What the live passes settled
 
-2026-08-18, against the user's own Stash. Four of §10's five items closed:
+Both on 2026-08-18, against the user's own Stash.
+
+### Second pass (0.2.0)
+
+- **A long tag name with no space in it printed over the next column.** §8d has the fix and the
+  reason `word-break:break-word` alone does not do it.
+- **The `"..."` came back on the paste caption.** §11's first-pass note below has the argument that
+  shipped and the argument that replaced it: an icon says what a button is *about*, not what
+  pressing it *commits to*.
+- **Prune and Roll Up are gated on `NormalizeParentTags` and obey its exclusions** (§8b²). This was
+  the user's call and it is the right one for a reason worth keeping: borrowing another plugin's
+  operation while ignoring that plugin's "never touch this tag" settings would leave one plugin
+  protecting a tag and another quietly acting on it in the same library.
+
+### First pass (0.1.0)
+
+Four of §10's five items closed:
 
 - **`TagSelect`'s `onSelect` updates the chips on Group, Image, Performer, Studio and Scene.** This
   was the assumption the whole plugin rests on and it held on every panel checked. §4's reasoning
   about `useTagsEdit()` is confirmed rather than merely sourced.
 - **`.details-edit`-without-a-Delete is the edit form on Performer and Studio.** `📋 Tags` lands
   just before Save on both, exactly as it does everywhere else.
-- **The two icon captions.** `Copy Tags` / `Paste Tags...` became `⮺ Tags` / `📋 Tags` at the
-  user's request. The paste button dropping the repo's `"..."` suffix is a deliberate exception,
-  reasoned in the source beside the constants: the convention marks a caption that asks before it
-  acts, and a two-token caption built around an icon has no room for a third token that reads as
-  punctuation. The icon does what the dots did.
+- **The two icon captions.** `Copy Tags` / `Paste Tags...` became `⮺ Tags` / `📋Tags...` at the
+  user's request. The paste button shipped once *without* the repo's `"..."` suffix, on the argument
+  that an icon does what the dots do, and that was taken back a release later: an icon says what the
+  button is **about**, and the dots say what pressing it **commits to**. Those are different
+  questions, so one does not stand in for the other. The convention holds for icon captions too.
 - **`type: NUMBER` renders `0` for an unset setting.** Not blank, not the documented 5 — a number
   that is neither, in the only NUMBER setting in this repo. It is `STRING` now, which is what every
   other free-text setting here already used and what `maxBundles` was parsing either way. **A

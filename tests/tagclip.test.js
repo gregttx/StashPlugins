@@ -67,7 +67,11 @@ function responder(opts) {
   return function (req) {
     const q = req.query || '';
     if (q.indexOf('configuration') !== -1) {
-      return { data: { configuration: { plugins: { TagBundleClipboard: opts.settings || {} } } } };
+      // Every plugin's settings arrive in this one response, which is how the sibling's
+      // exclusion filters reach this plugin without a second query.
+      const plugins = { TagBundleClipboard: opts.settings || {} };
+      if (opts.npt) plugins.NormalizeParentTags = opts.nptSettings || {};
+      return { data: { configuration: { plugins } } };
     }
     if (/TBCPluginVersion/.test(q)) {
       return { data: { plugins: opts.installed ? [{ id: PLUGIN_ID, version: opts.installed }] : [] } };
@@ -133,7 +137,7 @@ function start(opts) {
   env.ctx.alert = () => {};
   env.patches = {};
   // `noPluginApi` is what a Stash too old to expose component patching looks like -
-  // the branch that hides 📋 Tags rather than offering a click that cannot work.
+  // the branch that hides 📋Tags... rather than offering a click that cannot work.
   if (!opts.noPluginApi) {
     env.ctx.PluginApi = {
       patch: { before: (name, fn) => { env.patches[name] = fn; } },
@@ -141,6 +145,10 @@ function start(opts) {
     env.ctx.window.PluginApi = env.ctx.PluginApi;
   }
   h.run(env.ctx, SRC);
+  // What `NormalizeParentTags` present in this page looks like: the `respecters` entry
+  // it registers unconditionally at load. Set after the plugin has run, because that is
+  // when the shared object exists - and it is read at call time, so it lands in time.
+  if (opts.npt) env.ctx.__GTTx__.StashPluginCoop.respecters.NormalizeParentTags = true;
   // A render of the entity's TagSelect, which is how the plugin learns what the form
   // is holding. `values` is what the box shows *now*, hand-edits included.
   env.renderTagSelect = (values) => {
@@ -224,7 +232,7 @@ const btn = (body, label) => body.descendants()
     env.tick();
     await h.flush();
     env.renderTagSelect([]);
-    btn(env.body, '📋 Tags').click();
+    btn(env.body, '📋Tags...').click();
     await h.flush();
     const d = h.dialog(env.body, 'tbc');
     h.check('a clipboard that does not parse reads as empty rather than throwing',
@@ -270,7 +278,7 @@ const btn = (body, label) => body.descendants()
     env.tick();
     await h.flush();
     h.check('neither button appears off one of the six entity pages',
-      !btn(env.body, '⮺ Tags') && !btn(env.body, '📋 Tags'));
+      !btn(env.body, '⮺ Tags') && !btn(env.body, '📋Tags...'));
   }
 
   {
@@ -332,10 +340,10 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    const paste = btn(env.body, '📋 Tags');
+    const paste = btn(env.body, '📋Tags...');
     const labels = row.childNodes.map((n) => n.textContent.trim());
-    h.check('📋 Tags lands between Save and Delete, not after Delete',
-      JSON.stringify(labels) === JSON.stringify(['Save', '📋 Tags', 'Delete']),
+    h.check('📋Tags... lands between Save and Delete, not after Delete',
+      JSON.stringify(labels) === JSON.stringify(['Save', '📋Tags...', 'Delete']),
       JSON.stringify(labels));
     h.check('and it carries the owner the ordering protocol reads',
       paste._coopOwner === PLUGIN_ID);
@@ -368,7 +376,7 @@ const btn = (body, label) => body.descendants()
     const labels = row.childNodes.map((n) => n.textContent.trim());
     h.check('a higher-priority sibling keeps its place next to the anchor',
       JSON.stringify(labels) ===
-        JSON.stringify(['Save', '📋 Tags', 'Add Perf Tags', 'Delete']),
+        JSON.stringify(['Save', '📋Tags...', 'Add Perf Tags', 'Delete']),
       JSON.stringify(labels));
   }
 
@@ -379,8 +387,8 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    h.check('a Stash with no component patching gets ⮺ Tags and no 📋 Tags',
-      !!btn(env.body, '⮺ Tags') && !btn(env.body, '📋 Tags'));
+    h.check('a Stash with no component patching gets ⮺ Tags and no 📋Tags...',
+      !!btn(env.body, '⮺ Tags') && !btn(env.body, '📋Tags...'));
   }
 
   // ── The paste dialog ──────────────────────────────────────────────────────
@@ -401,7 +409,7 @@ const btn = (body, label) => body.descendants()
       return h.flush();
     }).then(() => {
       const sel = env.renderTagSelect(values);
-      btn(env.body, '📋 Tags').click();
+      btn(env.body, '📋Tags...').click();
       return h.flush().then(() => sel);
     });
   }
@@ -543,7 +551,7 @@ const btn = (body, label) => body.descendants()
     await h.flush();
     env.tick();
     await h.flush();
-    btn(env.body, '📋 Tags').click();     // no renderTagSelect
+    btn(env.body, '📋Tags...').click();     // no renderTagSelect
     await h.flush();
     // The Add button is found by prefix, not by its exact caption: a plugin that read a
     // missing control as an empty entity would label it "Add 1 tag", and looking for
@@ -628,7 +636,7 @@ const btn = (body, label) => body.descendants()
   }
 
   {
-    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43' });
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true });
     await openDialog(env, []);
     await h.flush();
     const rows = rowsOf(env);
@@ -642,6 +650,18 @@ const btn = (body, label) => body.descendants()
     const platinum = rows.filter((r) => /Platinum/.test(r.textContent))[0];
     h.check('and the parent edge it does have', /Parents: Blonde/.test(platinum.title),
       JSON.stringify(platinum.title));
+    // The columns have no clipping of their own, so a tag name with no space in it
+    // printed over the next column until the name span was given both halves of the
+    // fix. No layout engine here, so this is what can be checked: the class is on the
+    // element, and the rule that releases the flex floor *and* allows a mid-word break
+    // is in the sheet. Neither half works alone.
+    const css = require('fs').readFileSync(SRC, 'utf8');
+    h.check('a tag name can break mid-word rather than overrun its column',
+      h.hasClass(hair.descendants().filter((n) => h.hasClass(n, 'tbc-tagname'))[0] ||
+        { className: '' }, 'tbc-tagname') &&
+      /\.tbc-tagname[^{]*\{[^}]*min-width:0[^}]*overflow-wrap:anywhere/.test(css) &&
+      /\.tbc-tagrow>\*\{min-width:0/.test(css),
+      hair.className);
     // sort_name is what Stash sorts by where it is set, so Platinum leads its group
     // despite being last alphabetically by name.
     h.check('a group sorts by sort_name where there is one, like Stash does',
@@ -654,7 +674,7 @@ const btn = (body, label) => body.descendants()
     // Prune: the entity will carry Platinum, so both of its ancestors are redundant.
     // Two levels up as well as one - Hair is nobody's *parent* here, it is Platinum's
     // grandparent, and a one-edge check would leave it addable.
-    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43' });
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true });
     const sel = await openDialog(env, []);
     await h.flush();
     await setMode(env, 'prune');
@@ -681,7 +701,7 @@ const btn = (body, label) => body.descendants()
       { v: 1, at: 3000, type: 'scene', id: '42', label: 'Scene "Gap" (42)',
         tags: [{ id: '1', name: 'Hair' }, { id: '12', name: 'Platinum' }] },
     ]);
-    const env = start({ storage: { [KEY]: GAP }, pathname: '/scenes/43' });
+    const env = start({ storage: { [KEY]: GAP }, pathname: '/scenes/43', npt: true });
     await openDialog(env, []);
     await h.flush();
     await setMode(env, 'prune');
@@ -695,7 +715,7 @@ const btn = (body, label) => body.descendants()
     // Prune depends on the *current* selection, which is the half a static plan would
     // get wrong: untick the tag that was making the others redundant and they come
     // back as ordinary, tickable rows.
-    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43' });
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true });
     await openDialog(env, []);
     await h.flush();
     await setMode(env, 'prune');
@@ -718,7 +738,7 @@ const btn = (body, label) => body.descendants()
       { v: 1, at: 3000, type: 'scene', id: '42', label: 'Scene "Deep" (42)',
         tags: [{ id: '12', name: 'Platinum' }] },
     ]);
-    const env = start({ storage: { [KEY]: DEEP }, pathname: '/scenes/43' });
+    const env = start({ storage: { [KEY]: DEEP }, pathname: '/scenes/43', npt: true });
     const sel = await openDialog(env, []);
     await h.flush();
     await setMode(env, 'rollup');
@@ -743,7 +763,7 @@ const btn = (body, label) => body.descendants()
       { v: 1, at: 3000, type: 'scene', id: '42', label: 'Scene "Deep" (42)',
         tags: [{ id: '12', name: 'Platinum' }] },
     ]);
-    const env = start({ storage: { [KEY]: DEEP }, pathname: '/scenes/43' });
+    const env = start({ storage: { [KEY]: DEEP }, pathname: '/scenes/43', npt: true });
     await openDialog(env, [{ id: '1', name: 'Hair' }]);
     await h.flush();
     await setMode(env, 'rollup');
@@ -763,13 +783,118 @@ const btn = (body, label) => body.descendants()
     // No hierarchy, no redundancy modes: holding them at "leave as they are" is the
     // honest answer, where applying either against an empty graph would silently mean
     // "nothing is redundant" and look like the mode had run.
-    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', failGraph: true });
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', failGraph: true, npt: true });
     await openDialog(env, []);
     await h.flush();
     h.check('a hierarchy that cannot be read disables the modes and says so',
       modeSel(env).disabled === true &&
         h.dialog(env.body, 'tbc').lines.some((l) => /tag hierarchy could not be read/.test(l)),
       h.dialog(env.body, 'tbc').lines.join(' | '));
+  }
+
+  // ── The modes belong to NormalizeParentTags, and answer to its exclusions ──
+
+  const graphQuery = (env) =>
+    (env.calls.filter((c) => /TBCTagGraph/.test(c.query || ''))[0] || {}).query || '';
+
+  {
+    // No sibling on the page, no Prune and no Roll Up: they are that plugin's
+    // operations, and offering them where it is absent would mean this dialog acting
+    // on a hierarchy under rules nobody had set.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43' });
+    await openDialog(env, []);
+    await h.flush();
+    h.check('with NormalizeParentTags absent the mode select is hidden',
+      h.hasClass(modeSel(env), 'tbc-hidden'), modeSel(env).className);
+    h.check('and the log says why rather than leaving a gap',
+      h.dialog(env.body, 'tbc').lines.some((l) => /not running on this page/.test(l)),
+      h.dialog(env.body, 'tbc').lines.join(' | '));
+    // Even driven directly, the mode cannot take effect - the gate is in `classify`,
+    // not only on the control.
+    await setMode(env, 'prune');
+    h.check('and a mode set anyway changes nothing',
+      JSON.stringify(rowsOf(env).map((r) => stateOf(r))) ===
+        JSON.stringify(['add', 'add', 'add']),
+      rowsOf(env).map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+  }
+
+  {
+    // Its "never remove" name filter, with its own separator setting, protects a tag
+    // from Prune: this dialog declining to add a parent reaches the same end state as
+    // that plugin removing one, so it is the remove side that governs.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
+      nptSettings: { c3ExcludeRemoveTagNameContains: 'Hai, Nope', c4TagNameSeparator: ',' } });
+    await openDialog(env, []);
+    await h.flush();
+    await setMode(env, 'prune');
+    const rows = rowsOf(env);
+    const hair = rows.filter((r) => r.textContent.indexOf('Hair') === 0)[0];
+    h.check('a tag the sibling never removes is not pruned',
+      stateOf(hair) === 'add', rows.map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+    h.check('and its hover says which plugin spared it and why',
+      /never removes this tag \(name filter\)/.test(hair.title), JSON.stringify(hair.title));
+    // Blonde is not protected, so the mode is still doing its job around it.
+    const blonde = rows.filter((r) => r.textContent.indexOf('Blonde') === 0)[0];
+    h.check('while an unprotected tag is still pruned', stateOf(blonde) === 'pruned',
+      blonde.textContent);
+  }
+
+  {
+    // The other side of the mapping: Roll Up adds, so it answers to "never add".
+    const DEEP = JSON.stringify([
+      { v: 1, at: 3000, type: 'scene', id: '42', label: 'Scene "Deep" (42)',
+        tags: [{ id: '12', name: 'Platinum' }] },
+    ]);
+    const env = start({ storage: { [KEY]: DEEP }, pathname: '/scenes/43', npt: true,
+      nptSettings: { c2ExcludeAddTagNameContains: 'Hair' } });
+    await openDialog(env, []);
+    await h.flush();
+    await setMode(env, 'rollup');
+    const rows = rowsOf(env);
+    h.check('a tag the sibling never adds is not rolled up, and is not listed either',
+      rows.length === 2 && !rows.some((r) => r.textContent.indexOf('Hair') === 0),
+      rows.map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+  }
+
+  {
+    // `ignore_auto_tag` only excludes while the sibling's own toggle is on, which is
+    // what makes this a mirror of its rules rather than a rule of ours.
+    const marked = TAGS.map((t) => (t.id === '1' ? Object.assign({}, t, { ignore_auto_tag: true }) : t));
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
+      tags: marked, nptSettings: { c1ExcludeTagWithIgnoreAutoTag: true } });
+    await openDialog(env, []);
+    await h.flush();
+    await setMode(env, 'prune');
+    const hair = rowsOf(env).filter((r) => r.textContent.indexOf('Hair') === 0)[0];
+    h.check('Ignore auto tag excludes a tag when the sibling asks it to',
+      stateOf(hair) === 'add' && /Ignore auto tag/.test(hair.title), JSON.stringify(hair.title));
+  }
+
+  {
+    // The custom-field filter, and the query that pays for it. `custom_fields` is a map
+    // per tag on a whole-library query, so it is only asked for when a filter names a
+    // key - the same conditional the sibling makes, for the same reason.
+    const marked = TAGS.map((t) => (t.id === '1' ? Object.assign({}, t, { custom_fields: { keep: 'yes' } }) : t));
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
+      tags: marked, nptSettings: { c6ExcludeRemoveTagWithCustomFieldName: 'keep' } });
+    await openDialog(env, []);
+    await h.flush();
+    await setMode(env, 'prune');
+    h.check('the hierarchy query asks for custom_fields only when a filter names one',
+      /custom_fields/.test(graphQuery(env)), graphQuery(env));
+    const hair = rowsOf(env).filter((r) => r.textContent.indexOf('Hair') === 0)[0];
+    h.check('and a tag carrying that field is spared, on presence alone',
+      stateOf(hair) === 'add' && /custom field "keep"/.test(hair.title),
+      JSON.stringify(hair.title));
+  }
+
+  {
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true });
+    await openDialog(env, []);
+    await h.flush();
+    h.check('and does not ask for it when no filter does',
+      !/custom_fields/.test(graphQuery(env)) && /ignore_auto_tag/.test(graphQuery(env)),
+      graphQuery(env));
   }
 
   // ── Undo ──────────────────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ detail view. Every tag it carries goes onto a clipboard as one bundle, named for
 from.
 
 **Paste.** Open the Edit tab of any other entity of any of those six types and press
-**📋 Tags**. A dialog lists the bundles on the clipboard, newest first. Pick one, tick the tags you
+**📋Tags…**. A dialog lists the bundles on the clipboard, newest first. Pick one, tick the tags you
 want, and press Add — they go straight into the tag box on the form behind the dialog.
 
 Then press Stash's own **Save**, exactly as if you had picked each tag from the dropdown yourself.
@@ -70,6 +70,10 @@ Hover any tag for its aliases, its parents, its children and its description.
 
 ## Redundant parent tags
 
+**This part needs ᝯㄝₓ Normalize Parent Tags installed and running on the same page.** Prune and
+Roll Up are its two operations, borrowed; where it is absent the dropdown below is not shown and the
+dialog says so in its log.
+
 A dropdown beside Add decides what to do about a selection that carries both a tag and its parent:
 
 | | |
@@ -84,6 +88,13 @@ back as an ordinary, tickable row.
 **Neither ever removes anything.** Prune only declines to add. Removing a redundant tag an entity
 already carries is what **ᝯㄝₓ Normalize Parent Tags** does, with a review dialog and an Undo that
 reaches the library.
+
+**They honour that plugin's tag exclusions**, so a tag it is set never to remove is not pruned here
+and a tag it is set never to add is not rolled up here — its Ignore-auto-tag toggle, its two
+name filters with their separator, and its two custom-field filters, all read from its own settings.
+A tag spared that way says which filter spared it on its hover text. Its *entity* filters (Organized,
+excluded by tag name) are deliberately not applied: those exist to keep an automatic pass off
+entities you did not mean it to touch, and you opened this dialog on this entity by hand.
 
 The choice needs the tag hierarchy, which is read once per page. If that read fails, both modes are
 held unavailable and the dialog says so.
@@ -109,9 +120,9 @@ held unavailable and the dialog says so.
 Group, and in a small row of its own under the tab strip on a Scene or a Gallery, which render no
 action row there. It is teal, because it only reads.
 
-**📋 Tags** goes in the edit form's button row, between Save and Delete. It is amber, the colour
+**📋Tags…** goes in the edit form's button row, between Save and Delete. It is amber, the colour
 every plugin here uses for a control that changes something — in this case the form, not the
-library.
+library. The trailing "…" is this repo's convention for a button that asks before it acts.
 
 If another of these plugins is installed, its buttons and these share the row in a fixed order
 rather than whichever loaded first.
@@ -129,7 +140,7 @@ rather than whichever loaded first.
 
 ## Troubleshooting
 
-**The 📋 Tags button is not there.** Three things it needs, in order: you are on one of the six
+**The 📋Tags… button is not there.** Three things it needs, in order: you are on one of the six
 entity pages; the **Edit** tab is open, since the button sits in the edit form's own button row; and
 your Stash exposes plugin component patching, without which there is no way to put tags into a form.
 The last of those prints one line to the browser console saying so.

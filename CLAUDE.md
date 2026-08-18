@@ -514,13 +514,12 @@ consequences worth knowing:
 in "Added 3", it now restores its caption immediately: the modal covers the row, and a caption
 restored two seconds into a review nobody can see is worse than none.
 
-**An icon can do the job the dots do, and then the dots come off.** `TagBundleClipboard`'s two
-buttons are `⮺ Tags` and `📋 Tags`, and the paste one opens a dialog without saying "...". That is
-the convention read for what it means rather than applied as a string: the dots mark a caption that
-asks before it acts, and a caption already built around an icon has no room for a third token that
-reads as punctuation next to a pictogram. The exception is narrow — it is about a caption whose
-*whole* text is an icon and one word — and it does not touch the five task buttons or any spelled-out
-caption. A plugin adding a third icon button copies the reasoning, not the fact that this one did it.
+**An icon does not stand in for the dots.** `TagBundleClipboard` shipped `📋 Tags` for one release
+on the argument that a caption already built around a pictogram has no room for a third token
+reading as punctuation, and it is `📋Tags...` again a release later. The two marks answer different
+questions: an icon says what the button is **about**, and the dots say what pressing it **commits
+to**. Its copy button is `⮺ Tags` with no dots — not because of the icon, but because the click acts
+immediately and writes nothing, which is the same rule every other caption here follows.
 
 **And the dots come straight back off in the title** (`MergePerformerTagsToScenes` 1.18.1 /
 `PropagateTagsAndPerformers` 0.18.1), which is not a contradiction: "..." is what a *caption*

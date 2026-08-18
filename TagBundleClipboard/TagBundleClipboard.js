@@ -36,7 +36,7 @@
   // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
   // live Stash: the major digit is the claim that the thing works, and no test in this
   // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.1.0';
+  var PLUGIN_VERSION = '0.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -304,6 +304,12 @@
         if (!hasOwn(DEFAULTS, k)) continue;
         s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (raw[k] == null ? '' : String(raw[k]));
       }
+      // Every plugin's settings arrive in this one response - Stash cannot scope it -
+      // so the sibling's are already paid for. Kept as the raw object rather than
+      // unpacked into named flags, exactly as MergePerformerTagsToScenes keeps them:
+      // they are somebody else's wire names, and the one place that reads them is the
+      // one place that should know them.
+      _nptSettings = all[NPT_ID] || null;
       return s;
     });
   }
@@ -329,6 +335,14 @@
       });
     }
     return _settings;
+  }
+
+  // Resolves once the settings have been read at least once. `settings()` itself is
+  // synchronous by design - a click must not wait on a round trip - but the hierarchy
+  // query below needs the sibling's settings before it can decide what to ask for.
+  function settingsReady() {
+    settings();
+    return _settingsWait || Promise.resolve(_settings);
   }
 
   function logToConsole(msg) {
@@ -434,11 +448,25 @@
   // are held disabled while there is no hierarchy to reason about.
   var _graph = null, _graphWait = null;
 
+  // `ignore_auto_tag` is one boolean per tag and always asked for; `custom_fields` is
+  // a map per tag and only asked for when one of NormalizeParentTags' two custom-field
+  // filters names a key - the same conditional, for the same reason, as that plugin's
+  // own `tagQuery`.
+  function tagGraphQuery() {
+    var fields = 'id name sort_name description aliases ignore_auto_tag parents { id }';
+    if (nptWantsCustomFields()) fields += ' custom_fields';
+    return 'query TBCTagGraph { findTags(filter: { per_page: -1 }) { tags { ' +
+      fields + ' } } }';
+  }
+
   function loadTagGraph() {
     if (_graph) return Promise.resolve(_graph);
     if (_graphWait) return _graphWait;
-    _graphWait = gqlRequest('query TBCTagGraph { findTags(filter: { per_page: -1 }) ' +
-      '{ tags { id name sort_name description aliases parents { id } } } }', null)
+    // Behind the settings, not beside them: the query's own shape depends on the
+    // sibling's settings, which arrive in our settings response. One extra await on a
+    // dialog open, and no second query.
+    _graphWait = settingsReady()
+      .then(function () { return gqlRequest(tagGraphQuery(), null); })
       .then(function (data) {
         var tags = ((data.findTags || {}).tags) || [];
         var byId = {}, children = {};
@@ -539,6 +567,107 @@
   // change between two presses. It is a module variable so the choice survives closing
   // the dialog, and is deliberately not persisted past a reload - `as they are` is the
   // answer nobody has to think about, and it is where every page starts.
+  // ── NormalizeParentTags' exclusion rules, mirrored ────────────────────────
+  //
+  // **Prune and Roll Up are only offered where `NormalizeParentTags` is loaded in this
+  // page**, and they honour its tag exclusions when they are. Both halves are the same
+  // decision: these two operations are that plugin's, borrowed, and a borrowed
+  // operation that ignored the owner's "never touch this tag" settings would be worse
+  // than not offering it - the user would have one plugin protecting a tag and another
+  // quietly acting on it in the same library.
+  //
+  // Presence is `coop().respecters[NPT_ID]`, which that plugin sets unconditionally at
+  // load. It says its script is running *here*, which is the question - an installed
+  // copy that this page never loaded cannot have settings worth mirroring either. The
+  // same signal a sibling's dialog already reads to tell "will stand down" from "too
+  // old to know".
+  var NPT_ID   = 'NormalizeParentTags';
+  var NPT_NAME = 'ᝯㄝₓ Normalize Parent Tags';
+
+  var _nptSettings = null;   // its raw settings block, from our own settings query
+
+  function nptPresent() { return !!coop().respecters[NPT_ID]; }
+
+  // Whether either custom-field filter is set, which is what decides if the hierarchy
+  // query has to pay for `custom_fields` on every tag. Conditional for the reason
+  // NormalizeParentTags makes it conditional: a map per tag on a whole-library query
+  // that no code path would look at.
+  function nptWantsCustomFields() {
+    var s = _nptSettings || {};
+    return !!(String(s.c5ExcludeAddTagWithCustomFieldName || '').trim() ||
+              String(s.c6ExcludeRemoveTagWithCustomFieldName || '').trim());
+  }
+
+  // These three are NormalizeParentTags' own, copied rather than approximated. Keep
+  // them byte-identical with that plugin's: the point is that a tag it protects is a
+  // tag this dialog leaves alone, and a near-miss in the matching is a silent
+  // disagreement about which tags those are.
+  function splitTerms(value, sep) {
+    var raw = String(value == null ? '' : value);
+    var out = [];
+    (sep ? raw.split(sep) : raw.split(/\s+/)).forEach(function (term) {
+      var t = term.trim();
+      if (t) out.push(t);
+    });
+    return out;
+  }
+
+  function nameMatchesAny(name, terms) {
+    for (var i = 0; i < terms.length; i++) {
+      if (name.indexOf(terms[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  // A tag is in a cycle exactly when it is its own ancestor. Derived on demand rather
+  // than precomputed over the whole library the way NormalizeParentTags does it: that
+  // plugin walks every tag on every run and gets the set for free, while this one asks
+  // about a handful per render and would be paying for a library-wide pass to answer.
+  function inCycle(id) { return !!ancestorsOf(id)[String(id)]; }
+
+  // Why the tag is blocked, or null - a reason string rather than a boolean, so the
+  // row's hover text can say *which* filter is protecting it.
+  function blockReason(id, cfName, terms) {
+    var t = _graph && _graph.byId[String(id)];
+    if (!t) return 'unknown to Stash';
+    if (inCycle(id)) return 'in a hierarchy cycle';
+    var s = _nptSettings || {};
+    if (s.c1ExcludeTagWithIgnoreAutoTag && t.ignore_auto_tag) return 'Ignore auto tag';
+    // Presence alone excludes; the value is never inspected. hasOwnProperty rather
+    // than `in`, or inherited keys like "constructor" match every tag.
+    if (cfName && t.custom_fields && hasOwn(t.custom_fields, cfName)) {
+      return 'custom field "' + cfName + '"';
+    }
+    if (terms.length && nameMatchesAny(t.name || '', terms)) return 'name filter';
+    return null;
+  }
+
+  function nptSep() { return String((_nptSettings || {}).c4TagNameSeparator || '').trim(); }
+
+  // **Roll Up adds, so it answers to the "never add" filters; Prune declines to add a
+  // parent, which reaches the same end state as removing one, so it answers to "never
+  // remove".** That mapping is the whole of the translation between the two plugins:
+  // NormalizeParentTags' Prune deletes the tag off the entity and this one keeps it
+  // off, and a tag its owner has marked as never-to-be-removed should not lose its
+  // place here either.
+  function blockedFromAdd(id) {
+    var s = _nptSettings || {};
+    return blockReason(id, String(s.c5ExcludeAddTagWithCustomFieldName || '').trim(),
+      splitTerms(s.c2ExcludeAddTagNameContains, nptSep()));
+  }
+
+  function blockedFromRemove(id) {
+    var s = _nptSettings || {};
+    return blockReason(id, String(s.c6ExcludeRemoveTagWithCustomFieldName || '').trim(),
+      splitTerms(s.c3ExcludeRemoveTagNameContains, nptSep()));
+  }
+
+  // Its *entity*-level filters (`b1ExcludeEntityWithTagName`, `b2ExcludeOrganized`) are
+  // deliberately not mirrored. They exist to keep an automatic pass off entities the
+  // user did not mean it to touch; here the user opened this dialog, on this entity, by
+  // hand. Honouring them would mean a mode that silently does nothing on an organized
+  // scene with nothing on screen saying why.
+
   var MODE_ASIS = 'asis', MODE_PRUNE = 'prune', MODE_ROLLUP = 'rollup';
   var MODES = [
     { key: MODE_ASIS,   label: 'Redundant parents: leave as they are' },
@@ -546,6 +675,8 @@
     { key: MODE_ROLLUP, label: 'Redundant parents: roll up' },
   ];
   var _mode = MODE_ASIS;
+
+  function redundancyOffered() { return nptPresent() && !!_graph; }
 
   // ── Styles ────────────────────────────────────────────────────────────────
 
@@ -621,6 +752,22 @@
     // `break-inside:avoid` is what keeps a row from being split across two columns.
     '.tbc-tagrow{display:flex;align-items:baseline;gap:.5rem;padding:.2rem .25rem;margin:0;' +
     'cursor:pointer;break-inside:avoid;-webkit-column-break-inside:avoid;}' +
+    // A long tag name with no space in it overran its column and printed over the
+    // next one. Two rules are needed and neither works alone: a flex item will not
+    // shrink below the width of its longest *word* unless `min-width:0` releases
+    // that floor, and once released the word still needs permission to break
+    // mid-word, which only `overflow-wrap:anywhere` gives (`break-word` leaves the
+    // item's min-content contribution unchanged, so the column stays too wide).
+    // A column box does not clip, so anything that overflows lands on its neighbour.
+    '.tbc-tagname,.tbc-have-mark{min-width:0;overflow-wrap:anywhere;word-break:break-word;}' +
+    '.tbc-tagname{flex:1 1 auto;}' +
+    // Same floor on the row itself: without it the row refuses to be narrower than
+    // its widest child and pushes past the column edge before the children are ever
+    // asked to wrap.
+    // ...but the checkbox is the one child that must not shrink with it: releasing
+    // its floor without pinning its basis lets a narrow column squash the box itself.
+    '.tbc-tagrow>*{min-width:0;}' +
+    '.tbc-tagrow input{flex:0 0 auto;}' +
     '.tbc-tagrow:hover{background:#3c4f5d;}' +
     '.tbc-tagrow-fixed{cursor:default;color:#7d8f9c;}' +
     '.tbc-tagrow-fixed:hover{background:none;}' +
@@ -800,7 +947,7 @@
     if (_patchInstalled || _warnedNoPatch) return;
     _warnedNoPatch = true;
     console.warn('[tbc] this Stash does not expose PluginApi component patching, so there ' +
-      'is no way to put tags into an edit form. The "📋 Tags" button is not shown. "⮺ ' +
+      'is no way to put tags into an edit form. The "📋Tags..." button is not shown. "⮺ ' +
       'Tags still works, and the bundles are waiting for a Stash that can paste them.');
   }
 
@@ -977,8 +1124,13 @@
     var self = this;
     loadTagGraph().then(function (graph) {
       if (_active !== self) return;
-      if (!graph) self.log('WARN', 'the tag hierarchy could not be read, so Prune and ' +
-        'Roll Up are unavailable and a tag hover shows its name only');
+      if (!graph) {
+        self.log('WARN', 'the tag hierarchy could not be read, so Prune and Roll Up are ' +
+          'unavailable and a tag hover shows its name only');
+      } else if (!nptPresent()) {
+        self.log('INFO', 'Prune and Roll Up are not offered: they are ' + NPT_NAME +
+          '’s operations, and it is not running on this page.');
+      }
       self.render();
     });
   }
@@ -1183,7 +1335,10 @@
     }
 
     this.modeSel.value = _mode;
-    this.modeSel.disabled = !_graph;
+    // Hidden rather than disabled where the sibling is absent: a one-option select is
+    // noise, and the log line below is what answers "where did Prune go".
+    this.modeSel.className = 'tbc-mode' + (nptPresent() ? '' : ' tbc-hidden');
+    this.modeSel.disabled = !redundancyOffered();
     this._counts = { bundles: bundles.length, noForm: !!bundle && have === null };
     this.updateCounts();
   };
@@ -1221,9 +1376,10 @@
       else put(t, self.checked[key] === false ? 'off' : 'add');
     });
 
-    // Held at `asis` while the hierarchy is unread: there is nothing to be redundant
-    // against, and guessing would be worse than the mode simply not applying yet.
-    var mode = _graph ? _mode : MODE_ASIS;
+    // Held at `asis` while the hierarchy is unread, and wherever the sibling that owns
+    // these two operations is not on the page: there is nothing to be redundant
+    // against, and guessing would be worse than the mode simply not applying.
+    var mode = redundancyOffered() ? _mode : MODE_ASIS;
     var live = rows.filter(function (r) { return r.state === 'add'; });
 
     if (mode === MODE_PRUNE) {
@@ -1237,7 +1393,15 @@
       live.forEach(function (r) {
         var below = descendantsOf(r.key);
         for (var d in below) {
-          if (hasOwn(below, d) && eventual[d]) { r.state = 'pruned'; return; }
+          if (!hasOwn(below, d) || !eventual[d]) continue;
+          var why = blockedFromRemove(r.key);
+          if (why) {
+            r.protect = NPT_NAME + ' never removes this tag (' + why + '), so Prune ' +
+              'leaves it in place.';
+            return;
+          }
+          r.state = 'pruned';
+          return;
         }
       });
     } else if (mode === MODE_ROLLUP) {
@@ -1253,6 +1417,15 @@
           // already-on-target wins over rolled-up, and it is the truer of the two -
           // Roll Up has nothing to add where the tag is already on.
           if (haveMap[a]) { if (!existing) put({ id: a, name: known.name }, 'have'); continue; }
+          var why = blockedFromAdd(a);
+          if (why) {
+            // Protected from being added: it is not rolled up, and if it is not in the
+            // bundle it is not listed at all - a row for a tag nothing will do anything
+            // with is noise.
+            if (existing) existing.protect = NPT_NAME + ' never adds this tag (' + why +
+              '), so Roll Up leaves it out.';
+            continue;
+          }
           // Roll Up overrides an unticked box on purpose: the ancestor is implied by
           // a tag that *is* going on, so leaving it out would not honour the mode.
           if (existing) existing.state = 'rolled';
@@ -1294,7 +1467,7 @@
     var live = !!LIVE[r.state];
     var row = el('label', 'tbc-tagrow ' + STATE_CLASS[r.state] +
       (live ? '' : ' tbc-tagrow-fixed'));
-    row.title = tagTitle(r.tag);
+    row.title = tagTitle(r.tag) + (r.protect ? '\n\n' + r.protect : '');
     var box = document.createElement('input');
     box.type = 'checkbox';
     box.disabled = !live;
@@ -1308,7 +1481,7 @@
       });
     }
     row.appendChild(box);
-    row.appendChild(el('span', null, r.tag.name));
+    row.appendChild(el('span', 'tbc-tagname', r.tag.name));
     var mark = this.stateMark(r.state);
     if (mark) row.appendChild(el('span', 'tbc-have-mark', mark));
     return row;
@@ -2119,12 +2292,13 @@
   // entity, one opens a picker. The icons carry the direction: out to the clipboard,
   // back off it.
   //
-  // **Neither takes the repo's "..." suffix, and the paste button is the exception
-  // being made.** The convention marks a caption whose click asks before it acts, and
-  // a two-token caption built around an icon has no room for a third that reads as
-  // punctuation rather than as a promise. The icon is doing the work the dots did.
+  // **The repo's "..." convention applies to an icon caption too**, which was tried
+  // the other way round for one release and taken back: the dots mark a caption whose
+  // click asks before it acts, and an icon says what the button is about rather than
+  // what pressing it commits to. So the paste button keeps them and the copy button
+  // has none - it acts immediately and writes nothing.
   var COPY_LABEL  = '⮺ Tags';
-  var PASTE_LABEL = '📋 Tags';
+  var PASTE_LABEL = '📋Tags...';
 
   function onCopy(btn) {
     var rt = currentRoute();
@@ -2208,14 +2382,14 @@
     var paste = document.getElementById(PASTE_BTN_ID);
     if (!_patchInstalled) {
       warnNoPatchOnce();
-      gateLogOnce('paste', 'PluginApi component patching is unavailable - "📋 Tags" not shown');
+      gateLogOnce('paste', 'PluginApi component patching is unavailable - "📋Tags..." not shown');
       if (paste && paste.parentNode) paste.parentNode.removeChild(paste);
       return;
     }
     var editBox = findEditContainer();
     if (!editBox) {
       gateLogOnce('paste', 'no edit form open on ' + ENTITIES[rt.type].label +
-        ' - "📋 Tags" not shown');
+        ' - "📋Tags..." not shown');
       if (paste && paste.parentNode) paste.parentNode.removeChild(paste);
       return;
     }
@@ -2229,7 +2403,7 @@
       ensureRowSpacing(editBox);
       insertBeforeImportantAction(editBox, paste);
     }
-    gateLogOnce('paste', '"📋 Tags" shown on ' + ENTITIES[rt.type].label + ' ' + rt.id);
+    gateLogOnce('paste', '"📋Tags..." shown on ' + ENTITIES[rt.type].label + ' ' + rt.id);
   }
 
   // ── Wiring ────────────────────────────────────────────────────────────────

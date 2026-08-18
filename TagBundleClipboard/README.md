@@ -105,6 +105,12 @@ sweep — its own settings page notes that images are "usually the largest type 
 scan", which is a reason to untick a type that has nothing to do with whether a tag on an image
 should imply its parents. There is no sweep here: one entity, chosen by hand.
 
+Those settings are read when the dialog opens. If you change them in another tab while it is sitting
+open, **switch back to this one and the list re-plans against the new ones**, with a line in the log
+saying so — nothing to close and reopen. A change that makes no difference to what is on screen
+leaves the list alone, so glancing at another tab and coming back does not lose your place in a long
+one.
+
 **If you have Auto Prune or Auto Roll Up switched on for the type you are pasting onto, the dropdown
 is not offered at all** and the log says why: that plugin acts on Stash's **Save**, which is the
 button this dialog hands off to, so the decision is already being made on every save and choosing

@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.5.0.** Three live passes in, and most of the guesses held — §11 records
+**Status: partly verified. 0.6.0.** Three live passes in, and most of the guesses held — §11 records
 what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
 empty, and the major digit is the claim that the whole thing works.
 
@@ -20,6 +20,7 @@ empty, and the major digit is the claim that the whole thing works.
 | 7 | Third live pass: the captions' words moved into the titles, amber on Add and on an armed mode, and the two questions about the sibling's settings answered in code | 0.3.0 |
 | 8 | The sibling's automatic modes warned about, scoped by the type being pasted onto | 0.4.0 |
 | 9 | The mirrored rules deleted: Prune and Roll Up are computed by `NormalizeParentTags` through the API it publishes at its 3.2.0 | 0.5.0 |
+| 10 | The bound planner re-bound when the tab comes back, so a settings change reaches a dialog that is already open | 0.6.0 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over
@@ -352,6 +353,35 @@ Unticking a type there is about the cost of a library walk (its own settings pag
 the one to apply to whatever settings that plugin gains next: **the rules that say "this tag is off
 limits, ever" are the lender's; the ones that scope a pass belong to whoever is making the pass.**
 
+## 8b⁴. The planner is a snapshot, and coming back to the tab re-binds it
+
+`prepare` hands back a planner bound to the sibling's settings and hierarchy *as they were*. That
+is the deliberate half of the API's design — it is what lets `plan` be synchronous, which is what
+lets a checkbox re-plan on the tick instead of on a round trip. The cost is that a dialog left open
+does not see a settings change, and `refreshPlanner` is what pays it.
+
+**`visibilitychange`, not a timer, and the reason is a fact about Stash rather than a preference.**
+Changing those settings means going to Stash's settings page, which is a *route*: it cannot be done
+in this tab without leaving the entity page the dialog is anchored to. So the only way it happens at
+all with a dialog open is a second tab — and coming back from one is exactly this event. A poll
+would be asking, every few seconds, a question that can only have changed while nobody was looking.
+`focus` is wired beside it for two Stash *windows* side by side, which this plugin is meant to be
+used across and where no tab is ever hidden.
+
+**`document.hidden` is checked because the event fires both ways.** Going away is not when to
+re-read anything, and re-planning there would redraw a list behind a tab the user is leaving.
+
+**A refresh that changes nothing must not redraw.** `planSignature` is what decides: `autoMode`,
+plus both plans over the *whole bundle* rather than the live selection, so a tick between two
+refreshes is not mistaken for a settings change. Without the guard, every glance at another tab and
+back would reset the scroll position of a long list — the failure is invisible in a test and
+immediate in use, which is why the guard is pinned by its own mutant.
+
+**A failed refresh keeps the planner it had.** Losing both modes because one re-read timed out would
+be worse than being one settings change behind. And `checkAutoMode` re-fires only where `autoMode`
+actually moved: it names what will happen on Save, which is worth repeating when the answer is new
+and is noise when it is not.
+
 ## 8b³. Its automatic modes act on the save this dialog defers to
 
 `autoMode` on the prepared planner is `'prune'`, `'rollup'` or `null` for the type being pasted
@@ -479,6 +509,11 @@ select left plain while armed, the graph cache keyed on nothing (so a `custom_fi
 refetched), the unknown-rule scan returning nothing, it reporting a rule left at its default, and it
 reporting one of the six this file does mirror.
 
+From the 0.6.0 pass, seven: the listener never registered, never removed on close, the
+no-change guard dropped (so any refresh redraws), `checkAutoMode` re-fired unconditionally, the
+re-bind not stored, `autoMode` left out of the signature, and the `document.hidden` check removed so
+that leaving the tab re-plans too.
+
 From the 0.5.0 pass, nine — five against the lender and four against this file. On its side: the
 per-type scope dropped from `autoMode`, `typeFilter` ignored, the `rollUp` spelling not accepted, the
 singular entity name not resolved, and each protection check dropped from `planTagSet`. On this side:
@@ -535,6 +570,15 @@ Shorter than it was — §11 is what emptied most of it. What is left:
 ## 11. What the live passes settled
 
 Both on 2026-08-18, against the user's own Stash.
+
+### The snapshot got a way to be refreshed (0.6.0)
+
+The follow-on question to 0.5.0, and a fair one: binding the planner once is what makes `plan`
+synchronous, so what happens to a dialog that is already open? The answer is one listener, and the
+two decisions worth keeping are both about *not* doing more than that — `visibilitychange` rather
+than a poll, because Stash's settings page is a route and the change can only be made from another
+tab; and a signature guard, because a refresh that changes nothing must leave the list exactly where
+the user's eye left it.
 
 ### The rules moved to their owner (0.5.0)
 

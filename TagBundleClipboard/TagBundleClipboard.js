@@ -36,7 +36,7 @@
   // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
   // live Stash: the major digit is the claim that the thing works, and no test in this
   // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.5.0';
+  var PLUGIN_VERSION = '0.6.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -1011,6 +1011,40 @@
     document.addEventListener('keydown', run._onEscape);
   }
 
+  // The planner `prepare` hands back is a **snapshot** of the sibling's settings and
+  // hierarchy, bound once so that `plan` can be synchronous - which is what lets a
+  // checkbox re-plan on the tick rather than on a round trip. The cost of that trade is
+  // that a dialog left open does not see a settings change, and this is what pays it.
+  //
+  // **`visibilitychange` rather than a timer.** Changing those settings means going to
+  // Stash's settings page, which is a route: it cannot be done without leaving the
+  // entity page in this tab, so the only way to do it with a dialog open is a second
+  // tab - and coming back from one is exactly what this event is. A poll would ask a
+  // question every few seconds that can only have changed while nobody was looking.
+  //
+  // `focus` is wired beside it for two Stash *windows* side by side, which the clipboard
+  // is meant to be used across and where no tab is ever hidden. It costs one cached
+  // answer per stray focus: `prepare` inside the sibling's own settings TTL resolves
+  // without a query.
+  function wireRefresh(run) {
+    run._onShow = function () {
+      if (document.hidden) return;
+      run.refreshPlanner();
+    };
+    document.addEventListener('visibilitychange', run._onShow);
+    if (window.addEventListener) window.addEventListener('focus', run._onShow);
+  }
+
+  function unwireRefresh(run) {
+    if (run._onShow) {
+      if (document.removeEventListener) {
+        document.removeEventListener('visibilitychange', run._onShow);
+      }
+      if (window.removeEventListener) window.removeEventListener('focus', run._onShow);
+    }
+    run._onShow = null;
+  }
+
   function unwireEscape(run) {
     if (run._onEscape && document.removeEventListener) {
       document.removeEventListener('keydown', run._onEscape);
@@ -1035,6 +1069,7 @@
     injectStyle();
     this.build();
     wireEscape(this);
+    wireRefresh(this);
     this.render();
     // The hierarchy is only wanted for the hover text and the two redundancy modes,
     // neither of which the dialog needs to open. It is fetched behind the dialog and
@@ -1230,8 +1265,47 @@
     });
   };
 
+  // What the sibling's settings actually change *here*: whether it is about to act on
+  // its own, and what its filters do to this bundle. Everything else about those
+  // settings is invisible from this dialog, so a change to it must not redraw the list.
+  //
+  // Taken over the whole bundle rather than the live selection, so that ticking a box
+  // between two refreshes is not mistaken for a settings change.
+  PasteRun.prototype.planSignature = function () {
+    if (!_npt) return 'none';
+    var ids = (this._bundle ? this._bundle.tags : []).map(function (t) { return String(t.id); });
+    var self = this;
+    return JSON.stringify([_npt.autoMode, ['prune', 'rollup'].map(function (m) {
+      return _npt.plan({ mode: m, tagIds: ids, entityType: self.type });
+    })]);
+  };
+
+  // Re-binds the planner, and redraws only if the answer moved. A refresh that changed
+  // nothing must not disturb the list: it would reset the scroll position of a long one
+  // every time the user glanced at another tab and came back.
+  PasteRun.prototype.refreshPlanner = function () {
+    var api = nptApi(), self = this;
+    if (!api) return;
+    var before = this.planSignature();
+    api.prepare({ entityType: this.type }).then(function (p) {
+      // A refresh that fails keeps the planner it had. Losing both modes because one
+      // re-read timed out would be worse than being one settings change behind.
+      if (_active !== self || !p) return;
+      var was = _npt;
+      _npt = p;
+      if (self.planSignature() === before) return;
+      self.log('INFO', NPT_NAME + '’s settings changed; the list below has been ' +
+        're-planned against them.');
+      // Only where it moved: it names what will happen on Save, which is worth
+      // repeating when the answer is new and noise when it is not.
+      if (p.autoMode !== (was && was.autoMode)) self.checkAutoMode();
+      self.render();
+    }, function () {});
+  };
+
   PasteRun.prototype.close = function () {
     unwireEscape(this);
+    unwireRefresh(this);
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);
     }

@@ -1099,6 +1099,112 @@ const btn = (body, label) => body.descendants()
       !/automatically/.test(lines) && /not running on this page/.test(lines), lines);
   }
 
+  // ── A settings change reaching a dialog that is already open ──────────────
+
+  {
+    // The planner is a snapshot, bound once so `plan` can be synchronous. Coming back
+    // to the tab is what re-binds it - and changing those settings means going to
+    // Stash's settings page, which cannot be done in this tab without leaving the
+    // entity page, so a second tab is the only way it happens at all.
+    const opts = { storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
+      nptSettings: {} };
+    const env = start(opts);
+    await openDialog(env, []);
+    await setMode(env, 'prune');
+    h.check('Prune plans against the sibling’s settings as they were on open',
+      JSON.stringify(rowsOf(env).map((r) => stateOf(r))) ===
+        JSON.stringify(['add', 'pruned', 'pruned']),
+      rowsOf(env).map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+
+    // Changed elsewhere, and the sibling's own settings cache has to expire before it
+    // will see them either - the clock is what makes this a test of the refresh rather
+    // than of two caches.
+    opts.nptSettings = { c3ExcludeRemoveTagNameContains: 'Hair' };
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow.call(Date) + 60000;
+      // The event fires on the way out as well as on the way back. Going away is not
+      // when to re-read anything, and a re-plan there would redraw the list behind a
+      // tab the user is leaving.
+      env.ctx.document.hidden = true;
+      h.fire(env.ctx.document, 'visibilitychange');
+      await h.flush();
+      h.check('the tab being hidden is not a reason to re-plan',
+        stateOf(rowsOf(env).filter((r) => r.textContent.indexOf('Hair') === 0)[0]) === 'pruned',
+        rowsOf(env).map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+      env.ctx.document.hidden = false;
+      h.fire(env.ctx.document, 'visibilitychange');
+      await h.flush();
+    } finally {
+      Date.now = realNow;
+    }
+    const rows = rowsOf(env);
+    const hair = rows.filter((r) => r.textContent.indexOf('Hair') === 0)[0];
+    h.check('coming back to the tab re-plans against the new ones',
+      stateOf(hair) === 'add' && /never removes this tag \(name filter\)/.test(hair.title),
+      rows.map((r) => r.textContent + ':' + stateOf(r)).join(' | '));
+    h.check('and the log says why the list moved under the user',
+      h.dialog(env.body, 'tbc').lines.some((l) => /settings changed/.test(l)),
+      h.dialog(env.body, 'tbc').lines.join(' | '));
+  }
+
+  {
+    // A refresh that changes nothing must not redraw: it would reset the scroll of a
+    // long list every time the user glanced at another tab and came back.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true });
+    await openDialog(env, []);
+    await h.flush();
+    const before = h.dialog(env.body, 'tbc').lines.length;
+    h.fire(env.ctx.document, 'visibilitychange');
+    await h.flush();
+    h.check('a refresh with nothing to report says nothing',
+      h.dialog(env.body, 'tbc').lines.length === before,
+      h.dialog(env.body, 'tbc').lines.join(' | '));
+  }
+
+  {
+    // An automatic mode switched on while the dialog sits open: the dropdown has to go
+    // with it, and the line naming what will happen on Save is worth repeating because
+    // the answer is new.
+    const opts = { storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
+      nptSettings: { a5EnableScenes: true } };
+    const env = start(opts);
+    await openDialog(env, []);
+    await h.flush();
+    h.check('the redundancy choice is offered while nothing is automatic',
+      !h.hasClass(modeSel(env), 'tbc-hidden'), modeSel(env).className);
+
+    opts.nptSettings = { a5EnableScenes: true, a8AutoPruneOnUpdate: true };
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow.call(Date) + 60000;
+      h.fire(env.ctx.document, 'visibilitychange');
+      await h.flush();
+    } finally {
+      Date.now = realNow;
+    }
+    h.check('and withdrawn the moment that plugin starts doing it on every save',
+      h.hasClass(modeSel(env), 'tbc-hidden'), modeSel(env).className);
+    h.check('with the reason logged, not left to be inferred from a missing control',
+      h.dialog(env.body, 'tbc').lines.some((l) => /set to prune Scenes automatically/.test(l)),
+      h.dialog(env.body, 'tbc').lines.join(' | '));
+  }
+
+  {
+    // The listener goes with the dialog. One left behind would answer for a closed run
+    // and re-plan against a `_bundle` nobody is looking at.
+    const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true });
+    await openDialog(env, []);
+    await h.flush();
+    h.check('an open dialog listens for the tab coming back',
+      (env.ctx.document.handlers.visibilitychange || []).length === 1,
+      String((env.ctx.document.handlers.visibilitychange || []).length));
+    btn(env.body, 'Close').click();
+    h.check('and takes the listener with it when it closes',
+      (env.ctx.document.handlers.visibilitychange || []).length === 0,
+      String((env.ctx.document.handlers.visibilitychange || []).length));
+  }
+
   // ── The property the whole design rests on ────────────────────────────────
 
   {

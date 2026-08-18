@@ -289,6 +289,15 @@ Four properties, and each one is a decision the next API here should repeat:
   (`typeof api.prepare === 'function'`); the number is so a dialog can say *"the copy running here
   is older than 3.2.0"* rather than *"something is missing"*.
 
+**A bound worker is a snapshot, so a long-lived caller needs a way to re-bind.** That is the price
+of the synchronous `plan`, and it is worth paying rather than designing around: `TagBundleClipboard`
+re-calls `prepare` on `visibilitychange` and redraws only where the answer moved. Two things make
+that cheap rather than a poll — the publisher's settings can only be changed from a page the caller
+is not on, so another tab is the only way it happens; and the publisher's own caches absorb a
+re-`prepare` that lands inside its TTL, so a stray focus costs no query. **A caller that redraws on
+every refresh rather than on a difference will reset its own scroll position every time the user
+glances away**, which is the kind of bug no test in this repo would catch.
+
 **A caller with no publisher does without, and says so.** There is no fallback to a local
 approximation — that is the thing being deleted. `TagBundleClipboard` hides both modes and names the
 version to upgrade to, which is a worse experience than a stale copy exactly once and a better one

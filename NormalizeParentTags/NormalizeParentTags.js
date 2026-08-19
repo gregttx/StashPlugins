@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.0.0';
+  var PLUGIN_VERSION = '4.0.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2403,6 +2403,7 @@
     this.modes = {};
     TYPES.forEach(function (t) { this.modes[t.key] = MODE_OFF; }, this);
     this.saving = false;
+    this.stale = false;
   }
 
   ModesDialog.prototype.build = function () {
@@ -2449,12 +2450,13 @@
 
     wireEscape(this);
     document.body.appendChild(this.backdrop);
+    this.checkVersion();
 
     loadSettings().then(function (loaded) {
       if (_active !== self) return;
       self.panel.set(loaded.settings.modes);
       self.panel.enable(true);
-      self.saveBtn.disabled = false;
+      self.saveBtn.disabled = self.stale;
       self.noteEl.textContent = '';
       self.render();
     }, function (e) {
@@ -2462,6 +2464,29 @@
       self.noteEl.textContent = 'The current setting could not be read (' +
         (e && e.message ? e.message : e) + '). Saving from here would replace it with ' +
         'whatever is selected above, so Save stays disabled - close this and try again.';
+    });
+  };
+
+  // The same question the run dialog asks, and it blocks for a sharper reason.
+  // Save does not add to this setting, it rewrites the whole string from the types
+  // and modes *this* script knows - so a newer installed version that had grown an
+  // eighth type, or a third mode, would have it silently dropped by a stale tab. The
+  // run dialog at least shows the plan it would write; here the loss is invisible.
+  ModesDialog.prototype.checkVersion = function () {
+    var self = this;
+    return checkInstalledVersion(function (installed) {
+      if (_active !== self) return;
+      self.stale = true;
+      self.saveBtn.disabled = true;
+      // Above the note rather than after it: the note reports on reading the setting,
+      // and this says the answer will not be written back whatever it says.
+      self.noteEl.parentNode.insertBefore(el('div', 'npt-stale',
+        '\u26a0 This page is running ' + PLUGIN_SHORT_NAME + ' ' + PLUGIN_VERSION +
+        ', but ' + installed + ' is installed. Reload the page (F5); if this warning ' +
+        'comes back, hard-refresh with Ctrl+Shift+R (\u2318+Shift+R on a Mac). Save stays ' +
+        'disabled until the script matches: it would rewrite the whole setting from the ' +
+        'types and modes this older script knows, dropping anything the installed one ' +
+        'has added.'), self.noteEl);
     });
   };
 

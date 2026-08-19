@@ -457,12 +457,18 @@ reload (F5); check that the new `.js` really is in `<stash-config-dir>/plugins/`
 never copied cannot be refreshed into existence; then hard-refresh; then, if it still will not
 budge, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
 
-**The tasks also refuse to write.** Opening Prune or Roll Up asks Stash which version is installed
-and compares it with the script that is running; on a mismatch **Proceed stays disabled** until you
-reload the page, since the plan would otherwise be computed by the code you replaced. The warning
-goes into the log as well as the head, so **Copy log** carries it. Nothing is blocked when the
-answer is simply unknown (an older Stash, a failed request); only a definite mismatch holds a run
-back.
+**Normalize Parent Tags... also refuses to write.** Opening it asks Stash which version is
+installed and compares it with the script that is running; on a mismatch **Proceed stays disabled**
+until you reload the page, since the plan would otherwise be computed by the code you replaced. The
+warning goes into the log as well as the head, so **Copy log** carries it. Nothing is blocked when
+the answer is simply unknown (an older Stash, a failed request); only a definite mismatch holds a
+run back.
+
+**Auto Mode Settings... refuses to save**, for a sharper reason: **Save** does not add to the
+setting, it rewrites the whole line from the entity types and modes the running script knows about.
+A newer version that had learned another type, or another mode, would have it silently dropped by
+an old tab — and nothing on screen would show the loss. So **Save stays disabled** until the
+script matches. The selectors stay live, so you can still read off what the string would say.
 
 It cannot catch an edit made without changing the version — both numbers stay equal and there is
 nothing to compare.

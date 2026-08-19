@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.3.0';
+  var PLUGIN_VERSION      = '3.3.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -3287,11 +3287,70 @@
   // broken twice over there.
   function ownSettingGroup() {
     var node = document.getElementById('plugin-' + PLUGIN_ID + '-a1ShowManualMergeButtons') ||
-      document.getElementById('plugin-' + PLUGIN_ID + '-d1LogMergesToConsole');
-    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+      document.getElementById('plugin-' + PLUGIN_ID + '-d1LogMergesToConsole'), d;
+    for (d = 0; node && d < 10; d++, node = node.parentElement) {
       if (hasClass(node, 'setting-group')) return node;
     }
+    // Fallback: the group headed with our own name. The ids are still the anchor,
+    // but they are only ours *while they exist* - a release that renames both keys
+    // leaves this code unable to find its own group, and the first casualty is the
+    // stale-script banner, which is the one thing on this page that release needed to
+    // show. NormalizeParentTags 4.0.0 renamed all nine of its keys and its own 3.2.0
+    // banner went silent in every tab that had not been reloaded.
+    //
+    // Settings - Tasks heads *its* group with the same name, and that group is not
+    // this one: it holds the task buttons and no settings, so decorating it would put
+    // a README link and a split description on a page that never had either - and the
+    // link lands inside the task button, replacing the label `ownTaskName` matches on.
+    // The heading identifies us; the buttons say which page.
+    var heading = ownSettingGroupHeading();
+    for (node = heading, d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (hasClass(node, 'setting-group')) return hasOwnTaskButton(node) ? null : node;
+    }
+    return heading && !hasOwnTaskButton(heading.parentElement)
+      ? heading.parentElement : null;
+  }
+
+  // The two pages that show a group headed with our name do not head it the same
+  // way. Settings - Tasks passes the plugin name straight through
+  // (`heading: o.name`), but Settings - Plugins appends the version:
+  //
+  //   heading: `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`
+  //
+  // so the h3 there reads "... (3.3.1)" - and, because that template interpolates the
+  // literal when there is no version at all, sometimes "... undefined".
+  //
+  // Strip the suffix and compare exactly, rather than testing a prefix: a plugin whose
+  // name merely starts with ours must not be mistaken for us.
+  function headingIsOurs(text) {
+    var t = String(text == null ? '' : text).trim();
+    if (t === PLUGIN_NAME) return true;
+    t = t.replace(/\s*\([^()]*\)$/, '').replace(/\s+undefined$/, '').trim();
+    return t === PLUGIN_NAME;
+  }
+
+  function ownSettingGroupHeading() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('h3') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (headingIsOurs(nodes[i].textContent)) return nodes[i];
+    }
     return null;
+  }
+
+  // A plain recursive walk rather than `querySelectorAll('button')`: this runs against
+  // a group that may be anywhere in the page's own markup, and matching on the task
+  // captions is the only thing that identifies the Tasks page from inside it.
+  function hasOwnTaskButton(node) {
+    if (!node) return false;
+    if (node.tagName === 'BUTTON' &&
+        TASKS.indexOf(String(node.textContent || '').replace(/^\s+|\s+$/g, '')) !== -1) {
+      return true;
+    }
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (hasOwnTaskButton(kids[i])) return true;
+    }
+    return false;
   }
 
   // Under the description, which is in the group header and therefore outside the
@@ -3506,9 +3565,7 @@
   var STALE_ID = 'cpt2s-stale-notice';
 
   // The group's own h3, not a search of the page: the header row comes before the
-  // setting rows, each of which has an h3 too, and the group is already ours. That
-  // also keeps this working here, where the group is found by setting id and there
-  // is no `headingIsOurs` at all.
+  // setting rows, each of which has an h3 too, and the group is already ours.
   function installedFromHeading(group) {
     var h3 = group && group.querySelector ? group.querySelector('h3') : null;
     var t = h3 ? String(h3.textContent == null ? '' : h3.textContent).trim() : '';

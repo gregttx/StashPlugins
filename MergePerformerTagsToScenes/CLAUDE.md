@@ -982,6 +982,21 @@ reached places the icon does not; in practice Stash renders it as plain text, so
 unclickable 90-character prefix in front of every word that mattered. The two links are `url:` and
 the injected one, and they must stay identical — the `version` suite fails if they drift.
 
+**The group is found by the `plugin-<id>-<key>` ids, with the heading as a fallback** (3.3.1). The
+ids are ours by construction and the heading never was, which is why they lead — but two named keys
+are only ours *while they exist*. `NormalizeParentTags` 4.0.0 renamed all nine of its settings, and
+its own 3.2.0 script, still running in every un-reloaded tab, could not find its group on the new
+settings page: the first casualty was the **stale-script banner**, on precisely the release that
+needed it shown. A diagnostic reachable only through something a release can rename is silent
+exactly when it matters, so the heading is now a real route rather than a sentence in this file.
+
+**The fallback excludes the Tasks page**, which heads *its* group with the same plugin name.
+`hasOwnTaskButton` is the discriminator — the heading says who we are, the buttons say which page —
+and it is not cosmetic: `readmeLinkSlot` picks its slot by structure, and in a tasks group that slot
+is *inside the task button*, so the link becomes the button's only child and the label `ownTaskName`
+matches on is gone. No interception, no amber, a click queueing a server-side job for a plugin with
+nothing to execute. `merge-task` pins both halves, including that the button is still repainted.
+
 **The description is paragraphs, and it takes two tricks to show them.** Stash renders it as one
 text node inside a `.sub-heading` that is `white-space: normal`, and a description cannot carry
 markup, since Stash passes it to React as a child. So the plugin marks its own settings group with

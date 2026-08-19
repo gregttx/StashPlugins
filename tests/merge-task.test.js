@@ -1007,6 +1007,62 @@ Promise.resolve()
     });
   })
 
+  // Fallback for a Stash that sets no setting ids - and, more to the point, for a
+  // release that renames the two keys this looks for. NormalizeParentTags 4.0.0
+  // renamed all nine of its keys and its own 3.2.0 banner went silent in every tab
+  // that had not been reloaded, which is the one release that needed it shown.
+  .then(() => {
+    function headingOnly(text) {
+      const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });
+      h.run(env.ctx, SRC);
+      const group = h.makeElement('div');
+      group.className = 'setting-group';
+      const heading = h.makeElement('h3');
+      heading.textContent = text;
+      group.appendChild(heading);
+      env.ctx.document.body.appendChild(group);
+      env.tick();
+      return !!env.ctx.document.getElementById('cpt2s-readme-link');
+    }
+    h.check('heading fallback: our group is found with no setting id on the page',
+      headingOnly('\u176f\u311d\u2093 Merge Performer Tags To Scenes (1.9.3)'));
+    h.check('heading fallback: the bare name too',
+      headingOnly('\u176f\u311d\u2093 Merge Performer Tags To Scenes'));
+    h.check('heading fallback: and the "undefined" Stash renders with no version',
+      headingOnly('\u176f\u311d\u2093 Merge Performer Tags To Scenes undefined'));
+    h.check('heading fallback: a near-namesake plugin is not',
+      !headingOnly('\u176f\u311d\u2093 Merge Performer Tags To Scenes Extra'));
+  })
+
+  // Settings - Tasks heads its own group with the same name, and that group is not
+  // this one. Decorating it puts the README link inside the task button, replacing
+  // the label `ownTaskName` matches on - so the click would queue a real Stash job.
+  .then(() => {
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });
+    h.run(env.ctx, SRC);
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    const heading = h.makeElement('h3');
+    heading.textContent = '\u176f\u311d\u2093 Merge Performer Tags To Scenes';
+    group.appendChild(heading);
+    const row = h.makeElement('div');
+    row.className = 'setting';
+    const btn = h.makeElement('button');
+    btn.textContent = 'Merge Performer Tags into All Their Scenes...';
+    row.appendChild(btn);
+    group.appendChild(row);
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    return h.flush(20).then(() => {
+      h.check('heading fallback: the tasks page group is left to its buttons',
+        !env.ctx.document.getElementById('cpt2s-readme-link') &&
+        !h.hasClass(group, 'cpt2s-own-group'), group.className);
+      h.check('and the task button on it keeps the label that identifies it',
+        btn.textContent === 'Merge Performer Tags into All Their Scenes...' &&
+        h.hasClass(btn, 'btn-warning'), btn.textContent + ' / ' + btn.className);
+    });
+  })
+
   // Not ours to write into, and not a settings page at all.
   .then(() => {
     const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });

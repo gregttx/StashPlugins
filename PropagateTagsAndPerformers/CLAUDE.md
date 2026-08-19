@@ -1434,6 +1434,19 @@ of it apply unchanged:
   `SettingsPluginsPanel.tsx` builds them from the plugin id and the setting key, so they are ours by
   construction. `ownSettingGroup()` tries every key in `DEFAULTS` rather than two named ones, so
   removing a setting cannot quietly break the anchor.
+- **...and it falls back to the heading's group when not one id is on the page** (2.3.1). Trying
+  every key survives one rename; it does not survive a release that renames them all, and that is
+  not hypothetical — `NormalizeParentTags` 4.0.0 renamed all nine of its keys, and the 3.2.0 script
+  still running in every un-reloaded tab could not find its own group, so the **stale-script
+  banner** never appeared on the one release that needed it. A diagnostic reachable only through
+  something a release can rename is silent exactly when it matters.
+- **The fallback excludes the Tasks page**, which heads *its* group with the same plugin name.
+  `hasOwnTaskButton` is the discriminator: the heading says who we are, the buttons say which page.
+  It is not cosmetic — `readmeLinkSlot` picks its slot by structure, and in a tasks group that slot
+  is *inside the task button*, so the link becomes the button's only child and the label
+  `ownTaskName` matches on is gone: no interception, no amber, a click queueing a server-side job
+  for a plugin with nothing to execute. Both halves are pinned in `propagate-base`, including that
+  the button is still repainted.
 - **`headingIsOurs` strips the version suffix and compares exactly.** Settings → Tasks passes the
   name through; Settings → Plugins appends `(0.1.0)`, and interpolates the literal `undefined` when
   a plugin has no version. A prefix test would match a plugin whose name merely starts with ours.

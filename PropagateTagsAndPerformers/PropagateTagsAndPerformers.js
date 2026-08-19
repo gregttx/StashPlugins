@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '2.3.0';
+  var PLUGIN_VERSION = '2.3.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3337,16 +3337,56 @@
   // every key rather than two named ones means removing or renaming a setting cannot
   // quietly break the anchor.
   function ownSettingGroup() {
-    var node = null;
+    var node = null, d;
     for (var key in DEFAULTS) {
       if (!hasOwn(DEFAULTS, key)) continue;
       node = settingElement(key);
       if (node) break;
     }
-    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+    for (d = 0; node && d < 10; d++, node = node.parentElement) {
       if (hasClass(node, 'setting-group')) return node;
     }
+    // Fallback: the group headed with our own name. Trying every key already survives
+    // one rename, but not a release that renames them all - and the first casualty of
+    // that is the stale-script banner, which is the one thing on this page that such a
+    // release needed to show. NormalizeParentTags 4.0.0 renamed all nine of its keys
+    // and its own 3.2.0 banner went silent in every tab that had not been reloaded.
+    //
+    // Settings - Tasks heads *its* group with the same name, and that group is not
+    // this one: it holds the task buttons and no settings, so decorating it would put
+    // a README link and a split description on a page that never had either - and the
+    // link lands inside the task button, replacing the label `ownTaskName` matches on.
+    // The heading identifies us; the buttons say which page.
+    var heading = ownSettingGroupHeading();
+    for (node = heading, d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (hasClass(node, 'setting-group')) return hasOwnTaskButton(node) ? null : node;
+    }
+    return heading && !hasOwnTaskButton(heading.parentElement)
+      ? heading.parentElement : null;
+  }
+
+  function ownSettingGroupHeading() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('h3') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (headingIsOurs(nodes[i].textContent)) return nodes[i];
+    }
     return null;
+  }
+
+  // A plain recursive walk rather than `querySelectorAll('button')`: this runs against
+  // a group that may be anywhere in the page's own markup, and matching on the task
+  // captions is the only thing that identifies the Tasks page from inside it.
+  function hasOwnTaskButton(node) {
+    if (!node) return false;
+    if (node.tagName === 'BUTTON' &&
+        TASKS.indexOf(String(node.textContent || '').replace(/^\s+|\s+$/g, '')) !== -1) {
+      return true;
+    }
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (hasOwnTaskButton(kids[i])) return true;
+    }
+    return false;
   }
 
   // The `.setting` row a given setting lives in. `settingElement` returns the input

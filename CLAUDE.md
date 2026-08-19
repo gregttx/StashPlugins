@@ -551,6 +551,27 @@ fallback), `CustomFieldsBulkEditor` — whose only route in is the heading — d
 Settings → Plugins — the settings page is the half most likely to look right while the name is
 wrong.
 
+**A setting rename silences the stale-script banner, in the script that most needs to show it.**
+The mirror of the note above, found live after `NormalizeParentTags` 4.0.0. That release renamed all
+nine of its setting keys; every tab still running 3.2.0 therefore had an `ownSettingGroup` looking
+for ids that no longer exist, found nothing, and drew none of what that tick draws — the README
+link, the description split, the tooltips, and the **stale banner** whose whole job was to say "the
+script you are running is not the one installed". Its two siblings, whose keys had not moved,
+warned normally, which is what made the difference legible: the plugin that changed was the one
+that went quiet.
+
+So: **a diagnostic must not be reachable only through something a release can rename.** The ids stay
+the anchor — they are ours by construction and a heading never is — but `ownSettingGroup` in all
+three plugins now falls back to the group headed with the plugin name, with `hasOwnTaskButton`
+excluding Settings → Tasks, which heads *its* group with the same name and whose task button is
+destroyed by being decorated (`readmeLinkSlot` picks its slot by structure, and there that slot is
+inside the button). `CustomFieldsBulkEditor` already entered by the heading alone.
+
+**The fix cannot reach the tab that needed it** — it ships in the new script, and the stale one is
+by definition the old one. That is the shape of every banner like this: it is written for the
+*next* release, not the one being installed, which is the reason to get it right before the rename
+rather than after it.
+
 **This rename shipped without a README release-note block, at the user's call**, and the rule above
 ("Only a major version earns a release-note block") is permission rather than obligation. A prefix
 change costs a user nothing to act on: the ids carry the settings across, and the one genuinely

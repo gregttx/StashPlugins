@@ -694,9 +694,64 @@ Promise.resolve()
       one.sub.className + ' / ' + one.sub.childNodes.length + ' children');
   })
 
+  // Fallback for a Stash that sets no setting ids - and, more to the point, for a
+  // release that renames every key this plugin has. Trying every key already survives
+  // one rename; it does not survive all of them at once, and the first casualty is
+  // the stale-script banner, which is the one thing that release needed to show.
+  // NormalizeParentTags 4.0.0 did exactly that and its own 3.2.0 banner went silent.
   .then(() => {
-    // No settings group on the page means no settings page: the tick must cost two
-    // lookups and touch nothing, rather than guessing at a heading.
+    function headingOnly(text) {
+      const env = boot();
+      const group = h.makeElement('div');
+      group.className = 'setting-group';
+      const heading = h.makeElement('h3');
+      heading.textContent = text;
+      group.appendChild(heading);
+      env.ctx.document.body.appendChild(group);
+      env.tick();
+      return !!env.ctx.document.getElementById(PREFIX + '-readme-link');
+    }
+    h.check('heading fallback: our group is found with no setting id on the page',
+      headingOnly('\u176f\u311d\u2093 Propagate Tags and Performers to Related Entities (0.1.0)'));
+    h.check('heading fallback: the bare name too', headingOnly(
+      '\u176f\u311d\u2093 Propagate Tags and Performers to Related Entities'));
+    h.check('heading fallback: and the "undefined" Stash renders with no version',
+      headingOnly('\u176f\u311d\u2093 Propagate Tags and Performers to Related Entities undefined'));
+    h.check('heading fallback: a near-namesake plugin is not', !headingOnly(
+      '\u176f\u311d\u2093 Propagate Tags and Performers to Related Entities Extra'));
+  })
+
+  // Settings - Tasks heads its own group with the same name, and that group is not
+  // this one. Decorating it puts the README link inside the task button, replacing
+  // the label `ownTaskName` matches on - so the click would queue a real Stash job.
+  .then(() => {
+    const env = boot();
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    const heading = h.makeElement('h3');
+    heading.textContent = '\u176f\u311d\u2093 Propagate Tags and Performers to Related Entities';
+    group.appendChild(heading);
+    const row = h.makeElement('div');
+    row.className = 'setting';
+    const btn = h.makeElement('button');
+    btn.textContent = TASK;
+    row.appendChild(btn);
+    group.appendChild(row);
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    return h.flush(20).then(() => {
+      h.check('heading fallback: the tasks page group is left to its buttons',
+        !env.ctx.document.getElementById(PREFIX + '-readme-link') &&
+        !h.hasClass(group, PREFIX + '-own-group'), group.className);
+      h.check('and the task button on it keeps the label that identifies it',
+        btn.textContent === TASK && h.hasClass(btn, 'btn-warning'),
+        btn.textContent + ' / ' + btn.className);
+    });
+  })
+
+  .then(() => {
+    // A group that is not ours is not a settings page for us: the tick must touch
+    // nothing, by id or by heading.
     const env = boot();
     const other = h.makeElement('div');
     other.className = 'setting-group';

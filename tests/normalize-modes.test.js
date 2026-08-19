@@ -26,6 +26,7 @@ function open(opts) {
     respond: h.makeResponder({
       entities: opts.entities || LIB,
       settings: { a1AutoModes: opts.modes === undefined ? h.autoModes({ scenes: 'prune' }) : opts.modes },
+      installed: opts.installed,
     }),
     localStorage: opts.localStorage,
   });
@@ -247,6 +248,40 @@ Promise.resolve()
         !d(env).open && !env.calls.some((c) => /configurePlugin/.test(c.query || '')),
         env.calls.map((c) => c.query).join(' | '));
     });
+  })
+
+  // A stale script is worse here than anywhere else in this plugin. Save does not add
+  // to the setting, it rewrites the whole string from the types and modes *this*
+  // script knows - so an eighth type, or a third mode, added by the installed version
+  // would be dropped without appearing anywhere. Hence: Save off, not just a warning.
+  .then(() => open({
+    modes: 'SCENES=PRUNE', task: h.TASK_MODES,
+    installed: { id: 'NormalizeParentTags', version: '9.9.9' },
+  })).then((env) => {
+    h.check('the settings dialog calls out a stale script',
+      d(env).stale.indexOf('9.9.9 is installed') !== -1 &&
+      /Ctrl\+Shift\+R/.test(d(env).stale), d(env).stale);
+    h.check('says why Save is held back rather than only how to fix it',
+      /dropping anything the installed one has added/.test(d(env).stale), d(env).stale);
+    h.check('and holds it back', d(env).button('Save').disabled === true);
+    d(env).button('Save').click();
+    return h.flush().then(() => {
+      h.check('so pressing it writes nothing',
+        !env.calls.some((c) => /configurePlugin/.test(c.query || '')),
+        env.calls.map((c) => c.query).join(' | '));
+      h.check('while the selectors stay live, so the string can still be read off',
+        selects(env).every((sel) => !sel.disabled), selected(env));
+    });
+  })
+
+  // The version Stash reports matching is the boring case, and the one every other
+  // case in this suite runs: it must leave Save alone.
+  .then(() => open({
+    modes: 'SCENES=PRUNE', task: h.TASK_MODES,
+    installed: { id: 'SomeOtherPlugin', version: '9.9.9' },
+  })).then((env) => {
+    h.check('another plugin being out of date is not our warning',
+      !d(env).stale && d(env).button('Save').disabled === false, d(env).stale);
   })
 
   .then(() => open({ task: h.TASK_MODES })).then((env) => {

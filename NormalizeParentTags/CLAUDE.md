@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.0.0.** This file is both the design and the map of the code — the
+**Status: implemented at 4.0.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1031,6 +1031,15 @@ shuts by default: a notice in there is invisible until the user expands the very
 telling them to look at. The group header is outside it, which is why the README link and the stale
 banner sit there.
 
+**The id anchor has one failure mode of its own, and 4.0.0 walked into it in the siblings**
+(4.0.1). This plugin renamed all nine of its setting keys, so a 3.2.0 script still running in an
+open tab could not find its own group on the new settings page — and the first thing it therefore
+did not draw was the **stale-script banner**, on the one release that most needed it shown. The
+heading fallback above is why it cannot happen here again; `MergePerformerTagsToScenes` 3.3.1 and
+`PropagateTagsAndPerformers` 2.3.1 took the same fallback, `hasOwnTaskButton` guard included, for
+the same reason. **A diagnostic must not be reachable only through something a release can rename**
+— the generalisation is in the repo-root file.
+
 **Two releases shipped this broken by matching the heading text instead, and the tests agreed with
 the bug both times** — they were written from the same guess as the code, so they modelled a DOM
 Stash never produces. The heading match survives only as a fallback for a Stash that does not set
@@ -1147,6 +1156,15 @@ stale answer here would be a lie they then overwrite), shows the seven selectors
 the exact string Save would write, and saves nothing until Save is pressed. Its head warns about
 what an automatic mode does; it deliberately does **not** carry the backup instruction, because it
 writes a setting rather than the library — see the repo-root rule, and §1.
+
+**And it refuses to save with a stale script** (4.0.1), which is a sharper gate than the run
+dialog's. Save does not *add* to this setting; it rewrites the whole line from the entity types and
+modes the running script knows about, so a newer installed version that had grown an eighth type or
+a third mode would have it dropped — silently, with nothing on screen showing the loss. The run
+dialog at least prints the plan it would write. So the same `checkInstalledVersion` runs from
+`build()`, the box goes above the note (the note reports on *reading* the setting; this says the
+answer will not be written back whatever it says), and **the selectors stay live** — the string can
+still be read off the preview, which is most of what someone opens this dialog for.
 
 ### Descriptions: a summary on the page, the rest on hover (1.7.0)
 

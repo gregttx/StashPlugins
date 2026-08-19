@@ -29,7 +29,7 @@ function responder(opts) {
     }
     if (q.indexOf('configuration') !== -1) {
       const plugins = {};
-      plugins[NAME] = opts.settings || {};
+      plugins[NAME] = opts.raw ? (opts.settings || {}) : h.propagateSettings(opts.settings);
       if (opts.otherPlugins) Object.assign(plugins, opts.otherPlugins);
       return { data: { configuration: { plugins } } };
     }
@@ -213,7 +213,7 @@ Promise.resolve()
   .then(() => open({ settings: {} })).then(({ env, d }) => {
     const text = d.lines.join('\n');
     h.check('a run with no paths enabled says so and names where to fix it',
-      /No paths are enabled/.test(text) && /Settings - Plugins/.test(text), text);
+      /No paths are enabled/.test(text) && /Path Settings/.test(text), text);
     h.check('and leaves Proceed disabled', d.button('Proceed').disabled === true);
     h.check('and writes nothing', mutations(env.calls).length === 0,
       mutations(env.calls).map((c) => c.query).join(' | '));
@@ -590,10 +590,10 @@ Promise.resolve()
     const rows = {};
     const descs = {
       // Two paragraphs: a summary that stays on the page and a detail that moves.
-      b4TagsGroupsToScenes: 'Copy a group\'s tags onto every scene in it.\n\n' +
-        'This is the reverse of "Tags - Scenes to their Group" below.',
+      a4AutoOnSourceUpdate: 'Push a saved entity out to everything that reads it.\n\n' +
+        'This one fans out, so it is far more expensive than the mode above.',
       // One paragraph: nothing to hide, so nothing should be built.
-      b1TagsPerformersToScenes: 'Copy each performer\'s tags onto every scene they appear in.',
+      f3ExcludeTagWithIgnoreAutoTag: 'Tags set to Ignore auto tag are never copied onto anything.',
     };
     Object.keys(descs).forEach((k) => {
       const row = h.makeElement('div');
@@ -660,15 +660,15 @@ Promise.resolve()
       env.ctx.document.body.descendants().filter((n) => n.id === PREFIX + '-readme-link').length === 1);
 
     // Per setting: two paragraphs keep only the first, and the rest opens on hover.
-    const two = rows.b4TagsGroupsToScenes;
+    const two = rows.a4AutoOnSourceUpdate;
     const summary = two.sub.childNodes.filter((n) => h.hasClass(n, PREFIX + '-sum'))[0];
     const mark = two.sub.childNodes.filter((n) => h.hasClass(n, PREFIX + '-tip'))[0];
     const box = two.sub.childNodes.filter((n) => h.hasClass(n, PREFIX + '-tipbox'))[0];
     h.check('a two-paragraph setting shows only its first paragraph',
-      !!summary && summary.textContent === 'Copy a group\'s tags onto every scene in it.',
+      !!summary && summary.textContent === 'Push a saved entity out to everything that reads it.',
       summary ? summary.textContent : 'missing');
     h.check('the rest moves into a built box, not a native title',
-      !!box && /reverse of/.test(box.textContent) && !mark.title && !two.h3.title,
+      !!box && /fans out/.test(box.textContent) && !mark.title && !two.h3.title,
       box ? box.textContent : 'missing');
     h.check('the mark is focusable, so the box is reachable without a mouse',
       mark.tabIndex === 0, String(mark.tabIndex));
@@ -688,7 +688,7 @@ Promise.resolve()
     h.check('focusing the mark opens it too', h.hasClass(two.sub, PREFIX + '-tip-open'));
     h.fire(mark, 'blur');
 
-    const one = rows.b1TagsPerformersToScenes;
+    const one = rows.f3ExcludeTagWithIgnoreAutoTag;
     h.check('a one-paragraph setting is left alone',
       one.sub.childNodes.length === 0 && !h.hasClass(one.sub, PREFIX + '-tipped'),
       one.sub.className + ' / ' + one.sub.childNodes.length + ' children');

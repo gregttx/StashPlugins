@@ -55,7 +55,10 @@ are set to act on the same path. Neither disables the other.
 
 ## The thirteen paths
 
-Each one is a separate setting, and every one of them is **off** on a fresh install.
+Every one of them is **off** on a fresh install. Which paths run is one setting, edited in the
+**Path Settings** dialog — from **Settings → Tasks → Plugin Tasks**, or from the button on the
+setting's own row under **Settings → Plugins**. Each path is *Off* or *On*, and the two group
+aggregations offer a third choice, *Common tags only*.
 
 ### Tags
 
@@ -177,9 +180,9 @@ Both automatic modes share the rest of their behaviour:
 With **Show Manual Buttons** on, each enabled path adds a small button to the Edit tab of its
 target — a scene with the performer-tags and studio-tags paths both enabled shows two buttons, not
 one that tries to name both, and a path with no button setting simply has no button. Each button
-is labelled consistently: `"Copy [all|common] [Tags|Perfs] from all <plural>"` —
-for example **"Add all Tags from all Performers"** on a scene, or **"Copy common Tags from all
-Scenes"** on a group if you have turned on that path's "common tags only" setting.
+is labelled consistently: `"Add [all|common] [Tags|Perfs] from all <plural>"` —
+for example **"Add all Tags from all Performers"** on a scene, or **"Add common Tags from all
+Scenes"** on a group if you have set that path to *Common tags only*.
 
 A button lands **between Save and Delete** — grouped with Stash's own non-destructive actions,
 the same placement `MergePerformerTagsToScenes`' buttons use. On a page with no Delete at all
@@ -311,36 +314,36 @@ rows. Every one of them additionally needs **Show Manual Buttons** on (MPTTS's o
 Within a row the order is fixed: `Save · …this plugin's buttons… · MPTTS's button · Delete`.
 Group's Edit tab has no Delete, so everything there appends after Save.
 
-| Page | View | Button | Plugin | Path / setting |
+| Page | View | Button | Plugin | Path |
 |---|---|---|---|---|
-| `/scenes/<id>` | Edit tab | Add all Perfs from all Galleries | this | `b5` |
-| `/scenes/<id>` | Edit tab | Add all Tags from all Markers | this | `b3` |
-| `/scenes/<id>` | Edit tab | Add all Tags from all Performers | this | `b1` — **hidden when MPTTS shows its own** |
-| `/scenes/<id>` | Edit tab | Add Tags from Studio | this | `b2` |
-| `/scenes/<id>` | Edit tab | Add all Tags from all Groups | this | `b4` |
+| `/scenes/<id>` | Edit tab | Add all Perfs from all Galleries | this | `performers:gallery>scene` |
+| `/scenes/<id>` | Edit tab | Add all Tags from all Markers | this | `tags:marker>scene` |
+| `/scenes/<id>` | Edit tab | Add all Tags from all Performers | this | `tags:performer>scene` — **hidden when MPTTS shows its own** |
+| `/scenes/<id>` | Edit tab | Add Tags from Studio | this | `tags:studio>scene` |
+| `/scenes/<id>` | Edit tab | Add all Tags from all Groups | this | `tags:group>scene` |
 | `/scenes/<id>` | Edit tab | Add all Tags from all Performers | MPTTS | its only scene button |
-| `/scenes/<id>` | Groups tab | Copy *all\|common* Tags to all Groups from their Scenes | this | `e1` — under the tab strip |
-| `/galleries/<id>` | Edit tab | Add all Perfs from all Images | this | `c2` |
-| `/galleries/<id>` | Edit tab | Add all Tags from all Images | this | `c1` |
-| `/galleries/<id>` | Scenes tab | Add Perfs to all Scenes | this | `b5` — under the tab strip |
-| `/galleries/<id>` | Images tab | Add Tags to all Images | this | `d1` — under the tab strip |
-| `/images/<id>` | Edit tab | Add all Tags from all Galleries | this | `d1` |
-| `/images/<id>` | Galleries tab | Add Perfs to all Galleries | this | `c2` — under the tab strip, if Image has one |
-| `/images/<id>` | Galleries tab | Add Tags to all Galleries | this | `c1` — under the tab strip, if Image has one |
-| `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Scenes | this | `e1` |
-| `/groups/<id>` | Edit tab | Add Tags from Studio | this | `e3` |
-| `/groups/<id>` | Edit tab | Add all Tags from all Performers | this | `e4` |
-| `/groups/<id>` | Edit tab | Add all Tags from all Markers | this | `e5` |
-| `/groups/<id>` | Edit tab | Copy *all\|common* Tags from all Sub-groups | this | `e6` |
-| `/groups/<id>` | Detail | Add Tags to all Scenes | this | `b4` |
-| `/groups/<id>` | Detail | Copy *all\|common* Tags to all Containing Groups from their Sub-groups | this | `e6` |
-| `/performers/<id>` | Detail | Add Tags to all Scenes | this | `b1` — **hidden when MPTTS shows its own** |
-| `/performers/<id>` | Detail | Add Tags to all Groups | this | `e4` |
+| `/scenes/<id>` | Groups tab | Add *all\|common* Tags to all Groups from their Scenes | this | `tags:scene>group` — under the tab strip |
+| `/galleries/<id>` | Edit tab | Add all Perfs from all Images | this | `performers:image>gallery` |
+| `/galleries/<id>` | Edit tab | Add all Tags from all Images | this | `tags:image>gallery` |
+| `/galleries/<id>` | Scenes tab | Add Perfs to all Scenes | this | `performers:gallery>scene` — under the tab strip |
+| `/galleries/<id>` | Images tab | Add Tags to all Images | this | `tags:gallery>image` — under the tab strip |
+| `/images/<id>` | Edit tab | Add all Tags from all Galleries | this | `tags:gallery>image` |
+| `/images/<id>` | Galleries tab | Add Perfs to all Galleries | this | `performers:image>gallery` — under the tab strip, if Image has one |
+| `/images/<id>` | Galleries tab | Add Tags to all Galleries | this | `tags:image>gallery` — under the tab strip, if Image has one |
+| `/groups/<id>` | Edit tab | Add *all\|common* Tags from all Scenes | this | `tags:scene>group` |
+| `/groups/<id>` | Edit tab | Add Tags from Studio | this | `tags:studio>group` |
+| `/groups/<id>` | Edit tab | Add all Tags from all Performers | this | `tags:performer>group` |
+| `/groups/<id>` | Edit tab | Add all Tags from all Markers | this | `tags:marker>group` |
+| `/groups/<id>` | Edit tab | Add *all\|common* Tags from all Sub-groups | this | `tags:subgroup>group` |
+| `/groups/<id>` | Detail | Add Tags to all Scenes | this | `tags:group>scene` |
+| `/groups/<id>` | Detail | Add *all\|common* Tags to all Containing Groups from their Sub-groups | this | `tags:subgroup>group` |
+| `/performers/<id>` | Detail | Add Tags to all Scenes | this | `tags:performer>scene` — **hidden when MPTTS shows its own** |
+| `/performers/<id>` | Detail | Add Tags to all Groups | this | `tags:performer>group` |
 | `/performers/<id>` | Detail | Add Tags to all Scenes | MPTTS | its only performer button |
-| `/studios/<id>` | Detail | Add Tags to all Scenes | this | `b2` |
-| `/studios/<id>` | Detail | Add Tags to all Groups | this | `e3` |
+| `/studios/<id>` | Detail | Add Tags to all Scenes | this | `tags:studio>scene` |
+| `/studios/<id>` | Detail | Add Tags to all Groups | this | `tags:studio>group` |
 
-*all\|common* is whichever the path's own "common tags only" setting says; the button's label
+*all\|common* is whichever the path is set to in Path Settings; the button's label
 changes with it. The captions above are the base text: a button whose click opens the review dialog
 also shows a trailing **"..."** — every Detail-view (source-side) button always, and every Edit-tab
 button while **Save Immediately** is on or staging is unavailable.
@@ -433,8 +436,13 @@ description shows one line on the page; hover it, or the setting's name, for the
 two automatic modes (react when the *target* is saved, or when a *source* is saved). The
 source-side mode fans out: saving one performer can rewrite every scene they appear in.
 
-**The thirteen paths**, grouped by what they write onto: scenes, galleries, images, groups. The two
-group aggregations each have a **common tags only** toggle directly beneath them.
+**Paths** — one row, showing the paths that are on and holding the button that opens the **Path
+Settings** dialog. All thirteen are in that dialog, in the order a run walks them and grouped by
+what they write onto; each is *Off* or *On*, and the two group aggregations offer *Common tags
+only* as a third choice. The setting itself is one line of text (`tags:studio>scene=ON,
+tags:scene>group=COMMON`) and can be typed by hand — it is read forgivingly, in any order and any
+case, and rewritten in canonical form. A path nobody names is off. Upgrading from an earlier
+release carries your existing path toggles over untouched.
 
 **Exclusion filters** — skip entities carrying a tag you name, skip entities marked Organized,
 never copy tags set to *Ignore auto tag*, and never copy tags carrying a custom field you name.
@@ -445,8 +453,8 @@ or the Logs page — this is a UI plugin and cannot write there).
 Four of those switches are not Stash's blue. **Save Immediately** and the two
 automatic modes are **amber**, the plugin's colour for a setting that makes it write without
 showing you a plan first; the logging switch is **teal**, for one that only talks to the console.
-Everything else stays blue. The plugin's task button in **Settings → Tasks → Plugin Tasks** is
-amber for the same reason.
+Everything else stays blue. In **Settings → Tasks → Plugin Tasks** the propagate task is amber for
+the same reason, and **Path Settings** is teal — it writes a setting, not your library.
 
 ## Relationship to the other plugins in this repo
 

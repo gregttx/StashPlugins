@@ -5,10 +5,50 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 2.1.0.** Every step in the table below has landed, so the version left the
+**Status: released, 3.0.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.0.0 replaces the fifteen path settings with one string and a dialog**, the move
+`NormalizeParentTags` made at its 4.0.0 and for the same reason. Thirteen path toggles spread over
+four alphabetical blocks, plus two "common tags only" modifiers whose pairing with a path could only
+be inferred from the wording of their names, are now `b1Paths` — one line of `<path id>=<mode>`
+pairs — and a **Path Settings...** task that is the editor for it.
+
+- **The token is the path id.** `tags:performer>scene`, the string `coop().declares` already
+  publishes and every table here is keyed by, rather than a second vocabulary invented for the
+  setting. A path renamed in one is renamed in the other, which is the coupling wanted.
+- **A path is Off, On, or - for the two carrying `common` - Common.** That is a tri-state, and a
+  Stash plugin setting is BOOLEAN, NUMBER or STRING with no tri-state and no repeated group. The
+  modifier being a *mode of its path* rather than a second row beside it is the readability half of
+  the change; the type system is the half that made a string unavoidable.
+- **`PATHS` no longer carries `setting` or `mode`.** `pathMode(s, path)` / `pathOn` / `pathCommon`
+  are what the eight former `s[p.setting]` / `s[p.mode]` reads ask, so a repartitioning of the
+  setting costs one function rather than a search for every boolean read. §4's note that `PATHS` is
+  "a second place the manifest keys live" is retired with them: there are no per-path keys left to
+  drift from the manifest.
+- **Only the enabled paths are written back**, in pipeline order. This is where it departs from the
+  sibling, which writes all seven of its pairs including the OFFs: thirteen `=OFF` entries would
+  bury the two that matter, and an absent path already means off.
+- **Migration is exact and silent.** `settingsFrom` maps the fifteen old keys when `b1Paths` is
+  empty and at least one of them is set, and writes the result back so the settings page shows it.
+  Renaming a key orphans what the user had; this is the one thing that stops the replacement from
+  being a reset.
+- **The row is taken over, not hidden.** Stash renders a STRING setting as a value span and an Edit
+  button opening a one-line text modal, which for thirteen pairs is a place to make a typo in.
+  `pathFieldTick` replaces the value with the enabled paths in words and the button with one opening
+  the dialog, hiding Stash's own rather than removing them - React owns those and the setting must
+  stay editable if this script ever stops running.
+- **`host` is the row itself where there is no `.value`, never `row.childNodes[0]`.** The sibling's
+  copy reads the first child, which on the second tick is the line the first tick appended - a
+  HierarchyRequestError in a browser and a silent unlink in the harness. It is unreachable while
+  Stash renders a `.value` span, which is why nobody has seen it; the same line in
+  `NormalizeParentTags`' `modeFieldTick` still has it.
+- **Major, and it is the settings page that earns it**, not a rename: fifteen keys stop existing.
+  No README release-note block, by the repo rule that such a block is for something a user has to
+  *act* on - the migration carries their configuration across, and the new shape is described in
+  the prose where someone reading about paths is already looking.
 
 **2.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` under the last log line, one cycle at 2Hz, while the run
 dialog is scanning, applying or undoing. The sweep is the case that wanted it: reading every image
@@ -305,10 +345,12 @@ gather means the second direction reads what the first one decided rather than r
 
 ## 4. Settings
 
-Twenty-four keys, prefix-ordered because `settings:` is a YAML map — the declaration order is gone
-by the time Stash has parsed it and the page renders the keys sorted alphabetically. Blocks:
-`a1`–`a4` what starts a run, `b`/`c`/`d`/`e` the paths grouped by what they write onto, `f` the
-exclusion filters, `g` logging.
+Ten keys since 3.0.0, prefix-ordered because `settings:` is a YAML map — the declaration order is
+gone by the time Stash has parsed it and the page renders the keys sorted alphabetically. Blocks:
+`a1`–`a4` what starts a run, `b1Paths` every path in one string, `f` the exclusion filters, `g`
+logging. The `c`, `d` and `e` blocks were the paths grouped by what they write onto and are gone;
+that grouping is now the Path Settings dialog's own headings, where it can be a heading rather than
+a letter.
 
 **The letters differ from the siblings and the suffixes do not.**
 `ExcludeTagWithIgnoreAutoTag` is the same words in all three plugins; only the prefix moved, because
@@ -325,10 +367,10 @@ and the first click on it would send `true`. Every path toggle is off by default
 reason: these are library-wide writes, and opting in per path is how the user says which
 relationships they have thought about.
 
-**`PATHS` is a second place the manifest keys live.** Unlike `DEFAULTS`, nothing in the plugin fails
-loudly if a path names a key the manifest does not declare — the setting simply reads as `false`
-forever, and the path is configurable in the UI and inert in the run. `tests/propagate-paths.test.js`
-is the only thing holding the two halves together; keep it that way.
+**`PATHS` used to be a second place the manifest keys lived**, and a path naming a key the manifest
+did not declare read as `false` forever — configurable in the UI and inert in the run, with nothing
+failing loudly. There are no per-path keys any more, so that whole class of drift is gone;
+`tests/propagate-paths.test.js` now pins the opposite, that no path carries a setting key at all.
 
 ## 4a. The planner (0.2.0)
 
@@ -1460,10 +1502,15 @@ of it apply unchanged:
 
 ## 7. Testing
 
-`node tests/run.js`. Seven suites touch this plugin so far:
+`node tests/run.js`. Nine suites touch this plugin so far:
 
 - **`propagate-paths.test.js`** — the tables, and the invariants the order carries. See
   `tests/README.md`.
+- **`propagate-modes.test.js`** — the `b1Paths` string (3.0.0): the parser and the formatter read
+  straight off the plugin's exports, migration from the fifteen booleans it replaced, the Path
+  Settings dialog, and the settings row it takes over. The parser cases are deliberately *not* read
+  back through a run, unlike the sibling's equivalent suite: what a run does with the answer is
+  already covered eight ways over, and the value is the thing this release is about.
 - **`propagate-base.test.js`** — both layers of task interception, the dialog head, the
   configuration review, the version gate, the lease warning, the footer, and the settings-page
   injection. Since 0.7.0 also §5a: publishing enabled paths into `coop().declares` (including an

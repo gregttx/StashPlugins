@@ -35,7 +35,7 @@ function responder(opts) {
     if (/PluginVersion/.test(q)) return { data: { plugins: [] } };
     if (q.indexOf('configuration') !== -1) {
       const plugins = {};
-      plugins[NAME] = opts.settings || {};
+      plugins[NAME] = opts.raw ? (opts.settings || {}) : h.propagateSettings(opts.settings);
       return { data: { configuration: { plugins } } };
     }
     // The recap's tooltips: aliases and descriptions for the tags a run moves, asked

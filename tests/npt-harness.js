@@ -490,11 +490,66 @@ function fire(node, type, ev) {
   });
 }
 
+// PropagateTagsAndPerformers' thirteen path toggles became one string setting at its
+// 3.0.0, the same move NormalizeParentTags made at 4.0.0. The suites go on naming a
+// path by the boolean key it used to have - `{ b1TagsPerformersToScenes: true }` is
+// the readable way to write "that one path is on", and rewriting a hundred and
+// twenty-five of them into path ids would have said nothing new about the plugin.
+// This turns such a map into the string it now reads, leaving every other key alone.
+//
+// It is not the plugin's own migration path: that one fires only when `b1Paths` is
+// empty *and* an old key is set, and it writes a `configurePlugin` mutation, which
+// every suite counting mutations would then have to know about. Suites that mean to
+// exercise the migration pass the old keys through `raw: true`.
+const PTP_PATH_KEYS = {
+  b1TagsPerformersToScenes: 'tags:performer>scene',
+  b2TagsStudioToScenes: 'tags:studio>scene',
+  b3TagsMarkersToScenes: 'tags:marker>scene',
+  b4TagsGroupsToScenes: 'tags:group>scene',
+  b5PerformersGalleriesToScenes: 'performers:gallery>scene',
+  c1TagsImagesToGalleries: 'tags:image>gallery',
+  c2PerformersImagesToGalleries: 'performers:image>gallery',
+  d1TagsGalleriesToImages: 'tags:gallery>image',
+  e1TagsScenesToGroups: 'tags:scene>group',
+  e3TagsStudioToGroups: 'tags:studio>group',
+  e4TagsPerformersToGroups: 'tags:performer>group',
+  e5TagsMarkersToGroups: 'tags:marker>group',
+  e6TagsSubGroupsToGroups: 'tags:subgroup>group',
+};
+const PTP_COMMON_KEYS = {
+  e2TagsScenesToGroupsCommonOnly: 'tags:scene>group',
+  e7TagsSubGroupsToGroupsCommonOnly: 'tags:subgroup>group',
+};
+// The plugin's own order, which is the order it writes the string back in. A suite
+// asserting on the stored value has to see the canonical form, not insertion order.
+const PTP_PATH_ORDER = ['performers:image>gallery', 'performers:gallery>scene',
+  'tags:marker>scene', 'tags:performer>scene', 'tags:studio>scene', 'tags:image>gallery',
+  'tags:scene>group', 'tags:studio>group', 'tags:performer>group', 'tags:marker>group',
+  'tags:subgroup>group', 'tags:group>scene', 'tags:gallery>image'];
+
+function propagateSettings(given) {
+  const out = {};
+  const modes = {};
+  Object.keys(given || {}).forEach((k) => {
+    if (PTP_PATH_KEYS[k]) {
+      if (given[k]) modes[PTP_PATH_KEYS[k]] = modes[PTP_PATH_KEYS[k]] || 'ON';
+    } else if (PTP_COMMON_KEYS[k]) {
+      if (given[k]) modes[PTP_COMMON_KEYS[k]] = 'COMMON';
+    } else {
+      out[k] = given[k];
+    }
+  });
+  const line = PTP_PATH_ORDER.filter((id) => modes[id])
+    .map((id) => id + '=' + modes[id]).join(', ');
+  if (line && !out.b1Paths) out.b1Paths = line;
+  return out;
+}
+
 const HANG = { __hang: true };
 
 module.exports = {
   SRC, PLUGIN_ID, TASK_RUN, TASK_MODES, TAGS, HANG, autoModes, storedModes,
-  makeEnv, run, startTask, flush, dialog, hasClass, makeElement, fire,
+  makeEnv, run, startTask, flush, dialog, hasClass, makeElement, fire, propagateSettings,
   check, finish, plural, makeResponder, bulkCalls, entityUpdate,
   results: () => failures,
 };

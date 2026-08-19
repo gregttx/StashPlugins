@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '2.4.0';
+  var PLUGIN_VERSION = '3.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -80,12 +80,20 @@
   // knowing about and not worth using: Stash themes it identically to
   // `btn-secondary`, so it would read as no change at all.
   var PLUGIN_BTN_VARIANT = 'btn-warning';
+  // Teal for a control that only reads, or that writes nothing but a setting of ours:
+  // the Path Settings task and the button that replaces its row on the settings page.
+  // What that setting says is already amber on the line above the button.
+  var READONLY_BTN_VARIANT = 'btn-info';
 
   // Declared in the manifest so Stash lists it under Settings - Tasks - Plugin
   // Tasks, but run in the browser: this plugin has no exec, so a queued job could
   // only fail.
   var TASK_PROPAGATE_ALL = 'Propagate Tags and Performers to All Related Entities...';
-  var TASKS = [TASK_PROPAGATE_ALL];
+  // The editor for the one setting the path block is now. It writes a setting rather
+  // than the library, and it is the same dialog the settings row's own button opens -
+  // one editor, two ways in, like NormalizeParentTags' Auto Mode Settings.
+  var TASK_PATHS = 'Path Settings...';
+  var TASKS = [TASK_PROPAGATE_ALL, TASK_PATHS];
 
   var PAGE_SIZE      = 500;    // targets per page while walking the library
   var CHUNK_SIZE     = 100;    // target ids per bulk mutation
@@ -201,10 +209,9 @@
   //      than a stale set.
   //
   // Fields:
-  //   id        stable identifier, published to other plugins via the coop registry
+  //   id        stable identifier, published to other plugins via the coop registry,
+  //             and the token the `b1Paths` setting names this path by
   //   kind      what is copied: 'tags' or 'performers'
-  //   setting   its manifest key; the setting is the single source of truth for the
-  //             task, the auto modes and whether the button appears
   //   target    a TARGETS key - the entity written to
   //   sourceType  what the walk lands on. Where it is itself a TARGETS key, an
   //             earlier stage may have *planned* additions to it that this stage
@@ -219,37 +226,37 @@
   //             `Image.galleries`, since `Gallery.images` does not exist. Such a
   //             path's `sourceType` must be a target type, because the sweep that
   //             gathers it is a paged query over that entity; see `sweepPass`.
-  //   mode      manifest key of the "common tags only" toggle, where the path has one
+  //   common    the path offers "common tags only" as a third mode
   //   pair      the id of the path that reverses this one, where one exists
   //   hops      1, or 2 where the payload is reached through an intermediate entity
   var PATHS = [
     // Stage 1 - performer assignments, before anything reads performers.
     { id: 'performers:image>gallery', kind: 'performers', stage: 1, hops: 1,
-      setting: 'c2PerformersImagesToGalleries', target: 'gallery', sourceType: 'image',
+      target: 'gallery', sourceType: 'image',
       source: 'Images', button: 'Add all Perfs from all Images',
       reverse: { backRef: 'galleries' } },
     { id: 'performers:gallery>scene', kind: 'performers', stage: 1, hops: 1,
-      setting: 'b5PerformersGalleriesToScenes', target: 'scene', sourceType: 'gallery',
+      target: 'scene', sourceType: 'gallery',
       source: 'Galleries', button: 'Add all Perfs from all Galleries',
       walk: ['galleries'] },
 
     // Stage 2 - tags onto scenes.
     { id: 'tags:marker>scene', kind: 'tags', stage: 2, hops: 1,
-      setting: 'b3TagsMarkersToScenes', target: 'scene', sourceType: 'marker',
+      target: 'scene', sourceType: 'marker',
       source: 'Markers', button: 'Add all Tags from all Markers',
       walk: ['scene_markers'], markerTags: true },
     { id: 'tags:performer>scene', kind: 'tags', stage: 2, hops: 1,
-      setting: 'b1TagsPerformersToScenes', target: 'scene', sourceType: 'performer',
+      target: 'scene', sourceType: 'performer',
       source: 'Performers', button: 'Add all Tags from all Performers',
       walk: ['performers'] },
     { id: 'tags:studio>scene', kind: 'tags', stage: 2, hops: 1,
-      setting: 'b2TagsStudioToScenes', target: 'scene', sourceType: 'studio',
+      target: 'scene', sourceType: 'studio',
       source: 'Studio', button: 'Add Tags from Studio',
       walk: ['studio'] },
 
     // Stage 3 - tags onto galleries.
     { id: 'tags:image>gallery', kind: 'tags', stage: 3, hops: 1,
-      setting: 'c1TagsImagesToGalleries', target: 'gallery', sourceType: 'image',
+      target: 'gallery', sourceType: 'image',
       source: 'Images', button: 'Add all Tags from all Images',
       pair: 'tags:gallery>image',
       reverse: { backRef: 'galleries' } },
@@ -257,41 +264,40 @@
     // Stage 4 - tags onto groups. A Group has no performers and no markers of its
     // own, so those two are two-hop traversals through its scenes.
     { id: 'tags:scene>group', kind: 'tags', stage: 4, hops: 1,
-      setting: 'e1TagsScenesToGroups', target: 'group', sourceType: 'scene',
+      target: 'group', sourceType: 'scene',
       source: 'Scenes', button: 'Add {mode} Tags from all Scenes',
-      mode: 'e2TagsScenesToGroupsCommonOnly', pair: 'tags:group>scene',
+      common: true, pair: 'tags:group>scene',
       walk: ['scenes'] },
     { id: 'tags:studio>group', kind: 'tags', stage: 4, hops: 1,
-      setting: 'e3TagsStudioToGroups', target: 'group', sourceType: 'studio',
+      target: 'group', sourceType: 'studio',
       source: 'Studio', button: 'Add Tags from Studio',
       walk: ['studio'] },
     { id: 'tags:performer>group', kind: 'tags', stage: 4, hops: 2,
-      setting: 'e4TagsPerformersToGroups', target: 'group', sourceType: 'performer',
+      target: 'group', sourceType: 'performer',
       source: 'Performers', button: 'Add all Tags from all Performers',
       walk: ['scenes', 'performers'] },
     { id: 'tags:marker>group', kind: 'tags', stage: 4, hops: 2,
-      setting: 'e5TagsMarkersToGroups', target: 'group', sourceType: 'marker',
+      target: 'group', sourceType: 'marker',
       source: 'Markers', button: 'Add all Tags from all Markers',
       walk: ['scenes', 'scene_markers'], markerTags: true },
 
     // Stage 5 - sub-groups roll up into their containing group. Group.sub_groups is
     // a list of GroupDescription, not of Group, hence the `group` step.
     { id: 'tags:subgroup>group', kind: 'tags', stage: 5, hops: 1,
-      setting: 'e6TagsSubGroupsToGroups', target: 'group', sourceType: 'group',
+      target: 'group', sourceType: 'group',
       source: 'Sub-groups', button: 'Add {mode} Tags from all Sub-groups',
-      mode: 'e7TagsSubGroupsToGroupsCommonOnly',
-      walk: ['sub_groups', 'group'] },
+      common: true, walk: ['sub_groups', 'group'] },
 
     // Stage 6 - the reverses, distributing what the stages above gathered. Both
     // close a cycle with a path already in the table, which is why the per-entity
     // cooldown above exists; see CLAUDE.md.
     { id: 'tags:group>scene', kind: 'tags', stage: 6, hops: 1,
-      setting: 'b4TagsGroupsToScenes', target: 'scene', sourceType: 'group',
+      target: 'scene', sourceType: 'group',
       source: 'Groups', button: 'Add all Tags from all Groups',
       pair: 'tags:scene>group',
       walk: ['groups', 'group'] },
     { id: 'tags:gallery>image', kind: 'tags', stage: 6, hops: 1,
-      setting: 'd1TagsGalleriesToImages', target: 'image', sourceType: 'gallery',
+      target: 'image', sourceType: 'gallery',
       source: 'Galleries', button: 'Add all Tags from all Galleries',
       pair: 'tags:image>gallery',
       walk: ['galleries'] },
@@ -377,7 +383,7 @@
   }
 
   function enabledPaths(s) {
-    return PATHS.filter(function (p) { return !!s[p.setting]; });
+    return PATHS.filter(function (p) { return pathOn(s, p); });
   }
 
   // A manual button's caption: "Copy [all|common] [Tags|Perfs] [to|from] all
@@ -387,8 +393,8 @@
   // Reads whichever mode is currently configured, so the two buttons whose meaning
   // depends on it never show a caption the setting has moved past.
   function buttonLabel(path, s) {
-    if (!path.mode) return path.button;
-    return path.button.replace('{mode}', (s && s[path.mode]) ? 'common' : 'all');
+    if (!path.common) return path.button;
+    return path.button.replace('{mode}', pathCommon(s, path) ? 'common' : 'all');
   }
 
   // Whether a target-side click has a form to stage into. Both the caption, the tooltip
@@ -461,24 +467,9 @@
     a3AutoOnTargetUpdate: false,
     a4AutoOnSourceUpdate: false,
 
-    b1TagsPerformersToScenes: false,
-    b2TagsStudioToScenes: false,
-    b3TagsMarkersToScenes: false,
-    b4TagsGroupsToScenes: false,
-    b5PerformersGalleriesToScenes: false,
-
-    c1TagsImagesToGalleries: false,
-    c2PerformersImagesToGalleries: false,
-
-    d1TagsGalleriesToImages: false,
-
-    e1TagsScenesToGroups: false,
-    e2TagsScenesToGroupsCommonOnly: false,
-    e3TagsStudioToGroups: false,
-    e4TagsPerformersToGroups: false,
-    e5TagsMarkersToGroups: false,
-    e6TagsSubGroupsToGroups: false,
-    e7TagsSubGroupsToGroupsCommonOnly: false,
+    // The thirteen path toggles and the two "common tags only" modifiers, as one
+    // line. See the block below for why they are a string rather than fifteen rows.
+    b1Paths: '',
 
     f1ExcludeTargetWithTagName: '',
     f2ExcludeTargetOrganized: false,
@@ -487,6 +478,197 @@
 
     g1LogToConsole: false,
   };
+
+  // ── The path setting string ───────────────────────────────────────────────
+  //
+  // One STRING setting holds all thirteen paths: `tags:performer>scene=ON,
+  // tags:scene>group=COMMON`. It replaced thirteen "Tags - ... to ..." booleans plus
+  // the two "common tags only" modifiers that qualified two of them - fifteen rows,
+  // five alphabetical blocks deep, in which the pair a modifier belonged to could
+  // only be inferred from the wording of its name.
+  //
+  // A path is off, on, or - for the two that carry `common` - on for the tags every
+  // source shares. That is three states for two of them, and a Stash plugin setting
+  // is BOOLEAN, NUMBER or STRING with no tri-state and no repeated group, which is
+  // the same wall `NormalizeParentTags` hit with its seven per-type modes. The answer
+  // is the same too: one line, and the "Path Settings..." task is the editor for it.
+  // The field stays there to be *read* at a glance and edited by hand when someone
+  // wants to, not to be the only way in.
+  //
+  // **The token is the path id**, the string `coop().declares` already publishes and
+  // this plugin's own tables are keyed by - not a second vocabulary invented for the
+  // setting. A path renamed here would be a path renamed there, which is exactly the
+  // coupling wanted: they name the same thing.
+  //
+  // Parsing is forgiving and formatting is strict. Anything shaped like
+  // `<path id>=<mode>` is picked out wherever it sits, in any order, in any case,
+  // with any separators between the pairs; everything else is ignored, and a path
+  // nobody mentioned is off. What is written back is the enabled paths only, in
+  // `PATHS` order - unlike the sibling's seven pairs, thirteen `=OFF` entries would
+  // be a line nobody could read for the two that matter, and an absent path already
+  // means off.
+  var PATH_OFF = 'off', PATH_ON = 'on', PATH_COMMON = 'common';
+  var PATH_TOKEN = { on: 'ON', common: 'COMMON' };
+  // The same modes as words, for the selectors and the settings row. `All` rather
+  // than `On` wherever a path has a second enabled mode to be told apart from.
+  var PATH_LABEL = { off: 'Off', on: 'On', common: 'Common only' };
+  var PATH_LABEL_COMMON = { off: 'Off', on: 'All tags', common: 'Common tags only' };
+
+  function pathLabels(path) { return path.common ? PATH_LABEL_COMMON : PATH_LABEL; }
+
+  // ALL is accepted as a synonym of ON because that is the word the two mode-carrying
+  // paths' own selector shows, and someone typing the line by hand reads it there.
+  // COMMON on a path that has no common mode is just "on": the path is enabled, and
+  // the qualifier it does not have is dropped rather than the pair being ignored.
+  var PATH_PAIR = /([A-Za-z]+:[A-Za-z]+>[A-Za-z]+)\s*=\s*(OFF|ON|ALL|COMMON)/gi;
+
+  function parsePaths(raw) {
+    var modes = {};
+    PATHS.forEach(function (p) { modes[p.id] = PATH_OFF; });
+    var text = String(raw == null ? '' : raw), m;
+    PATH_PAIR.lastIndex = 0;
+    while ((m = PATH_PAIR.exec(text)) !== null) {
+      var p = pathById(m[1].toLowerCase());
+      if (!p) continue;
+      var word = m[2].toUpperCase();
+      // A path named twice takes its last mention: the string is edited by appending
+      // far more often than by rewriting, so the last word is the newest intent.
+      modes[p.id] = word === 'OFF' ? PATH_OFF
+        : (word === 'COMMON' && p.common ? PATH_COMMON : PATH_ON);
+    }
+    return modes;
+  }
+
+  function formatPaths(modes) {
+    return PATHS.filter(function (p) {
+      return modes && modes[p.id] && modes[p.id] !== PATH_OFF;
+    }).map(function (p) {
+      return p.id + '=' + PATH_TOKEN[modes[p.id]];
+    }).join(', ');
+  }
+
+  // What one path is set to, off `settings.paths`. Everything in the plugin that used
+  // to read `s[path.setting]` or `s[path.mode]` asks these three instead, so a
+  // repartitioning of the setting - a fourth mode, a mode per target - costs one
+  // function rather than a search for every boolean read.
+  function pathMode(s, path) {
+    var modes = (s && s.paths) || {};
+    return modes[path.id] || PATH_OFF;
+  }
+
+  function pathOn(s, path) { return pathMode(s, path) !== PATH_OFF; }
+
+  function pathCommon(s, path) { return pathMode(s, path) === PATH_COMMON; }
+
+  // The setting in words rather than in tokens, for the settings row: `Tags:
+  // Performers → Scenes (All tags)`, one line per enabled path and every one of them
+  // amber - a path that is on is one this plugin writes along. Nothing is listed for
+  // a path that is off; thirteen greyed-out lines would bury the two that are not.
+  //
+  // Elements rather than `textContent`, so the list can be a list.
+  function renderPathString(box, modes) {
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var on = PATHS.filter(function (p) { return modes && modes[p.id] !== PATH_OFF; });
+    if (!on.length) {
+      box.appendChild(el('div', null, 'No paths enabled - nothing is copied anywhere.'));
+      return;
+    }
+    on.forEach(function (p) {
+      var line = el('div', 'ptp2re-pathstring-on');
+      // The label is a span rather than the div's own text: a mode is appended after
+      // it, and text plus an element in one node is the shape that loses the text.
+      line.appendChild(el('span', null, pathLabel(p)));
+      if (p.common) {
+        line.appendChild(el('span', 'ptp2re-pathstring-mode',
+          '  (' + pathLabels(p)[modes[p.id]] + ')'));
+      }
+      box.appendChild(line);
+    });
+  }
+
+  // ── Migrating the fifteen booleans this setting replaced ──────────────────
+  //
+  // Up to 2.4.0 each path had a boolean of its own and two of them had a second
+  // boolean for "common tags only". The mapping is exact, which is the whole reason
+  // the replacement can be silent: an enabled path becomes ON, or COMMON where its
+  // modifier was also set.
+  //
+  // Renaming a key orphans what the user had; this is the one thing that stops the
+  // replacement from being a reset. It runs once per page, only when the new setting
+  // is empty and at least one old key is set, and it writes the result back so the
+  // settings page shows it.
+  var LEGACY_PATH = {
+    'tags:performer>scene': 'b1TagsPerformersToScenes',
+    'tags:studio>scene': 'b2TagsStudioToScenes',
+    'tags:marker>scene': 'b3TagsMarkersToScenes',
+    'tags:group>scene': 'b4TagsGroupsToScenes',
+    'performers:gallery>scene': 'b5PerformersGalleriesToScenes',
+    'tags:image>gallery': 'c1TagsImagesToGalleries',
+    'performers:image>gallery': 'c2PerformersImagesToGalleries',
+    'tags:gallery>image': 'd1TagsGalleriesToImages',
+    'tags:scene>group': 'e1TagsScenesToGroups',
+    'tags:studio>group': 'e3TagsStudioToGroups',
+    'tags:performer>group': 'e4TagsPerformersToGroups',
+    'tags:marker>group': 'e5TagsMarkersToGroups',
+    'tags:subgroup>group': 'e6TagsSubGroupsToGroups',
+  };
+  var LEGACY_COMMON = {
+    'tags:scene>group': 'e2TagsScenesToGroupsCommonOnly',
+    'tags:subgroup>group': 'e7TagsSubGroupsToGroupsCommonOnly',
+  };
+
+  function hasLegacyPaths(raw) {
+    for (var id in LEGACY_PATH) {
+      if (hasOwn(LEGACY_PATH, id) && raw[LEGACY_PATH[id]]) return true;
+    }
+    return false;
+  }
+
+  function legacyPaths(raw) {
+    var modes = {};
+    PATHS.forEach(function (p) {
+      var on = !!raw[LEGACY_PATH[p.id]];
+      modes[p.id] = !on ? PATH_OFF
+        : (p.common && raw[LEGACY_COMMON[p.id]] ? PATH_COMMON : PATH_ON);
+    });
+    return modes;
+  }
+
+  var _savingPaths = false;
+
+  // The one mutation this plugin sends that is not about the library. Stash's own
+  // settings page sends the same shape, and the fetch hook already notices it and
+  // drops the settings cache - so a save made here reaches the automatic modes and
+  // the manual buttons exactly as one made by hand does.
+  function savePaths(text) {
+    _savingPaths = true;
+    return gqlRequest(
+      'mutation PTPSavePaths($plugin_id: ID!, $input: Map!) {' +
+      '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
+      '}',
+      { plugin_id: PLUGIN_ID, input: { b1Paths: text } }
+    ).then(function (r) {
+      _savingPaths = false;
+      invalidateAutoSettings();
+      return r;
+    }, function (e) {
+      _savingPaths = false;
+      throw e;
+    });
+  }
+
+  var _migrated = false;
+
+  function migrateLegacyPaths(text) {
+    if (_migrated) return;
+    _migrated = true;
+    ptp2re('[ptp2re] migrating the pre-3.0.0 per-path settings to "' + text + '".');
+    savePaths(text).then(null, function (e) {
+      ptp2re('[ptp2re] the migrated path setting could not be saved (' +
+        (e && e.message ? e.message : e) + '). It is being used for this page all the ' +
+        'same; set it by hand from the Path Settings task if this keeps happening.');
+    });
+  }
 
   // ── Cross-plugin cooperation ──────────────────────────────────────────────
   //
@@ -656,16 +838,27 @@
   // `configuration { plugins }` cannot be scoped to one plugin, so every other
   // plugin's settings arrive in the same response - which is what the sibling checks
   // read, for free.
+  // One raw settings map, filled in from the defaults, migrated if this install
+  // predates the path string, with the parsed modes hung off the result so nothing
+  // downstream parses it twice.
+  function settingsFrom(raw) {
+    var s = {};
+    for (var k in DEFAULTS) {
+      if (!hasOwn(DEFAULTS, k)) continue;
+      s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (raw[k] || '');
+    }
+    if (!String(s.b1Paths).replace(/^\s+|\s+$/g, '') && hasLegacyPaths(raw)) {
+      s.b1Paths = formatPaths(legacyPaths(raw));
+      migrateLegacyPaths(s.b1Paths);
+    }
+    s.paths = parsePaths(s.b1Paths);
+    return s;
+  }
+
   function loadSettings() {
     return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
       var all = (data.configuration || {}).plugins || {};
-      var raw = all[PLUGIN_ID] || {};
-      var s = {};
-      for (var k in DEFAULTS) {
-        if (!hasOwn(DEFAULTS, k)) continue;
-        s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (raw[k] || '');
-      }
-      return { settings: s, all: all };
+      return { settings: settingsFrom(all[PLUGIN_ID] || {}), all: all };
     });
   }
 
@@ -698,6 +891,34 @@
     '.ptp2re-spin{color:#a7b6c2;}' +
     // The log's own line kinds, which the siblings do not share: this plugin adds
     // both tags and performers, so ADD alone would not say which.
+    // The path selectors: the whole body of the settings dialog. A two-column grid
+    // rather than a row of flex boxes, because thirteen labels of very different
+    // lengths line their selects up only if the columns are shared - and the rows are
+    // `display:contents` so each row's two cells are the grid's own.
+    '.ptp2re-paths{display:grid;grid-template-columns:1fr auto;gap:.3rem .9rem;' +
+    'align-items:center;margin:.5rem 0;}' +
+    '.ptp2re-paths-head{grid-column:1/-1;color:#7d8f9c;font-size:.8rem;' +
+    'margin-top:.6rem;border-bottom:1px solid #394b59;padding-bottom:.15rem;}' +
+    '.ptp2re-path-row{display:contents;}' +
+    '.ptp2re-path-name{color:#d6dee4;font-size:.9rem;}' +
+    // Byte-identical with NormalizeParentTags' .npt-mode and TagBundleClipboard's
+    // .tbc-mode: a mode select in a dialog is the same thing in all three, so the
+    // shared-CSS suite is right to insist.
+    '.ptp2re-mode{background:#30404d;color:#f5f8fa;border:1px solid #394b59;' +
+    'border-radius:3px;padding:.15rem .35rem;font-size:.85rem;max-width:100%;}' +
+    // Amber wherever the selector is set to something that writes, the same rule the
+    // buttons follow. A <select> has no Bootstrap variant to borrow.
+    '.ptp2re-mode-on{border-color:#ffb648;color:#ffb648;}' +
+    '.ptp2re-pathsbody{padding:.5rem 1rem;overflow:auto;}' +
+    // The enabled paths as the settings row shows them. Prose rather than the
+    // sibling's monospace: what is rendered here is `pathLabel`, the same sentence
+    // the log uses, not the tokens the setting stores.
+    '.ptp2re-pathstring{font-size:.85rem;color:#a7b6c2;margin:.25rem 0 .5rem;}' +
+    // Amber for the same reason the selectors are: a path that is on is one this
+    // plugin writes along. The mode in brackets stays grey - it qualifies the line
+    // rather than being a second thing that is on.
+    '.ptp2re-pathstring-on{color:#ffb648;}' +
+    '.ptp2re-pathstring-mode{color:#a7b6c2;font-size:.8rem;}' +
     '.ptp2re-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
     'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
     'font-weight:600;}' +
@@ -1380,6 +1601,13 @@
   // the library-wide task, which is every enabled path over everything.
   function startRun(taskName, scope) {
     if (_active) { _active.focus(); return; }
+    // The path editor writes a setting and has no plan, so it is a different object
+    // rather than a second mode threaded through the run.
+    if (taskName === TASK_PATHS) {
+      _active = new PathsDialog(taskName);
+      _active.build();
+      return;
+    }
     _active = new Run(taskName, scope);
     _active.begin();
   }
@@ -1732,10 +1960,10 @@
       publishDeclares(self.settings);
       if (!paths.length) {
         self.log('WARN', self.scope
-          ? 'That path is no longer enabled. Turn it back on in Settings - Plugins - ' +
-            PLUGIN_NAME + ', then press the button again.'
-          : 'No paths are enabled. Turn on at least one in Settings - Plugins - ' +
-            PLUGIN_NAME + ', then run the task again.');
+          ? 'That path is no longer enabled. Turn it back on with ' + TASK_PATHS +
+            ', then press the button again.'
+          : 'No paths are enabled. Turn on at least one with ' + TASK_PATHS +
+            ', then run the task again.');
         self.finishScan();
         return;
       }
@@ -1856,7 +2084,7 @@
   // button promised.
   function scopedPaths(scope, s) {
     var p = pathById(scope.pathId);
-    return p && s[p.setting] ? [p] : [];
+    return p && pathOn(s, p) ? [p] : [];
   }
 
   // The entities a scoped run plans over: the one the target-side button is sitting on,
@@ -2088,7 +2316,7 @@
 
       // Union, or only what every source carries. One source makes the two the same
       // answer, which is the behaviour the setting's description promises.
-      var common = path.mode && self.settings[path.mode];
+      var common = pathCommon(self.settings, path);
       var wanted = agg.order.filter(function (id) {
         return common ? counts[id] === agg.n : true;
       });
@@ -2722,6 +2950,199 @@
     // the tick returns before it queries anything.
     invalidateButtonProbes();
   };
+
+  // ── The path settings dialog ──────────────────────────────────────────────
+  //
+  // The editor for the one setting this plugin's `b` block now holds. It exists
+  // because a tri-state is not something Stash's settings page can render - a plugin
+  // setting is BOOLEAN, NUMBER or STRING and nothing else - and because thirteen
+  // paths spread over five alphabetical blocks were a list nobody could see the shape
+  // of. Here they are in pipeline order, grouped by what they write into, which is
+  // how the task's own log is ordered too.
+  //
+  // It writes a setting, not the library, so it carries no backup instruction: there
+  // is nothing here for an Undo to reverse. What it does carry is what a path being
+  // on actually means - the task covers it, the buttons appear for it, and the
+  // automatic modes, if they are on, write along it with no dialog at all.
+  function PathsDialog(taskName) {
+    this.taskName = taskName;
+    this.modes = {};
+    PATHS.forEach(function (p) { this.modes[p.id] = PATH_OFF; }, this);
+    this.saving = false;
+    this.stale = false;
+  }
+
+  // One select per path, grouped by target. The label is `pathLabel` - the same
+  // string the log and the dialog heads use - so a user who has read one has read
+  // the other, and there is no second naming of a path anywhere.
+  PathsDialog.prototype.panel = function () {
+    var self = this;
+    var wrap = el('div', 'ptp2re-paths');
+    this.selects = {};
+    var seen = {};
+    PATHS.forEach(function (p) {
+      if (!seen[p.target]) {
+        seen[p.target] = true;
+        wrap.appendChild(el('div', 'ptp2re-paths-head',
+          'Into ' + TARGETS[p.target].plural));
+      }
+      var row = el('div', 'ptp2re-path-row');
+      row.appendChild(el('span', 'ptp2re-path-name', pathLabel(p)));
+      var sel = el('select', 'ptp2re-mode');
+      var labels = pathLabels(p);
+      var options = p.common ? [PATH_OFF, PATH_ON, PATH_COMMON] : [PATH_OFF, PATH_ON];
+      options.forEach(function (m) {
+        var opt = el('option', null, labels[m]);
+        opt.value = m;
+        sel.appendChild(opt);
+      });
+      sel.value = self.modes[p.id] || PATH_OFF;
+      paintPathMode(sel);
+      sel.addEventListener('change', function () {
+        self.modes[p.id] = sel.value;
+        paintPathMode(sel);
+      });
+      row.appendChild(sel);
+      wrap.appendChild(row);
+      self.selects[p.id] = sel;
+    });
+    return wrap;
+  };
+
+  // Sets the values without firing `change`: this is the dialog telling the selectors
+  // what it found, which is not the user changing them.
+  PathsDialog.prototype.set = function (modes) {
+    var self = this;
+    PATHS.forEach(function (p) {
+      self.modes[p.id] = (modes && modes[p.id]) || PATH_OFF;
+      self.selects[p.id].value = self.modes[p.id];
+      paintPathMode(self.selects[p.id]);
+    });
+  };
+
+  PathsDialog.prototype.enable = function (on) {
+    var self = this;
+    PATHS.forEach(function (p) { self.selects[p.id].disabled = !on; });
+  };
+
+  PathsDialog.prototype.build = function () {
+    injectStyle();
+    var self = this;
+
+    this.backdrop = el('div', 'ptp2re-backdrop');
+    this.modal = el('div', 'ptp2re-modal');
+    this.backdrop.appendChild(this.modal);
+
+    var head = el('div', 'ptp2re-head');
+    head.appendChild(el('div', 'ptp2re-title', PLUGIN_SHORT_NAME + ' - ' + this.taskName));
+    head.appendChild(el('div', 'ptp2re-warn',
+      'A path switched on here is one the task covers, one a manual button appears ' +
+      'for, and - if either automatic mode is on - one that is written along whenever ' +
+      'Stash saves an entity, with no dialog and no undo. Off is what a path does ' +
+      'until you say otherwise.'));
+    head.appendChild(el('div', 'ptp2re-legend',
+      'Every path only ever adds; nothing is removed from the source or the target. ' +
+      'The order below is the order a run walks them in, and it matters: what an ' +
+      'earlier path adds is what a later one reads. The exclusion filters in the ' +
+      'plugin settings apply to all of them.'));
+    this.noteEl = el('div', 'ptp2re-note', 'Reading the current setting...');
+    head.appendChild(this.noteEl);
+    this.modal.appendChild(head);
+
+    var body = el('div', 'ptp2re-pathsbody');
+    body.appendChild(this.panel());
+    this.enable(false);
+    this.modal.appendChild(body);
+
+    var foot = el('div', 'ptp2re-foot');
+    // Amber: this is the button that writes. See "one colour for a plugin wrote this".
+    this.saveBtn   = button('Save', 'ptp2re-proceed');
+    this.saveBtn.className = this.saveBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    this.cancelBtn = button('Cancel', 'ptp2re-cancel');
+    this.saveBtn.disabled = true;
+    this.saveBtn.addEventListener('click', function () { self.save(); });
+    this.cancelBtn.addEventListener('click', function () { self.close(); });
+    [this.saveBtn, this.cancelBtn].forEach(function (b) { foot.appendChild(b); });
+    this.modal.appendChild(foot);
+
+    wireEscape(this);
+    document.body.appendChild(this.backdrop);
+    this.checkVersion();
+
+    loadSettings().then(function (loaded) {
+      if (_active !== self) return;
+      self.set(loaded.settings.paths);
+      self.enable(true);
+      self.saveBtn.disabled = self.stale;
+      self.noteEl.textContent = '';
+    }, function (e) {
+      if (_active !== self) return;
+      self.noteEl.textContent = 'The current setting could not be read (' +
+        (e && e.message ? e.message : e) + '). Saving from here would replace it with ' +
+        'whatever is selected above, so Save stays disabled - close this and try again.';
+    });
+  };
+
+  // The same question the run dialog asks, and it blocks for a sharper reason. Save
+  // does not add to this setting, it rewrites the whole string from the paths *this*
+  // script knows - so a newer installed version that had grown a fourteenth path, or
+  // a third mode, would have it silently dropped by a stale tab. The run dialog at
+  // least shows the plan it would write; here the loss is invisible.
+  PathsDialog.prototype.checkVersion = function () {
+    var self = this;
+    return checkInstalledVersion(function (installed) {
+      if (_active !== self) return;
+      self.stale = true;
+      self.saveBtn.disabled = true;
+      self.noteEl.parentNode.insertBefore(el('div', 'ptp2re-stale',
+        '⚠ This page is running ' + PLUGIN_SHORT_NAME + ' ' + PLUGIN_VERSION +
+        ', but ' + installed + ' is installed. Reload the page (F5); if this warning ' +
+        'comes back, hard-refresh with Ctrl+Shift+R (⌘+Shift+R on a Mac). Save stays ' +
+        'disabled until the script matches: it would rewrite the whole setting from the ' +
+        'paths this older script knows, dropping anything the installed one has added.'),
+        self.noteEl);
+    });
+  };
+
+  PathsDialog.prototype.focus = function () {
+    if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
+  };
+
+  PathsDialog.prototype.save = function () {
+    if (this.saving || this.saveBtn.disabled) return;
+    var self = this;
+    this.saving = true;
+    this.saveBtn.disabled = true;
+    this.enable(false);
+    this.noteEl.textContent = 'Saving...';
+    savePaths(formatPaths(this.modes)).then(function () {
+      if (_active !== self) return;
+      self.close();
+    }, function (e) {
+      self.saving = false;
+      if (_active !== self) return;
+      self.saveBtn.disabled = false;
+      self.enable(true);
+      self.noteEl.textContent = 'The setting could not be saved: ' +
+        (e && e.message ? e.message : e);
+    });
+  };
+
+  PathsDialog.prototype.close = function () {
+    unwireEscape(this);
+    if (this.backdrop && this.backdrop.parentNode) {
+      this.backdrop.parentNode.removeChild(this.backdrop);
+    }
+    if (_active === this) _active = null;
+    // Whatever was saved changes which manual buttons belong on the page behind this.
+    invalidateButtonProbes();
+  };
+
+  // Amber wherever the selector is set to something that writes, the same rule the
+  // buttons follow. A <select> has no Bootstrap variant to borrow.
+  function paintPathMode(sel) {
+    sel.className = 'ptp2re-mode' + (sel.value !== PATH_OFF ? ' ptp2re-mode-on' : '');
+  }
 
   // ── The settings page ─────────────────────────────────────────────────────
 
@@ -3727,13 +4148,131 @@
   function paintTaskButtons() {
     var nodes = document.querySelectorAll ? document.querySelectorAll('button') : [];
     for (var i = 0; i < nodes.length; i++) {
-      if (ownTaskName(nodes[i])) paintButton(nodes[i], PLUGIN_BTN_VARIANT);
+      var name = ownTaskName(nodes[i]);
+      // Amber for the one that rewrites the library, teal for the one that only edits
+      // a setting of ours - what that setting says is already amber on its own row.
+      if (name) {
+        paintButton(nodes[i], name === TASK_PROPAGATE_ALL
+          ? PLUGIN_BTN_VARIANT : READONLY_BTN_VARIANT);
+      }
     }
+  }
+
+  // ── The path setting's own row ────────────────────────────────────────────
+  //
+  // Stash renders a STRING setting as a value span and an Edit button that opens its
+  // own one-line text modal. For thirteen `<path id>=<mode>` pairs that modal is a
+  // place to make a typo in, so the row is taken over: the value is replaced by the
+  // enabled paths in words, and Edit by a button opening the dialog that owns them.
+  //
+  // Four things worth knowing, all of them learnt in `NormalizeParentTags`:
+  //
+  //  - **Stash's own nodes are hidden, never removed.** React owns them and puts them
+  //    back on the next re-render; removing one leaves the setting with no editor at
+  //    all if this script ever stops running.
+  //  - **Both are re-applied per tick**, because a re-render hands back Stash's own
+  //    elements - the same reason `paintTaskButtons` repaints every tick.
+  //  - **The value comes from the settings cache, not from the row.** The dialog saves
+  //    with `configurePlugin` straight from `fetch`, which Stash's React state never
+  //    hears about, so its own span would still show the old string. The cache is
+  //    dropped by our fetch hook the moment that mutation lands, and the same hook
+  //    calls this tick.
+  //  - **The button is teal like its twin in Settings - Tasks.** Amber is for a control
+  //    that rewrites the library; this one edits a setting, and what that setting says
+  //    is already in amber underneath it.
+  //
+  // The canonical rewrite is here rather than in the dialog because a config file can
+  // hold anything and Stash's own modal is still reachable if ours never builds. It
+  // runs from the settings rather than from the row, and only once per distinct
+  // string, so a save that fails cannot become a loop.
+  var FIELD_LINE_ID = 'ptp2re-paths-line';
+  var FIELD_BTN_ID  = 'ptp2re-paths-button';
+  var _normalizedFrom = null;
+
+  // The first button in a subtree that is not one of ours. Stash's row has exactly
+  // one; ours carries `_ptp2reOwn`, so a second tick finds theirs rather than ours.
+  function foreignButton(node) {
+    if (!node) return null;
+    if (node.tagName === 'BUTTON') return node._ptp2reOwn ? null : node;
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var found = foreignButton(kids[i]);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function hide(node) {
+    if (node && node.style) node.style.display = 'none';
+  }
+
+  function pathFieldTick() {
+    var row = settingRow('b1Paths');
+    if (!row) return;
+
+    var line = document.getElementById(FIELD_LINE_ID);
+    if (!line) {
+      line = el('div', 'ptp2re-pathstring');
+      line.id = FIELD_LINE_ID;
+    }
+    // Beside Stash's own value rather than inside it: React owns that subtree and
+    // reconciles it on every re-render, and a node of ours in the middle of one is
+    // the kind of thing that survives until it does not.
+    // The row itself where Stash renders no value span, never its first child - which
+    // on the second tick is the line we appended on the first, and appending a node
+    // into itself is a HierarchyRequestError in a browser and a silent unlink here.
+    var slot = byClass(row, 'value');
+    var host = slot ? slot.parentNode : row;
+    if (line.parentNode !== host) {
+      if (slot) host.insertBefore(line, slot.nextSibling);
+      else host.appendChild(line);
+    }
+    hide(slot);
+
+    var btn = document.getElementById(FIELD_BTN_ID);
+    if (!btn) {
+      btn = el('button', 'btn btn-sm ' + READONLY_BTN_VARIANT, TASK_PATHS);
+      btn.id = FIELD_BTN_ID;
+      btn.type = 'button';
+      btn._ptp2reOwn = true;
+      btn.addEventListener('click', function (e) {
+        if (e.preventDefault) e.preventDefault();
+        startRun(TASK_PATHS);
+      });
+    }
+    var edit = foreignButton(row);
+    var btnHost = edit ? edit.parentNode : row;
+    if (btn.parentNode !== btnHost) btnHost.appendChild(btn);
+    hide(edit);
+
+    if (!_autoSettings) {
+      // Drawn when the answer lands rather than on the next tick: the re-entry is
+      // bounded by the cache it just filled, and a second of an empty line where the
+      // value used to be is exactly the flicker this replacement must not have.
+      if (!_autoSettingsWait) {
+        autoSettings().then(function () { pathFieldTick(); }, function () {});
+      }
+      return;
+    }
+
+    var modes = _autoSettings.paths, canon = formatPaths(modes);
+    // Redrawn only when the value moves: this runs every second, and rebuilding the
+    // list under the user's pointer for an unchanged value is churn.
+    if (line._ptp2reText !== canon) {
+      line._ptp2reText = canon;
+      renderPathString(line, modes);
+    }
+    var raw = String(_autoSettings.b1Paths || '');
+    if (_savingPaths || !raw.replace(/^\s+|\s+$/g, '')) return;
+    if (raw === canon || raw === _normalizedFrom) return;
+    _normalizedFrom = raw;
+    savePaths(canon).then(null, function () {});
   }
 
   function settingsTick() {
     ensureReadmeLink();
     paintTaskButtons();
+    pathFieldTick();
   }
 
   // No MutationObserver here, unlike a button injection: this is decoration in a
@@ -3925,7 +4464,7 @@
     return autoSettings().then(function (s) {
       // Re-read rather than trusted: a path can be switched off between the tick that
       // drew the button and the click on it.
-      if (!s[path.setting]) throw new Error('that path is no longer enabled');
+      if (!pathOn(s, path)) throw new Error('that path is no longer enabled');
       // Staging needs PluginApi's component patching. Where that is missing the click
       // reviews instead, because the user never opted into a blind write - they opted
       // into the button, and this is the closest thing their Stash can support. The
@@ -4735,8 +5274,8 @@
 
   function sourceButtonLabel(path, s) {
     var template = SOURCE_BUTTON_LABELS[path.id];
-    if (!path.mode) return template;
-    return template.replace('{mode}', (s && s[path.mode]) ? 'common' : 'all');
+    if (!path.common) return template;
+    return template.replace('{mode}', pathCommon(s, path) ? 'common' : 'all');
   }
 
   // The other half of the swap `findManualButtonContainer` already reads: the
@@ -4994,7 +5533,7 @@
   // so the tooltip carries it alone.
   function manualSourceButtonTitle(path, s) {
     var target = TARGETS[path.target].label.toLowerCase();
-    var common = path.mode && s && s[path.mode];
+    var common = pathCommon(s, path);
     return pathLabel(path) + ' - updates every ' + target + ' this ' +
       SOURCES[path.sourceType].label.toLowerCase() + ' belongs to. Each ' + target +
       ' is rebuilt from ALL of its ' + path.source.toLowerCase() + ', not only this one' +
@@ -5142,7 +5681,7 @@
       // and why a Scene with its Edit tab open used to complain about a missing detail
       // navbar whether or not any path even reads from a Scene.
       var candidates = PATHS.filter(function (p) {
-        return p.sourceType === rt.sourceType && !!s[p.setting] && hasOwn(SOURCE_BUTTON_LABELS, p.id);
+        return p.sourceType === rt.sourceType && pathOn(s, p) && hasOwn(SOURCE_BUTTON_LABELS, p.id);
       });
       if (!candidates.length) {
         gateLogOnce('s:paths', 'no source buttons on ' + SOURCES[rt.sourceType].label + ' ' + rt.id +
@@ -5440,6 +5979,10 @@
     pathById: pathById,
     pathLabel: pathLabel,
     enabledPaths: enabledPaths,
+    parsePaths: parsePaths,
+    formatPaths: formatPaths,
+    pathMode: pathMode,
+    settingsFrom: settingsFrom,
     describeFilters: describeFilters,
     pairedBoth: pairedBoth,
     buildPasses: buildPasses,

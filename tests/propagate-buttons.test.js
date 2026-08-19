@@ -56,7 +56,7 @@ function responder(opts) {
       // case is a load that stops answering *after* one has already succeeded.
       if (opts.hangSettings && opts.hangSettings.on) return h.HANG;
       const plugins = {};
-      plugins[NAME] = opts.settings || {};
+      plugins[NAME] = opts.raw ? (opts.settings || {}) : h.propagateSettings(opts.settings);
       return { data: { configuration: { plugins } } };
     }
     if (/PTPTags/.test(q)) {

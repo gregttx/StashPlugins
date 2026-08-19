@@ -130,25 +130,25 @@ h.check('the cascade applies to exactly the paths whose source is a target',
   PATHS.filter((p) => Object.prototype.hasOwnProperty.call(TARGETS, p.sourceType))
     .map((p) => p.id).join(' '));
 
-h.check('every path names a setting that exists',
-  PATHS.every((p) => Object.prototype.hasOwnProperty.call(DEFAULTS, p.setting)),
-  PATHS.filter((p) => !Object.prototype.hasOwnProperty.call(DEFAULTS, p.setting))
-    .map((p) => p.id).join(' ') || 'all present');
+// Since 3.0.0 a path names no setting of its own: all thirteen live in the one
+// `b1Paths` string, keyed by the path id. So the invariant that used to say "every
+// path names a manifest key that exists" is now the narrower - and stronger - one
+// that the id is what the string is written and read by. `propagate-modes` covers
+// the round trip; this is the table half of it.
+h.check('the one setting holding every path exists',
+  Object.prototype.hasOwnProperty.call(DEFAULTS, 'b1Paths'),
+  Object.keys(DEFAULTS).filter((k) => /^b/.test(k)).join(' '));
 
-h.check('every path setting is used by exactly one path',
-  new Set(PATHS.map((p) => p.setting)).size === PATHS.length,
-  PATHS.map((p) => p.setting).join(' '));
-
-h.check('every "common tags only" mode names a setting that exists',
-  PATHS.every((p) => !p.mode || Object.prototype.hasOwnProperty.call(DEFAULTS, p.mode)),
-  PATHS.filter((p) => p.mode).map((p) => p.id + '=' + p.mode).join(' '));
+h.check('no path carries a setting key of its own any more',
+  PATHS.every((p) => !p.setting && !p.mode),
+  PATHS.filter((p) => p.setting || p.mode).map((p) => p.id).join(' ') || 'none do');
 
 // Exactly the two the user asked for: the two multi-source aggregations whose
 // target is a Group. Every other path is union and has no choice to make.
 h.check('only the two aggregations into a Group offer common-tags-only',
-  PATHS.filter((p) => p.mode).map((p) => p.id).sort().join(' ') ===
+  PATHS.filter((p) => p.common).map((p) => p.id).sort().join(' ') ===
     'tags:scene>group tags:subgroup>group',
-  PATHS.filter((p) => p.mode).map((p) => p.id).join(' '));
+  PATHS.filter((p) => p.common).map((p) => p.id).join(' '));
 
 h.check('every path writes to a known target',
   PATHS.every((p) => Object.prototype.hasOwnProperty.call(TARGETS, p.target)),

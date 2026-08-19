@@ -5,10 +5,36 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.0.2.** Every step in the table below has landed, so the version left the
+**Status: released, 3.1.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.1.0 adopts `MergePerformerTagsToScenes`' four exclusion filters where this plugin has none of
+its own.** They are the same four questions worded for a wider set of entities -
+`ExcludeTagWithIgnoreAutoTag` is the same words in both, and the repo's settings convention is that
+only the letter differs - so somebody running both has answered them once already, and answering
+them again in the same words is the setup step that gets half done.
+
+- **"Never set" is the key's presence in the stored config, not its value.** A BOOLEAN turned on
+  and off again is `false`, which is also its default; comparing values would re-adopt it on every
+  page load, and a setting that comes back after you switch it off is worse than one you have to set
+  twice. `configurePlugin` stores what it is sent, so the key exists from the first time the user
+  touches the row. This is the one assumption here that would be wrong if Stash ever stripped
+  default-valued keys from a plugin's config map, and it is the reason the rule is stated in the
+  four descriptions in terms of *touching* the setting rather than of what it says.
+- **A sibling value equal to our own default is not an import.** Writing it would set the key and
+  so spend the one chance this has to run, on a value that changes nothing.
+- **Written back, not held in memory.** An import nobody can see is a settings page reading "no
+  exclusions" over runs that exclude. Writing makes the value ours, editable, and - because the key
+  now exists - never adopted again. `_importedExclusions` keeps it to one mutation per page, the
+  same latch `migrateLegacyPaths` uses.
+- **A name lookup, unlike the `declares` overlap check beside it**, and `MPTTS_ID`/`MPTTS_NAME` are
+  new constants for it. Two plugins having the same *settings shape* is not a capability either of
+  them publishes, so there is nothing generic to key this on - the same argument §5a already makes
+  for `checkHierarchySibling` being name-based while the path overlap is not.
+- **One-directional.** `MergePerformerTagsToScenes` is untouched: it asked first, and a plugin that
+  reached back into the answer it gave would leave neither settings page trustworthy.
 
 **3.0.2 puts the settings row's listing in three columns.** Thirteen stacked entries was a column
 of text taller than every other row on that page put together. Three columns cost nothing in width

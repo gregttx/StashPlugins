@@ -24,13 +24,16 @@
   // informative third and the longest. Two names, one of them free to be short.
   var PLUGIN_SHORT_NAME = 'ᝯㄝₓ Propagate Tags & Performers';
 
-  // NormalizeParentTags is the one sibling this plugin reads settings from by name
-  // - see `checkHierarchySibling` below. MergePerformerTagsToScenes needs no such
-  // constant: the overlap with it is detected generically, through `coop().declares`
-  // rather than a name lookup, because it is the same kind of collision a future
-  // relationship-copying plugin could have too (see the repo-root CLAUDE.md).
+  // The two siblings this plugin reads settings from by name. NormalizeParentTags is
+  // `checkHierarchySibling`'s, below; MergePerformerTagsToScenes is the exclusion
+  // filters' - see `importSiblingExclusions`. The *overlap* with the second is still
+  // detected generically, through `coop().declares` rather than by name, because it
+  // is the kind of collision a future relationship-copying plugin could have too; a
+  // settings shape is not, and there is nothing generic to key an import on.
   var NPT_ID   = 'NormalizeParentTags';
   var NPT_NAME = 'ᝯㄝₓ Normalize Parent Tags';
+  var MPTTS_ID   = 'MergePerformerTagsToScenes';
+  var MPTTS_NAME = 'ᝯㄝₓ Merge Performer Tags To Scenes';
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and goes current the moment plugins are reloaded, while the browser can
@@ -43,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.0.2';
+  var PLUGIN_VERSION = '3.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -858,10 +861,87 @@
   // `configuration { plugins }` cannot be scoped to one plugin, so every other
   // plugin's settings arrive in the same response - which is what the sibling checks
   // read, for free.
+
+  // ── Adopting MergePerformerTagsToScenes' exclusion filters ────────────────
+  //
+  // The four exclusion settings here are the same four that plugin has, worded for a
+  // wider set of entities - `ExcludeTagWithIgnoreAutoTag` is the same words in both,
+  // and the repo's own settings convention is that only the letter differs. Somebody
+  // running both has already answered these four questions once, and answering them
+  // again in the same words is the kind of setup step that gets half done.
+  //
+  // So each one this plugin has **never been set to anything** takes the sibling's
+  // value, once, and is written back so the settings page shows it as ours.
+  //
+  // **"Never set" is the key's presence in the stored config, not its value.** A
+  // BOOLEAN the user has turned on and off again is `false`, which is also its
+  // default - comparing values would re-adopt it on every page load, and a setting
+  // that comes back after you switch it off is worse than one you have to set twice.
+  // `configurePlugin` stores what it is sent, so the key exists from the first time
+  // the user touches the row. This is the one thing here that would be wrong if Stash
+  // ever stripped default-valued keys from a plugin's config map.
+  //
+  // **Written back rather than used in memory.** An import nobody can see is a
+  // settings page saying "no exclusions" over runs that exclude; writing it makes the
+  // value ours, editable, and - because the key now exists - never adopted again.
+  //
+  // A name lookup, unlike the `declares` overlap check beside it, because there is
+  // nothing generic to key this on: two plugins having the same *settings shape* is
+  // not a capability either of them publishes.
+  var SIBLING_EXCLUSIONS = {
+    f1ExcludeTargetWithTagName: 'b1ExcludeSceneWithTagName',
+    f2ExcludeTargetOrganized: 'b2ExcludeSceneOrganized',
+    f3ExcludeTagWithIgnoreAutoTag: 'c1ExcludeTagWithIgnoreAutoTag',
+    f4ExcludeTagWithCustomFieldName: 'c2ExcludeTagWithCustomFieldName',
+  };
+
+  var _importedExclusions = false;
+
+  // Fills `s` in place and returns what should be written back, or null.
+  function importSiblingExclusions(s, raw, sibling) {
+    if (!sibling) return null;
+    var input = null;
+    for (var key in SIBLING_EXCLUSIONS) {
+      if (!hasOwn(SIBLING_EXCLUSIONS, key)) continue;
+      if (hasOwn(raw, key)) continue;                       // ours, already answered
+      var theirs = sibling[SIBLING_EXCLUSIONS[key]];
+      var value = typeof DEFAULTS[key] === 'boolean'
+        ? !!theirs : String(theirs == null ? '' : theirs);
+      // Nothing to adopt is not an import: writing their default into our config
+      // would set the key and so spend the one chance this has to run.
+      if (value === DEFAULTS[key]) continue;
+      s[key] = value;
+      if (!input) input = {};
+      input[key] = value;
+    }
+    return input;
+  }
+
+  function saveImportedExclusions(input) {
+    if (_importedExclusions) return;
+    _importedExclusions = true;
+    var names = [];
+    for (var k in input) if (hasOwn(input, k)) names.push(k);
+    ptp2re('[ptp2re] adopting ' + plural(names.length, 'exclusion setting') + ' from ' +
+      MPTTS_NAME + ' (' + names.join(', ') + '): this plugin had never been set to ' +
+      'anything for ' + (names.length === 1 ? 'it' : 'them') + '. Change them here from now on.');
+    gqlRequest(
+      'mutation PTPImportExclusions($plugin_id: ID!, $input: Map!) {' +
+      '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
+      '}',
+      { plugin_id: PLUGIN_ID, input: input }
+    ).then(function () { invalidateAutoSettings(); }, function (e) {
+      ptp2re('[ptp2re] the adopted exclusion settings could not be saved (' +
+        (e && e.message ? e.message : e) + '). They are in force for this page all the ' +
+        'same; set them by hand if this keeps happening.');
+    });
+  }
+
   // One raw settings map, filled in from the defaults, migrated if this install
-  // predates the path string, with the parsed modes hung off the result so nothing
+  // predates the path string, given the sibling's exclusion filters where it has
+  // never had its own, with the parsed modes hung off the result so nothing
   // downstream parses it twice.
-  function settingsFrom(raw) {
+  function settingsFrom(raw, sibling) {
     var s = {};
     for (var k in DEFAULTS) {
       if (!hasOwn(DEFAULTS, k)) continue;
@@ -872,13 +952,15 @@
       migrateLegacyPaths(s.b1Paths);
     }
     s.paths = parsePaths(s.b1Paths);
+    var adopted = importSiblingExclusions(s, raw, sibling);
+    if (adopted) saveImportedExclusions(adopted);
     return s;
   }
 
   function loadSettings() {
     return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
       var all = (data.configuration || {}).plugins || {};
-      return { settings: settingsFrom(all[PLUGIN_ID] || {}), all: all };
+      return { settings: settingsFrom(all[PLUGIN_ID] || {}, all[MPTTS_ID]), all: all };
     });
   }
 

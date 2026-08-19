@@ -447,6 +447,13 @@ release carries your existing path toggles over untouched.
 **Exclusion filters** — skip entities carrying a tag you name, skip entities marked Organized,
 never copy tags set to *Ignore auto tag*, and never copy tags carrying a custom field you name.
 
+If you also run `MergePerformerTagsToScenes`, these are the same four questions it asks, worded for
+a wider set of entities — so any of them you have **never set here** takes that plugin's answer the
+first time this one loads, and is saved here as yours. It is asked once. From then on this is where
+you change it, and a value you have set is never replaced — including a toggle you have switched
+back off, which is why the rule is about whether you have *touched* the setting rather than what it
+currently says.
+
 **Logging** — write every copy to the browser console (F12 → Console; **not** the Stash server log
 or the Logs page — this is a UI plugin and cannot write there).
 

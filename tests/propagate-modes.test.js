@@ -26,6 +26,7 @@ function responder(opts) {
     if (q.indexOf('configuration') !== -1) {
       const plugins = {};
       plugins[NAME] = opts.settings || {};
+      if (opts.sibling) plugins.MergePerformerTagsToScenes = opts.sibling;
       return { data: { configuration: { plugins } } };
     }
     if (/configurePlugin/.test(q)) return { data: { configurePlugin: true } };
@@ -149,6 +150,104 @@ Promise.resolve()
     return h.flush().then(() => {
       h.check('a fresh install migrates nothing and writes nothing',
         saved(env).length === 0, JSON.stringify(saved(env).map((c) => c.variables)));
+    });
+  })
+
+  // ── Adopting the sibling's exclusion filters ──────────────────────────────
+  //
+  // The same four questions, worded for a wider set of entities. Somebody running
+  // both has answered them once already.
+
+  .then(() => {
+    const env = boot({
+      settings: { b1Paths: 'tags:studio>scene=ON' },
+      sibling: {
+        b1ExcludeSceneWithTagName: 'NoTouch', b2ExcludeSceneOrganized: true,
+        c1ExcludeTagWithIgnoreAutoTag: true, c2ExcludeTagWithCustomFieldName: 'NoCopy',
+      },
+    });
+    return h.flush().then(() => {
+      h.check('all four are adopted where this plugin has none of its own',
+        saved(env).length === 1 &&
+        JSON.stringify(saved(env)[0].variables.input) === JSON.stringify({
+          f1ExcludeTargetWithTagName: 'NoTouch', f2ExcludeTargetOrganized: true,
+          f3ExcludeTagWithIgnoreAutoTag: true, f4ExcludeTagWithCustomFieldName: 'NoCopy',
+        }),
+        JSON.stringify(saved(env).map((c) => c.variables.input)));
+      h.check('under our own plugin id, not the sibling id',
+        saved(env)[0].variables.plugin_id === NAME, saved(env)[0].variables.plugin_id);
+    });
+  })
+
+  .then(() => {
+    const env = boot({
+      settings: { f1ExcludeTargetWithTagName: 'Mine', f4ExcludeTagWithCustomFieldName: '' },
+      sibling: {
+        b1ExcludeSceneWithTagName: 'Theirs', c2ExcludeTagWithCustomFieldName: 'AlsoTheirs',
+      },
+    });
+    return h.flush().then(() => {
+      // The key's *presence* is what says the question has been answered, not its
+      // value: f4 is stored empty, which is also its default.
+      h.check('a setting this plugin already carries is never overwritten',
+        saved(env).length === 0, JSON.stringify(saved(env).map((c) => c.variables.input)));
+    });
+  })
+
+  .then(() => {
+    // The case the presence rule exists for: a BOOLEAN turned on and then off again
+    // is `false`, which is also its default. Comparing values would re-adopt it on
+    // every page load, and a setting that comes back after you switch it off is worse
+    // than one you have to set twice.
+    const env = boot({
+      settings: { f2ExcludeTargetOrganized: false },
+      sibling: { b2ExcludeSceneOrganized: true },
+    });
+    return h.flush().then(() => {
+      h.check('a toggle switched off by hand stays off, however the sibling is set',
+        saved(env).length === 0, JSON.stringify(saved(env).map((c) => c.variables.input)));
+    });
+  })
+
+  .then(() => {
+    const env = boot({
+      settings: {},
+      sibling: { b1ExcludeSceneWithTagName: '', b2ExcludeSceneOrganized: false },
+    });
+    return h.flush().then(() => {
+      // Writing their default into our config would set the key and spend the one
+      // chance this has to run.
+      h.check('a sibling with nothing set is not an import',
+        saved(env).length === 0, JSON.stringify(saved(env).map((c) => c.variables.input)));
+    });
+  })
+
+  .then(() => {
+    const env = boot({ settings: {} });
+    return h.flush().then(() => {
+      h.check('and neither is a sibling that is not installed', saved(env).length === 0,
+        JSON.stringify(saved(env).map((c) => c.variables.input)));
+    });
+  })
+
+  .then(() => {
+    const env = boot({
+      settings: {}, sibling: { c1ExcludeTagWithIgnoreAutoTag: true },
+    });
+    return h.flush().then(() => {
+      h.check('only what the sibling actually sets is adopted',
+        saved(env).length === 1 &&
+        JSON.stringify(saved(env)[0].variables.input) ===
+          JSON.stringify({ f3ExcludeTagWithIgnoreAutoTag: true }),
+        JSON.stringify(saved(env).map((c) => c.variables.input)));
+      // Our own configurePlugin drops the settings cache, so the next thing to want
+      // settings reloads them - and a second load must not send the import again.
+      // Driven through `settingsFrom` directly, which is the function that decides.
+      env.ctx.window.__ptp2re.settingsFrom({}, { c1ExcludeTagWithIgnoreAutoTag: true });
+      return h.flush().then(() => {
+        h.check('and it is written once, not once per settings load',
+          saved(env).length === 1, String(saved(env).length));
+      });
     });
   })
 

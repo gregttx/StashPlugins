@@ -5,10 +5,32 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.0.0.** Every step in the table below has landed, so the version left the
+**Status: released, 3.0.1.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.0.1 is the path dialog's layout, from a live screenshot.** Three faults in one picture, and
+the third is the one no test would have found:
+
+- **`1fr auto` stranded every select at the far edge of a 100rem modal.** A flexing label column
+  takes the whole panel, so the thing a label names ends up an arm's length from it. Both columns
+  are `max-content` now, which is what "line the selects up" actually needs.
+- **The modal is `.ptp2re-narrow`**, a plugin-local modifier beside the pinned shared `.modal`
+  rule - the pattern `CustomFieldsBulkEditor`'s `.cfbe-tall` set. The shared `min(100rem,94vw)` is
+  sized for log lines naming an entity, an id and two values; two columns of short labels want
+  less, and widening past what they need only pushes each select further from its label.
+- **The "Into &lt;plural&gt;" headings were wrong, not merely redundant.** Pipeline order visits a
+  target, leaves it and comes back - `tags:image>gallery` sits between the scene paths and the
+  group paths - so a heading emitted at a target's *first* path collects every later path of that
+  target under whichever heading happened to precede it. The screenshot showed
+  `Tags: Images → Galleries` under **Into Scenes**. The labels already name the target and the
+  order is what the grouping would have had to break, so the headings are gone rather than fixed.
+  A fixture proving the order is preserved cannot see this: the order *was* preserved, and the
+  heading above it was the lie.
+
+Two columns, filled top to bottom, seven and six, so reading down one and then the other is still
+the order a run walks them in.
 
 **3.0.0 replaces the fifteen path settings with one string and a dialog**, the move
 `NormalizeParentTags` made at its 4.0.0 and for the same reason. Thirteen path toggles spread over

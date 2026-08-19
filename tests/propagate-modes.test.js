@@ -166,6 +166,19 @@ Promise.resolve()
     h.check('in the order a run walks them',
       selects(env).map(rowName).join(',') === api(env).PATHS.map(api(env).pathLabel).join(','),
       selects(env).map(rowName).join(','));
+    // Two columns, filled top to bottom, so reading down one and then the other is
+    // still pipeline order. Deliberately not grouped under an "Into <plural>"
+    // heading: pipeline order visits a target, leaves it and comes back, so a heading
+    // at a target's first path collects later paths under whichever one preceded them.
+    const cols = env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-paths-col'));
+    h.check('laid out in two columns, split evenly and in order',
+      cols.length === 2 && cols[0].childNodes.length === 7 && cols[1].childNodes.length === 6,
+      cols.map((c) => c.childNodes.length).join('/'));
+    h.check('and nothing groups them by target, which would break that order',
+      !env.ctx.document.body.descendants().some((n) => /Into /.test(n.textContent || '') &&
+        h.hasClass(n, PREFIX + '-path-name')),
+      selects(env).map(rowName).join(','));
     h.check('the dialog opens with what the setting says',
       selectFor(env, 'Tags: Studio → Scenes').value === 'on' &&
       selectFor(env, 'Tags: Scenes → Groups').value === 'common' &&

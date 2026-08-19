@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.0.0';
+  var PLUGIN_VERSION = '3.0.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -878,6 +878,12 @@
     'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
     '.ptp2re-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
     'width:min(100rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
+    // A plugin-local modifier beside the pinned shared `.modal` rule, the pattern
+    // `CustomFieldsBulkEditor`'s `.cfbe-tall` set: the shared width is sized for log
+    // lines naming an entity, an id and two values, and the path dialog holds two
+    // columns of short labels instead. Widening past what they need only pushes each
+    // select further from the label it belongs to.
+    '.ptp2re-modal.ptp2re-narrow{width:min(58rem,94vw);}' +
     '.ptp2re-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
     '.ptp2re-title{font-size:1.1rem;font-weight:600;}' +
     '.ptp2re-warn{color:#ffb648;margin-top:.35rem;}' +
@@ -891,14 +897,18 @@
     '.ptp2re-spin{color:#a7b6c2;}' +
     // The log's own line kinds, which the siblings do not share: this plugin adds
     // both tags and performers, so ADD alone would not say which.
-    // The path selectors: the whole body of the settings dialog. A two-column grid
-    // rather than a row of flex boxes, because thirteen labels of very different
-    // lengths line their selects up only if the columns are shared - and the rows are
-    // `display:contents` so each row's two cells are the grid's own.
-    '.ptp2re-paths{display:grid;grid-template-columns:1fr auto;gap:.3rem .9rem;' +
-    'align-items:center;margin:.5rem 0;}' +
-    '.ptp2re-paths-head{grid-column:1/-1;color:#7d8f9c;font-size:.8rem;' +
-    'margin-top:.6rem;border-bottom:1px solid #394b59;padding-bottom:.15rem;}' +
+    // The path selectors: the whole body of the settings dialog, in two columns of
+    // label-and-select. Each column is a grid of its own rather than the whole panel
+    // being one four-column grid, because a shared grid sizes both label columns to
+    // the widest label in either - and the rows are `display:contents` so each row's
+    // two cells are its own column's.
+    //
+    // `max-content` on both, not `1fr auto`: a flexing label column stretches to the
+    // panel and leaves the select stranded at the far side of the modal, which is
+    // exactly what the first version of this did.
+    '.ptp2re-paths{display:flex;flex-wrap:wrap;gap:0 2rem;margin:.5rem 0;}' +
+    '.ptp2re-paths-col{display:grid;grid-template-columns:max-content max-content;' +
+    'gap:.3rem .6rem;align-items:center;align-content:start;}' +
     '.ptp2re-path-row{display:contents;}' +
     '.ptp2re-path-name{color:#d6dee4;font-size:.9rem;}' +
     // Byte-identical with NormalizeParentTags' .npt-mode and TagBundleClipboard's
@@ -2972,20 +2982,25 @@
     this.stale = false;
   }
 
-  // One select per path, grouped by target. The label is `pathLabel` - the same
-  // string the log and the dialog heads use - so a user who has read one has read
-  // the other, and there is no second naming of a path anywhere.
+  // One select per path, in two columns filled top to bottom so that reading down
+  // one and then the other is still pipeline order - which the head states is
+  // semantics here, not presentation. The label is `pathLabel`, the same string the
+  // log and the dialog heads use, so there is no second naming of a path anywhere.
+  //
+  // Deliberately *not* grouped under an "Into <plural>" heading, which is what this
+  // shipped with and got wrong: pipeline order visits a target, leaves it and comes
+  // back, so a heading emitted at a target's first path collects later paths into
+  // whichever heading happened to precede them. The label already names the target,
+  // and the order is what the grouping would have had to break.
   PathsDialog.prototype.panel = function () {
     var self = this;
     var wrap = el('div', 'ptp2re-paths');
+    var cols = [el('div', 'ptp2re-paths-col'), el('div', 'ptp2re-paths-col')];
+    cols.forEach(function (c) { wrap.appendChild(c); });
+    var split = Math.ceil(PATHS.length / 2);
     this.selects = {};
-    var seen = {};
-    PATHS.forEach(function (p) {
-      if (!seen[p.target]) {
-        seen[p.target] = true;
-        wrap.appendChild(el('div', 'ptp2re-paths-head',
-          'Into ' + TARGETS[p.target].plural));
-      }
+    PATHS.forEach(function (p, i) {
+      var col = cols[i < split ? 0 : 1];
       var row = el('div', 'ptp2re-path-row');
       row.appendChild(el('span', 'ptp2re-path-name', pathLabel(p)));
       var sel = el('select', 'ptp2re-mode');
@@ -3003,7 +3018,7 @@
         paintPathMode(sel);
       });
       row.appendChild(sel);
-      wrap.appendChild(row);
+      col.appendChild(row);
       self.selects[p.id] = sel;
     });
     return wrap;
@@ -3030,7 +3045,7 @@
     var self = this;
 
     this.backdrop = el('div', 'ptp2re-backdrop');
-    this.modal = el('div', 'ptp2re-modal');
+    this.modal = el('div', 'ptp2re-modal ptp2re-narrow');
     this.backdrop.appendChild(this.modal);
 
     var head = el('div', 'ptp2re-head');

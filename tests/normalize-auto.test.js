@@ -608,8 +608,9 @@ Promise.resolve()
           'Scenes=Prune, Images=Off, Scene Markers=Off', line.textContent);
       const amber = line.descendants()
         .filter((n) => h.hasClass(n, 'npt-modestring-on')).map((n) => n.textContent);
-      h.check('with the armed type marked and the bar on the row',
-        amber.join(',') === 'Scenes=Prune' && h.hasClass(r.row, 'npt-armed'),
+      // The value is the mark: no bar, no second signal to keep in step. (4.6.0)
+      h.check('with the armed type marked, and nothing else marking the row',
+        amber.join(',') === 'Scenes=Prune' && !/npt-armed/.test(r.row.className),
         amber.join(',') + ' / ' + r.row.className);
       h.check('Stash Edit button is hidden and ours takes its slot, teal',
         r.edit.style.display === 'none' && btn.parentNode === r.edit.parentNode &&
@@ -637,10 +638,9 @@ Promise.resolve()
     p2.env.tick();
     return h.flush().then(() => {
       const line = p2.env.ctx.document.getElementById('npt-modes-line');
-      h.check('an all-Off setting marks nothing and wears no bar',
-        !line.descendants().some((n) => h.hasClass(n, 'npt-modestring-on')) &&
-        !h.hasClass(p2.rows.a1AutoModes.row, 'npt-armed'),
-        p2.rows.a1AutoModes.row.className);
+      h.check('an all-Off setting marks nothing',
+        !line.descendants().some((n) => h.hasClass(n, 'npt-modestring-on')),
+        line.textContent);
     });
   })
 

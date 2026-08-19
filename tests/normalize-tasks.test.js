@@ -113,11 +113,12 @@ Promise.resolve()
     });
   })
 
-  // ── What the three buttons wear (4.1.0) ──────────────────────────────────
+  // ── What the three buttons wear (4.1.0, pared back at 4.6.0) ─────────────
   //
   // Amber is "this rewrites the library", so only the run task carries it. The other
-  // two edit a setting and read a tree; what says the library is being rewritten on
-  // its own is the armed bar, and on an amber button that bar could not be seen.
+  // two edit a setting and read a tree. The armed bar the settings task wore is gone:
+  // a 3px sliver on a teal button read as a rendering artifact, and the setting's own
+  // row now says which types are armed in amber, by name.
   .then(() => {
     const env = makeEnv('SCENES=PRUNE');
     const run = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_RUN);
@@ -130,28 +131,13 @@ Promise.resolve()
         h.hasClass(run, 'btn-warning') && h.hasClass(modes, 'btn-info') &&
         h.hasClass(tree, 'btn-info'),
         [run, modes, tree].map((b) => b.className).join(' | '));
-      h.check('and the settings task wears the armed bar while a type is not Off',
-        h.hasClass(modes, 'npt-armed'), modes.className);
-      h.check('which is only for the button the state is about',
-        !h.hasClass(run, 'npt-armed') && !h.hasClass(tree, 'npt-armed'),
-        run.className + ' | ' + tree.className);
-    });
-  })
-
-  .then(() => {
-    const env = makeEnv('');
-    const modes = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_MODES);
-    env.tick();
-    return h.flush().then(() => {
-      env.tick();
-      h.check('every type Off wears nothing - which is what makes the bar worth seeing',
-        !h.hasClass(modes, 'npt-armed'), modes.className);
-      const asked = env.calls.filter((c) => /configuration/.test(c.query || '')).length;
-      env.tick();
-      env.tick();
-      h.check('and the tick does not re-ask on every pass to colour a button',
-        env.calls.filter((c) => /configuration/.test(c.query || '')).length === asked,
-        String(asked));
+      h.check('and no button carries a state mark of its own',
+        ![run, modes, tree].some((b) => /npt-armed/.test(b.className)),
+        [run, modes, tree].map((b) => b.className).join(' | '));
+      // Nothing on this page depends on what the modes are, so nothing asks.
+      h.check('so this page asks nothing about the settings to paint them',
+        !env.calls.some((c) => /configuration/.test(c.query || '')),
+        env.calls.map((c) => c.query).join(' | '));
     });
   })
 

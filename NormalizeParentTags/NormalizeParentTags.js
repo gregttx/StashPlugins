@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.5.0';
+  var PLUGIN_VERSION = '4.6.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1410,24 +1410,20 @@
     // setting row and the next, so the mark did not read as "this one writes on its
     // own", it read as a broken separator. The two switch shapes stay - they cost
     // nothing and cover a Stash that renders this as a control instead - but nothing
-    // here paints a border, because no border on this page is only ours.
+    // here paints a border, because no border on this page is only ours. (This setting
+    // is a STRING, so Stash renders neither shape today; see `modeFieldTick`.)
     '#plugin-NormalizeParentTags-a1AutoModes{accent-color:#ffc107;}' +
     '#plugin-NormalizeParentTags-a1AutoModes:checked~.custom-control-label::before' +
     '{background-color:#ffc107;border-color:#ffc107;}' +
 
-    // An inset bar is the mark that replaced it (4.1.0). Inset, so it is drawn inside
-    // the element's own padding box and cannot be confused with anything the page
-    // draws between rows; `box-shadow` rather than a border, so nothing reflows when
-    // it appears or goes.
-    //
-    // It is a *state*, not a label: it says at least one type is armed to be rewritten
-    // whenever Stash saves one. An all-OFF setting writes nothing by itself and wears
-    // nothing, which is what makes the mark worth looking for.
-    //
-    // No `!important`. Bootstrap's focus ring is also a box-shadow and takes the
-    // element over while it has focus, which is correct - the ring is an
-    // accessibility affordance, and the bar is for the state you read the page in.
-    '.npt-armed{box-shadow:inset 3px 0 0 #ffc107;}' +
+    // A third attempt, an inset amber bar (4.1.0), went the same way at 4.6.0: on the
+    // settings row it drew a heavy rule down the left of a row whose value line was
+    // already amber where it mattered, and on the teal task button a 3px sliver read
+    // as a rendering artifact rather than as a state. **The value itself is the mark
+    // now** - `Scenes=Prune` in amber says which types are armed and, unlike a bar,
+    // says which ones. Nothing on the Tasks page repeats it; that button opens the
+    // dialog that shows the same seven modes, one click away.
+
     // The value line stands where Stash's own rendering of the raw string was, inside
     // its row, so it takes that row's spacing rather than the dialog's.
     '#npt-modes-line{margin:.1rem 0 .25rem;}';
@@ -3293,7 +3289,6 @@
   function invalidateAutoSettings() {
     _autoSettings = null;
     _autoSettingsAt = 0;
-    _armed = null;                 // re-ask before the mark is drawn again
   }
 
   function autoSettings() {
@@ -3753,8 +3748,6 @@
       line._nptText = canon;
       renderModeString(line, modes);
     }
-    setClass(row, 'npt-armed', anyArmed(modes));
-
     var raw = String(_autoSettings.a1AutoModes || '');
     if (_savingModes || !raw.replace(/^\s+|\s+$/g, '')) return;
     if (raw === canon || raw === _normalizedFrom) return;
@@ -4075,18 +4068,6 @@
   // the strip never runs over our own colour.
   var BTN_VARIANTS = /\bbtn-(secondary|primary|success|info|light|dark|link)\b/g;
 
-  // Whether any type is set to something other than Off. Null until an answer has
-  // landed: a mark that guesses is worse than one that arrives a tick late, and the
-  // guess would be wrong in the direction that matters - claiming nothing is armed.
-  var _armed = null, _armedPending = false;
-
-  function anyArmed(modes) {
-    for (var i = 0; i < TYPES.length; i++) {
-      if (modes && modes[TYPES[i].key] && modes[TYPES[i].key] !== MODE_OFF) return true;
-    }
-    return false;
-  }
-
   function setClass(node, name, on) {
     if (!node || hasClass(node, name) === !!on) return;
     node.className = on
@@ -4109,24 +4090,10 @@
     for (var i = 0; i < nodes.length; i++) {
       var name = ownTaskName(nodes[i]);
       if (!name) continue;
-      // Auto Mode Settings... is teal, not amber, and the bar is why. Amber says "this
-      // rewrites the library"; that button only edits a setting, and whether the
-      // library is being rewritten on its own is exactly what the bar answers - on an
-      // amber button it would have nothing to say, since it could not be seen.
+      // Amber says "this rewrites the library", which is the run task alone: the other
+      // two edit a setting and browse a tree. Neither carries a state mark - the one
+      // that did is gone with the bar, and this page issues no settings query for it.
       paintButton(nodes[i], name === TASK_RUN ? PLUGIN_BTN_VARIANT : READONLY_BTN_VARIANT);
-      if (name === TASK_MODES) {
-        // One query the first time one of these buttons is on the page, and again
-        // after our own save drops the cache. The tick runs every second; asking it
-        // every time would be six queries a minute to colour a button.
-        if (_armed === null && !_armedPending) {
-          _armedPending = true;
-          autoSettings().then(function (s) {
-            _armed = anyArmed(s && s.modes);
-            _armedPending = false;
-          }, function () { _armedPending = false; });
-        }
-        setClass(nodes[i], 'npt-armed', _armed === true);
-      }
     }
   }
 

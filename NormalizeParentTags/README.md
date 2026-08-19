@@ -54,9 +54,8 @@ The first lists every change *before* anything is written; nothing is saved unti
 
 The colours on that page say which is which. **Normalize Parent Tags...** is **amber**, the
 plugin's colour for something that rewrites your library; the other two are **teal**, since one
-edits a setting and the other only reads. **Auto Mode Settings...** also carries an **amber bar
-down its left edge whenever at least one entity type is set to Prune or Roll Up** — that is the
-plugin telling you, without your opening anything, that it is rewriting entities on its own.
+edits a setting and the other only reads. What is set to run by itself is shown on the settings
+page, in the **Automatic mode per entity type** row, with every type that is not Off in amber.
 
 Either direction can also be kept up **automatically**, per entity type, applying as Stash saves
 each entity rather than to the whole library at once — see [Automatic mode](#automatic-mode). That
@@ -342,10 +341,8 @@ Whatever it understood is written back in the canonical form above.
 > you set it here.
 
 **It is the only setting here that makes the plugin write on its own** — the rest just choose what
-a run covers — so it is the one worth a second look. **The row carries an amber bar down its left
-edge while at least one type is set to something other than OFF**, and nothing when they are all
-OFF. The same bar is on the **Auto Mode Settings...** button in Settings → Tasks, which is where
-you see it without going looking.
+a run covers — so it is the one worth a second look. **Every type that is not OFF is shown in amber
+in that row**, so what will happen by itself is readable without opening anything.
 
 Things worth knowing:
 

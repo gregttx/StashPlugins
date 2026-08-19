@@ -553,6 +553,35 @@ Promise.resolve()
     });
   })
 
+  // The armed bar (4.1.0): the field wears it while at least one type is not Off. Read
+  // off the input rather than the settings, so it follows what is being typed instead
+  // of a debounced save - which is also why it lands on a focused field the
+  // renormalization deliberately leaves alone.
+  .then(() => {
+    const on = page('scenes=prune');
+    on.env.tick();
+    const off = page(h.autoModes({}));
+    off.env.tick();
+    const typing = page('markers = rollup');
+    typing.env.ctx.document.activeElement = typing.rows.a1AutoModes.input;
+    typing.env.tick();
+    const junk = page('nonsense');
+    junk.env.tick();
+    return h.flush().then(() => {
+      h.check('an armed field wears the bar',
+        h.hasClass(on.rows.a1AutoModes.input, 'npt-armed'),
+        on.rows.a1AutoModes.input.className);
+      h.check('an all-Off one does not', !h.hasClass(off.rows.a1AutoModes.input, 'npt-armed'),
+        off.rows.a1AutoModes.input.className);
+      h.check('a field still being typed into is marked, though not rewritten',
+        h.hasClass(typing.rows.a1AutoModes.input, 'npt-armed'),
+        typing.rows.a1AutoModes.input.className);
+      h.check('and text the parser gets nothing out of arms nothing',
+        !h.hasClass(junk.rows.a1AutoModes.input, 'npt-armed'),
+        junk.rows.a1AutoModes.input.className);
+    });
+  })
+
   // The field is the user's to type in. A value that is already canonical needs no
   // write, and one being typed into - focused - must not be replaced under the cursor.
   .then(() => {

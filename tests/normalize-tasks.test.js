@@ -4,8 +4,11 @@
 'use strict';
 const h = require('./npt-harness');
 
-function makeEnv() {
-  const env = h.makeEnv({ quiet: true, respond: h.makeResponder({ settings: { a1AutoModes: '' } }) });
+function makeEnv(modes) {
+  const env = h.makeEnv({
+    quiet: true,
+    respond: h.makeResponder({ settings: { a1AutoModes: modes === undefined ? '' : modes } }),
+  });
   h.run(env.ctx);
   return env;
 }
@@ -107,6 +110,48 @@ Promise.resolve()
       h.check('and the settings dialog scans nothing',
         !env.calls.some((c) => /query NPT_find/.test(c.query || '')),
         env.calls.map((c) => c.query).join(' | '));
+    });
+  })
+
+  // ── What the three buttons wear (4.1.0) ──────────────────────────────────
+  //
+  // Amber is "this rewrites the library", so only the run task carries it. The other
+  // two edit a setting and read a tree; what says the library is being rewritten on
+  // its own is the armed bar, and on an amber button that bar could not be seen.
+  .then(() => {
+    const env = makeEnv('SCENES=PRUNE');
+    const run = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_RUN);
+    const modes = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_MODES);
+    const tree = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', 'Show Tag Hierarchy...');
+    env.tick();
+    return h.flush().then(() => {
+      env.tick();
+      h.check('the run task is amber, the other two teal',
+        h.hasClass(run, 'btn-warning') && h.hasClass(modes, 'btn-info') &&
+        h.hasClass(tree, 'btn-info'),
+        [run, modes, tree].map((b) => b.className).join(' | '));
+      h.check('and the settings task wears the armed bar while a type is not Off',
+        h.hasClass(modes, 'npt-armed'), modes.className);
+      h.check('which is only for the button the state is about',
+        !h.hasClass(run, 'npt-armed') && !h.hasClass(tree, 'npt-armed'),
+        run.className + ' | ' + tree.className);
+    });
+  })
+
+  .then(() => {
+    const env = makeEnv('');
+    const modes = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_MODES);
+    env.tick();
+    return h.flush().then(() => {
+      env.tick();
+      h.check('every type Off wears nothing - which is what makes the bar worth seeing',
+        !h.hasClass(modes, 'npt-armed'), modes.className);
+      const asked = env.calls.filter((c) => /configuration/.test(c.query || '')).length;
+      env.tick();
+      env.tick();
+      h.check('and the tick does not re-ask on every pass to colour a button',
+        env.calls.filter((c) => /configuration/.test(c.query || '')).length === asked,
+        String(asked));
     });
   })
 

@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.0.3.** This file is both the design and the map of the code — the
+**Status: implemented at 4.1.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1166,7 +1166,31 @@ dialog at least prints the plan it would write. So the same `checkInstalledVersi
 answer will not be written back whatever it says), and **the selectors stay live** — the string can
 still be read off the preview, which is most of what someone opens this dialog for.
 
-**The field carries no amber, and that is a correction** (4.0.2). The repo convention is amber for a
+**The field carries an amber bar when something is armed** (4.1.0), which is the third answer to a
+question 4.0.1 and 4.0.2 both got wrong. `.npt-armed{box-shadow:inset 3px 0 0 #ffc107}` — **inset**,
+so it is drawn inside the element's own padding box and cannot be read as something the page draws
+between rows; **`box-shadow`** rather than a border, so nothing reflows when it appears or goes; and
+**no `!important`**, because Bootstrap's focus ring is also a box-shadow and taking the element over
+while it has focus is correct.
+
+**It is a state, not a label, and that is what makes it worth having.** An all-OFF setting writes
+nothing by itself and wears nothing; a marking that were always there would say only "this is the
+auto-mode setting", which the label already says. The field reads its own `value` through
+`parseAutoModes` rather than the settings — free, live, and it follows what is being typed instead
+of a debounced save, so it lands even on the focused field the renormalization deliberately leaves
+alone.
+
+**The same bar goes on the Auto Mode Settings... button, and that is why that button is teal.**
+Amber means "this rewrites the library"; that task edits a setting, and whether the library is being
+rewritten on its own is exactly what the bar answers — on an amber button it would have nothing to
+say, because it could not be seen. So `paintTaskButtons` now picks amber for `TASK_RUN` alone. The
+button's answer comes from `autoSettings()`, asked once when a button of ours is first on the page
+and again after `invalidateAutoSettings` (which the plugin's own save already triggers): the tick
+runs every second, and asking it each pass would be six queries a minute to colour a button. `_armed`
+starts `null` and the mark stays off until an answer lands — a guess would be wrong in the direction
+that matters, claiming nothing is armed.
+
+**The two attempts it replaces, kept because the reasoning is the transferable part** (4.0.2). The repo convention is amber for a
 setting that makes a plugin write on its own, and this is the only one here that does — but the
 convention was written for a Bootstrap switch, where the colour goes on a track that is ours alone.
 On a text field the only property available was `border-color`, and 4.0.1 used it: live, the field's
@@ -1174,7 +1198,8 @@ border *is* the line the user reads as the divider between that setting row and 
 mark read as a broken separator rather than as a warning. **On a page that is not ours, only paint a
 property nothing else on that page is drawing with.** The two switch shapes stay in the CSS — they
 cost nothing and cover a Stash that renders this as a control — and `tests/style.test.js`
-deliberately does not pin *which* settings are coloured, so dropping one is not a drift.
+deliberately does not pin *which* settings are coloured, so dropping one was not a drift — and
+neither was picking a different property for it a release later.
 
 ### Descriptions: a summary on the page, the rest on hover (1.7.0)
 

@@ -52,8 +52,11 @@ A front-end-only Stash plugin that adds three tasks to **Settings → Tasks → 
 The first lists every change *before* anything is written; nothing is saved until you press
 **Proceed**. The third never writes at all.
 
-The colours on that page say which is which: the two that lead to writes are **amber**, and
-**Show Tag Hierarchy...** is **teal**, the plugin's colour for something that only reads.
+The colours on that page say which is which. **Normalize Parent Tags...** is **amber**, the
+plugin's colour for something that rewrites your library; the other two are **teal**, since one
+edits a setting and the other only reads. **Auto Mode Settings...** also carries an **amber bar
+down its left edge whenever at least one entity type is set to Prune or Roll Up** — that is the
+plugin telling you, without your opening anything, that it is rewriting entities on its own.
 
 Either direction can also be kept up **automatically**, per entity type, applying as Stash saves
 each entity rather than to the whole library at once — see [Automatic mode](#automatic-mode). That
@@ -328,7 +331,11 @@ has saved your edit, which is also how you can tell it understood you.
 > you set it here.
 
 **It is the only setting here that makes the plugin write on its own** — the rest just choose what
-a run covers — so it is the one worth a second look.
+a run covers — so it is the one worth a second look. **The field carries an amber bar down its
+left edge while at least one type is set to something other than OFF**, and nothing when they are
+all OFF. The bar follows what you type, so it appears as soon as the line says something will
+happen. The same bar is on the **Auto Mode Settings...** button in Settings → Tasks, which is
+where you see it without going looking.
 
 Things worth knowing:
 

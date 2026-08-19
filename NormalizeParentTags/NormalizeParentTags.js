@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.0.3';
+  var PLUGIN_VERSION = '4.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1376,7 +1376,21 @@
     // here paints a border, because no border on this page is only ours.
     '#plugin-NormalizeParentTags-a1AutoModes{accent-color:#ffc107;}' +
     '#plugin-NormalizeParentTags-a1AutoModes:checked~.custom-control-label::before' +
-    '{background-color:#ffc107;border-color:#ffc107;}';
+    '{background-color:#ffc107;border-color:#ffc107;}' +
+
+    // An inset bar is the mark that replaced it (4.1.0). Inset, so it is drawn inside
+    // the element's own padding box and cannot be confused with anything the page
+    // draws between rows; `box-shadow` rather than a border, so nothing reflows when
+    // it appears or goes.
+    //
+    // It is a *state*, not a label: it says at least one type is armed to be rewritten
+    // whenever Stash saves one. An all-OFF setting writes nothing by itself and wears
+    // nothing, which is what makes the mark worth looking for.
+    //
+    // No `!important`. Bootstrap's focus ring is also a box-shadow and takes the
+    // element over while it has focus, which is correct - the ring is an
+    // accessibility affordance, and the bar is for the state you read the page in.
+    '.npt-armed{box-shadow:inset 3px 0 0 #ffc107;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -3231,6 +3245,7 @@
   function invalidateAutoSettings() {
     _autoSettings = null;
     _autoSettingsAt = 0;
+    _armed = null;                 // re-ask before the mark is drawn again
   }
 
   function autoSettings() {
@@ -3600,6 +3615,11 @@
   function normalizeSettingField() {
     var input = settingElement('a1AutoModes');
     if (!input || typeof input.value !== 'string' || _savingModes) return;
+    // Off the field's own value rather than the settings: it is what the user is
+    // looking at, it costs nothing, and it follows what they type instead of lagging
+    // a debounced save. The parser is the same one the plugin reads the setting with,
+    // so half-typed text marks the page exactly as saving it would.
+    setClass(input, 'npt-armed', anyArmed(parseAutoModes(input.value)));
     if (document.activeElement === input) return;
     var raw = input.value;
     if (!raw.replace(/^\s+|\s+$/g, '') || raw === _normalizedFrom) return;
@@ -3922,6 +3942,26 @@
   // the strip never runs over our own colour.
   var BTN_VARIANTS = /\bbtn-(secondary|primary|success|info|light|dark|link)\b/g;
 
+  // Whether any type is set to something other than Off. Null until an answer has
+  // landed: a mark that guesses is worse than one that arrives a tick late, and the
+  // guess would be wrong in the direction that matters - claiming nothing is armed.
+  var _armed = null, _armedPending = false;
+
+  function anyArmed(modes) {
+    for (var i = 0; i < TYPES.length; i++) {
+      if (modes && modes[TYPES[i].key] && modes[TYPES[i].key] !== MODE_OFF) return true;
+    }
+    return false;
+  }
+
+  function setClass(node, name, on) {
+    if (!node || hasClass(node, name) === !!on) return;
+    node.className = on
+      ? ((node.className || '') + ' ' + name).replace(/^\s+/, '')
+      : String(node.className || '').split(/\s+/)
+          .filter(function (c) { return c && c !== name; }).join(' ');
+  }
+
   function paintButton(btn, variant) {
     if (hasClass(btn, variant)) return;                        // already ours
     var cls = String(btn.className || '').replace(BTN_VARIANTS, '');
@@ -3936,7 +3976,24 @@
     for (var i = 0; i < nodes.length; i++) {
       var name = ownTaskName(nodes[i]);
       if (!name) continue;
-      paintButton(nodes[i], name === TASK_TREE ? READONLY_BTN_VARIANT : PLUGIN_BTN_VARIANT);
+      // Auto Mode Settings... is teal, not amber, and the bar is why. Amber says "this
+      // rewrites the library"; that button only edits a setting, and whether the
+      // library is being rewritten on its own is exactly what the bar answers - on an
+      // amber button it would have nothing to say, since it could not be seen.
+      paintButton(nodes[i], name === TASK_RUN ? PLUGIN_BTN_VARIANT : READONLY_BTN_VARIANT);
+      if (name === TASK_MODES) {
+        // One query the first time one of these buttons is on the page, and again
+        // after our own save drops the cache. The tick runs every second; asking it
+        // every time would be six queries a minute to colour a button.
+        if (_armed === null && !_armedPending) {
+          _armedPending = true;
+          autoSettings().then(function (s) {
+            _armed = anyArmed(s && s.modes);
+            _armedPending = false;
+          }, function () { _armedPending = false; });
+        }
+        setClass(nodes[i], 'npt-armed', _armed === true);
+      }
     }
   }
 

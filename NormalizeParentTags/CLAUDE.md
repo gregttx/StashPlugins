@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.3.0.** This file is both the design and the map of the code — the
+**Status: implemented at 4.4.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -501,6 +501,23 @@ is still what `save()` writes - the dialog renders the same pairs, it does not f
 version of them. The amber is the one the selectors already use for a mode that writes, which is
 what makes the line readable as a summary of the row of selects above it rather than as a
 restatement.
+
+**The settings page shows the dialog instead of the field** (4.4.0). `modeFieldTick` hides Stash's
+`a1AutoModes` text box and puts `renderModeString` plus an **Auto Mode Settings...** button in the
+row where it was. Three decisions, all of them in the code's own comment: the field is hidden from
+JS and only once the box is in the row (a `#plugin-...{display:none}` rule would be shorter and
+would hide the field on a page where our box never built, leaving the setting with no editor);
+the line is drawn from the settings cache rather than from the field, because the dialog saves
+straight through `fetch` and Stash's React state never hears about that write; and the button is
+teal like its twin in Settings → Tasks, since what it edits is a setting and what that setting says
+is already in amber on the line above it.
+
+**The trade the third option was picked over.** Leaving the field visible and only adding a button
+was less code; hiding it outright without a replacement loses both the value display and the
+hand-edit fallback the version gate assumes (`ModesDialog.save` rewrites the whole string from the
+types *this* script knows, so a newer install's unknown token is only visible and repairable as
+text). Replacing it keeps the value on screen and keeps the field one class-removal away, which is
+why the hiding is a `style.display` set per tick rather than a stylesheet rule.
 
 **Proceed, Save and Undo are amber** (4.3.0), by the repo-wide rule the buttons on the page had
 followed since 1.8.0 while these three - the only controls in the plugin that actually write -

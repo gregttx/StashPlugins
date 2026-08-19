@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.3.0';
+  var PLUGIN_VERSION = '4.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -456,6 +456,23 @@
     return TYPES.map(function (t) {
       return t.token + '=' + MODE_TOKEN[(modes && modes[t.key]) || MODE_OFF];
     }).join(', ');
+  }
+
+  // The same string, named and marked: a bare `PERFORMERS=OFF, ...` is not
+  // self-evidently the value of anything, and a type that is not Off is one this
+  // plugin will write to on its own - the same thing its selector goes amber for.
+  // Spans rather than `textContent`, so `formatAutoModes` stays the one definition of
+  // the shape and this stays a rendering of it.
+  function renderModeString(box, modes) {
+    while (box.firstChild) box.removeChild(box.firstChild);
+    box.appendChild(el('span', 'npt-modestring-label',
+      'Automatic mode per entity type Setting String: '));
+    TYPES.forEach(function (t, i) {
+      var mode = (modes && modes[t.key]) || MODE_OFF;
+      if (i) box.appendChild(el('span', null, ', '));
+      box.appendChild(el('span', mode === MODE_OFF ? null : 'npt-modestring-on',
+        t.token + '=' + MODE_TOKEN[mode]));
+    });
   }
 
   function modeOf(settings, type) {
@@ -1407,7 +1424,12 @@
     // No `!important`. Bootstrap's focus ring is also a box-shadow and takes the
     // element over while it has focus, which is correct - the ring is an
     // accessibility affordance, and the bar is for the state you read the page in.
-    '.npt-armed{box-shadow:inset 3px 0 0 #ffc107;}';
+    '.npt-armed{box-shadow:inset 3px 0 0 #ffc107;}' +
+    // What stands in for the field on the settings page: the value on one line and
+    // the button that edits it. The padding is what keeps the armed bar off the text.
+    '.npt-fieldbox{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;' +
+    'padding:.15rem 0 .15rem .6rem;}' +
+    '.npt-fieldbox .npt-modestring{margin:0;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -2541,20 +2563,8 @@
     });
   };
 
-  // The string the setting holds, named and marked: a bare `PERFORMERS=OFF, ...` is
-  // not self-evidently the value of anything, and a type that is not Off is one this
-  // plugin will write to on its own - the same thing its selector goes amber for.
   ModesDialog.prototype.render = function () {
-    var box = this.previewEl, modes = this.modes;
-    while (box.firstChild) box.removeChild(box.firstChild);
-    box.appendChild(el('span', 'npt-modestring-label',
-      'Automatic mode per entity type Setting String: '));
-    TYPES.forEach(function (t, i) {
-      var mode = modes[t.key] || MODE_OFF;
-      if (i) box.appendChild(el('span', null, ', '));
-      box.appendChild(el('span', mode === MODE_OFF ? null : 'npt-modestring-on',
-        t.token + '=' + MODE_TOKEN[mode]));
-    });
+    renderModeString(this.previewEl, this.modes);
   };
 
   ModesDialog.prototype.focus = function () {
@@ -3675,6 +3685,71 @@
     saveAutoModes(canon).then(null, function () {});
   }
 
+  // ── The field, replaced by the dialog that edits it ───────────────────────
+  //
+  // Stash renders `a1AutoModes` as a one-line text box holding seven `TYPE=MODE`
+  // pairs, which is the setting in the form the plugin stores it and a poor way to
+  // edit it. The dialog that edits it already exists, so the field is hidden and its
+  // place taken by the same line the dialog previews - labelled, with every armed
+  // type in amber - and a button that opens the dialog.
+  //
+  // Three decisions:
+  //
+  //  - **Hidden from JS, and only once the replacement is in the row.** A
+  //    `#plugin-NormalizeParentTags-a1AutoModes{display:none}` rule in our sheet
+  //    would be one line and would hide the field on any page where the box failed to
+  //    build, leaving the setting with no editor at all. Both the hiding and the box
+  //    are re-applied per tick, because React hands back its own element on a
+  //    re-render - the same reason `paintTaskButtons` repaints every tick.
+  //  - **The value comes from the settings cache, not from the field.** The dialog
+  //    saves with `configurePlugin` straight from `fetch`, which Stash's React state
+  //    knows nothing about, so the box would still be showing the old string. The
+  //    cache is invalidated by our own fetch hook the moment that mutation lands, and
+  //    the same hook calls this tick.
+  //  - **The button is teal like its twin in Settings - Tasks.** Amber is for a
+  //    control that rewrites the library; this one edits a setting, and what it is
+  //    set to is already said in amber on the line above it.
+  var FIELD_BOX_ID = 'npt-modes-field';
+
+  function modeFieldTick() {
+    var input = settingElement('a1AutoModes');
+    if (!input || !input.parentNode) return;
+    var box = document.getElementById(FIELD_BOX_ID);
+    if (!box) {
+      box = el('div', 'npt-fieldbox');
+      box.id = FIELD_BOX_ID;
+      box.appendChild(el('div', 'npt-modestring'));
+      var btn = el('button', 'btn btn-sm ' + READONLY_BTN_VARIANT, TASK_MODES);
+      btn.type = 'button';
+      btn.addEventListener('click', function (e) {
+        if (e.preventDefault) e.preventDefault();
+        startRun(TASK_MODES);
+      });
+      box.appendChild(btn);
+    }
+    if (box.parentNode !== input.parentNode) {
+      input.parentNode.insertBefore(box, input.nextSibling);
+    }
+    if (input.style) input.style.display = 'none';
+    if (!_autoSettings) {
+      // Drawn when the answer lands rather than on the next tick: the re-entry is
+      // bounded by the cache it just filled, and a second of an empty line under a
+      // hidden field is exactly the flicker this replacement must not have.
+      if (!_autoSettingsPending) {
+        autoSettings().then(function () { modeFieldTick(); }, function () {});
+      }
+      return;
+    }
+    var modes = _autoSettings.modes, text = formatAutoModes(modes);
+    // Redrawn only when the string moves: this runs every second, and rebuilding
+    // eight spans under the user's pointer for an unchanged value is churn.
+    if (box._nptText !== text) {
+      box._nptText = text;
+      renderModeString(box.firstChild, modes);
+    }
+    setClass(box, 'npt-armed', anyArmed(modes));
+  }
+
   // Settings are only read while our own group is actually on the page, so a tab
   // parked anywhere else in Stash costs two getElementById calls a second and no
   // queries.
@@ -4049,6 +4124,7 @@
     ensureReadmeLink();
     paintTaskButtons();
     normalizeSettingField();
+    modeFieldTick();
   }
 
   // No MutationObserver here, unlike the sibling's button injection: this is a

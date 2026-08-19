@@ -582,6 +582,59 @@ Promise.resolve()
     });
   })
 
+  // The field is replaced by the dialog that edits it (4.4.0): hidden, with the same
+  // labelled line the dialog previews and the button that opens it in its place. The
+  // line is drawn from the *settings*, not the field, since the dialog saves straight
+  // through fetch and Stash's own React state never hears about it.
+  .then(() => {
+    const p1 = page(h.autoModes({ scenes: 'prune' }), { modes: { scenes: 'prune' } });
+    p1.env.tick();
+    return h.flush().then(() => {
+      const input = p1.rows.a1AutoModes.input;
+      const box = p1.env.ctx.document.getElementById('npt-modes-field');
+      h.check('the field is hidden and our box stands in its place',
+        !!box && box.parentNode === input.parentNode && input.style.display === 'none',
+        String(box && box.parentNode === input.parentNode) + '/' + input.style.display);
+      const line = box.childNodes[0];
+      h.check('the line is the string the dialog previews, label and all',
+        line.textContent === 'Automatic mode per entity type Setting String: ' +
+          h.autoModes({ scenes: 'prune' }), line.textContent);
+      const amber = box.descendants()
+        .filter((n) => h.hasClass(n, 'npt-modestring-on')).map((n) => n.textContent);
+      h.check('with the armed type marked and the bar on the box',
+        amber.join(',') === 'SCENES=PRUNE' && h.hasClass(box, 'npt-armed'),
+        amber.join(',') + ' / ' + box.className);
+      const btn = box.descendants().filter((n) => n.tagName === 'BUTTON')[0];
+      h.check('and the button beside it is teal, like its twin in Settings - Tasks',
+        btn.textContent === 'Auto Mode Settings...' && h.hasClass(btn, 'btn-info'),
+        btn.textContent + ' / ' + btn.className);
+      btn.click();
+      return h.flush().then(() => {
+        h.check('pressing it opens the dialog rather than the browser doing anything',
+          h.dialog(p1.env.ctx.document.body).open);
+        // A second tick must not stack a second box, or leave the first behind.
+        p1.env.tick();
+        return h.flush().then(() => {
+          const boxes = p1.env.ctx.document.body.descendants()
+            .filter((n) => h.hasClass(n, 'npt-fieldbox'));
+          h.check('and the tick that follows leaves exactly one box',
+            boxes.length === 1, String(boxes.length));
+        });
+      });
+    });
+  })
+
+  .then(() => {
+    const p2 = page(h.autoModes({}), { modes: {} });
+    p2.env.tick();
+    return h.flush().then(() => {
+      const box = p2.env.ctx.document.getElementById('npt-modes-field');
+      h.check('an all-Off setting marks nothing and wears no bar',
+        !box.descendants().some((n) => h.hasClass(n, 'npt-modestring-on')) &&
+        !h.hasClass(box, 'npt-armed'), box.className);
+    });
+  })
+
   // The field is the user's to type in. A value that is already canonical needs no
   // write, and one being typed into - focused - must not be replaced under the cursor.
   .then(() => {

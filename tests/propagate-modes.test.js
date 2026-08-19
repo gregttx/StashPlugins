@@ -286,12 +286,13 @@ Promise.resolve()
       cols.length === 3 && cols[0].childNodes.length === 6 &&
       cols[1].childNodes.length === 5 && cols[2].childNodes.length === 2,
       cols.map((c) => c.childNodes.length).join('/'));
-    const walked = api(env).PATHS.map(api(env).pathLabel);
-    h.check('each column in the order a run walks them',
-      cols.every((c) => {
-        const names = c.childNodes.map((r) => rowName(r.childNodes[1]));
-        return names.join(',') === walked.filter((n) => names.indexOf(n) >= 0).join(',');
-      }),
+    // `PATH_COLUMNS`, not `PATHS`: the layout is the user's grouping and the table is
+    // still the order a run walks. `propagate-paths` is what pins the two against each
+    // other, so this only has to prove the dialog reads the layout.
+    h.check('laid out exactly as PATH_COLUMNS says',
+      cols.map((c) => c.childNodes.map((r) => rowName(r.childNodes[1])).join(',')).join('|') ===
+        api(env).PATH_COLUMNS.map((col) =>
+          col.map((id) => api(env).pathLabel(api(env).pathById(id))).join(',')).join('|'),
       cols.map((c) => c.childNodes.map((r) => rowName(r.childNodes[1])).join(',')).join(' | '));
     const last = cols[cols.length - 1] || { childNodes: [] };
     h.check('and the moded pair is what the third column holds',
@@ -418,6 +419,60 @@ Promise.resolve()
     });
   })
 
+  // ── A path other enabled paths already carry end to end ───────────────────
+  //
+  // Studio → Groups and Groups → Scenes together put a studio's tags on its groups
+  // and then on those groups' scenes, so Studio → Scenes is happening whether or not
+  // anyone switched it on. A dialog showing it as Off says something untrue about the
+  // library, and showing it as On would claim a setting nobody made - so it is On in
+  // the resting colours with the amber as letters.
+  .then(() => open({
+    settings: { b1Paths: 'tags:studio>group=ON, tags:group>scene=ON' },
+  })).then((env) => {
+    const auto = toggleFor(env, 'Tags: Studio → Scenes');
+    h.check('a path two enabled paths already carry reads On without being on',
+      auto.textContent === 'On' && h.hasClass(auto, PREFIX + '-toggle-auto') &&
+      h.hasClass(auto, 'btn-secondary') && !h.hasClass(auto, 'btn-warning'),
+      auto.textContent + ' ' + auto.className);
+    h.check('and it names the paths doing the work',
+      /already happening: Tags: Studio → Groups, then Tags: Groups → Scenes/.test(auto.title),
+      auto.title);
+    h.check('a path with only one link of its chain enabled is plainly off',
+      toggleFor(env, 'Tags: Performers → Groups').textContent === 'Off' &&
+      !h.hasClass(toggleFor(env, 'Tags: Performers → Groups'), PREFIX + '-toggle-auto'),
+      toggleFor(env, 'Tags: Performers → Groups').className);
+    // The chain is composed in pipeline order, so completing one repaints a button
+    // nobody pressed - the whole panel is repainted on every press for that reason.
+    setMode(env, 'Tags: Performers → Scenes', 'On');
+    setMode(env, 'Tags: Scenes → Groups', 'All tags');
+    h.check('completing a chain lights up the path it covers',
+      h.hasClass(toggleFor(env, 'Tags: Performers → Groups'), PREFIX + '-toggle-auto'),
+      toggleFor(env, 'Tags: Performers → Groups').className);
+    // A link carrying only the tags all its sources share carries some of the
+    // payload, and calling the path covered would overstate what the user would get.
+    setMode(env, 'Tags: Scenes → Groups', 'Common tags only');
+    h.check('a common-only link does not cover anything',
+      !h.hasClass(toggleFor(env, 'Tags: Performers → Groups'), PREFIX + '-toggle-auto'),
+      toggleFor(env, 'Tags: Performers → Groups').className);
+    // Switching it on for real is still a different thing, and Save still stores it.
+    // One press rather than `setMode`, which presses until the caption matches: a
+    // covered button already *says* On, which is the point of it and also the reason
+    // the caption alone no longer identifies the state - the colours do.
+    toggleFor(env, 'Tags: Studio → Scenes').click();
+    h.check('and switching a covered path on is a normal On',
+      h.hasClass(toggleFor(env, 'Tags: Studio → Scenes'), 'btn-warning') &&
+      !h.hasClass(toggleFor(env, 'Tags: Studio → Scenes'), PREFIX + '-toggle-auto'),
+      toggleFor(env, 'Tags: Studio → Scenes').className);
+    d(env).button('Save').click();
+    return h.flush().then(() => {
+      h.check('a covered path is written only when it was actually switched on',
+        saved(env)[0].variables.input.b1Paths ===
+          'tags:performer>scene=ON, tags:studio>scene=ON, tags:scene>group=COMMON, ' +
+          'tags:studio>group=ON, tags:group>scene=ON',
+        JSON.stringify(saved(env).map((c) => c.variables.input.b1Paths)));
+    });
+  })
+
   // The same rule from the dialog's own Save, which is the write a user makes most
   // often: it names one key and must still send the map it did not name.
   .then(() => open({
@@ -494,7 +549,10 @@ Promise.resolve()
   // the setting must still be editable if this script ever stops running.
 
   .then(() => {
-    const env = boot({ settings: { b1Paths: 'tags:scene>group=COMMON, tags:studio>scene=ON' } });
+    // Four paths, two of them the marker pair - which the layout puts the other way
+    // round from the order a run walks them, so the check below is about the layout
+    // rather than about any order that happens to agree with it.
+    const env = boot({ settings: { b1Paths: 'tags:marker>scene=ON, tags:marker>group=ON, tags:scene>group=COMMON, tags:studio>scene=ON' } });
     const doc = env.ctx.document;
     const group = h.makeElement('div');
     group.className = 'setting-group';
@@ -504,7 +562,7 @@ Promise.resolve()
     const left = h.makeElement('div');
     const value = h.makeElement('div');
     value.className = 'value';
-    value.textContent = 'tags:scene>group=COMMON, tags:studio>scene=ON';
+    value.textContent = 'tags:marker>scene=ON, tags:marker>group=ON, tags:scene>group=COMMON, tags:studio>scene=ON';
     left.appendChild(value);
     row.appendChild(left);
     const right = h.makeElement('div');
@@ -527,16 +585,19 @@ Promise.resolve()
         !!line && /Common tags only/.test(line.textContent), line && line.textContent);
       h.check('and nothing listed for the eleven that are off',
         !!line && !/Sub-groups/.test(line.textContent), line && line.textContent);
-      // Three columns filled top to bottom, with the entries carrying a mode last so
-      // the two long ones share the last column - each column is sized to its own
-      // content, so scattering them would widen two columns instead of one. The row
-      // count is what makes `grid-auto-flow: column` three columns rather than one.
+      // Three columns filled top to bottom, in `PATH_COLUMNS` order - the same order
+      // and grouping the dialog uses, so a path sits in the same place wherever it is
+      // shown. The two entries carrying a mode land last by being the last column
+      // there, which is what keeps the other two narrow: each column is sized to its
+      // own content. The row count is what makes `grid-auto-flow: column` three
+      // columns rather than one.
       const list = line && line.childNodes
         .filter((n) => h.hasClass(n, PREFIX + '-pathstring-list'))[0];
-      h.check('laid out in three columns, with the moded entry last',
-        !!list && list.style.gridTemplateRows === 'repeat(1, auto)' &&
-        list.childNodes[list.childNodes.length - 1].textContent
-          .indexOf('Tags: Scenes → Groups') === 0,
+      h.check('laid out in three columns, in the order the dialog lays them out',
+        !!list && list.style.gridTemplateRows === 'repeat(2, auto)' &&
+        list.childNodes.map((n) => n.textContent.replace(/ *\(.*/, '')).join(',') ===
+          ['Tags: Markers → Groups', 'Tags: Markers → Scenes',
+           'Tags: Studio → Scenes', 'Tags: Scenes → Groups'].join(','),
         list && list.style.gridTemplateRows + ' / ' +
           list.childNodes.map((n) => n.textContent).join(' | '));
       h.check('Stash own value is hidden rather than removed',

@@ -5,10 +5,46 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.4.0.** Every step in the table below has landed, so the version left the
+**Status: released, 3.5.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.5.0 lays the paths out the way the user reads them, and stops the dialog lying about a path
+that is already happening.**
+
+**`PATH_COLUMNS` is presentation and nothing else.** Three explicit lists of path ids - the
+performer-carrying paths, the studio and two-way ones, the two aggregations that carry a mode - used
+by the dialog's columns and by the settings row's listing, so a path is in the same place wherever
+it is shown. `PATHS` is still the order a run walks, the order `formatPaths` writes, and the order
+the dialog's head says decides what one run reaches. The risk of a second list of the same thirteen
+things is a path missing from one of them - which would be a path with no control at all - so
+`propagate-paths` pins the two against each other rather than trusting the two to be edited
+together.
+
+**A path can be running without being on, and showing it as Off was untrue.** `tags:studio>group`
+plus `tags:group>scene` puts a studio's tags on its groups and then on those groups' scenes, which
+is what `tags:studio>scene` does. `pathChains` composes the enabled paths **in pipeline order** -
+the same cascade `plannedFor` performs - so a chain is only claimed when each link comes after the
+one feeding it. A chain the other way round does land, one run later, and is deliberately not
+claimed: the button describes one run.
+
+- **Only `on` links count, never `common`.** A link carrying just the tags all its sources share
+  carries part of the payload, so calling the path covered would overstate what the user gets. It is
+  testable, which is worth knowing: `tags:performer>scene` + `tags:scene>group` covers
+  `tags:performer>group`, and turning the second to Common tags only takes the claim back.
+- **It returns the witness chain, not a flag.** A tooltip naming the two paths doing the work is the
+  difference between a state the user can act on and a state they have to reverse-engineer.
+- **The look is the resting background with amber letters**, never a filled amber button: nothing
+  was switched on, and switching it on is a *different* thing - it adds the direct copy, which
+  reaches scenes with no group at all. Save still writes only what is actually set.
+- **Every press repaints every button**, because a press can complete a chain covering some other
+  path, and leaving that one showing Off is the same lie in a different place. `repaint` computes
+  the chains once and hands them to thirteen paints; thirteen buttons each deriving their own answer
+  is thirteen chances to derive it from a half-updated map.
+- **The caption alone no longer identifies the state**, which is the cost. A covered button says On
+  while its mode is Off, so the colours are what distinguish them - and a test helper that pressed
+  until the caption matched had to become a single click.
 
 **3.4.0 moves the bulk buttons into the footer and gives every control in the dialog a tooltip.**
 The buttons sit at the far end of the footer from Save and Cancel, pushed there by their own row's

@@ -72,9 +72,22 @@ wherever a path offers them and plain *On* everywhere else, since only the two g
 have the choice. Each of the three says what it does on hover, and so does every path's name — what
 it copies onto what, what its third mode means where it has one, and which path reverses it.
 
-The paths sit in three columns. The first two hold the eleven straightforward ones in the order a
-run walks them; the third holds the two whose caption changes width as it changes state, so nothing
-in the other columns moves under the pointer while you set them.
+**A path can already be happening without being on.** With *Tags: Studio → Groups* and
+*Tags: Groups → Scenes* both on, a studio's tags reach its groups and then those groups' scenes —
+so *Tags: Studio → Scenes* is running whether or not anyone enabled it. Such a path reads **On** in
+amber letters on the resting background rather than as a filled amber button, and its tooltip names
+the paths doing the work. Switching it on as well is a different thing: it adds the direct copy,
+which reaches scenes with no group. Only chains of paths set to plain *On* count — a link carrying
+just the tags all its sources share carries part of the payload, not all of it — and only chains
+that run in the order the pipeline walks, so what the button claims is true of one run rather than
+eventually.
+
+The paths sit in three columns. The first holds the paths that move performers or read from
+performers and markers, the second the studio and the two-way image and group paths, and the third
+the two whose caption changes width as it changes state, so nothing in the other columns moves under
+the pointer while you set them. The settings row's listing uses the same order, so a path is in the
+same place wherever it is shown. It is not the order a run walks — that is fixed, and the dialog's
+own text describes it.
 
 ### Tags
 
@@ -454,7 +467,7 @@ source-side mode fans out: saving one performer can rewrite every scene they app
 
 **Paths** — one row, listing the paths that are on in three columns and holding the button that
 opens the **Path Settings** dialog. All thirteen are in that dialog, in three columns read top to
-bottom — which is the order a run walks them in, and that order decides what one run reaches. Each is *Off* or *On*,
+bottom, in the same order this row lists them. Each is *Off* or *On*,
 and the two group aggregations offer *Common tags only* as a third choice. The setting itself is one line of text (`tags:studio>scene=ON,
 tags:scene>group=COMMON`) and can be typed by hand — it is read forgivingly, in any order and any
 case, and rewritten in canonical form. A path nobody names is off. Upgrading from an earlier

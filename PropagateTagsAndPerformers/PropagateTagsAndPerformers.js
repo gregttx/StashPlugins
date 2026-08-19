@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.4.0';
+  var PLUGIN_VERSION = '3.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -405,6 +405,74 @@
     return tip;
   }
 
+  // How the paths are laid out wherever they are shown together - the dialog's three
+  // columns, and the settings row's listing. It is the user's own grouping, not
+  // pipeline order: performer-carrying paths, then the two-way image/studio ones,
+  // then the two aggregations into a Group that carry a mode.
+  //
+  // **Presentation only.** `PATHS` is still the order a run walks, the order
+  // `formatPaths` writes and the order the dialog's head says matters; this decides
+  // nothing but where a row sits. A path missing from here or named twice would be a
+  // path with no control, so `propagate-paths` pins the two lists against each other.
+  var PATH_COLUMNS = [
+    ['performers:image>gallery', 'performers:gallery>scene', 'tags:performer>scene',
+     'tags:performer>group', 'tags:marker>group', 'tags:marker>scene'],
+    ['tags:gallery>image', 'tags:image>gallery', 'tags:studio>scene',
+     'tags:studio>group', 'tags:group>scene'],
+    ['tags:scene>group', 'tags:subgroup>group'],
+  ];
+
+  function displayPaths() {
+    var out = [];
+    PATH_COLUMNS.forEach(function (col) {
+      col.forEach(function (id) { var p = pathById(id); if (p) out.push(p); });
+    });
+    return out;
+  }
+
+  // Which paths another path's tags already reach without it being switched on.
+  // `tags:studio>group` and `tags:group>scene` together put a studio's tags on its
+  // groups and then on those groups' scenes, so `tags:studio>scene` is happening
+  // whether or not anybody enabled it - and a dialog that shows it as Off is telling
+  // the user something that is not true of their library.
+  //
+  // Composed **in pipeline order**, which is what makes the answer honest about one
+  // run rather than about eventually: a chain is only recorded when each link comes
+  // after the one feeding it, exactly as `plannedFor`'s cascade works. A chain that
+  // runs the other way round does land, one run later, and this deliberately does not
+  // claim it.
+  //
+  // Only `on` links count, never `common`: a link that copies just the tags all its
+  // sources share carries some of the payload, and claiming a path is covered would
+  // overstate what a user would get.
+  //
+  // Returns `{ kind: { sourceType: { target: [pathId, ...] } } }` - the witness chain
+  // rather than a flag, so the button can name the paths doing the work.
+  function pathChains(modes) {
+    var reach = {};
+    PATHS.forEach(function (p) {
+      if ((modes && modes[p.id]) !== PATH_ON) return;
+      var r = reach[p.kind] || (reach[p.kind] = {});
+      var grown = [], src;
+      for (src in r) {
+        if (hasOwn(r, src) && r[src][p.sourceType]) {
+          grown.push([src, r[src][p.sourceType].concat([p.id])]);
+        }
+      }
+      (r[p.sourceType] || (r[p.sourceType] = {}))[p.target] = [p.id];
+      grown.forEach(function (g) { r[g[0]][p.target] = g[1]; });
+    });
+    return reach;
+  }
+
+  // The chain covering a path that is itself off, or null. A chain of one is the path
+  // itself and can only turn up for a path that is on, which this never asks about.
+  function coveredBy(chains, path) {
+    var byKind = chains[path.kind] || {};
+    var chain = (byKind[path.sourceType] || {})[path.target];
+    return chain && chain.length > 1 ? chain : null;
+  }
+
   function enabledPaths(s) {
     return PATHS.filter(function (p) { return pathOn(s, p); });
   }
@@ -614,23 +682,22 @@
   // listed for a path that is off; thirteen greyed-out entries would bury the two
   // that are not.
   //
-  // **Three columns, filled top to bottom, with the two entries that carry a mode
-  // last.** Thirteen stacked lines was a column of text taller than every other row
-  // on the settings page put together. Three columns cost nothing in width *because*
-  // the moded pair is grouped: those two entries are half as long again as the rest,
-  // and each column is sized to its own content, so letting them share the last
-  // column keeps the other two narrow. Scattered through pipeline order they would
-  // have widened two columns instead of one.
+  // **Three columns, filled top to bottom, in `PATH_COLUMNS` order** - the same
+  // order and the same grouping the dialog lays out, so a path is in the same place
+  // wherever it is shown. Thirteen stacked lines was a column of text taller than
+  // every other row on the settings page put together, and the grouping is what keeps
+  // three columns cheap: the two entries carrying a mode are half as long again as
+  // the rest and share the last column, so the other two stay narrow.
   //
-  // Reordering is fine *here* and would not be in the dialog: this row lists which
-  // paths are on, and the dialog is where the walk order is shown and stated to
-  // matter.
+  // Not pipeline order, and that is deliberate on both sides now: what a run walks is
+  // `PATHS`, which is what `formatPaths` writes and what the dialog's head describes.
+  // This lists which paths are on.
   //
   // Elements rather than `textContent`, so the list can be a list.
   function renderPathString(box, modes, raw) {
     while (box.firstChild) box.removeChild(box.firstChild);
     var text = String(raw == null ? '' : raw).replace(/^\s+|\s+$/g, '');
-    var on = PATHS.filter(function (p) { return modes && modes[p.id] !== PATH_OFF; });
+    var on = displayPaths().filter(function (p) { return modes && modes[p.id] !== PATH_OFF; });
     // The three columns live on a list inside the row rather than on the row itself,
     // so the warning below can sit beside them rather than in a cell of the grid.
     var list = el('div', 'ptp2re-pathstring-list');
@@ -656,8 +723,6 @@
     }
     if (!on.length) return;
     box.appendChild(list);
-    on = on.filter(function (p) { return !p.common; })
-      .concat(on.filter(function (p) { return p.common; }));
     // The row count is what turns `grid-auto-flow: column` into three columns; the
     // stylesheet cannot know how many entries there are. Fewer than three enabled
     // means one row and one column each, which is the right shape for a short list.
@@ -1119,6 +1184,10 @@
     // still. A floor rather than a fixed width: it can only stop the button shrinking,
     // so a theme whose font is wider than this grows the button instead of clipping it.
     '.ptp2re-toggle-wide{min-width:9.5rem;}' +
+    // A path nothing switched on that other enabled paths already carry end to end:
+    // the resting background, and the amber as letters. `!important` because it is
+    // overriding `btn-secondary`'s own colour, which is what the button still is.
+    '.ptp2re-toggle-auto{color:#ffb648 !important;}' +
     '.ptp2re-pathsbody{padding:.5rem 1rem;overflow:auto;}' +
     // The enabled paths as the settings row shows them. Prose rather than the
     // sibling's monospace: what is rendered here is `pathLabel`, the same sentence
@@ -3236,40 +3305,68 @@
   PathsDialog.prototype.panel = function () {
     var self = this;
     var wrap = el('div', 'ptp2re-paths');
-    var cols = [el('div', 'ptp2re-paths-col'), el('div', 'ptp2re-paths-col'),
-                el('div', 'ptp2re-paths-col')];
+    var cols = PATH_COLUMNS.map(function () { return el('div', 'ptp2re-paths-col'); });
     cols.forEach(function (c) { wrap.appendChild(c); });
-    var plain = PATHS.filter(function (p) { return !p.common; });
-    var split = Math.ceil(plain.length / 2);
     this.toggles = {};
-    PATHS.forEach(function (p) {
-      var col = p.common ? cols[2] : cols[plain.indexOf(p) < split ? 0 : 1];
-      var row = el('div', 'ptp2re-path-row');
-      var name = el('span', 'ptp2re-path-name', pathLabel(p));
-      name.title = pathTip(p);
-      row.appendChild(name);
-      var labels = pathLabels(p), states = pathStates(p);
-      var btn = el('button', null);
-      btn.type = 'button';
-      btn.title = 'Click to cycle: ' + states.map(function (m) { return labels[m]; }).join(' \u2192 ');
-      function paint() {
-        var mode = self.modes[p.id] || PATH_OFF;
-        btn.textContent = labels[mode];
-        btn.className = 'btn btn-sm ptp2re-toggle' + (p.common ? ' ptp2re-toggle-wide' : '') +
-          ' ' + (mode === PATH_OFF ? 'btn-secondary' : PLUGIN_BTN_VARIANT);
-      }
-      paint();
-      btn.addEventListener('click', function (e) {
-        if (e && e.preventDefault) e.preventDefault();
-        var at = states.indexOf(self.modes[p.id] || PATH_OFF);
-        self.modes[p.id] = states[(at + 1) % states.length];
+    PATH_COLUMNS.forEach(function (ids, i) {
+      ids.forEach(function (id) {
+        var p = pathById(id);
+        if (!p) return;
+        var row = el('div', 'ptp2re-path-row');
+        var name = el('span', 'ptp2re-path-name', pathLabel(p));
+        name.title = pathTip(p);
+        row.appendChild(name);
+        var labels = pathLabels(p), states = pathStates(p);
+        var cycle = 'Click to cycle: ' +
+          states.map(function (m) { return labels[m]; }).join(' \u2192 ');
+        var btn = el('button', null);
+        btn.type = 'button';
+        // The third appearance a button here has, and the only one no click produces:
+        // a path that is off while other enabled paths already carry its tags end to
+        // end. It reads On because that is what the library does, and it wears the
+        // amber as *letters on the resting background* rather than as a filled button,
+        // because nothing was switched on - turning it on would add a direct copy,
+        // which is a different thing from what is already happening.
+        function paint() {
+          var mode = self.modes[p.id] || PATH_OFF;
+          var chain = mode === PATH_OFF ? coveredBy(self.chains || {}, p) : null;
+          btn.textContent = chain ? PATH_LABEL[PATH_ON] : labels[mode];
+          btn.className = 'btn btn-sm ptp2re-toggle' +
+            (p.common ? ' ptp2re-toggle-wide' : '') +
+            (chain ? ' ptp2re-toggle-auto' : '') +
+            ' ' + (mode === PATH_OFF ? 'btn-secondary' : PLUGIN_BTN_VARIANT);
+          btn.title = chain
+            ? 'Off, and already happening: ' + chain.map(function (cid) {
+                return pathLabel(pathById(cid));
+              }).join(', then ') + ' carries the same tags the whole way. ' + cycle
+            : cycle;
+        }
         paint();
+        btn.addEventListener('click', function (e) {
+          if (e && e.preventDefault) e.preventDefault();
+          var at = states.indexOf(self.modes[p.id] || PATH_OFF);
+          self.modes[p.id] = states[(at + 1) % states.length];
+          // Every button, not this one: switching a path on can be the link that
+          // completes a chain covering some other path, and leaving that one showing
+          // Off would be the same lie as never computing it.
+          self.repaint();
+        });
+        row.appendChild(btn);
+        cols[i].appendChild(row);
+        self.toggles[p.id] = { el: btn, paint: paint };
       });
-      row.appendChild(btn);
-      col.appendChild(row);
-      self.toggles[p.id] = { el: btn, paint: paint };
     });
     return wrap;
+  };
+
+  // One pass over the modes, then every button. The chains are computed once here
+  // rather than per button, which is also what keeps them consistent: thirteen
+  // buttons each deriving their own answer is thirteen chances to derive it from a
+  // half-updated map.
+  PathsDialog.prototype.repaint = function () {
+    var self = this;
+    this.chains = pathChains(this.modes);
+    PATHS.forEach(function (p) { self.toggles[p.id].paint(); });
   };
 
   // The three bulk buttons, in the footer opposite Save. Thirteen presses to turn everything on
@@ -3308,8 +3405,8 @@
     var self = this;
     PATHS.forEach(function (p) {
       self.modes[p.id] = pathStates(p).indexOf(mode) >= 0 ? mode : PATH_ON;
-      self.toggles[p.id].paint();
     });
+    this.repaint();
   };
 
   // Sets the modes without going through a click: this is the dialog telling the
@@ -3318,8 +3415,8 @@
     var self = this;
     PATHS.forEach(function (p) {
       self.modes[p.id] = (modes && modes[p.id]) || PATH_OFF;
-      self.toggles[p.id].paint();
     });
+    this.repaint();
   };
 
   PathsDialog.prototype.enable = function (on) {
@@ -6301,6 +6398,7 @@
     TARGETS: TARGETS,
     SOURCES: SOURCES,
     PATHS: PATHS,
+    PATH_COLUMNS: PATH_COLUMNS,
     DEFAULTS: DEFAULTS,
     pathSelection: pathSelection,
     targetSelection: targetSelection,

@@ -36,7 +36,7 @@ const api = env.ctx.__ptp2re;
 h.check('the plugin exposes its tables', !!api && !!api.PATHS && !!api.TARGETS && !!api.DEFAULTS,
   api ? Object.keys(api).join(' ') : 'nothing exposed');
 
-const { PATHS, TARGETS, DEFAULTS } = api;
+const { PATHS, PATH_COLUMNS, TARGETS, DEFAULTS, pathById } = api;
 const yml = declaredSettings(read(NAME, NAME + '.yml'));
 const defaults = Object.keys(DEFAULTS);
 
@@ -251,6 +251,21 @@ h.check('every pair is declared from both sides',
 
 h.check('a path never pairs with itself', !PATHS.some((p) => p.pair === p.id),
   paired.map((p) => p.id).join(' '));
+
+// ── The display layout is a permutation of the table, never a second table ──
+
+// `PATH_COLUMNS` decides where a row sits in the dialog and in the settings row's
+// listing, and nothing else. A path missing from it has no control at all, and one
+// named twice would get two - neither of which any other check here would notice.
+const laid = PATH_COLUMNS.reduce((acc, col) => acc.concat(col), []);
+h.check('every path is laid out exactly once',
+  laid.length === PATHS.length && laid.slice().sort().join(',') === ids.slice().sort().join(','),
+  laid.join(' '));
+
+h.check('and the two paths carrying a mode share the last column',
+  PATH_COLUMNS[PATH_COLUMNS.length - 1].every((id) => pathById(id).common) &&
+  laid.filter((id) => pathById(id).common).length === 2,
+  PATH_COLUMNS[PATH_COLUMNS.length - 1].join(' '));
 
 // ── Order is the pipeline ─────────────────────────────────────────────────
 

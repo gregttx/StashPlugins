@@ -507,6 +507,14 @@ mid-run, that means the changes already written stay written and the rest are ne
 ## Notes / limitations
 
 - **Read carefully:** [⚠ Back up your database before the first run](#-back-up-your-database-before-the-first-run)
+- **If your exclusion filters look reset, that is a bug this plugin used to have.** Stash's
+  `configurePlugin` replaces a plugin's whole settings block rather than merging into it, so
+  saving from the **Auto Mode Settings...** dialog used to take every other setting with it — and
+  so did the one-time migration of the older per-type settings. Nothing warned you and the
+  settings page kept showing the old values until it was reloaded, so the loss usually surfaced
+  much later. It is fixed: every setting this plugin writes now carries the rest of the block with
+  it. There is no way to recover what was cleared, so check the exclusion filters once after
+  updating.
 - A run always covers your whole library, for every type it is not set to Off. Filters and
   selections in the scene, image or performer lists are not read.
 - Changes are written as add/remove deltas rather than as a wholesale rewrite of each entity's

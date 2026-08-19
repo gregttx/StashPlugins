@@ -470,6 +470,16 @@ showing you a plan first; the logging switch is **teal**, for one that only talk
 Everything else stays blue. In **Settings → Tasks → Plugin Tasks** the propagate task is amber for
 the same reason, and **Path Settings** is teal — it writes a setting, not your library.
 
+**If your paths or toggles look reset, that is a bug this plugin used to have.** Stash's
+`configurePlugin` replaces a plugin's whole settings block rather than merging into it, so any
+setting this plugin wrote by itself — the one-time migration of the older per-path settings, the
+**Path Settings** dialog's Save, the adoption of `MergePerformerTagsToScenes`' exclusion filters —
+took every other setting with it. Nothing warned you, and the settings page kept showing the old
+values until it was reloaded, so the loss usually surfaced a release later. It is fixed: every
+write now carries the rest of the block with it. What was cleared cannot be recovered — the old
+per-path settings are gone from Stash's config too, so the migration cannot re-run — so open **Path
+Settings** and set your paths again, and check the four toggles at the top while you are there.
+
 ## Relationship to the other plugins in this repo
 
 - **`MergePerformerTagsToScenes`** implements one of these paths. Both can be installed and enabled

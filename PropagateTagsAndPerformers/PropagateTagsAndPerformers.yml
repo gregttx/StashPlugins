@@ -1,7 +1,7 @@
 name: ᝯㄝₓ Propagate Tags and Performers to Related Entities
 description: "Copies tags and performers from related entities onto the entity that links them.\n\nThirteen paths, each off until you enable it in the Path Settings dialog. Tags onto Scenes from their performers, studio, markers or groups; onto Galleries from their images; onto Images from their galleries; onto Groups from their scenes, studio, sub-groups, and from those scenes' performers and markers. Performers onto Scenes from their galleries, and onto Galleries from their images.\n\nCopy, never move - nothing is ever removed from the source.\n\nThree ways to run it: buttons on the target's Edit tab or the source's own detail page, automatically whenever Stash saves an entity, or as one library-wide task in Settings - Tasks - Plugin Tasks. The buttons and the automatic modes are off until you enable them below.\n\nNothing is written behind your back: a button either stages its additions in the edit form for you to save, or opens a dialog listing every change first - and so does the task. Nothing lands until you press Proceed, and Undo takes the run back while the dialog stays open.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - it rewrites tag and performer assignments across the whole library and Stash has no undo.\n\nRequires Stash 0.31.0 or newer."
 url: "https://github.com/gregttx/StashPlugins/blob/main/PropagateTagsAndPerformers/README.md"
-version: 3.3.0
+version: 3.4.0
 ui:
   javascript:
     - PropagateTagsAndPerformers.js
@@ -9,7 +9,7 @@ tasks:
   - name: Propagate Tags and Performers to All Related Entities...
     description: Run every path enabled below across the whole library, in a fixed order. Opens a dialog that lists every change first; nothing is written until you press Proceed. It only ever adds tags and performers, and an Undo button takes back what it added - but only while the dialog stays open, so back up your database before the first run. The exclusion filters below all apply.
   - name: Path Settings...
-    description: Choose which of the thirteen paths run - Off, On, and for the two that offer it, only the tags every source shares. One button per path, taking its next state on each click, plus All Off / All On / All On with common tags where common is offered. The dialog holds all thirteen in the order a run walks them, and writes nothing but the setting itself, which is the one shown in the row below.
+    description: Choose which of the thirteen paths run - Off, On, and for the two that offer it, only the tags every source shares. One button per path, taking its next state on each click, plus All Off / All On / All On with common tags only, opposite Save in the footer. Hovering a path name says what that path copies onto what. The dialog holds all thirteen in the order a run walks them, and writes nothing but the setting itself, which is the one shown in the row below.
 settings:
   a1ShowManualButtons:
     displayName: Show Manual Buttons

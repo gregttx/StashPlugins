@@ -66,9 +66,11 @@ The two paths with a third state cycle *Off → All tags → Common tags only*, 
 the button's tooltip — HTML has no tri-state button, so cycling is what a single control can offer,
 and it is still never more clicks than the drop-down it replaced.
 
-Above them, **All Off**, **All On / All Tags** and **All On / Common Tags** set every path in one
-press. The last one asks for common tags wherever a path offers them and plain *On* everywhere else,
-since only the two group aggregations have the choice.
+**All Off**, **All On / All Tags** and **All On / Common Tags Only** sit at the far end of the
+footer, opposite Save and Cancel, and set every path in one press. The last one asks for common tags
+wherever a path offers them and plain *On* everywhere else, since only the two group aggregations
+have the choice. Each of the three says what it does on hover, and so does every path's name — what
+it copies onto what, what its third mode means where it has one, and which path reverses it.
 
 The paths sit in three columns. The first two hold the eleven straightforward ones in the order a
 run walks them; the third holds the two whose caption changes width as it changes state, so nothing

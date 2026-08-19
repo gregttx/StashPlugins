@@ -343,15 +343,35 @@ Promise.resolve()
         'Click to cycle: Off → All tags → Common tags only',
       toggleFor(env, 'Tags: Sub-groups → Groups').title);
     // Thirteen presses to turn a library on is what the bulk row saves. "All On /
-    // Common Tags" is not a fourteenth state: a path that cannot take a mode takes
-    // the nearest one it can, which is plain On.
+    // Common Tags Only" is not a fourteenth state: a path that cannot take a mode
+    // takes the nearest one it can, which is plain On.
     const bulk = (caption) => env.ctx.document.body.descendants()
       .filter((n) => n.tagName === 'BUTTON' && n.textContent === caption)[0];
-    h.check('three bulk buttons above the columns',
-      ['All Off', 'All On / All Tags', 'All On / Common Tags'].every(bulk),
+    h.check('three bulk buttons, in the footer rather than over the columns',
+      ['All Off', 'All On / All Tags', 'All On / Common Tags Only'].every(bulk) &&
+      h.hasClass(bulk('All Off').parentNode.parentNode, PREFIX + '-foot'),
       env.ctx.document.body.descendants()
         .filter((n) => h.hasClass(n.parentNode || {}, PREFIX + '-paths-bulk'))
         .map((n) => n.textContent).join(' | '));
+    h.check('and each says what it does, since a caption cannot',
+      ['All Off', 'All On / All Tags', 'All On / Common Tags Only']
+        .every((c) => /\S/.test(bulk(c).title || '')) &&
+      /every one of their sources/.test(bulk('All On / Common Tags Only').title),
+      bulk('All On / Common Tags Only').title);
+    // Built from the path table, so a row re-routed there cannot leave a tooltip
+    // describing what it used to do.
+    h.check('every path name says what its path does, and the reverses say so',
+      toggles(env).every((b) => /^Adds the (tags|performers) of each /
+        .test(b.previousSibling.title || '')) &&
+      /Runs opposite to Tags: Groups \u2192 Scenes/
+        .test(toggleFor(env, 'Tags: Scenes \u2192 Groups').previousSibling.title) &&
+      /Common tags only adds a tag when every one of them carries it/
+        .test(toggleFor(env, 'Tags: Scenes \u2192 Groups').previousSibling.title),
+      toggleFor(env, 'Tags: Scenes \u2192 Groups').previousSibling.title);
+    h.check('a two-hop path says which way it gets there',
+      /reached through its scenes/
+        .test(toggleFor(env, 'Tags: Performers \u2192 Groups').previousSibling.title),
+      toggleFor(env, 'Tags: Performers \u2192 Groups').previousSibling.title);
     h.check('All Off turns every path off in one press',
       (() => { bulk('All Off').click();
         return toggles(env).every((b) => b.textContent === 'Off'); })(),
@@ -361,8 +381,8 @@ Promise.resolve()
         return toggles(env).every((b) => b.textContent === 'On' || b.textContent === 'All tags') &&
           !toggles(env).some((b) => b.textContent === 'Common tags only'); })(),
       toggles(env).map((b) => b.textContent).join(','));
-    h.check('All On / Common Tags asks for common only where common exists',
-      (() => { bulk('All On / Common Tags').click();
+    h.check('All On / Common Tags Only asks for common only where common exists',
+      (() => { bulk('All On / Common Tags Only').click();
         return toggles(env).filter((b) => b.textContent === 'Common tags only').length === 2 &&
           toggles(env).filter((b) => b.textContent === 'On').length === 11; })(),
       toggles(env).map((b) => b.textContent).join(','));

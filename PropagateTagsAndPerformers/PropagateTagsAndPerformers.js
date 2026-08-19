@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.3.0';
+  var PLUGIN_VERSION = '3.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -383,6 +383,26 @@
   function pathLabel(path) {
     var kind = path.kind === 'performers' ? 'Performers' : 'Tags';
     return kind + ': ' + path.source + ' → ' + TARGETS[path.target].plural;
+  }
+
+  // What a path's name says when hovered, built from the table rather than written
+  // out thirteen times: a row renamed or re-routed there cannot leave a tooltip
+  // describing what it used to do. The two sentences after the first are the two
+  // things `pathLabel` cannot fit - what the third mode means, and that a path has a
+  // reverse in the table which, run together, drives both sides to one set.
+  function pathTip(path) {
+    var t = TARGETS[path.target].label;
+    var what = path.kind === 'performers' ? 'performers' : 'tags';
+    var tip = 'Adds the ' + what + ' of each ' + t + '\u2019s ' + path.source.toLowerCase() +
+      (path.hops === 2 ? ', reached through its scenes,' : '') + ' onto the ' + t + '.';
+    if (path.common) {
+      tip += ' Common tags only adds a tag when every one of them carries it.';
+    }
+    if (path.pair && pathById(path.pair)) {
+      tip += ' Runs opposite to ' + pathLabel(pathById(path.pair)) +
+        '; with both on, the two converge on one set of tags.';
+    }
+    return tip;
   }
 
   function enabledPaths(s) {
@@ -1078,8 +1098,12 @@
     // panel and leaves the select stranded at the far side of the modal, which is
     // exactly what the first version of this did.
     '.ptp2re-paths{display:flex;flex-wrap:wrap;gap:0 2rem;margin:.5rem 0;}' +
-    // The three bulk buttons, above the columns.
-    '.ptp2re-paths-bulk{display:flex;flex-wrap:wrap;gap:.4rem;margin:.25rem 0 .75rem;}' +
+    // The three bulk buttons, at the far end of the footer from Save and Cancel.
+    // `margin-left:auto` in a flex row is what puts them there, so the shared `.foot`
+    // rule is untouched; the inner `margin-right` is the same rule's spacing, which
+    // would otherwise hang off the last button past the modal's padding.
+    '.ptp2re-paths-bulk{display:flex;flex-wrap:wrap;gap:.4rem;margin-left:auto;}' +
+    '.ptp2re-paths-bulk button{margin-right:0;}' +
     '.ptp2re-paths-col{display:grid;grid-template-columns:max-content max-content;' +
     'gap:.3rem .6rem;align-items:center;align-content:start;}' +
     '.ptp2re-path-row{display:contents;}' +
@@ -3221,7 +3245,9 @@
     PATHS.forEach(function (p) {
       var col = p.common ? cols[2] : cols[plain.indexOf(p) < split ? 0 : 1];
       var row = el('div', 'ptp2re-path-row');
-      row.appendChild(el('span', 'ptp2re-path-name', pathLabel(p)));
+      var name = el('span', 'ptp2re-path-name', pathLabel(p));
+      name.title = pathTip(p);
+      row.appendChild(name);
       var labels = pathLabels(p), states = pathStates(p);
       var btn = el('button', null);
       btn.type = 'button';
@@ -3246,7 +3272,7 @@
     return wrap;
   };
 
-  // The three bulk buttons above the columns. Thirteen presses to turn everything on
+  // The three bulk buttons, in the footer opposite Save. Thirteen presses to turn everything on
   // is what they save, and they are the only place `common` can be asked for across
   // the board: a path that cannot take a mode takes the nearest one it can, which for
   // both "All On" buttons is plain On. So "All On / Common Tags" is not a fourteenth
@@ -3254,11 +3280,20 @@
   PathsDialog.prototype.bulkRow = function () {
     var self = this;
     var row = el('div', 'ptp2re-paths-bulk');
-    this.bulkBtns = [[PATH_OFF, 'All Off'], [PATH_ON, 'All On / All Tags'],
-                     [PATH_COMMON, 'All On / Common Tags']].map(function (pair) {
+    this.bulkBtns = [
+      [PATH_OFF, 'All Off',
+        'Switch every path off. Nothing is stored until you press Save.'],
+      [PATH_ON, 'All On / All Tags',
+        'Switch every path on, each copying every tag its sources carry.'],
+      [PATH_COMMON, 'All On / Common Tags Only',
+        'Switch every path on, and set the two that offer it to add a tag only when ' +
+        'every one of their sources carries it. The other eleven have no such mode ' +
+        'and are simply on.'],
+    ].map(function (pair) {
       var b = el('button', 'btn btn-sm ' +
         (pair[0] === PATH_OFF ? 'btn-secondary' : PLUGIN_BTN_VARIANT), pair[1]);
       b.type = 'button';
+      b.title = pair[2];
       b.addEventListener('click', function (e) {
         if (e && e.preventDefault) e.preventDefault();
         self.setAll(pair[0]);
@@ -3318,9 +3353,7 @@
     this.modal.appendChild(head);
 
     var body = el('div', 'ptp2re-pathsbody');
-    body.appendChild(this.bulkRow());
     body.appendChild(this.panel());
-    this.enable(false);
     this.modal.appendChild(body);
 
     var foot = el('div', 'ptp2re-foot');
@@ -3332,6 +3365,15 @@
     this.saveBtn.addEventListener('click', function () { self.save(); });
     this.cancelBtn.addEventListener('click', function () { self.close(); });
     [this.saveBtn, this.cancelBtn].forEach(function (b) { foot.appendChild(b); });
+    // The bulk buttons sit at the other end of the footer, pushed there by the row's
+    // own `margin-left:auto` rather than by anything in the shared `.foot` rule, which
+    // is pinned byte-identical across the plugins. They belong in a footer and not
+    // above the columns: they set the same thing Save then stores, and a row of
+    // buttons over the panel read as a second header.
+    foot.appendChild(this.bulkRow());
+    // After the footer, so the bulk buttons are disabled with the rest until the
+    // settings land: `enable` reaches every control the dialog owns.
+    this.enable(false);
     this.modal.appendChild(foot);
 
     wireEscape(this);

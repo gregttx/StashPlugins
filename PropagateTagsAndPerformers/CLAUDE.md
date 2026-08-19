@@ -5,10 +5,25 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.3.0.** Every step in the table below has landed, so the version left the
+**Status: released, 3.4.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.4.0 moves the bulk buttons into the footer and gives every control in the dialog a tooltip.**
+The buttons sit at the far end of the footer from Save and Cancel, pushed there by their own row's
+`margin-left:auto` - the shared `.foot` rule is one of the pinned ones and is untouched. They set
+what Save then stores, so the footer is where they belong; over the columns they read as a second
+header. `All On / Common Tags` gained the *Only* the two path buttons already say, because the
+shortened caption was the one place in the dialog where "common tags" could be read as "and no
+others".
+
+**The path tooltips are generated from `PATHS`, not written out thirteen times.** `pathTip` reads
+the same fields the planner walks - `kind`, `target`, `source`, `hops`, `common`, `pair` - so a row
+re-routed in that table cannot leave a tooltip describing what it used to do. It is also the only
+place two facts are stated per path: what the third mode means for the two that have one, and that a
+path has a reverse in the table, which run together drive both sides to one set of tags. The dialog's
+head says the second generically for whatever pair is on; the tooltip says which path it is.
 
 **3.3.0 pulls the two moded paths into a column of their own and adds three bulk buttons.** Both
 came from live use of 3.2.0 and both are about the same thing - a `max-content` grid column resizes

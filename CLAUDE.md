@@ -1072,6 +1072,34 @@ passed, so `plural(kids.length, 'child', 'children')` is the only call in the re
 third argument. This is about *generic* parentheses in generated text; a parenthesis quoting one of
 Stash's own captions, or a regex like `/tag(s)?Update/`, is untouched.
 
+## Reference: a plugin setting's id is not always on a control
+
+Read off `stashapp/stash` `develop` `ui/v2.5/src/components/Settings/Inputs.tsx`, 2026-08-18, when
+`NormalizeParentTags` 4.5.0 fixed a release that had assumed otherwise. Every plugin here anchors
+on `plugin-<pluginID>-<setting.name>`, so this is about all of them.
+
+`SettingsPluginsPanel.tsx` passes that id down as `commonProps.id`, and where it lands depends on
+the setting's type:
+
+| Type | Component | The id ends up on |
+|---|---|---|
+| BOOLEAN | `BooleanSetting` → `Setting` | the `Form.Switch` **input** inside the row |
+| STRING, NUMBER | `ModalSetting` → `ChangeButtonSetting` | the **`.setting` row div** |
+
+A STRING row is `<div class="setting" id="…"><div><h3>name</h3><div class="value"><span>value</span>
+</div><div class="sub-heading">…</div></div><div><button>Edit</button></div></div>`. There is **no
+text input on the page at all** — the input lives in a modal that only exists while Edit is open.
+
+Walking *up* from `settingElement` to the row or the group is right either way, which is what every
+plugin here does and why nothing noticed for months. Reading `.value` off it, setting
+`display:none` on it, or styling it as a control is right for a boolean and wrong for a string —
+`display:none` on a string's element hides the heading, the description and the row.
+
+**Its own suite will not catch it.** `NormalizeParentTags`' fixture was written from the same
+assumption as the code, so a renormalizer that could never run on a live page passed its tests for
+four releases. A fixture for someone else's markup is only worth what the reading behind it is
+worth; check it against their source, not against the code under test.
+
 ## Reference: a list view's URL does not always name what it lists
 
 Read off `stashapp/stash` `develop`, 2026-08-13, when `CustomFieldsBulkEditor` 0.1.1 fixed the four

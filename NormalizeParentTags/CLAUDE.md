@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.4.0.** This file is both the design and the map of the code — the
+**Status: implemented at 4.5.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -502,22 +502,47 @@ version of them. The amber is the one the selectors already use for a mode that 
 what makes the line readable as a summary of the row of selects above it rather than as a
 restatement.
 
-**The settings page shows the dialog instead of the field** (4.4.0). `modeFieldTick` hides Stash's
-`a1AutoModes` text box and puts `renderModeString` plus an **Auto Mode Settings...** button in the
-row where it was. Three decisions, all of them in the code's own comment: the field is hidden from
-JS and only once the box is in the row (a `#plugin-...{display:none}` rule would be shorter and
-would hide the field on a page where our box never built, leaving the setting with no editor);
-the line is drawn from the settings cache rather than from the field, because the dialog saves
-straight through `fetch` and Stash's React state never hears about that write; and the button is
-teal like its twin in Settings → Tasks, since what it edits is a setting and what that setting says
-is already in amber on the line above it.
+**The settings row is taken over by the dialog that edits it** (4.4.0, and right at 4.5.0).
+`modeFieldTick` replaces the two halves Stash renders for a STRING setting — the raw value and the
+**Edit** button that opens Stash's own text modal — with `renderModeString` and an **Auto Mode
+Settings...** button, and leaves the heading and description exactly as they are.
 
-**The trade the third option was picked over.** Leaving the field visible and only adding a button
-was less code; hiding it outright without a replacement loses both the value display and the
-hand-edit fallback the version gate assumes (`ModesDialog.save` rewrites the whole string from the
-types *this* script knows, so a newer install's unknown token is only visible and repairable as
-text). Replacing it keeps the value on screen and keeps the field one class-removal away, which is
-why the hiding is a `style.display` set per tick rather than a stylesheet rule.
+**There is no text input on that page, and 4.4.0 shipped believing there was.** Read off
+`Inputs.tsx` on `develop` (2026-08-18) after a live screenshot showed the whole row gone: a BOOLEAN
+setting goes through `BooleanSetting`, which puts the `plugin-<id>-<key>` id on the `Form.Switch`,
+but a STRING or NUMBER goes through `ModalSetting` → `ChangeButtonSetting`, which puts it on the
+**row div** — with the value in a `.value` div and an Edit button beside it. Everything here that
+walks *up* from `settingElement` was right either way, which is why nothing noticed for four
+releases; 4.4.0 set `display:none` on it and hid the heading, the description and the row with it.
+
+**The renormalizer had been dead the whole time, for the same reason.** It guarded on
+`typeof input.value !== 'string'`, which a `<div>` never satisfies, so neither the canonical rewrite
+nor the armed bar it also applied had ever run on a live page — and its suite passed throughout,
+because the fixture was built from the same wrong assumption. **A test fixture written from a guess
+about someone else's markup will confirm the guess.** The fixture now mirrors
+`ChangeButtonSetting`, and the rewrite reads the settings rather than a field: nobody can type into
+this setting from our side any more, Stash's modal is still reachable if our button never builds,
+and a config file can hold anything.
+
+**Three decisions in `modeFieldTick`**, all in the code's own comment: Stash's two halves are
+hidden from JS and only once ours are in place (a stylesheet rule would be shorter and would hide
+Stash's editor on a page where ours never built, leaving the setting with no editor at all); the
+line is drawn from the settings cache rather than from `.value`, because our dialog saves straight
+through `fetch` and Stash's React state never hears about that write; and the button is teal like
+its twin in Settings → Tasks, since what it edits is a setting and what that setting says is already
+in amber on the line above it.
+
+**The value reads in words, not tokens** (4.5.0): `Performers=Off, Scenes=Prune, Scene
+Markers=Roll Up`, from one `MODE_LABEL` table the selectors also draw their options from. The
+stored string stays what `formatAutoModes` writes, and `MODE_PAIR` accepts either shape — any case,
+`roll up`, the singular of a type — so what is shown would still be understood if it were typed
+back. **The label in front of it is gone with the raw string**: the row's own `h3` names the
+setting, and a line that repeats the name is a line the eye has to get past to reach the value.
+
+**And the dialog's preview line went with it** (4.5.0). It existed so a hand-editor could see what
+the dialog would make of their edit; there is no hand-editing from our side now, and the seven
+selectors above it said the same thing in the same words. The settings row shows the value where a
+value belongs.
 
 **Proceed, Save and Undo are amber** (4.3.0), by the repo-wide rule the buttons on the page had
 followed since 1.8.0 while these three - the only controls in the plugin that actually write -

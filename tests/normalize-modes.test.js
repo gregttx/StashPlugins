@@ -233,24 +233,14 @@ Promise.resolve()
       env.body.descendants().filter((n) => h.hasClass(n, 'npt-i-hint')).length === 0 &&
       !/largest type/.test(selectFor(env, 'Images').title),
       selectFor(env, 'Images').title);
-    const preview = env.body.descendants().filter((n) => h.hasClass(n, 'npt-modestring'))[0];
-    h.check('and shows the string it would write, under a label naming it',
-      preview.textContent ===
-        'Automatic mode per entity type Setting String: ' +
-        h.autoModes({ scenes: 'prune', images: 'rollup' }),
-      preview.textContent);
-    // A type that is not Off is one the plugin writes to by itself, which is what the
-    // amber means everywhere else in these plugins. (4.3.0)
-    const amber = () => preview.descendants()
-      .filter((n) => h.hasClass(n, 'npt-modestring-on')).map((n) => n.textContent);
-    h.check('with the modes that are not Off marked, and nothing else',
-      amber().join(',') === 'SCENES=PRUNE,IMAGES=ROLLUP', amber().join(','));
-    // The run dialog's panel sits in the padded head; this one is the whole body, so
-    // it brings its own side padding rather than touching the modal border. (4.1.1)
+    // The raw string is gone from here (4.5.0): the seven selectors say the same
+    // thing in the same words, and the settings row shows the value where the value
+    // belongs. What is left in the body is the panel alone, still padded off the
+    // modal border - this dialog's panel is the whole body, not part of a padded head.
     const panel = env.body.descendants().filter((n) => h.hasClass(n, 'npt-modes'))[0];
-    h.check('the selectors and the preview sit in a padded body',
+    h.check('the selectors sit in a padded body, with no raw string beside them',
       h.hasClass(panel.parentElement, 'npt-modesbody') &&
-      preview.parentElement === panel.parentElement,
+      !env.body.descendants().some((n) => h.hasClass(n, 'npt-modestring')),
       panel.parentElement && panel.parentElement.className);
     // It configures silent writes rather than making any, so it says that instead of
     // the backup instruction the writing dialogs carry.
@@ -260,11 +250,6 @@ Promise.resolve()
       !/[Bb]ack(ing)? up your database/.test(warn.textContent), warn.textContent);
 
     setSelect(env, 'Scenes', 'rollup');
-    h.check('the preview follows the selectors',
-      preview.textContent ===
-        'Automatic mode per entity type Setting String: ' +
-        h.autoModes({ scenes: 'rollup', images: 'rollup' }),
-      preview.textContent);
     h.check('Save is amber, like every other control that writes',
       h.hasClass(d(env).button('Save'), 'btn-warning'),
       d(env).button('Save').className);

@@ -93,22 +93,49 @@ const tagQueries = (calls) => calls.filter((c) => /NPTTags/.test(c.query || ''))
         '\n\nThe exclusion filters below still apply.',
       b2ExcludeOrganized: 'Skips any entity whose Organized flag is set.',  // one paragraph
     };
+    // The two shapes Inputs.tsx renders, which are not the same shape. A BOOLEAN goes
+    // through `BooleanSetting`, which puts the id on the Form.Switch inside the row;
+    // a STRING goes through `ModalSetting` -> `ChangeButtonSetting`, which puts it on
+    // the **row** and renders the value in a `.value` div with an Edit button beside
+    // it that opens Stash's own modal. There is no text input on the page at all.
     ['a1AutoModes', 'b2ExcludeOrganized'].forEach((k) => {
       const row = h.makeElement('div');
       row.className = 'setting';
+      const text = h.makeElement('div');
       const rowH = h.makeElement('h3');
       rowH.textContent = k;
-      row.appendChild(rowH);
+      text.appendChild(rowH);
       const rowSub = h.makeElement('div');
       rowSub.className = 'sub-heading';
       rowSub.textContent = descs[k];
-      row.appendChild(rowSub);
-      const input = h.makeElement('input');
-      input.id = 'plugin-NormalizeParentTags-' + k;
-      if (k === 'a1AutoModes' && value !== null && value !== undefined) input.value = value;
-      row.appendChild(input);
+      const entry = { row, h3: rowH, sub: rowSub };
+      if (k === 'a1AutoModes') {
+        row.id = 'plugin-NormalizeParentTags-' + k;
+        const val = h.makeElement('div');
+        val.className = 'value';
+        const span = h.makeElement('span');
+        span.textContent = value === null || value === undefined ? '' : value;
+        val.appendChild(span);
+        text.appendChild(val);
+        text.appendChild(rowSub);
+        row.appendChild(text);
+        const btnBox = h.makeElement('div');
+        const edit = h.makeElement('button');
+        edit.textContent = 'Edit';
+        btnBox.appendChild(edit);
+        row.appendChild(btnBox);
+        entry.value = val;
+        entry.edit = edit;
+      } else {
+        text.appendChild(rowSub);
+        row.appendChild(text);
+        const input = h.makeElement('input');
+        input.id = 'plugin-NormalizeParentTags-' + k;
+        row.appendChild(input);
+        entry.input = input;
+      }
       collapsed.appendChild(row);
-      rows[k] = { row, input, h3: rowH, sub: rowSub };
+      rows[k] = entry;
     });
     group.appendChild(collapsed);
 
@@ -513,29 +540,34 @@ Promise.resolve()
       });
   })
 
-  // ── Renormalizing the auto-mode field ─────────────────────────────────────
+  // ── Renormalizing the auto-mode setting ───────────────────────────────────
   //
-  // The field is one line of text and the user may edit it, so the parse is
-  // forgiving; what gets stored is not. Once Stash has saved an edit, the plugin
-  // writes back what it understood, in canonical form - which is also how the user
-  // finds out it understood.
+  // The setting is one line of text and anything may have written it - Stash own
+  // raw-text modal, a config file, an older release - so the parse is forgiving; what
+  // gets stored is not. The plugin writes back what it understood, in canonical form.
   //
   // Up to 3.2.0 this section held a notice for the one configuration the old settings
   // could express and the plugin could not honour: both auto modes ticked at once,
   // which ran neither. A tri-state per type cannot say that, so there is nothing left
   // to warn about.
   //
-  // The DOM mirrors what Stash builds:
+  // The DOM mirrors what Stash builds, which for a STRING setting is a row carrying
+  // the id, a `.value` div and an Edit button - not a text input:
   //
   //   <div class="setting-group collapsible">
   //     <div class="setting"><div><h3>ᝯㄝₓ Normalize Parent Tags (1.2.5)</h3></div></div>
   //     <div class="collapse">
-  //       <div class="setting"><input id="plugin-NormalizeParentTags-a1AutoModes"></div>
+  //       <div class="setting" id="plugin-NormalizeParentTags-a1AutoModes">
+  //         <div><h3>..</h3><div class="value"><span>RAW</span></div>
+  //              <div class="sub-heading">..</div></div>
+  //         <div><button>Edit</button></div>
+  //       </div>
   //     </div>
   //   </div>
 
   .then(() => {
-    const a = page('scene=prune;  IMAGES = roll up | markers=off');
+    const RAW = 'scene=prune;  IMAGES = roll up | markers=off';
+    const a = page(RAW, { settings: { a1AutoModes: RAW } });
     const saves = () => a.env.calls.filter((c) => /configurePlugin/.test(c.query || ''));
     a.env.tick();
     return h.flush().then(() => {
@@ -553,72 +585,48 @@ Promise.resolve()
     });
   })
 
-  // The armed bar (4.1.0): the field wears it while at least one type is not Off. Read
-  // off the input rather than the settings, so it follows what is being typed instead
-  // of a debounced save - which is also why it lands on a focused field the
-  // renormalization deliberately leaves alone.
-  .then(() => {
-    const on = page('scenes=prune');
-    on.env.tick();
-    const off = page(h.autoModes({}));
-    off.env.tick();
-    const typing = page('markers = rollup');
-    typing.env.ctx.document.activeElement = typing.rows.a1AutoModes.input;
-    typing.env.tick();
-    const junk = page('nonsense');
-    junk.env.tick();
-    return h.flush().then(() => {
-      h.check('an armed field wears the bar',
-        h.hasClass(on.rows.a1AutoModes.input, 'npt-armed'),
-        on.rows.a1AutoModes.input.className);
-      h.check('an all-Off one does not', !h.hasClass(off.rows.a1AutoModes.input, 'npt-armed'),
-        off.rows.a1AutoModes.input.className);
-      h.check('a field still being typed into is marked, though not rewritten',
-        h.hasClass(typing.rows.a1AutoModes.input, 'npt-armed'),
-        typing.rows.a1AutoModes.input.className);
-      h.check('and text the parser gets nothing out of arms nothing',
-        !h.hasClass(junk.rows.a1AutoModes.input, 'npt-armed'),
-        junk.rows.a1AutoModes.input.className);
-    });
-  })
-
-  // The field is replaced by the dialog that edits it (4.4.0): hidden, with the same
-  // labelled line the dialog previews and the button that opens it in its place. The
-  // line is drawn from the *settings*, not the field, since the dialog saves straight
-  // through fetch and Stash's own React state never hears about it.
+  // The setting row, taken over by the dialog that edits it (4.5.0). Stash renders a
+  // STRING setting as a value plus an Edit button that opens its own raw-text modal;
+  // both halves are replaced, and the heading and description around them are left
+  // exactly as they are - 4.4.0 read the row as though it were a text input and hid
+  // the lot.
   .then(() => {
     const p1 = page(h.autoModes({ scenes: 'prune' }), { modes: { scenes: 'prune' } });
     p1.env.tick();
     return h.flush().then(() => {
-      const input = p1.rows.a1AutoModes.input;
-      const box = p1.env.ctx.document.getElementById('npt-modes-field');
-      h.check('the field is hidden and our box stands in its place',
-        !!box && box.parentNode === input.parentNode && input.style.display === 'none',
-        String(box && box.parentNode === input.parentNode) + '/' + input.style.display);
-      const line = box.childNodes[0];
-      h.check('the line is the string the dialog previews, label and all',
-        line.textContent === 'Automatic mode per entity type Setting String: ' +
-          h.autoModes({ scenes: 'prune' }), line.textContent);
-      const amber = box.descendants()
+      const r = p1.rows.a1AutoModes;
+      const line = p1.env.ctx.document.getElementById('npt-modes-line');
+      const btn = p1.env.ctx.document.getElementById('npt-modes-button');
+      h.check('our line replaces the raw value, beside it rather than inside it',
+        !!line && line.parentNode === r.value.parentNode && r.value.style.display === 'none',
+        String(!!line) + '/' + r.value.style.display);
+      h.check('and the heading and description stay where Stash put them',
+        r.h3.parentNode === r.value.parentNode && r.sub.parentNode === r.value.parentNode);
+      // Words rather than tokens: this is a value being read, not one being typed.
+      h.check('the value reads in capitalized words',
+        line.textContent === 'Performers=Off, Studios=Off, Groups=Off, Galleries=Off, ' +
+          'Scenes=Prune, Images=Off, Scene Markers=Off', line.textContent);
+      const amber = line.descendants()
         .filter((n) => h.hasClass(n, 'npt-modestring-on')).map((n) => n.textContent);
-      h.check('with the armed type marked and the bar on the box',
-        amber.join(',') === 'SCENES=PRUNE' && h.hasClass(box, 'npt-armed'),
-        amber.join(',') + ' / ' + box.className);
-      const btn = box.descendants().filter((n) => n.tagName === 'BUTTON')[0];
-      h.check('and the button beside it is teal, like its twin in Settings - Tasks',
+      h.check('with the armed type marked and the bar on the row',
+        amber.join(',') === 'Scenes=Prune' && h.hasClass(r.row, 'npt-armed'),
+        amber.join(',') + ' / ' + r.row.className);
+      h.check('Stash Edit button is hidden and ours takes its slot, teal',
+        r.edit.style.display === 'none' && btn.parentNode === r.edit.parentNode &&
         btn.textContent === 'Auto Mode Settings...' && h.hasClass(btn, 'btn-info'),
-        btn.textContent + ' / ' + btn.className);
+        r.edit.style.display + ' / ' + btn.className);
       btn.click();
       return h.flush().then(() => {
-        h.check('pressing it opens the dialog rather than the browser doing anything',
+        h.check('pressing it opens our dialog rather than Stash raw-text modal',
           h.dialog(p1.env.ctx.document.body).open);
-        // A second tick must not stack a second box, or leave the first behind.
         p1.env.tick();
         return h.flush().then(() => {
-          const boxes = p1.env.ctx.document.body.descendants()
-            .filter((n) => h.hasClass(n, 'npt-fieldbox'));
-          h.check('and the tick that follows leaves exactly one box',
-            boxes.length === 1, String(boxes.length));
+          const lines = p1.env.ctx.document.body.descendants()
+            .filter((n) => n.id === 'npt-modes-line');
+          h.check('and the tick that follows leaves exactly one line and one button',
+            lines.length === 1 && p1.env.ctx.document.body.descendants()
+              .filter((n) => n.id === 'npt-modes-button').length === 1,
+            String(lines.length));
         });
       });
     });
@@ -628,42 +636,50 @@ Promise.resolve()
     const p2 = page(h.autoModes({}), { modes: {} });
     p2.env.tick();
     return h.flush().then(() => {
-      const box = p2.env.ctx.document.getElementById('npt-modes-field');
+      const line = p2.env.ctx.document.getElementById('npt-modes-line');
       h.check('an all-Off setting marks nothing and wears no bar',
-        !box.descendants().some((n) => h.hasClass(n, 'npt-modestring-on')) &&
-        !h.hasClass(box, 'npt-armed'), box.className);
+        !line.descendants().some((n) => h.hasClass(n, 'npt-modestring-on')) &&
+        !h.hasClass(p2.rows.a1AutoModes.row, 'npt-armed'),
+        p2.rows.a1AutoModes.row.className);
     });
   })
 
-  // The field is the user's to type in. A value that is already canonical needs no
-  // write, and one being typed into - focused - must not be replaced under the cursor.
+  // The value is still normalized, but from the settings rather than from a field:
+  // Stash own modal is still reachable if ours never builds, and a config file can
+  // hold anything. A canonical value is left alone, and an empty one means "nothing
+  // configured" - writing seven OFFs into it would be the plugin saving settings for
+  // someone who has only looked at the page.
   .then(() => {
-    const a = page(h.autoModes({ scenes: 'prune' }));
+    const a = page(h.autoModes({ scenes: 'prune' }), { modes: { scenes: 'prune' } });
     a.env.tick();
     return h.flush().then(() => {
-      h.check('a canonical field is left alone',
+      h.check('a canonical setting is left alone',
         !a.env.calls.some((c) => /configurePlugin/.test(c.query || '')),
         a.env.calls.map((c) => c.query).join(' | '));
 
-      const b = page('scenes=prune');
-      b.env.ctx.document.activeElement = b.rows.a1AutoModes.input;
+      const b = page('scenes=prune', { settings: { a1AutoModes: 'scenes=prune' } });
       b.env.tick();
       return h.flush().then(() => {
-        h.check('and one being typed into is not rewritten under the cursor',
-          !b.env.calls.some((c) => /configurePlugin/.test(c.query || '')),
-          b.env.calls.map((c) => c.query).join(' | '));
+        const w = b.env.calls.filter((c) => /configurePlugin/.test(c.query || ''));
+        h.check('a hand-written one is rewritten in canonical form once',
+          w.length === 1 &&
+          w[0].variables.input.a1AutoModes === h.autoModes({ scenes: 'prune' }),
+          w.length + ' / ' + (w[0] && w[0].variables.input.a1AutoModes));
+        b.env.tick();
+        return h.flush().then(() => {
+          h.check('and not again on the next tick',
+            b.env.calls.filter((c) => /configurePlugin/.test(c.query || '')).length === 1,
+            String(b.env.calls.filter((c) => /configurePlugin/.test(c.query || '')).length));
+        });
       });
     });
   })
 
-  // An empty field means "nothing configured", which is what a fresh install has.
-  // Writing seven OFFs into it would be the plugin saving settings for someone who
-  // has only looked at the page.
   .then(() => {
-    const a = page('   ');
+    const a = page('   ', { settings: { a1AutoModes: '   ' } });
     a.env.tick();
     return h.flush().then(() => {
-      h.check('an empty field is not filled in',
+      h.check('an empty setting is not filled in',
         !a.env.calls.some((c) => /configurePlugin/.test(c.query || '')),
         a.env.calls.map((c) => c.query).join(' | '));
     });

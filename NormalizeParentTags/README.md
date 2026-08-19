@@ -318,18 +318,18 @@ Stash saves one; a type set to **ROLLUP** has every ancestor added; **OFF** is l
 that is not mentioned at all is OFF.
 
 **The Auto Mode Settings... dialog is the editor for it** — seven selectors and an amber **Save**,
-so nobody has to type the line. Under the selectors is the line itself, labelled and shown as the
-setting would hold it, with every type that is not OFF in the same amber the selectors use.
+so nobody has to type the line.
 
-**On the settings page you get that dialog instead of the text box.** The plugin hides Stash's
-one-line field and puts the value — the same labelled, amber-marked line — in its place, with an
-**Auto Mode Settings...** button beside it. The same dialog is a task in **Settings → Tasks**, and
-both open the same thing.
+**On the settings page you get that dialog instead of Stash's text editor.** In the **Automatic
+mode per entity type** row, the value is shown in words — `Performers=Off, Scenes=Prune, Scene
+Markers=Roll Up`, with every type that is not Off in amber — and the **Edit** button beside it is
+replaced by **Auto Mode Settings...**, which opens the dialog. The same dialog is a task in
+**Settings → Tasks**, and both open the same thing.
 
-The line is still plain text underneath, and anything that writes it directly is still read
-forgivingly: any order, any case, the singular of a type (`SCENE=PRUNE`), `ROLL UP` for `ROLLUP`,
-and whatever separators you like between the pairs. Whatever it understood is written back in the
-canonical form above, which is also how you can tell it understood.
+The setting is still plain text underneath, and anything that writes it directly — a config file,
+another plugin, an older release — is read forgivingly: any order, any case, the singular of a type
+(`SCENE=PRUNE`), `ROLL UP` for `ROLLUP`, and whatever separators you like between the pairs.
+Whatever it understood is written back in the canonical form above.
 
 > ### ⚠ There is no dialog and no undo out here
 >
@@ -342,7 +342,7 @@ canonical form above, which is also how you can tell it understood.
 > you set it here.
 
 **It is the only setting here that makes the plugin write on its own** — the rest just choose what
-a run covers — so it is the one worth a second look. **The line carries an amber bar down its left
+a run covers — so it is the one worth a second look. **The row carries an amber bar down its left
 edge while at least one type is set to something other than OFF**, and nothing when they are all
 OFF. The same bar is on the **Auto Mode Settings...** button in Settings → Tasks, which is where
 you see it without going looking.

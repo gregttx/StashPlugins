@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.2.0';
+  var PLUGIN_VERSION = '3.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1068,16 +1068,18 @@
     '.ptp2re-spin{color:#a7b6c2;}' +
     // The log's own line kinds, which the siblings do not share: this plugin adds
     // both tags and performers, so ADD alone would not say which.
-    // The path selectors: the whole body of the settings dialog, in two columns of
-    // label-and-select. Each column is a grid of its own rather than the whole panel
-    // being one four-column grid, because a shared grid sizes both label columns to
-    // the widest label in either - and the rows are `display:contents` so each row's
-    // two cells are its own column's.
+    // The path toggles: the whole body of the settings dialog, in three columns of
+    // label-and-button. Each column is a grid of its own rather than the whole panel
+    // being one six-column grid, because a shared grid sizes every label column to
+    // the widest label in any of them - and the rows are `display:contents` so each
+    // row's two cells are its own column's.
     //
     // `max-content` on both, not `1fr auto`: a flexing label column stretches to the
     // panel and leaves the select stranded at the far side of the modal, which is
     // exactly what the first version of this did.
     '.ptp2re-paths{display:flex;flex-wrap:wrap;gap:0 2rem;margin:.5rem 0;}' +
+    // The three bulk buttons, above the columns.
+    '.ptp2re-paths-bulk{display:flex;flex-wrap:wrap;gap:.4rem;margin:.25rem 0 .75rem;}' +
     '.ptp2re-paths-col{display:grid;grid-template-columns:max-content max-content;' +
     'gap:.3rem .6rem;align-items:center;align-content:start;}' +
     '.ptp2re-path-row{display:contents;}' +
@@ -1087,6 +1089,12 @@
     // of five different caption widths from looking ragged: the grid column is already
     // `max-content`, and stretching each button across it lines their edges up.
     '.ptp2re-toggle{justify-self:stretch;white-space:nowrap;}' +
+    // The two paths that can be `common` are the only ones whose caption changes
+    // width with its state, and a `max-content` column resizes under the pointer when
+    // one does. A floor wide enough for the longest of the three captions holds them
+    // still. A floor rather than a fixed width: it can only stop the button shrinking,
+    // so a theme whose font is wider than this grows the button instead of clipping it.
+    '.ptp2re-toggle-wide{min-width:9.5rem;}' +
     '.ptp2re-pathsbody{padding:.5rem 1rem;overflow:auto;}' +
     // The enabled paths as the settings row shows them. Prose rather than the
     // sibling's monospace: what is rendered here is `pathLabel`, the same sentence
@@ -3186,8 +3194,14 @@
   // is what a path being on means. Off is `btn-secondary`, both on-states are amber;
   // which of the two an amber button is in is what its caption says.
   //
-  // In two columns filled top to bottom so that reading down one and then the other is
-  // still pipeline order - which the head states is semantics here, not presentation. The label is `pathLabel`, the same string the
+  // In three columns filled top to bottom. The first two hold the eleven two-state
+  // paths in pipeline order - which the head states is semantics here, not
+  // presentation - and the third holds the two paths that can be `common`, together.
+  // They are the only buttons whose caption changes width as it changes state, and a
+  // column that resizes under the pointer is what pulled them out of the sequence;
+  // `.ptp2re-toggle-wide` then holds them at the width of their longest caption so
+  // even their own column stops moving. Pipeline order still reads down each column,
+  // which is what the order is for. The label is `pathLabel`, the same string the
   // log and the dialog heads use, so there is no second naming of a path anywhere.
   //
   // Deliberately *not* grouped under an "Into <plural>" heading, which is what this
@@ -3198,12 +3212,14 @@
   PathsDialog.prototype.panel = function () {
     var self = this;
     var wrap = el('div', 'ptp2re-paths');
-    var cols = [el('div', 'ptp2re-paths-col'), el('div', 'ptp2re-paths-col')];
+    var cols = [el('div', 'ptp2re-paths-col'), el('div', 'ptp2re-paths-col'),
+                el('div', 'ptp2re-paths-col')];
     cols.forEach(function (c) { wrap.appendChild(c); });
-    var split = Math.ceil(PATHS.length / 2);
+    var plain = PATHS.filter(function (p) { return !p.common; });
+    var split = Math.ceil(plain.length / 2);
     this.toggles = {};
-    PATHS.forEach(function (p, i) {
-      var col = cols[i < split ? 0 : 1];
+    PATHS.forEach(function (p) {
+      var col = p.common ? cols[2] : cols[plain.indexOf(p) < split ? 0 : 1];
       var row = el('div', 'ptp2re-path-row');
       row.appendChild(el('span', 'ptp2re-path-name', pathLabel(p)));
       var labels = pathLabels(p), states = pathStates(p);
@@ -3213,8 +3229,8 @@
       function paint() {
         var mode = self.modes[p.id] || PATH_OFF;
         btn.textContent = labels[mode];
-        btn.className = 'btn btn-sm ptp2re-toggle ' +
-          (mode === PATH_OFF ? 'btn-secondary' : PLUGIN_BTN_VARIANT);
+        btn.className = 'btn btn-sm ptp2re-toggle' + (p.common ? ' ptp2re-toggle-wide' : '') +
+          ' ' + (mode === PATH_OFF ? 'btn-secondary' : PLUGIN_BTN_VARIANT);
       }
       paint();
       btn.addEventListener('click', function (e) {
@@ -3230,6 +3246,37 @@
     return wrap;
   };
 
+  // The three bulk buttons above the columns. Thirteen presses to turn everything on
+  // is what they save, and they are the only place `common` can be asked for across
+  // the board: a path that cannot take a mode takes the nearest one it can, which for
+  // both "All On" buttons is plain On. So "All On / Common Tags" is not a fourteenth
+  // state - it is "on everywhere, and common wherever common exists".
+  PathsDialog.prototype.bulkRow = function () {
+    var self = this;
+    var row = el('div', 'ptp2re-paths-bulk');
+    this.bulkBtns = [[PATH_OFF, 'All Off'], [PATH_ON, 'All On / All Tags'],
+                     [PATH_COMMON, 'All On / Common Tags']].map(function (pair) {
+      var b = el('button', 'btn btn-sm ' +
+        (pair[0] === PATH_OFF ? 'btn-secondary' : PLUGIN_BTN_VARIANT), pair[1]);
+      b.type = 'button';
+      b.addEventListener('click', function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        self.setAll(pair[0]);
+      });
+      row.appendChild(b);
+      return b;
+    });
+    return row;
+  };
+
+  PathsDialog.prototype.setAll = function (mode) {
+    var self = this;
+    PATHS.forEach(function (p) {
+      self.modes[p.id] = pathStates(p).indexOf(mode) >= 0 ? mode : PATH_ON;
+      self.toggles[p.id].paint();
+    });
+  };
+
   // Sets the modes without going through a click: this is the dialog telling the
   // buttons what it found, which is not the user pressing them.
   PathsDialog.prototype.set = function (modes) {
@@ -3243,6 +3290,7 @@
   PathsDialog.prototype.enable = function (on) {
     var self = this;
     PATHS.forEach(function (p) { self.toggles[p.id].el.disabled = !on; });
+    (this.bulkBtns || []).forEach(function (b) { b.disabled = !on; });
   };
 
   PathsDialog.prototype.build = function () {
@@ -3270,6 +3318,7 @@
     this.modal.appendChild(head);
 
     var body = el('div', 'ptp2re-pathsbody');
+    body.appendChild(this.bulkRow());
     body.appendChild(this.panel());
     this.enable(false);
     this.modal.appendChild(body);

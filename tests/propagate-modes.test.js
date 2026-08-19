@@ -273,18 +273,37 @@ Promise.resolve()
     h.check('named the way the log names a path',
       rowName(toggles(env)[0]) === 'Performers: Images → Galleries',
       toggles(env).map(rowName).join(' | '));
-    h.check('in the order a run walks them',
-      toggles(env).map(rowName).join(',') === api(env).PATHS.map(api(env).pathLabel).join(','),
-      toggles(env).map(rowName).join(','));
-    // Two columns, filled top to bottom, so reading down one and then the other is
-    // still pipeline order. Deliberately not grouped under an "Into <plural>"
-    // heading: pipeline order visits a target, leaves it and comes back, so a heading
-    // at a target's first path collects later paths under whichever one preceded them.
+    // Three columns: the eleven two-state paths split evenly over the first two in
+    // pipeline order, and the two that can be `common` together in the third - they
+    // are the only buttons whose caption changes width with its state, and a column
+    // that resizes under the pointer is what pulled them out of the sequence.
+    // Deliberately not grouped under an "Into <plural>" heading: pipeline order
+    // visits a target, leaves it and comes back, so a heading at a target's first
+    // path collects later paths under whichever one preceded them.
     const cols = env.ctx.document.body.descendants()
       .filter((n) => h.hasClass(n, PREFIX + '-paths-col'));
-    h.check('laid out in two columns, split evenly and in order',
-      cols.length === 2 && cols[0].childNodes.length === 7 && cols[1].childNodes.length === 6,
+    h.check('laid out in three columns, the moded pair in the last',
+      cols.length === 3 && cols[0].childNodes.length === 6 &&
+      cols[1].childNodes.length === 5 && cols[2].childNodes.length === 2,
       cols.map((c) => c.childNodes.length).join('/'));
+    const walked = api(env).PATHS.map(api(env).pathLabel);
+    h.check('each column in the order a run walks them',
+      cols.every((c) => {
+        const names = c.childNodes.map((r) => rowName(r.childNodes[1]));
+        return names.join(',') === walked.filter((n) => names.indexOf(n) >= 0).join(',');
+      }),
+      cols.map((c) => c.childNodes.map((r) => rowName(r.childNodes[1])).join(',')).join(' | '));
+    const last = cols[cols.length - 1] || { childNodes: [] };
+    h.check('and the moded pair is what the third column holds',
+      last.childNodes.map((r) => rowName(r.childNodes[1])).join(',') ===
+        'Tags: Scenes \u2192 Groups,Tags: Sub-groups \u2192 Groups',
+      last.childNodes.map((r) => rowName(r.childNodes[1])).join(','));
+    // Their captions run from "Off" to "Common tags only", so the column would resize
+    // on every press without a floor under the button.
+    h.check('and only those two carry the width floor',
+      toggles(env).filter((b) => h.hasClass(b, PREFIX + '-toggle-wide')).map(rowName).join(',') ===
+        'Tags: Scenes \u2192 Groups,Tags: Sub-groups \u2192 Groups',
+      toggles(env).filter((b) => h.hasClass(b, PREFIX + '-toggle-wide')).map(rowName).join(','));
     h.check('and nothing groups them by target, which would break that order',
       !env.ctx.document.body.descendants().some((n) => /Into /.test(n.textContent || '') &&
         h.hasClass(n, PREFIX + '-path-name')),
@@ -323,6 +342,33 @@ Promise.resolve()
       toggleFor(env, 'Tags: Sub-groups → Groups').title ===
         'Click to cycle: Off → All tags → Common tags only',
       toggleFor(env, 'Tags: Sub-groups → Groups').title);
+    // Thirteen presses to turn a library on is what the bulk row saves. "All On /
+    // Common Tags" is not a fourteenth state: a path that cannot take a mode takes
+    // the nearest one it can, which is plain On.
+    const bulk = (caption) => env.ctx.document.body.descendants()
+      .filter((n) => n.tagName === 'BUTTON' && n.textContent === caption)[0];
+    h.check('three bulk buttons above the columns',
+      ['All Off', 'All On / All Tags', 'All On / Common Tags'].every(bulk),
+      env.ctx.document.body.descendants()
+        .filter((n) => h.hasClass(n.parentNode || {}, PREFIX + '-paths-bulk'))
+        .map((n) => n.textContent).join(' | '));
+    h.check('All Off turns every path off in one press',
+      (() => { bulk('All Off').click();
+        return toggles(env).every((b) => b.textContent === 'Off'); })(),
+      toggles(env).map((b) => b.textContent).join(','));
+    h.check('All On / All Tags turns every path on, none of them common',
+      (() => { bulk('All On / All Tags').click();
+        return toggles(env).every((b) => b.textContent === 'On' || b.textContent === 'All tags') &&
+          !toggles(env).some((b) => b.textContent === 'Common tags only'); })(),
+      toggles(env).map((b) => b.textContent).join(','));
+    h.check('All On / Common Tags asks for common only where common exists',
+      (() => { bulk('All On / Common Tags').click();
+        return toggles(env).filter((b) => b.textContent === 'Common tags only').length === 2 &&
+          toggles(env).filter((b) => b.textContent === 'On').length === 11; })(),
+      toggles(env).map((b) => b.textContent).join(','));
+    bulk('All Off').click();
+    setMode(env, 'Tags: Studio → Scenes', 'On');
+    setMode(env, 'Tags: Scenes → Groups', 'Common tags only');
     h.check('a path that is on wears the amber every writing control here wears',
       h.hasClass(setMode(env, 'Tags: Studio → Scenes', 'On'), 'btn-warning') &&
       h.hasClass(setMode(env, 'Tags: Groups → Scenes', 'Off'), 'btn-secondary'),

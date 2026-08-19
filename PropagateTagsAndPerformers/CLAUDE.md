@@ -5,10 +5,30 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.2.0.** Every step in the table below has landed, so the version left the
+**Status: released, 3.3.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.3.0 pulls the two moded paths into a column of their own and adds three bulk buttons.** Both
+came from live use of 3.2.0 and both are about the same thing - a `max-content` grid column resizes
+to whatever its widest button currently says, so pressing one of the two paths that cycle through
+*Off / All tags / Common tags only* moved the column, and with it every label beside it. They are the
+only two buttons here whose caption changes width, so they now share the third column and carry
+`.ptp2re-toggle-wide`, a `min-width` floor sized for the longest of their three captions. **A floor,
+not a fixed width**: it can only stop a button shrinking, so a theme with a wider font grows the
+button rather than clipping the caption.
+
+**Pipeline order still reads down each column, and that is the whole of what the order promises.**
+Pulling two paths out of the sequence is a smaller cost than it looks: the dialog's head states the
+order matters, and it still holds *within* a column - what the third column loses is its position
+relative to the other eleven, which is a claim nobody reads off two columns either.
+
+**"All On / Common Tags" is not a fourteenth state.** `setAll(mode)` gives each path the mode if
+`pathStates(p)` has it and plain On otherwise, so one function covers all three buttons and a path
+that grows a mode later is covered without an edit. All Off is grey and the two All On buttons are
+amber, matching the per-path buttons below them rather than the footer's rule - they set the same
+states those buttons set.
 
 **3.2.0 makes each path's control a button that carries its own state.** A `<select>` costs two
 clicks for every change - one to open the list, one to pick - so thirteen of them is twenty-six

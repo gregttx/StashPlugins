@@ -66,6 +66,14 @@ The two paths with a third state cycle *Off → All tags → Common tags only*, 
 the button's tooltip — HTML has no tri-state button, so cycling is what a single control can offer,
 and it is still never more clicks than the drop-down it replaced.
 
+Above them, **All Off**, **All On / All Tags** and **All On / Common Tags** set every path in one
+press. The last one asks for common tags wherever a path offers them and plain *On* everywhere else,
+since only the two group aggregations have the choice.
+
+The paths sit in three columns. The first two hold the eleven straightforward ones in the order a
+run walks them; the third holds the two whose caption changes width as it changes state, so nothing
+in the other columns moves under the pointer while you set them.
+
 ### Tags
 
 | Onto | From | Notes |
@@ -443,8 +451,8 @@ two automatic modes (react when the *target* is saved, or when a *source* is sav
 source-side mode fans out: saving one performer can rewrite every scene they appear in.
 
 **Paths** — one row, listing the paths that are on in three columns and holding the button that
-opens the **Path Settings** dialog. All thirteen are in that dialog, in two columns read top to bottom — which is
-the order a run walks them in, and that order decides what one run reaches. Each is *Off* or *On*,
+opens the **Path Settings** dialog. All thirteen are in that dialog, in three columns read top to
+bottom — which is the order a run walks them in, and that order decides what one run reaches. Each is *Off* or *On*,
 and the two group aggregations offer *Common tags only* as a third choice. The setting itself is one line of text (`tags:studio>scene=ON,
 tags:scene>group=COMMON`) and can be typed by hand — it is read forgivingly, in any order and any
 case, and rewritten in canonical form. A path nobody names is off. Upgrading from an earlier

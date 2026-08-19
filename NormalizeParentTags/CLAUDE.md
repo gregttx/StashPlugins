@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.2.0.** This file is both the design and the map of the code — the
+**Status: implemented at 4.2.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -478,12 +478,14 @@ a **keep this selection** checkbox. Five decisions in it are worth not re-litiga
   `parseAutoModes(formatAutoModes(...))` on the way out, so a hand-edited or truncated value can
   only ever read as OFF.
 
-**Each label sits beside its own select** (4.1.1). The rows were `justify-content:space-between`
-inside grid columns, which lined all seven selects up in a straight column and — live — read as each
-select belonging to the *type on its right*, since the gap to its own label was wider than the gap
-to the next column. A `min-width` on the label keeps the selects aligned without the label ever
-being pushed away from the thing it names, and it does not truncate a label longer than the minimum.
-**Aligning two columns is not worth separating a label from its control.**
+**The selects line up and the labels are right-aligned against them** (4.2.1). Three tries: the
+rows were `justify-content:space-between`, which lined all seven selects up in a straight column but
+left each label at the far left of its own row, so a select read as belonging to the *type on its
+right*; 4.1.1 answered with a `min-width` on the label, which pulled the pair together and gave up
+the aligned column. `flex:1;text-align:right` on the label is both — the select stays at the end of
+the column and the label's text ends right beside it. **A label separated from its control was the
+alignment being paid for in the wrong currency; right-aligning the text is what the column cost
+was actually for.**
 
 **The settings dialog's panel brings its own side padding** (4.1.1), because it is the modal's body
 rather than part of the padded head the run dialog puts it in. `.npt-modesbody` wraps the panel and

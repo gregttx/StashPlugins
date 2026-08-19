@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.2.0';
+  var PLUGIN_VERSION = '4.2.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1289,12 +1289,12 @@
     // different lengths line their selects up only if the columns are shared.
     '.npt-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));' +
     'gap:.35rem .9rem;margin:.5rem 0;}' +
-    // The label sits beside its own select, not at the far end of the column: with
-    // `space-between` the seven selects lined up beautifully and each one read as
-    // belonging to the *next* type along. A min-width on the label keeps the column
-    // of selects straight without truncating a label longer than it.
+    // The select sits at the far end of its column so the seven line up, and the
+    // label is right-aligned against it: a flexing label puts its text next to the
+    // select it names rather than at the opposite end of the row, which is what made
+    // the aligned column read as belonging to the next type along.
     '.npt-mode-row{display:flex;align-items:center;gap:.4rem;}' +
-    '.npt-mode-name{color:#d6dee4;font-size:.9rem;min-width:6.5rem;}' +
+    '.npt-mode-name{color:#d6dee4;font-size:.9rem;flex:1;text-align:right;}' +
     // Byte-identical with TagBundleClipboard's .tbc-mode: a mode select in a dialog
     // is the same thing in both, so the shared-CSS suite is right to insist.
     '.npt-mode{background:#30404d;color:#f5f8fa;border:1px solid #394b59;' +

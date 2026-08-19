@@ -212,6 +212,13 @@ Promise.resolve()
     h.check('and shows the string it would write',
       preview.textContent === h.autoModes({ scenes: 'prune', images: 'rollup' }),
       preview.textContent);
+    // The run dialog's panel sits in the padded head; this one is the whole body, so
+    // it brings its own side padding rather than touching the modal border. (4.1.1)
+    const panel = env.body.descendants().filter((n) => h.hasClass(n, 'npt-modes'))[0];
+    h.check('the selectors and the preview sit in a padded body',
+      h.hasClass(panel.parentElement, 'npt-modesbody') &&
+      preview.parentElement === panel.parentElement,
+      panel.parentElement && panel.parentElement.className);
     // It configures silent writes rather than making any, so it says that instead of
     // the backup instruction the writing dialogs carry.
     const warn = env.body.descendants().filter((n) => h.hasClass(n, 'npt-warn'))[0];

@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.1.0';
+  var PLUGIN_VERSION = '4.1.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1283,8 +1283,12 @@
     // different lengths line their selects up only if the columns are shared.
     '.npt-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));' +
     'gap:.35rem .9rem;margin:.5rem 0;}' +
-    '.npt-mode-row{display:flex;align-items:center;gap:.4rem;justify-content:space-between;}' +
-    '.npt-mode-name{color:#d6dee4;font-size:.9rem;}' +
+    // The label sits beside its own select, not at the far end of the column: with
+    // `space-between` the seven selects lined up beautifully and each one read as
+    // belonging to the *next* type along. A min-width on the label keeps the column
+    // of selects straight without truncating a label longer than it.
+    '.npt-mode-row{display:flex;align-items:center;gap:.4rem;}' +
+    '.npt-mode-name{color:#d6dee4;font-size:.9rem;min-width:6.5rem;}' +
     // Byte-identical with TagBundleClipboard's .tbc-mode: a mode select in a dialog
     // is the same thing in both, so the shared-CSS suite is right to insist.
     '.npt-mode{background:#30404d;color:#f5f8fa;border:1px solid #394b59;' +
@@ -1292,6 +1296,9 @@
     // Amber wherever the selector is set to something that writes, the same rule the
     // buttons follow. A <select> has no Bootstrap variant to borrow.
     '.npt-mode-on{border-color:#ffb648;color:#ffb648;}' +
+    // The run dialog's panel lives in the padded head; the settings dialog's is the
+    // whole body, so it brings its own side padding rather than touching the border.
+    '.npt-modesbody{padding:.5rem 1rem;}' +
     '.npt-persist{display:flex;align-items:center;gap:.4rem;color:#a7b6c2;' +
     'font-size:.85rem;margin:.35rem 0 0;}' +
     // The string the settings dialog is about to write, shown in the form the setting
@@ -2446,15 +2453,17 @@
     head.appendChild(this.noteEl);
     this.modal.appendChild(head);
 
+    var body = el('div', 'npt-modesbody');
     this.panel = modesPanel(this.modes, function () { self.render(); });
     this.panel.enable(false);
-    this.modal.appendChild(this.panel.el);
+    body.appendChild(this.panel.el);
 
     // What will be written, in the form the setting holds it. It is the same string
     // the settings page shows, so someone who wants to edit it by hand can see what
     // this dialog would have made of their edit before making it themselves.
     this.previewEl = el('div', 'npt-modestring', '');
-    this.modal.appendChild(this.previewEl);
+    body.appendChild(this.previewEl);
+    this.modal.appendChild(body);
 
     var foot = el('div', 'npt-foot');
     this.saveBtn   = button('Save', 'npt-proceed');

@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.1.0.** This file is both the design and the map of the code — the
+**Status: implemented at 4.1.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -473,6 +473,18 @@ a **keep this selection** checkbox. Five decisions in it are worth not re-litiga
   beside the auto modes is exactly the confusion 4.0.0 removed. It is re-parsed through
   `parseAutoModes(formatAutoModes(...))` on the way out, so a hand-edited or truncated value can
   only ever read as OFF.
+
+**Each label sits beside its own select** (4.1.1). The rows were `justify-content:space-between`
+inside grid columns, which lined all seven selects up in a straight column and — live — read as each
+select belonging to the *type on its right*, since the gap to its own label was wider than the gap
+to the next column. A `min-width` on the label keeps the selects aligned without the label ever
+being pushed away from the thing it names, and it does not truncate a label longer than the minimum.
+**Aligning two columns is not worth separating a label from its control.**
+
+**The settings dialog's panel brings its own side padding** (4.1.1), because it is the modal's body
+rather than part of the padded head the run dialog puts it in. `.npt-modesbody` wraps the panel and
+the preview string; without it both sat flush against the modal border, which is the sort of thing
+only visible in a live instance and looked exactly like a missing rule in the shared chrome.
 
 **The recap lines split by direction** because one run can do both: `planTagCounts(plan, dir)` takes
 the direction, `appliedTags`/`undoneTags` are `{ ADD: {}, REMOVE: {} }`, and an empty half prints

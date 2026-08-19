@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.6.0';
+  var PLUGIN_VERSION = '3.6.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -422,7 +422,7 @@
   var PATH_COLUMNS = [
     ['tags:studio>group', 'tags:group>scene', 'tags:image>gallery', 'tags:gallery>image',
      'tags:marker>group', 'tags:marker>scene'],
-    ['tags:studio>scene', 'tags:performer>scene', 'tags:performer>group', null,
+    ['tags:studio>scene', 'tags:performer>group', 'tags:performer>scene', null,
      'performers:image>gallery', 'performers:gallery>scene'],
     ['tags:scene>group', 'tags:subgroup>group'],
   ];

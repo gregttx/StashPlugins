@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.2.2.** This file is both the design and the map of the code — the
+**Status: implemented at 4.3.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -491,6 +491,21 @@ the aligned column. `flex:1;text-align:right` on the label is both — the selec
 the column and the label's text ends right beside it. **A label separated from its control was the
 alignment being paid for in the wrong currency; right-aligning the text is what the column cost
 was actually for.**
+
+**The preview line says what it is, and marks what will be written** (4.3.0). It was a bare
+`PERFORMERS=OFF, STUDIOS=OFF, ...` under the selectors, which is a value with nothing saying it is
+one; it now opens with an amber `Automatic mode per entity type Setting String:` and draws each
+pair as its own span, amber wherever the mode is not OFF. `render()` builds spans rather than
+setting `textContent`, so `formatAutoModes` stays the single definition of the string's *shape* and
+is still what `save()` writes - the dialog renders the same pairs, it does not format a second
+version of them. The amber is the one the selectors already use for a mode that writes, which is
+what makes the line readable as a summary of the row of selects above it rather than as a
+restatement.
+
+**Proceed, Save and Undo are amber** (4.3.0), by the repo-wide rule the buttons on the page had
+followed since 1.8.0 while these three - the only controls in the plugin that actually write -
+stayed grey. See the repo-root CLAUDE.md under *one colour for "a plugin wrote this"*; the two
+siblings' dialogs were painted in the same pass.
 
 **The settings dialog's panel brings its own side padding** (4.1.1), because it is the modal's body
 rather than part of the padded head the run dialog puts it in. `.npt-modesbody` wraps the panel and

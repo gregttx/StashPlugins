@@ -200,7 +200,8 @@ colour for "a plugin put this here, and pressing it writes to entities other tha
 of you" — the same colour `PropagateTagsAndPerformers` uses, so a row holding buttons from both
 reads as one kind of thing rather than two. It is deliberately not the blue of a primary action:
 Save is still the primary action on those pages. The plugin's task button in
-**Settings → Tasks → Plugin Tasks** is amber too.
+**Settings → Tasks → Plugin Tasks** is amber too, and so are **Proceed** and **Undo** in the review
+dialog — the two buttons in that footer that change anything.
 
 Four of the settings are colour-coded on the same principle. **Save Tags Immediately** and the two
 **Auto Merge** switches are amber — they are what make the plugin write without showing you a plan

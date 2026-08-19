@@ -119,6 +119,11 @@ Promise.resolve()
 
   .then(() => open({}).then((env) => {
     h.check('Proceed is armed by the first pass', d(env).button('Proceed').disabled === false);
+    // Amber for the same reason every other control that writes is. (4.3.0)
+    h.check('and it is amber, like Undo beside it',
+      h.hasClass(d(env).button('Proceed'), 'btn-warning') &&
+      h.hasClass(d(env).button('Undo'), 'btn-warning'),
+      d(env).button('Proceed').className);
     setSelect(env, 'Scenes', 'off');
     // What is on screen was planned for the previous selection, so pressing Proceed
     // would write something other than what the dialog now says it covers.
@@ -229,9 +234,17 @@ Promise.resolve()
       !/largest type/.test(selectFor(env, 'Images').title),
       selectFor(env, 'Images').title);
     const preview = env.body.descendants().filter((n) => h.hasClass(n, 'npt-modestring'))[0];
-    h.check('and shows the string it would write',
-      preview.textContent === h.autoModes({ scenes: 'prune', images: 'rollup' }),
+    h.check('and shows the string it would write, under a label naming it',
+      preview.textContent ===
+        'Automatic mode per entity type Setting String: ' +
+        h.autoModes({ scenes: 'prune', images: 'rollup' }),
       preview.textContent);
+    // A type that is not Off is one the plugin writes to by itself, which is what the
+    // amber means everywhere else in these plugins. (4.3.0)
+    const amber = () => preview.descendants()
+      .filter((n) => h.hasClass(n, 'npt-modestring-on')).map((n) => n.textContent);
+    h.check('with the modes that are not Off marked, and nothing else',
+      amber().join(',') === 'SCENES=PRUNE,IMAGES=ROLLUP', amber().join(','));
     // The run dialog's panel sits in the padded head; this one is the whole body, so
     // it brings its own side padding rather than touching the modal border. (4.1.1)
     const panel = env.body.descendants().filter((n) => h.hasClass(n, 'npt-modes'))[0];
@@ -248,8 +261,13 @@ Promise.resolve()
 
     setSelect(env, 'Scenes', 'rollup');
     h.check('the preview follows the selectors',
-      preview.textContent === h.autoModes({ scenes: 'rollup', images: 'rollup' }),
+      preview.textContent ===
+        'Automatic mode per entity type Setting String: ' +
+        h.autoModes({ scenes: 'rollup', images: 'rollup' }),
       preview.textContent);
+    h.check('Save is amber, like every other control that writes',
+      h.hasClass(d(env).button('Save'), 'btn-warning'),
+      d(env).button('Save').className);
     h.check('and nothing is saved until Save is pressed',
       !env.calls.some((c) => /configurePlugin/.test(c.query || '')),
       env.calls.map((c) => c.query).join(' | '));

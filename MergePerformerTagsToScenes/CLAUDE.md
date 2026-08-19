@@ -428,7 +428,8 @@ renders — because leaving it behind would make an unrelated later visit jump i
 `_reloading` stops the ticks between the write and the unload from consuming it early.
 
 **Both buttons are `btn-warning` since 1.17.0**, not `btn-secondary`, and so is the task button
-`paintTaskButtons` repaints on the Plugin Tasks page. The reasoning, the two live facts about
+`paintTaskButtons` repaints on the Plugin Tasks page - and, since 3.4.0, the review dialog's
+**Proceed** and **Undo**, the two buttons in that footer that write. The reasoning, the two live facts about
 Stash's theme that it rests on, and why it is pinned to the same string in the sibling are in the
 repo-root CLAUDE.md under *one colour for "a plugin wrote this"*. Placement is unchanged: §5d's
 important-vs-casual rule still decides *where*, and amber is still a casual button rather than a

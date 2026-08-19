@@ -203,6 +203,11 @@ Promise.resolve()
     h.check('Proceed and Cancel are the review buttons',
       d().visible('Proceed') && d().visible('Cancel') && !d().visible('Stop') && !d().visible('Close'));
     h.check('Proceed is enabled once a plan exists', d().button('Proceed').disabled === false);
+    // Amber for the same reason every other control that writes is. (3.4.0)
+    h.check('and it is amber, like Undo beside it',
+      h.hasClass(d().button('Proceed'), 'btn-warning') &&
+      h.hasClass(d().button('Undo'), 'btn-warning'),
+      d().button('Proceed').className);
     // Every name in those lines carries a bracketed id, and the closing recap puts
     // one beside a count. The head is where that notation gets explained.
     h.check('the head explains the ids in the log',

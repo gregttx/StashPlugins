@@ -1328,9 +1328,11 @@ are what let a run write tens of thousands of assignments in hundreds of request
 Every button this plugin draws — target side and source side — is `btn-warning` rather than
 `btn-secondary`, and so is the task button `paintTaskButtons` repaints on the Plugin Tasks page.
 Four settings toggles are recoloured to match: `a2SaveImmediately` and the two auto modes in amber,
-`g1LogToConsole` in teal. The reasoning, the two live facts about Stash's theme it rests on, and why
-the variant is pinned to the same string in the sibling are in the repo-root CLAUDE.md under *one
-colour for "a plugin wrote this"*.
+`g1LogToConsole` in teal. **The review dialog's Proceed and Undo joined them at 2.4.0** - the two
+buttons in that footer that write, where Cancel, Stop, Copy log, Rescan and Close do not. The
+reasoning, the two live facts about Stash's theme it rests on, and why the variant is pinned to the
+same string in the sibling are in the repo-root CLAUDE.md under *one colour for "a plugin wrote
+this"*.
 
 Placement is unchanged. §5d's important-vs-casual rule still decides *where* a button lands, and the
 ordering protocol still decides which of two plugins' buttons sits closer to Delete — amber is a

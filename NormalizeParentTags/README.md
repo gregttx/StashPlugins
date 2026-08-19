@@ -156,8 +156,9 @@ so that repeated runs log identically.
 
 Nothing has been written at this point. **Cancel** walks away with your library untouched.
 
-**Phase 2 — apply.** **Proceed** performs the changes and continues the log with what was
-actually written, plus any errors. The log is scrollable throughout, **Copy log** puts the whole
+**Phase 2 — apply.** **Proceed** — amber, the colour every control in these plugins that writes
+wears — performs the changes and continues the log with what was actually written, plus any
+errors. The log is scrollable throughout, **Copy log** puts the whole
 thing on the clipboard, **Rescan** starts a fresh review pass without closing the dialog, and
 **Close** dismisses it.
 
@@ -180,7 +181,7 @@ before you close.
 
 ## Undo
 
-Once a run has written something, an **Undo** button appears. It reverses every change the dialog
+Once a run has written something, an amber **Undo** button appears. It reverses every change the dialog
 has made — Prune puts the tags it removed back, Roll Up takes the tags it added off again — and it
 covers the whole session, so a run you applied, rescanned and applied again comes back in one go.
 
@@ -316,8 +317,9 @@ A type set to **PRUNE** has any tag another tag on the same entity implies remov
 Stash saves one; a type set to **ROLLUP** has every ancestor added; **OFF** is left alone. A type
 that is not mentioned at all is OFF.
 
-**The Auto Mode Settings... task is the editor for it** — seven selectors and a Save, so nobody
-has to type the line. Typing it is allowed all the same, and the parse is forgiving: any order,
+**The Auto Mode Settings... task is the editor for it** — seven selectors and an amber **Save**, so
+nobody has to type the line. Under the selectors is the line itself, labelled and shown as the
+setting would hold it, with every type that is not OFF in the same amber the selectors use. Typing it is allowed all the same, and the parse is forgiving: any order,
 any case, the singular of a type (`SCENE=PRUNE`), `ROLL UP` for `ROLLUP`, and whatever separators
 you like between the pairs. Whatever it understood is written back in the form above once Stash
 has saved your edit, which is also how you can tell it understood you.

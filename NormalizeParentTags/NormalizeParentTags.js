@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.2.2';
+  var PLUGIN_VERSION = '4.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1310,6 +1310,11 @@
     // holds it - monospace, because it is a value rather than a sentence.
     '.npt-modestring{font-family:monospace;font-size:.85rem;color:#a7b6c2;' +
     'margin:.25rem 0 .5rem;word-break:break-word;}' +
+    // Amber for the same reason the selectors are: a type that is not Off is one this
+    // plugin writes to by itself. The label is amber because the whole line is about
+    // what will be written.
+    '.npt-modestring-label{color:#ffb648;}' +
+    '.npt-modestring-on{color:#ffb648;}' +
     '.npt-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
     'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
     'font-weight:600;}' +
@@ -1776,11 +1781,15 @@
     this.modal.appendChild(this.logEl);
 
     var foot = el('div', 'npt-foot');
+    // Amber: the two buttons that write. See "one colour for a plugin wrote this".
     this.proceedBtn = button('Proceed', 'npt-proceed');
     this.cancelBtn  = button('Cancel', 'npt-cancel');
     this.stopBtn    = button('Stop', 'npt-stop npt-hidden');
     this.copyBtn    = button('Copy log', 'npt-copy');
     this.undoBtn    = button('Undo', 'npt-undo npt-hidden');
+    [this.proceedBtn, this.undoBtn].forEach(function (b) {
+      b.className = b.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    });
     this.rescanBtn  = button('Rescan', 'npt-rescan npt-hidden');
     this.closeBtn   = button('Close', 'npt-close npt-hidden');
     this.proceedBtn.disabled = true;
@@ -2480,7 +2489,9 @@
     this.modal.appendChild(body);
 
     var foot = el('div', 'npt-foot');
+    // Amber: this is the button that writes. See "one colour for a plugin wrote this".
     this.saveBtn   = button('Save', 'npt-proceed');
+    this.saveBtn.className = this.saveBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
     this.cancelBtn = button('Cancel', 'npt-cancel');
     this.saveBtn.disabled = true;
     this.saveBtn.addEventListener('click', function () { self.save(); });
@@ -2530,8 +2541,20 @@
     });
   };
 
+  // The string the setting holds, named and marked: a bare `PERFORMERS=OFF, ...` is
+  // not self-evidently the value of anything, and a type that is not Off is one this
+  // plugin will write to on its own - the same thing its selector goes amber for.
   ModesDialog.prototype.render = function () {
-    this.previewEl.textContent = formatAutoModes(this.modes);
+    var box = this.previewEl, modes = this.modes;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    box.appendChild(el('span', 'npt-modestring-label',
+      'Automatic mode per entity type Setting String: '));
+    TYPES.forEach(function (t, i) {
+      var mode = modes[t.key] || MODE_OFF;
+      if (i) box.appendChild(el('span', null, ', '));
+      box.appendChild(el('span', mode === MODE_OFF ? null : 'npt-modestring-on',
+        t.token + '=' + MODE_TOKEN[mode]));
+    });
   };
 
   ModesDialog.prototype.focus = function () {

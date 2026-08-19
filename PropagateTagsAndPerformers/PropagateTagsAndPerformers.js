@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '2.3.1';
+  var PLUGIN_VERSION = '2.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1490,11 +1490,15 @@
     this.modal.appendChild(this.logEl);
 
     var foot = el('div', 'ptp2re-foot');
+    // Amber: the two buttons that write. See "one colour for a plugin wrote this".
     this.proceedBtn = button('Proceed', 'ptp2re-proceed');
     this.cancelBtn  = button('Cancel', 'ptp2re-cancel');
     this.stopBtn    = button('Stop', 'ptp2re-stop ptp2re-hidden');
     this.copyBtn    = button('Copy log', 'ptp2re-copy');
     this.undoBtn    = button('Undo', 'ptp2re-undo ptp2re-hidden');
+    [this.proceedBtn, this.undoBtn].forEach(function (b) {
+      b.className = b.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    });
     this.rescanBtn  = button('Rescan', 'ptp2re-rescan ptp2re-hidden');
     this.closeBtn   = button('Close', 'ptp2re-close ptp2re-hidden');
     this.proceedBtn.disabled = true;

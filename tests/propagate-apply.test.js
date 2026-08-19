@@ -128,6 +128,11 @@ Promise.resolve()
 
   // ── The apply ─────────────────────────────────────────────────────────────
   .then(() => review({ settings: SETTINGS, library: LIB })).then(({ env, d }) => {
+    // Amber for the same reason every other control that writes is. (2.4.0)
+    h.check('Proceed and Undo are amber, like every other control that writes',
+      h.hasClass(d.button('Proceed'), 'btn-warning') &&
+      h.hasClass(d.button('Undo'), 'btn-warning'),
+      d.button('Proceed').className);
     d.button('Proceed').click();
     return h.flush(120).then(() => {
       const w = bulks(env.calls);

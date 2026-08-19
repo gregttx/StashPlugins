@@ -487,6 +487,17 @@ pinning the list would make every new setting an edit in two files for no gain.
 entity toggles, the path toggles and the exclusion filters all stay Stash's blue, because they
 choose what a run covers rather than starting one.
 
+**The rule reaches inside the dialogs too**, which it did not until `NormalizeParentTags` 4.3.0 /
+`MergePerformerTagsToScenes` 3.4.0 / `PropagateTagsAndPerformers` 2.4.0 — `CustomFieldsBulkEditor`
+had painted its Apply and Undo since 0.1.0 and was the odd one out. **Proceed / Save / Apply and
+Undo** are amber in every dialog that writes; Cancel, Stop, Copy log, Rescan and Close stay
+`btn-secondary`, because none of them changes an entity. The mechanism is
+`b.className.replace('btn-secondary', PLUGIN_BTN_VARIANT)` on a button the shared `button()` helper
+has already built, rather than a second helper — the footer is otherwise identical in all five
+plugins and the shared-chrome rule is what keeps it so. `TagBundleClipboard`'s footer keeps its
+grey Undo: that dialog stages tags into a form and issues no mutation, and its own suite pins that
+nothing in the plugin writes.
+
 ## Cross-plugin cooperation: one name prefix
 
 A sixth shared convention, and the only one the user reads before installing anything. Every

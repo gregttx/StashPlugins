@@ -192,7 +192,9 @@ Every button this plugin draws is **amber**, where Stash's own row actions are g
 Amber is this repo's colour for "a plugin put this here, and pressing it writes to entities other
 than the one in front of you" — the same colour `MergePerformerTagsToScenes` uses for its two
 buttons, so a row holding both reads as one kind of thing rather than two. It is deliberately not
-the blue of a primary action: Save is still the primary action on those pages.
+the blue of a primary action: Save is still the primary action on those pages. Inside the review
+dialog the same colour marks **Proceed** and **Undo**, the two buttons in that footer that change
+anything.
 
 ### When a button appears
 

@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.3.1';
+  var PLUGIN_VERSION      = '3.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1344,11 +1344,15 @@
     this.modal.appendChild(this.logEl);
 
     var foot = taskEl('div', 'cpt2s-foot');
+    // Amber: the two buttons that write. See "one colour for a plugin wrote this".
     this.proceedBtn = taskButton('Proceed', 'cpt2s-proceed');
     this.cancelBtn  = taskButton('Cancel', 'cpt2s-cancel');
     this.stopBtn    = taskButton('Stop', 'cpt2s-stop cpt2s-hidden');
     this.copyBtn    = taskButton('Copy log', 'cpt2s-copy');
     this.undoBtn    = taskButton('Undo', 'cpt2s-undo cpt2s-hidden');
+    [this.proceedBtn, this.undoBtn].forEach(function (b) {
+      b.className = b.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    });
     this.rescanBtn  = taskButton('Rescan', 'cpt2s-rescan cpt2s-hidden');
     this.closeBtn   = taskButton('Close', 'cpt2s-close cpt2s-hidden');
     this.proceedBtn.disabled = true;

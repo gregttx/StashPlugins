@@ -271,34 +271,43 @@ Promise.resolve()
     // pathLabel, the same string the log and every dialog head use. A second naming of
     // a path is a second thing to keep in step.
     h.check('named the way the log names a path',
-      rowName(toggles(env)[0]) === 'Performers: Images → Galleries',
+      rowName(toggles(env)[0]) ===
+        api(env).pathLabel(api(env).pathById(api(env).PATH_COLUMNS[0][0])),
       toggles(env).map(rowName).join(' | '));
-    // Three columns: the eleven two-state paths split evenly over the first two in
-    // pipeline order, and the two that can be `common` together in the third - they
-    // are the only buttons whose caption changes width with its state, and a column
-    // that resizes under the pointer is what pulled them out of the sequence.
-    // Deliberately not grouped under an "Into <plural>" heading: pipeline order
-    // visits a target, leaves it and comes back, so a heading at a target's first
-    // path collects later paths under whichever one preceded them.
+    // Three columns, and the layout decides both which paths are in each and where a
+    // blank row separates two groups within one. Deliberately not grouped under an
+    // "Into <plural>" heading: the labels already name the target, and a heading
+    // emitted at a target's first path would collect every later path of that target
+    // under whichever heading happened to precede it.
     const cols = env.ctx.document.body.descendants()
       .filter((n) => h.hasClass(n, PREFIX + '-paths-col'));
+    const named = (c) => c.childNodes.filter((r) => h.hasClass(r, PREFIX + '-path-row'))
+      .map((r) => rowName(r.childNodes[1]));
     h.check('laid out in three columns, the moded pair in the last',
-      cols.length === 3 && cols[0].childNodes.length === 6 &&
-      cols[1].childNodes.length === 5 && cols[2].childNodes.length === 2,
-      cols.map((c) => c.childNodes.length).join('/'));
+      cols.length === 3 && named(cols[0]).length === 6 &&
+      named(cols[1]).length === 5 && named(cols[2]).length === 2,
+      cols.map((c) => named(c).length).join('/'));
+    // A `null` in a column is a blank row separating two groups of paths that are read
+    // as one - here the two performer-assignment paths from the tag paths above them.
+    h.check('and a gap where the layout asks for one, spanning both tracks',
+      cols[1].childNodes.filter((n) => h.hasClass(n, PREFIX + '-path-gap')).length === 1 &&
+      cols[1].childNodes.indexOf(
+        cols[1].childNodes.filter((n) => h.hasClass(n, PREFIX + '-path-gap'))[0]) ===
+        api(env).PATH_COLUMNS[1].indexOf(null),
+      cols.map((c) => c.childNodes.map((n) => n.className).join(' ')).join(' | '));
     // `PATH_COLUMNS`, not `PATHS`: the layout is the user's grouping and the table is
     // still the order a run walks. `propagate-paths` is what pins the two against each
     // other, so this only has to prove the dialog reads the layout.
     h.check('laid out exactly as PATH_COLUMNS says',
-      cols.map((c) => c.childNodes.map((r) => rowName(r.childNodes[1])).join(',')).join('|') ===
-        api(env).PATH_COLUMNS.map((col) =>
-          col.map((id) => api(env).pathLabel(api(env).pathById(id))).join(',')).join('|'),
-      cols.map((c) => c.childNodes.map((r) => rowName(r.childNodes[1])).join(',')).join(' | '));
+      cols.map((c) => named(c).join(',')).join('|') ===
+        api(env).PATH_COLUMNS.map((col) => col.filter(Boolean)
+          .map((id) => api(env).pathLabel(api(env).pathById(id))).join(',')).join('|'),
+      cols.map((c) => named(c).join(',')).join(' | '));
     const last = cols[cols.length - 1] || { childNodes: [] };
     h.check('and the moded pair is what the third column holds',
-      last.childNodes.map((r) => rowName(r.childNodes[1])).join(',') ===
+      named(last).join(',') ===
         'Tags: Scenes \u2192 Groups,Tags: Sub-groups \u2192 Groups',
-      last.childNodes.map((r) => rowName(r.childNodes[1])).join(','));
+      named(last).join(','));
     // Their captions run from "Off" to "Common tags only", so the column would resize
     // on every press without a floor under the button.
     h.check('and only those two carry the width floor',

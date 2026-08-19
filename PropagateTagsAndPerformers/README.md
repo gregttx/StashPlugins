@@ -82,10 +82,11 @@ just the tags all its sources share carries part of the payload, not all of it â
 that run in the order the pipeline walks, so what the button claims is true of one run rather than
 eventually.
 
-The paths sit in three columns. The first holds the paths that move performers or read from
-performers and markers, the second the studio and the two-way image and group paths, and the third
-the two whose caption changes width as it changes state, so nothing in the other columns moves under
-the pointer while you set them. The settings row's listing uses the same order, so a path is in the
+The paths sit in three columns. The first two hold the eleven straightforward ones, grouped so that
+paths feeding each other sit together, with a blank row in the second setting the two
+performer-assignment paths apart from the tag paths above them. The third holds the two whose
+caption changes width as it changes state, so nothing in the other columns moves under the pointer
+while you set them. The settings row's listing uses the same order, so a path is in the
 same place wherever it is shown. It is not the order a run walks â€” that is fixed, and the dialog's
 own text describes it.
 

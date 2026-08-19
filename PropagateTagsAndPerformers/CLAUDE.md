@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.5.0.** Every step in the table below has landed, so the version left the
+**Status: released, 3.6.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
@@ -14,9 +14,11 @@ siblings.
 that is already happening.**
 
 **`PATH_COLUMNS` is presentation and nothing else.** Three explicit lists of path ids - the
-performer-carrying paths, the studio and two-way ones, the two aggregations that carry a mode - used
-by the dialog's columns and by the settings row's listing, so a path is in the same place wherever
-it is shown. `PATHS` is still the order a run walks, the order `formatPaths` writes, and the order
+grouping is the user's, revised once at 3.6.0 - used by the dialog's columns and by the settings
+row's listing, so a path is in the same place wherever it is shown. A `null` entry (3.6.0) is a
+blank row separating two groups within one column, and it exists only where rows are drawn:
+`displayPaths` drops it, because the settings row lists the paths that are *on*, where a gap
+between two groups that may both be absent would be a blank line with nothing either side. `PATHS` is still the order a run walks, the order `formatPaths` writes, and the order
 the dialog's head says decides what one run reaches. The risk of a second list of the same thirteen
 things is a path missing from one of them - which would be a path with no control at all - so
 `propagate-paths` pins the two against each other rather than trusting the two to be edited

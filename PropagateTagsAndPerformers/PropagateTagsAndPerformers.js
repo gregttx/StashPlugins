@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.5.0';
+  var PLUGIN_VERSION = '3.6.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -414,18 +414,23 @@
   // `formatPaths` writes and the order the dialog's head says matters; this decides
   // nothing but where a row sits. A path missing from here or named twice would be a
   // path with no control, so `propagate-paths` pins the two lists against each other.
+  //
+  // A `null` is a gap: a blank row in the column, separating two groups of paths that
+  // are read as one. It exists only where the dialog draws rows, so `displayPaths`
+  // drops it - the settings row lists the paths that are on, where a gap between two
+  // groups that may both be absent would be a blank line with nothing either side.
   var PATH_COLUMNS = [
-    ['performers:image>gallery', 'performers:gallery>scene', 'tags:performer>scene',
-     'tags:performer>group', 'tags:marker>group', 'tags:marker>scene'],
-    ['tags:gallery>image', 'tags:image>gallery', 'tags:studio>scene',
-     'tags:studio>group', 'tags:group>scene'],
+    ['tags:studio>group', 'tags:group>scene', 'tags:image>gallery', 'tags:gallery>image',
+     'tags:marker>group', 'tags:marker>scene'],
+    ['tags:studio>scene', 'tags:performer>scene', 'tags:performer>group', null,
+     'performers:image>gallery', 'performers:gallery>scene'],
     ['tags:scene>group', 'tags:subgroup>group'],
   ];
 
   function displayPaths() {
     var out = [];
     PATH_COLUMNS.forEach(function (col) {
-      col.forEach(function (id) { var p = pathById(id); if (p) out.push(p); });
+      col.forEach(function (id) { var p = id && pathById(id); if (p) out.push(p); });
     });
     return out;
   }
@@ -1172,6 +1177,10 @@
     '.ptp2re-paths-col{display:grid;grid-template-columns:max-content max-content;' +
     'gap:.3rem .6rem;align-items:center;align-content:start;}' +
     '.ptp2re-path-row{display:contents;}' +
+    // A `null` in a column: a blank row separating two groups of paths. It spans both
+    // of the column's tracks, since a row here is two cells and half a gap would sit
+    // under the labels only.
+    '.ptp2re-path-gap{grid-column:1/-1;height:.6rem;}' +
     '.ptp2re-path-name{color:#d6dee4;font-size:.9rem;}' +
     // The per-path toggle. Everything visual comes from Bootstrap's own `btn btn-sm`
     // plus the variant the paint swaps, so this rule only has to stop thirteen buttons
@@ -3310,6 +3319,7 @@
     this.toggles = {};
     PATH_COLUMNS.forEach(function (ids, i) {
       ids.forEach(function (id) {
+        if (!id) { cols[i].appendChild(el('div', 'ptp2re-path-gap')); return; }
         var p = pathById(id);
         if (!p) return;
         var row = el('div', 'ptp2re-path-row');

@@ -257,13 +257,14 @@ h.check('a path never pairs with itself', !PATHS.some((p) => p.pair === p.id),
 // `PATH_COLUMNS` decides where a row sits in the dialog and in the settings row's
 // listing, and nothing else. A path missing from it has no control at all, and one
 // named twice would get two - neither of which any other check here would notice.
-const laid = PATH_COLUMNS.reduce((acc, col) => acc.concat(col), []);
+// A `null` entry is a blank row in a column, not a path.
+const laid = PATH_COLUMNS.reduce((acc, col) => acc.concat(col), []).filter(Boolean);
 h.check('every path is laid out exactly once',
   laid.length === PATHS.length && laid.slice().sort().join(',') === ids.slice().sort().join(','),
   laid.join(' '));
 
 h.check('and the two paths carrying a mode share the last column',
-  PATH_COLUMNS[PATH_COLUMNS.length - 1].every((id) => pathById(id).common) &&
+  PATH_COLUMNS[PATH_COLUMNS.length - 1].every((id) => id && pathById(id).common) &&
   laid.filter((id) => pathById(id).common).length === 2,
   PATH_COLUMNS[PATH_COLUMNS.length - 1].join(' '));
 

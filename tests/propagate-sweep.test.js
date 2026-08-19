@@ -344,6 +344,11 @@ Promise.resolve()
     h.check('the progress line reports the sweep as well as the targets',
       /Images 3: \d+ \/ \d+/.test(d.progress) && /Galleries 3: \d+ \/ \d+/.test(d.progress),
       d.progress);
+    // "Images 3" and "Galleries 3" share a number that appears nowhere else on the
+    // page, and the same type can appear twice with two of them.
+    h.check('and a tooltip says what the number between the type and the counts is',
+      /pipeline stage/.test(d.progressTip) && /out of how many/.test(d.progressTip),
+      d.progressTip);
     h.check('and the log says why every image is being read',
       d.lines.some((l) => /no field leads from a Gallery to its Images/.test(l)),
       d.lines.filter((l) => /Stage 3/.test(l)).join('\n'));

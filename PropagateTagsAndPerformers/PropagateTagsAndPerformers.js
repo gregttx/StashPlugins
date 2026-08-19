@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.6.1';
+  var PLUGIN_VERSION = '3.6.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -102,6 +102,14 @@
   var CHUNK_SIZE     = 100;    // target ids per bulk mutation
   var LOG_RENDER_CAP = 1000;   // log lines kept in the DOM; all of them stay in memory
   var LOG_FLUSH_MS   = 100;
+  var PROGRESS_TIP =
+    'Each segment is one pass: the entity type it walks, then the pipeline stage it ' +
+    'runs in, then how many of that pass\u2019s entities have been read out of how ' +
+    'many it found. Stages run in order and a later one sees what an earlier one ' +
+    'added \u2014 markers put tags on a scene in stage 2, and stage 4 carries that ' +
+    'scene\u2019s tags on to its groups \u2014 so one type can appear more than once ' +
+    'with a different stage each time. A segment appears only once its pass has ' +
+    'started.';
   // The busy cursor under the last log line. The counters say how far a pass has
   // got; this says it is still going, which is the question a sweep that spends
   // seconds on one page of images leaves unanswered.
@@ -2010,6 +2018,10 @@
     this.modal.appendChild(head);
 
     this.progressEl = el('div', 'ptp2re-progress', 'Starting...');
+    // The counters name a *pass*, and a pass is "<entity type> <stage>", so the same
+    // type appears more than once in one line and the bare number is the only thing
+    // telling two of them apart. Nothing on the page says what it is, hence the title.
+    this.progressEl.title = PROGRESS_TIP;
     this.modal.appendChild(this.progressEl);
 
     this.logEl = el('div', 'ptp2re-log');

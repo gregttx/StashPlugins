@@ -166,6 +166,11 @@ the order is fixed, and the dialog states it:
 6. **The two reverses** — groups back onto scenes, galleries back onto images — last, so they
    distribute what stages 1–5 gathered rather than a stale set.
 
+Those numbers are what the dialog's counters carry: a segment reads *Groups 4: 120 / 900* — the
+entity type a pass walks, the stage it runs in, and how many of that pass's entities have been read
+out of how many it found. One type can appear more than once with a different stage each time, and
+hovering the line says so.
+
 ## The automatic modes
 
 Both react to Stash's own saves, immediately, with no dialog, no review and no undo — so treat them

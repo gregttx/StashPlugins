@@ -5,10 +5,18 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.6.1.** Every step in the table below has landed, so the version left the
+**Status: released, 3.6.2.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.6.2 explains the bare number in the progress counters.** A segment reads `Groups 4: 120 / 900`,
+and the stage number is the only thing telling two passes over the same entity type apart - the word
+"stage" appears in the log lines but nowhere near the counters. The progress element is one div with
+a `textContent` holding every segment, so a per-segment tooltip would mean rebuilding it as nodes on
+every flush; the whole line carries one `title` instead, which is the same answer for every segment
+in it. `PROGRESS_TIP` is a top-level constant rather than an inline string because the element is
+built once and the text is four lines long.
 
 **3.5.0 lays the paths out the way the user reads them, and stops the dialog lying about a path
 that is already happening.**

@@ -333,6 +333,8 @@ function dialog(body, prefix) {
     open: nodes.some((n) => hasClass(n, p + '-modal')),
     lines: nodes.filter((n) => hasClass(n, p + '-line')).map((n) => n.textContent),
     progress: (nodes.filter((n) => hasClass(n, p + '-progress'))[0] || {}).textContent || '',
+    // What the counters' bare stage number means; nothing on the page says it.
+    progressTip: (nodes.filter((n) => hasClass(n, p + '-progress'))[0] || {}).title || '',
     // Everything the head is warning about, in one string. The stale-script box is
     // separate markup from the run's notes precisely so it can be styled and cleared
     // on its own, but every check that asks "does the head say so" means both -

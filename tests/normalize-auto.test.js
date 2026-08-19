@@ -644,6 +644,29 @@ Promise.resolve()
     });
   })
 
+  // A Stash that renders no `.value` for a STRING setting. Unreachable today, which
+  // is why this went four releases unseen: the fallback took the row's *first child*
+  // as the host, and on the second tick that child is the line the first tick
+  // appended - so it appended a node into itself. A browser throws
+  // HierarchyRequestError out of the interval; a more forgiving DOM unlinks the line
+  // and the row is left with the button alone. (4.6.1)
+  .then(() => {
+    const p3 = page(h.autoModes({ scenes: 'prune' }), { modes: { scenes: 'prune' } });
+    const r = p3.rows.a1AutoModes;
+    r.value.parentNode.removeChild(r.value);
+    p3.env.tick();
+    return h.flush().then(() => {
+      p3.env.tick();
+      const line = p3.env.ctx.document.getElementById('npt-modes-line');
+      h.check('with no value span to sit beside, the line goes in the row and stays',
+        !!line && line.parentNode === r.row && /Scenes=Prune/.test(line.textContent),
+        line ? line.parentNode === r.row : 'no line');
+      h.check('and a third tick still leaves exactly one of it',
+        p3.env.ctx.document.body.descendants()
+          .filter((n) => n.id === 'npt-modes-line').length === 1);
+    });
+  })
+
   // The value is still normalized, but from the settings rather than from a field:
   // Stash own modal is still reachable if ours never builds, and a config file can
   // hold anything. A canonical value is left alone, and an empty one means "nothing

@@ -5,10 +5,23 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.0.1.** Every step in the table below has landed, so the version left the
+**Status: released, 3.0.2.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.0.2 puts the settings row's listing in three columns.** Thirteen stacked entries was a column
+of text taller than every other row on that page put together. Three columns cost nothing in width
+*because* the two entries carrying a mode are grouped last: `(Common tags only)` makes them half as
+long again as the rest, each column is sized to its own content (`max-content`, not equal columns,
+or the longest entry would set all three), so letting the pair share the last column keeps the other
+two narrow. Scattered through pipeline order they would have widened two columns instead of one.
+
+**Reordering is fine here and would not be in the dialog.** This row lists *which* paths are on; the
+dialog is where the walk order is shown and stated to matter. The row count is set from JS
+(`grid-auto-flow: column` over `grid-template-rows`), because the stylesheet cannot know how many
+paths are enabled - and it is cleared again for the "No paths enabled" sentence, which would
+otherwise sit in a column of its own with two empty ones beside it.
 
 **3.0.1 is the path dialog's layout, from a live screenshot.** Three faults in one picture, and
 the third is the one no test would have found:

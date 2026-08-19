@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.6.0';
+  var PLUGIN_VERSION = '4.6.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3707,8 +3707,16 @@
     // Beside Stash's own value rather than inside it: React owns that subtree and
     // reconciles it on every re-render, and a node of ours in the middle of one is
     // the kind of thing that survives until it does not.
+    //
+    // The row itself where there is no value span, never its first child - which on
+    // the second tick is the line the first tick appended, so `host.appendChild(line)`
+    // appends a node into itself: a HierarchyRequestError thrown out of the interval
+    // in a browser, and a silent unlink anywhere that is more forgiving. Unreachable
+    // while Stash renders a `.value` for a STRING setting, which is why it went four
+    // releases unseen; `PropagateTagsAndPerformers` 3.0.0 found it in a fixture that
+    // had none.
     var slot = byClass(row, 'value');
-    var host = slot ? slot.parentNode : (row.childNodes[0] || row);
+    var host = slot ? slot.parentNode : row;
     if (line.parentNode !== host) {
       if (slot) host.insertBefore(line, slot.nextSibling);
       else host.appendChild(line);

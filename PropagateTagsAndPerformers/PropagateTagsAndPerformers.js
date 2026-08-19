@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.0.1';
+  var PLUGIN_VERSION = '3.0.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -561,18 +561,38 @@
   function pathCommon(s, path) { return pathMode(s, path) === PATH_COMMON; }
 
   // The setting in words rather than in tokens, for the settings row: `Tags:
-  // Performers → Scenes (All tags)`, one line per enabled path and every one of them
-  // amber - a path that is on is one this plugin writes along. Nothing is listed for
-  // a path that is off; thirteen greyed-out lines would bury the two that are not.
+  // Performers → Scenes (Common tags only)`, one entry per enabled path and every one
+  // of them amber - a path that is on is one this plugin writes along. Nothing is
+  // listed for a path that is off; thirteen greyed-out entries would bury the two
+  // that are not.
+  //
+  // **Three columns, filled top to bottom, with the two entries that carry a mode
+  // last.** Thirteen stacked lines was a column of text taller than every other row
+  // on the settings page put together. Three columns cost nothing in width *because*
+  // the moded pair is grouped: those two entries are half as long again as the rest,
+  // and each column is sized to its own content, so letting them share the last
+  // column keeps the other two narrow. Scattered through pipeline order they would
+  // have widened two columns instead of one.
+  //
+  // Reordering is fine *here* and would not be in the dialog: this row lists which
+  // paths are on, and the dialog is where the walk order is shown and stated to
+  // matter.
   //
   // Elements rather than `textContent`, so the list can be a list.
   function renderPathString(box, modes) {
     while (box.firstChild) box.removeChild(box.firstChild);
     var on = PATHS.filter(function (p) { return modes && modes[p.id] !== PATH_OFF; });
     if (!on.length) {
+      box.style.gridTemplateRows = '';
       box.appendChild(el('div', null, 'No paths enabled - nothing is copied anywhere.'));
       return;
     }
+    on = on.filter(function (p) { return !p.common; })
+      .concat(on.filter(function (p) { return p.common; }));
+    // The row count is what turns `grid-auto-flow: column` into three columns; the
+    // stylesheet cannot know how many entries there are. Fewer than three enabled
+    // means one row and one column each, which is the right shape for a short list.
+    box.style.gridTemplateRows = 'repeat(' + Math.ceil(on.length / 3) + ', auto)';
     on.forEach(function (p) {
       var line = el('div', 'ptp2re-pathstring-on');
       // The label is a span rather than the div's own text: a mode is appended after
@@ -923,7 +943,14 @@
     // The enabled paths as the settings row shows them. Prose rather than the
     // sibling's monospace: what is rendered here is `pathLabel`, the same sentence
     // the log uses, not the tokens the setting stores.
-    '.ptp2re-pathstring{font-size:.85rem;color:#a7b6c2;margin:.25rem 0 .5rem;}' +
+    //
+    // Three columns, filled top to bottom - `grid-auto-flow: column` over a row count
+    // `renderPathString` sets, since the stylesheet cannot know how many paths are on.
+    // `max-content` columns and `justify-content: start` so the block is only as wide
+    // as the entries in it: with equal columns the longest entry would set all three.
+    '.ptp2re-pathstring{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;' +
+    'justify-content:start;gap:.1rem 1.5rem;font-size:.85rem;color:#a7b6c2;' +
+    'margin:.25rem 0 .5rem;}' +
     // Amber for the same reason the selectors are: a path that is on is one this
     // plugin writes along. The mode in brackets stays grey - it qualifies the line
     // rather than being a second thing that is on.

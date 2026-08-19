@@ -436,8 +436,8 @@ description shows one line on the page; hover it, or the setting's name, for the
 two automatic modes (react when the *target* is saved, or when a *source* is saved). The
 source-side mode fans out: saving one performer can rewrite every scene they appear in.
 
-**Paths** — one row, showing the paths that are on and holding the button that opens the **Path
-Settings** dialog. All thirteen are in that dialog, in two columns read top to bottom — which is
+**Paths** — one row, listing the paths that are on in three columns and holding the button that
+opens the **Path Settings** dialog. All thirteen are in that dialog, in two columns read top to bottom — which is
 the order a run walks them in, and that order decides what one run reaches. Each is *Off* or *On*,
 and the two group aggregations offer *Common tags only* as a third choice. The setting itself is one line of text (`tags:studio>scene=ON,
 tags:scene>group=COMMON`) and can be typed by hand — it is read forgivingly, in any order and any

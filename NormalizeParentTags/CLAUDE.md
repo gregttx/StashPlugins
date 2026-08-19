@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.6.0.** This file is both the design and the map of the code — the
+**Status: implemented at 4.6.1.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1245,6 +1245,19 @@ dialog at least prints the plan it would write. So the same `checkInstalledVersi
 `build()`, the box goes above the note (the note reports on *reading* the setting; this says the
 answer will not be written back whatever it says), and **the selectors stay live** — the string can
 still be read off the preview, which is most of what someone opens this dialog for.
+
+**4.6.1 is one token in `modeFieldTick`, found from another plugin's fixture.** Where the row has
+no `.value` span the host for our line was `row.childNodes[0] || row` - and on the second tick that
+first child *is* the line the first tick appended, so `host.appendChild(line)` appends a node into
+itself: `HierarchyRequestError` thrown out of the once-a-second interval in a browser, taking
+everything after that call in `settingsTick` with it, and a silent unlink in a DOM that is more
+forgiving. It is `slot ? slot.parentNode : row` now.
+
+**Unreachable on today's Stash, which is exactly why it survived four releases.** A STRING setting
+always renders a `.value`, so the fallback never runs here; `PropagateTagsAndPerformers` 3.0.0
+copied this function, its own suite built a row without one, and the copy failed there on the first
+run. **A branch no fixture exercises is not a branch that works** - and the plugin that found this
+one was not the plugin that had it.
 
 **Four attempts at "say when something is armed", and the fourth was to stop drawing a mark.**
 4.0.1 put a `border-color` on the field; 4.0.2 took it off again; 4.1.0 drew

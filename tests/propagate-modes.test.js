@@ -307,6 +307,16 @@ Promise.resolve()
         !!line && /Common tags only/.test(line.textContent), line && line.textContent);
       h.check('and nothing listed for the eleven that are off',
         !!line && !/Sub-groups/.test(line.textContent), line && line.textContent);
+      // Three columns filled top to bottom, with the entries carrying a mode last so
+      // the two long ones share the last column - each column is sized to its own
+      // content, so scattering them would widen two columns instead of one. The row
+      // count is what makes `grid-auto-flow: column` three columns rather than one.
+      h.check('laid out in three columns, with the moded entry last',
+        !!line && line.style.gridTemplateRows === 'repeat(1, auto)' &&
+        line.childNodes[line.childNodes.length - 1].textContent
+          .indexOf('Tags: Scenes → Groups') === 0,
+        line && line.style.gridTemplateRows + ' / ' +
+          line.childNodes.map((n) => n.textContent).join(' | '));
       h.check('Stash own value is hidden rather than removed',
         value.style.display === 'none' && value.parentNode === left, value.style.display);
       h.check('and so is its Edit button',
@@ -342,6 +352,10 @@ Promise.resolve()
       const line = doc.getElementById(PREFIX + '-paths-line');
       h.check('nothing enabled says so rather than showing an empty row',
         !!line && /No paths enabled/.test(line.textContent), line && line.textContent);
+      // A row count left over from a longer listing would leave the sentence in a
+      // column of its own with two empty ones beside it.
+      h.check('and the column layout is cleared with it',
+        !!line && !line.style.gridTemplateRows, line && line.style.gridTemplateRows);
     });
   })
 

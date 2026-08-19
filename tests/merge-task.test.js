@@ -749,47 +749,77 @@ Promise.resolve()
   //
   // The mirror of NormalizeParentTags' own warning about our auto-merge flags.
 
-  .then(() => openAfterSettings({ siblingSettings: { a8AutoPruneOnUpdate: true } }, true))
+  .then(() => openAfterSettings({
+    siblingSettings: { a1AutoModes: 'SCENES=PRUNE, IMAGES=OFF' },
+  }, true))
   .then(({ d }) => {
-    h.check('a registered sibling with Auto Prune on is reported, not warned about',
-      d().lines.some((l) => l.indexOf('Normalize Parent Tags has Auto Prune on Entity Updates ' +
+    h.check('a registered sibling with an automatic Prune is reported, not warned about',
+      d().lines.some((l) => l.indexOf('Normalize Parent Tags has automatic Prune ' +
         'enabled; it will stand down while this task writes.') !== -1),
       d().lines.join(' | '));
     h.check('and nothing lands in the dialog head', d().note === '', d().note);
   })
 
-  .then(() => openAfterSettings({ siblingSettings: { a8AutoPruneOnUpdate: true } }, false))
+  .then(() => openAfterSettings({
+    siblingSettings: { a1AutoModes: 'SCENES=PRUNE, IMAGES=OFF' },
+  }, false))
   .then(({ d }) => {
-    h.check('an unregistered sibling with Auto Prune on warns in the head',
-      d().note.indexOf('Auto Prune on Entity Updates') !== -1, d().note);
+    h.check('an unregistered sibling with an automatic Prune warns in the head',
+      d().note.indexOf('automatic Prune') !== -1, d().note);
     h.check('the warning names what Prune would do to the merge',
       d().note.indexOf('remove the parent tags this merge adds') !== -1, d().note);
     h.check('and does not disable Proceed', d().button('Proceed').disabled === false);
   })
 
-  .then(() => openAfterSettings({ siblingSettings: { a9AutoRollUpOnUpdate: true } }, false))
+  .then(() => openAfterSettings({
+    siblingSettings: { a1AutoModes: 'PERFORMERS=ROLLUP' },
+  }, false))
   .then(({ d }) => {
     h.check('Roll Up is named and described in its own terms',
-      d().note.indexOf('Auto Roll Up on Entity Updates') !== -1 &&
+      d().note.indexOf('automatic Roll Up') !== -1 &&
       d().note.indexOf('add every ancestor of the tags this merge adds') !== -1, d().note);
   })
 
-  // Both on is that plugin's own no-op, so there is nothing to warn about.
+  // Its 4.0.0 made both directions at once a legitimate configuration - one type
+  // pruned, another rolled up - where its pre-4.0.0 booleans could only mean the
+  // no-op below. Both collide with a merge, so both are named.
+  .then(() => openAfterSettings({
+    siblingSettings: { a1AutoModes: 'SCENES=PRUNE, PERFORMERS=ROLLUP' },
+  }, false))
+  .then(({ d }) => {
+    h.check('a mode each way warns about both',
+      d().note.indexOf('automatic Prune and Roll Up') !== -1 &&
+      d().note.indexOf('depending on the entity type') !== -1, d().note);
+  })
+
+  .then(() => openAfterSettings({
+    siblingSettings: { a1AutoModes: 'SCENES=OFF, IMAGES=OFF' },
+  }, false))
+  .then(({ d }) => {
+    h.check('every type OFF is not mentioned',
+      d().note === '' && !d().lines.some((l) => l.indexOf('Normalize Parent Tags') !== -1),
+      d().note + ' | ' + d().lines.join(' | '));
+  })
+
+  // The settings that plugin had up to 3.2.0. An install nobody has touched since
+  // still carries them, and this check has to keep working against it - including
+  // that release's own no-op, where both booleans on ran neither.
+  .then(() => openAfterSettings({
+    siblingSettings: { a5EnableScenes: true, a8AutoPruneOnUpdate: true },
+  }, false))
+  .then(({ d }) => {
+    h.check('a pre-4.0.0 sibling is still read',
+      d().note.indexOf('automatic Prune') !== -1, d().note);
+  })
+
   .then(() => openAfterSettings({
     siblingSettings: { a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: true },
   }, false))
   .then(({ d }) => {
-    h.check('both sibling modes on warns about neither', d().note === '', d().note);
-    h.check('and says nothing in the log either',
+    h.check('and its both-on no-op still warns about neither', d().note === '', d().note);
+    h.check('nor says anything in the log',
       !d().lines.some((l) => l.indexOf('Normalize Parent Tags') !== -1),
       d().lines.join(' | '));
-  })
-
-  .then(() => openAfterSettings({ siblingSettings: { a5EnableScenes: true } }, false))
-  .then(({ d }) => {
-    h.check('a sibling with no auto mode on is not mentioned',
-      d().note === '' && !d().lines.some((l) => l.indexOf('Normalize Parent Tags') !== -1),
-      d().note + ' | ' + d().lines.join(' | '));
   })
 
   .then(() => openAfterSettings({}, false))

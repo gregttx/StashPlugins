@@ -1,54 +1,22 @@
 name: ᝯㄝₓ Normalize Parent Tags
-description: "Makes tag hierarchies explicit on your entities, in either direction.\n\nPrune removes any tag that another tag on the same entity already implies. Roll Up adds every ancestor, recursively, of the tags already there. A third task browses the hierarchy read-only.\n\nAll three run from Settings - Tasks - Plugin Tasks. The two that write list every change first: nothing lands until you press Proceed, and Undo reverses the run while the dialog stays open.\n\nEither direction can also run automatically as Stash saves each entity. Those two settings write silently - no dialog, no review, no undo.\n\nEntity types are opt-in and all off until you enable them below.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - these tasks rewrite tag assignments across the whole library and Stash has no undo. \n\nRequires Stash 0.31.0 or newer."
+description: "Makes tag hierarchies explicit on your entities, in either direction.\n\nPrune removes any tag that another tag on the same entity already implies. Roll Up adds every ancestor, recursively, of the tags already there. Each entity type is set to Off, Prune or Roll Up on its own, so one library can prune its scenes and roll up its performers.\n\nNormalize Parent Tags runs from Settings - Tasks - Plugin Tasks and asks first: the dialog holds the seven selectors, lists every change it would make, and writes nothing until you press Proceed. Undo reverses the run while the dialog stays open. Auto Mode Settings edits what happens by itself, and Show Tag Hierarchy browses the tree read-only.\n\nA type set to Prune or Roll Up is also normalized silently whenever Stash saves one of them - no dialog, no review, no undo. Everything is Off until you say otherwise.\n\nBACK UP YOUR DATABASE BEFORE THE FIRST RUN - this task rewrites tag assignments across the whole library and Stash has no undo. \n\nRequires Stash 0.31.0 or newer."
 url: "https://github.com/gregttx/StashPlugins/blob/main/NormalizeParentTags/README.md"
-version: 3.2.0
+version: 4.0.0
 ui:
   javascript:
     - NormalizeParentTags.js
 tasks:
-  - name: Prune Parent Tags from Entities...
-    description: Remove tags that another tag on the same entity already implies. Opens a dialog listing every removal for review before anything is written, and an Undo button that takes the run back while the dialog stays open. Back up your database before the first run.
-  - name: Roll Up Parent Tags onto Entities...
-    description: Add every parent tag, recursively, of the tags already on the entity. Opens a dialog listing every addition for review before anything is written, and an Undo button that takes the run back while the dialog stays open. Back up your database before the first run.
+  - name: Normalize Parent Tags...
+    description: Prune, roll up, or leave alone, per entity type - chosen in the dialog, which starts from the automatic modes below with Images off. Lists every change for review before anything is written, and offers an Undo that takes the run back while the dialog stays open. Back up your database before the first run.
+  - name: Auto Mode Settings...
+    description: Set what happens by itself whenever Stash saves an entity - Off, Prune or Roll Up, for each of the seven types. Writes nothing but the setting itself, which is the same string shown in the field below.
   - name: Show Tag Hierarchy...
     description: Read-only. Opens a browsable tree of the whole tag hierarchy, marking tags with more than one parent, tags protected by the exclusion filters below, and any cycle. Select a tag to see what Prune and Roll Up would do with it, and jump from a multi-parent tag to each of its parents. Writes nothing.
 settings:
-  a1EnablePerformers:
-    displayName: Include Performers
-    description: Process the tags of performers when a Normalize Parent Tags task is run.
-    type: BOOLEAN
-  a2EnableStudios:
-    displayName: Include Studios
-    description: Process the tags of studios when a Normalize Parent Tags task is run.
-    type: BOOLEAN
-  a3EnableGroups:
-    displayName: Include Groups
-    description: Process the tags of groups when a Normalize Parent Tags task is run.
-    type: BOOLEAN
-  a4EnableGalleries:
-    displayName: Include Galleries
-    description: Process the tags of galleries when a Normalize Parent Tags task is run.
-    type: BOOLEAN
-  a5EnableScenes:
-    displayName: Include Scenes
-    description: Process the tags of scenes when a Normalize Parent Tags task is run.
-    type: BOOLEAN
-  a6EnableImages:
-    displayName: Include Images
-    description: "Process the tags of images when a Normalize Parent Tags task is run.\n\nUsually the largest type and the slowest to scan."
-    type: BOOLEAN
-  a7EnableMarkers:
-    displayName: Include Scene Markers
-    description: "Process the tags of scene markers when a Normalize Parent Tags task is run.\n\nA marker's primary tag is always kept and is never added or removed, but it does count as present, so parents it implies can be pruned from the marker's other tags, or rolled up onto them."
-    type: BOOLEAN
-  a8AutoPruneOnUpdate:
-    displayName: Auto Prune on Entity Updates
-    description: "Whenever Stash saves an entity of an enabled type above, immediately remove any tag on it that another tag on the same entity already implies.\n\nWARNING: Updates immediately, with no dialog, no review and no undo, and it deletes tag assignments.\n\nThe exclusion filters below still apply. Has no effect if Auto Roll Up is also enabled."
-    type: BOOLEAN
-  a9AutoRollUpOnUpdate:
-    displayName: Auto Roll Up on Entity Updates
-    description: "Whenever Stash saves an entity of an enabled type above, immediately add every ancestor, recursively, of the tags on it.\n\nUpdates immediately, with no dialog and no undo, but only ever adds tags.\n\nThe exclusion filters below still apply. Has no effect if Auto Prune is also enabled."
-    type: BOOLEAN
+  a1AutoModes:
+    displayName: Automatic mode per entity type
+    description: "What happens by itself whenever Stash saves an entity, for each of the seven types: PERFORMERS=OFF, STUDIOS=OFF, GROUPS=OFF, GALLERIES=OFF, SCENES=OFF, IMAGES=OFF, MARKERS=OFF.\n\nWARNING: a type set to PRUNE or ROLLUP is updated immediately, with no dialog, no review and no undo, and PRUNE deletes tag assignments. A type that is missing, or set to OFF, is left alone.\n\nUse the Auto Mode Settings task to set this without typing. Editing it by hand works too: any order, any case, the singular of a type, and any separators between the pairs are all accepted, and the plugin rewrites what it understood in the form above.\n\nThe exclusion filters below still apply. The task dialog starts from these modes - with Images off, since it is usually the largest type and the slowest to scan - and lets you change them for that one run."
+    type: STRING
   b1ExcludeEntityWithTagName:
     displayName: Exclude entities carrying this tag
     description: "Enter one tag name. Any entity carrying that tag is left untouched by both tasks.\n\nMatched by exact name, case-sensitive. The tag must be carried directly - a parent of it does not count. For markers, carrying it as the primary tag also excludes the marker."

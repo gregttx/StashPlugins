@@ -3,9 +3,43 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 3.1.0.** This file is both the design and the map of the code — the
+**Status: implemented at 4.0.0.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**4.0.0 is one mode per entity type.** Seven `aNEnable<Type>` booleans and the two global
+`a8AutoPruneOnUpdate` / `a9AutoRollUpOnUpdate` are one STRING setting, `a1AutoModes`, holding
+`PERFORMERS=OFF, STUDIOS=OFF, ..., SCENES=PRUNE, ...`; the two writing tasks are one
+**Normalize Parent Tags...**, whose dialog carries the seven selectors; and a new
+**Auto Mode Settings...** task is the editor for the string. The user asked for exactly this, in
+this shape, and the reasoning worth keeping is in §6a, §5c and §2. Six things about the change
+itself:
+
+- **Nine booleans could not say it.** The old pair of auto flags had four combinations for three
+  meanings, and the fourth (both on) had to be documented as a no-op, warned about on the settings
+  page, checked in the API, and re-explained in two sibling plugins. Every one of those went with
+  it: a type carries one of three values and the incoherent state is unrepresentable.
+- **A Stash plugin setting is BOOLEAN, NUMBER or STRING.** There is no tri-state, no enum and no
+  repeated group, so seven tri-states are either fourteen checkboxes with an illegal pair in each,
+  or one string. The string won, and the dialog is what saves anyone from typing it.
+- **Parsing forgives, formatting does not.** `parseAutoModes` picks `<type>=<mode>` out of anything,
+  in any order, any case, singular accepted, unknown words ignored, last mention winning; a missing
+  type is OFF. `formatAutoModes` writes the same seven pairs every time. `normalizeSettingField`
+  writes the canonical form back once Stash has saved a hand edit — never while the field has
+  focus, and never twice for the same text, which is what stops it from fighting the typist or
+  looping against a Stash that does not re-render the value.
+- **The migration is the whole reason a rename is affordable.** §6's rule still holds - a key is a
+  storage key and renaming one strands the value - so `settingsFrom` reads the old keys when the
+  new one is empty, maps them (an enabled type takes whichever single auto mode was on; both on
+  migrates to OFF, since that was the no-op) and writes the result back once per page. Everything a
+  user had is carried over, and this is the only kind of rename that should ever be done this way.
+- **The API needed no new field.** `apiPrepare`'s `autoMode` was published at 3.2.0 as *a question,
+  not a setting*, in as many words, against exactly this hypothetical. `TagBundleClipboard` did not
+  change a line. The two hardcoded sibling checks did change, because they read the settings by
+  name - which is the trade that note describes, and it went the way it said it would.
+- **One task, because the mode is no longer a property of the run.** Prune and Roll Up as two task
+  names only made sense while a run had one direction. With a mode per type, "which button did you
+  press" would have set a default the selectors immediately override.
 
 **3.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` under the last log line, one cycle at 2Hz, for as long as
 the run dialog is scanning, applying or undoing. The counters were the only signal a pass was alive,
@@ -140,16 +174,20 @@ Stash tag hierarchies are implied downward: if `Blonde` has parent `Hair Colour`
 tagged `Blonde` is already understood to be `Hair Colour`. Storing both on the same entity is
 redundant. Two library-wide tasks make that explicit, in either direction:
 
-- **Prune Parent Tags from Entities...** — remove every tag on an entity that is a strict ancestor
-  of another tag on the *same* entity. What survives is the antichain of the entity's tag set:
-  every tag with no descendant of its own present. That includes leaf tags and any intermediate
-  tag whose children (direct or indirect) are all absent.
-- **Roll Up Parent Tags onto Entities...** — add every strict ancestor, recursively, of every tag
-  on the entity.
+- **Prune** — remove every tag on an entity that is a strict ancestor of another tag on the *same*
+  entity. What survives is the antichain of the entity's tag set: every tag with no descendant of
+  its own present. That includes leaf tags and any intermediate tag whose children (direct or
+  indirect) are all absent.
+- **Roll Up** — add every strict ancestor, recursively, of every tag on the entity.
 
-The task names are deliberately long: the name is both the `SettingGroup` heading and the button
-label, and the short form ("Prune Parent Tags") reads as though it edits the tag hierarchy. The
-prepositions carry the direction as well as the target.
+**Which of the two, or neither, is a property of the entity type rather than of the run** (4.0.0).
+One library-wide task, **Normalize Parent Tags...**, plans each type in the direction its selector
+says; the same seven selectors, saved as the `a1AutoModes` setting, are what runs automatically on
+every save. §6a is the setting, §5c the selectors.
+
+The remaining task names are deliberately long: the name is both the `SettingGroup` heading and
+the button label, and a short form ("Prune Parent Tags") reads as though it edits the tag
+hierarchy.
 
 Either direction can also run **automatically**, on every entity Stash saves, rather than as a
 library-wide pass — see §5b. Same planning code, no dialog.
@@ -163,13 +201,17 @@ the backup unnecessary: it reaches its own writes, and only while the dialog is 
 
 **Auto mode can destroy one without any click at all**, which is why §5b is written the way it is:
 it has no dialog, no review, no tag summary and no Undo, and a console line is the only record it
-leaves. It is off by default, gated behind the same all-off entity toggles, and its two setting
-descriptions carry the warning in place of the dialog that is not there — **in their tooltip half
-since 1.7.5**, at the user's explicit request, so the warning is now one hover away rather than on
-the page. The wording itself is not to be trimmed.
+leaves. Every type is OFF by default, and the setting's description carries the warning in place of
+the dialog that is not there — **in its tooltip half since 1.7.5**, at the user's explicit request,
+so the warning is one hover away rather than on the page. The dialog behind **Auto Mode
+Settings...** carries the same sentence in its head, where it replaces the backup instruction the
+writing dialogs lead with: that dialog writes a setting, not the library, and telling its user to
+back up first would be answering a question they did not ask. The wording itself is not to be
+trimmed on either surface.
 
-The two are inverses in the useful sense: Roll Up then Prune returns the original antichain
-(minus whatever the exclusion filters protected).
+The two are inverses in the useful sense: rolling a type up and then pruning it returns the
+original antichain (minus whatever the exclusion filters protected). That is also the reason a type
+carries one of them and not both.
 
 Neither task ever touches the tag hierarchy itself — only the tag *assignments* on entities.
 
@@ -408,6 +450,35 @@ same reason in reverse — a marker is a child of a scene, and finishing with th
 pass has already settled. The order is a constant in one place; do not derive it from the
 settings object's key order, which is not guaranteed and would silently change meaning.
 
+### 5c. The seven selectors (4.0.0)
+
+The run dialog's head carries a `modesPanel` — one `<select>` per type, Off / Prune / Roll Up — and
+a **keep this selection** checkbox. Five decisions in it are worth not re-litigating:
+
+- **The panel mutates the run's own `this.modes`.** There is no second copy to keep in step; the
+  scan filters `TYPES` on it and passes each type's own mode to `scanType`.
+- **Seeded once, in `begin()`, guarded by `modesReady`.** A Rescan re-enters `begin()`, and
+  re-seeding there would throw away the selection the user just made and then pressed Rescan to act
+  on. That guard lives on the object rather than in `reset()` for exactly that reason.
+- **Images start Off however they are configured.** The user asked for this specifically, and the
+  reason is in the setting's own description since 1.0.0: images are usually the largest type and
+  the slowest to scan. A whole-library image pass is a decision per run; the automatic mode is
+  about one image at a time.
+- **Changing a selector after a plan exists disables Proceed and reveals Rescan.** The plan on
+  screen was computed for the previous selection, so pressing Proceed would write something other
+  than what the dialog now says it covers - the one way this UI could lie. `selectionDirty` is
+  cleared by `reset()`, which a Rescan goes through.
+- **The kept selection is `localStorage`, not a setting.** It is one browser's convenience rather
+  than something every tab and every user of that Stash shares, and a second persisted answer
+  beside the auto modes is exactly the confusion 4.0.0 removed. It is re-parsed through
+  `parseAutoModes(formatAutoModes(...))` on the way out, so a hand-edited or truncated value can
+  only ever read as OFF.
+
+**The recap lines split by direction** because one run can do both: `planTagCounts(plan, dir)` takes
+the direction, `appliedTags`/`undoneTags` are `{ ADD: {}, REMOVE: {} }`, and an empty half prints
+nothing. Up to 3.2.0 every one of those took its verb from the run's single `mode`, which a mixed
+run has no equivalent of.
+
 ### Phase 1 — dry run
 
 Modal, built as plain DOM appended to `document.body` with its own injected `<style>` (no React,
@@ -415,7 +486,8 @@ no PluginApi). It shows:
 
 - A one-line backup warning at the top, permanently, not a dismissible notice: *"This cannot be
   undone. Back up your database before proceeding."*
-- The task name, and the entity types included in the run, in processing order.
+- The task name, the seven selectors (§5c), and the entity types included in the run with the
+  direction each one is being planned in, in processing order.
 - Any run-level warning raised at startup — currently the sibling-plugin check in §8.
 - Per-type progress: `Scenes 4200 / 12871`, plus a running "changes found" count.
 - A scrollable log of every planned change, one line per tag per entity:
@@ -747,27 +819,33 @@ protect or skip tags by accident — see §4.
 
 ## 5b. Auto mode (1.1.0)
 
-`a8AutoPruneOnUpdate` and `a9AutoRollUpOnUpdate` make the plugin **reactive** as well as bulk: it
-wraps `fetch`, and every entity Stash saves is re-normalized in the chosen direction immediately.
-The tasks answer "normalize my library once"; these answer "and keep it that way".
+`a1AutoModes` (§6a) makes the plugin **reactive** as well as bulk: it wraps `fetch`, and every
+entity Stash saves is re-normalized in that type's direction immediately. The task answers
+"normalize my library once"; this answers "and keep it that way". It was two global booleans,
+`a8AutoPruneOnUpdate` and `a9AutoRollUpOnUpdate`, until 4.0.0.
 
 **This breaks the invariant the rest of the plugin is built on.** Everywhere else, nothing is
 written without a plan on screen and a Proceed, and §5's Undo exists because a six-figure review log
 is not read closely. Out here there is no dialog, so there is no review, no tag summary and no Undo —
-a `[REMOVE]` line in the browser console is the entire record. Auto Prune in particular deletes tag
-assignments one save at a time, silently. The two setting descriptions say so in those words; they
-are the only warning the user gets, so do not trim them for length.
+a `[REMOVE]` line in the browser console is the entire record. A type set to PRUNE in particular
+deletes tag assignments one save at a time, silently. The setting's description says so in those
+words, and so does the head of the **Auto Mode Settings...** dialog; they are the only warning the
+user gets, so do not trim them for length.
 
-**Since 1.7.5 that warning sits in the tooltip half of each description, not the visible half.** It
+**Since 1.7.5 that warning sits in the tooltip half of the description, not the visible half.** It
 was moved there deliberately (§6) and the wording survived intact; what changed is that reading it
-now costs a hover, and a touch device has no way to reach it at all. If either description is ever
-rewritten, the warning goes with it — moving it is not licence to shorten it.
+now costs a hover, and a touch device has no way to reach it at all — which is part of why the
+settings dialog's head carries it too. If the description is ever rewritten, the warning goes with
+it: moving it is not licence to shorten it.
 
-**Which types are covered is `a1`–`a7`**, the same toggles that scope the tasks. One list rather than
-a second set of seven, so the settings page cannot describe two different libraries — and the
-all-off default carries over, which means a fresh install reacts to nothing until the user has said
-which types they have thought about. The cost is real and worth stating: you cannot auto-prune only
-scenes while the task covers everything.
+**Which types are covered, and in which direction, is the one string.** Up to 3.2.0 this section
+argued for the opposite arrangement - one list of enabled types shared with the tasks, so the
+settings page could not describe two different libraries - and named its own cost: *you cannot
+auto-prune only scenes while the task covers everything*. That cost is what 4.0.0 removed. The
+sharing survives in the form that was actually load-bearing: **the task dialog starts from these
+modes**, so the two still agree by default, and a run that differs is one the user changed on
+screen, in front of the plan it produces. The all-off default is unchanged - a fresh install reacts
+to nothing until the user has said which types they have thought about.
 
 Both single and bulk mutations are watched (`sceneUpdate` *and* `bulkSceneUpdate`), so a bulk edit
 of 500 scenes normalizes all 500. That is usually the point, and it is also the largest silent write
@@ -817,22 +895,26 @@ The graph cache is also **invalidated outright by any tag mutation** seen in the
 that, a parent created in another tab would be ignored for a minute — and a plugin whose whole
 subject is the hierarchy cannot be a minute behind it.
 
-### The four things that stop it eating a library
+### The three things that stop it eating a library
 
-1. **Both modes on does nothing.** They are exact inverses, so whichever ran second would undo the
-   first on every save. `autoMode` returns null and warns once. Picking one silently is a trap
-   dressed as a convenience, and there is no ordering that makes both coherent.
-2. **`guarded()` / `_writeDepth`**, the internal re-entrancy guard, modelled on the sibling's
+There were four until 4.0.0. The first was **both modes on does nothing** - the two global flags
+were exact inverses, so whichever ran second undid the first on every save, and `autoMode` returned
+null and warned once rather than picking one silently. A type now carries one of three values, so
+the combination cannot be configured, and the guard, the console warning, the settings-page notice
+and two siblings' copies of the same explanation all went with it. **The best fix for a state that
+has to be documented as a no-op is a setting that cannot express it.**
+
+1. **`guarded()` / `_writeDepth`**, the internal re-entrancy guard, modelled on the sibling's
    `_mergeDepth` and a counter for the same reason. It wraps the auto writes *and both task write
    paths*: phase 2 and Undo issue `bulk*Update` for every batch, which is precisely what the wrapper
    watches for, so without it a Prune task with Auto Prune enabled re-plans each batch it has just
    written — and an Undo would have its reversal put straight back.
-3. **A lease**, so other reactive plugins stand down while we write. This is what stops the
+2. **A lease**, so other reactive plugins stand down while we write. This is what stops the
    sibling's auto-merge from bouncing a prune straight back. It is short — `AUTO_LEASE_TTL_MS`, not
    the tasks' five minutes — because a crashed tab must not stand the sibling down for five minutes
    over one scene save. We honour our own lease no differently from anyone else's; §8 explains why
    that is correct rather than a self-inflicted deadlock.
-4. **A per-entity cooldown**, for when 3 is not honoured. A plugin older than the protocol, or a
+3. **A per-entity cooldown**, for when 2 is not honoured. A plugin older than the protocol, or a
    server-side `hooks:` plugin that never sees this `window`, can still write our removals back.
    Without a cooldown, Prune and that plugin ping-pong over one entity for as long as the tab is
    open. After writing to an entity we ignore further updates to it for `AUTO_COOLDOWN_MS`, which
@@ -844,57 +926,54 @@ we planned nothing for would suppress a later, legitimate reaction to it. The ma
 expired entries once it passes `AUTO_COOLDOWN_MAX` rather than capped, since a bulk edit can put
 tens of thousands of ids in it and each expires on its own schedule.
 
-Note that 2 and 4 overlap on the auto path — a self-reaction always targets ids marked a moment
+Note that 1 and 3 overlap on the auto path — a self-reaction always targets ids marked a moment
 earlier, so either alone would stop it. They do **not** overlap on the task path, where nothing
 marks a cooldown, and that is where `_writeDepth` is doing work nothing else does. The test suite
 says so explicitly, because a check that passes for the wrong reason is worse than no check.
 
-### Saying so on the settings page (1.2.0)
+### Keeping the field honest on the settings page (1.2.0, rewritten at 4.0.0)
 
-Both modes on runs neither, which is the safe reading and an invisible one — the only signal was a
-console line, and nobody has the console open while ticking a checkbox. `settingsTick()` puts a
-notice inside the plugin's own `SettingGroup` for as long as both are on.
+Up to 3.2.0 this was a **notice**: both auto modes on ran neither, which was the safe reading and an
+invisible one, so `settingsTick()` put a warning inside the plugin's own `SettingGroup` for as long
+as both were ticked. There is no such state any more (see above), and what the tick does on that
+page now is the opposite job - **`normalizeSettingField()` writes the parsed value back in canonical
+form** once Stash has saved a hand edit, which is also how the user finds out the plugin understood
+what they typed.
 
-**It reports and does nothing else.** Switching one off automatically was considered and rejected
-on three counts, all worth keeping written down because the idea will come back:
+**It reads the input, not the saved settings.** That was the notice's own hard-won rule and it
+transfers exactly: the input's `value` is the state the user is looking at, it costs nothing, and it
+lags by nothing, where Stash sets its own React state immediately and debounces the save, so
+anything re-reading the config is behind the box and disagrees with the screen while it is.
 
-- Plugin settings are **server-side and shared** by every tab and every user of that Stash. A
-  checkbox that silently unticks another unticks it for everybody.
+Three rules stop it fighting the person typing, and they are the whole design:
+
+- **Never while the field has focus.** A value replaced under the cursor is one the user cannot
+  finish typing.
+- **Never twice for the same text.** The write is remembered by what it was made *from*, so a Stash
+  that does not re-render the field with the saved value cannot turn this into a loop.
+- **An empty field is left alone.** It means "nothing configured", which is what a fresh install
+  has; writing seven OFFs into it would be the plugin saving settings for someone who has only
+  looked at the page.
+
+**Automatic rewriting of another plugin's - or this one's - settings is otherwise still refused**,
+and the three reasons the notice recorded are unchanged and worth keeping, because the idea comes
+back:
+
+- Plugin settings are **server-side and shared** by every tab and every user of that Stash.
 - `configurePlugin(plugin_id, input)` exists, but Stash's settings page holds plugin config in
   **React component state** (`SettingStateContext` → `setPlugins`), not in the Apollo cache. An
-  out-of-band write therefore leaves the box visibly ticked until a reload — it would fix the
-  config and lie about it, and Apollo eviction (the sibling's trick for scene lists) cannot reach
-  React state.
-- Driving Stash's own `onChange` through `PluginApi.patch` *would* keep the UI honest, and is the
-  only version that works. But it turns "both ticked does nothing" into "the second one you ticked
-  is now live" — for Auto Prune, silent deletions starting from a click that used to be inert. That
-  is a move from failing safe to failing on, and it would make the settings' own
-  "Has no effect if …" wording false.
+  out-of-band write therefore leaves the *displayed* value stale until a reload.
+- Driving Stash's own `onChange` through `PluginApi.patch` would keep the UI honest and is the only
+  version that fully works.
 
-There is also no way to collapse the pair into one control: `PluginSettingTypeEnum` is
-`STRING | NUMBER | BOOLEAN`, so Stash has no dropdown for a plugin setting.
+The renormalization is the one write that clears that bar, and only just: it changes the spelling of
+a value the user has already saved, never its meaning, and the field going stale until a reload
+shows the text they typed rather than a state they did not choose. The **migration** in §6a is the
+other, and it is a one-off.
 
-**It reads the checkboxes, not the saved settings.** `liveConflictState()` returns
-`prune.checked && rollup.checked` off the two inputs. That is the state the user is looking at, it
-costs nothing, and it lags by nothing. Three releases tried to make a config-derived notice keep up
-with a click and none of them did: Stash sets its own React state immediately and debounces the
-save, so *anything* that re-reads the config is behind the checkbox and disagrees with the screen
-while it is — which is worse than useless for a warning about which boxes are ticked. Querying the
-server survives only as a fallback for a Stash whose inputs cannot be read.
-
-**And it sits immediately above the Auto Prune row**, not at the top of the group box. The original
-placement was chosen so the notice showed while the group was collapsed; but a collapsed group is
-one you cannot misconfigure from, and in an expanded one it put the notice off the top of the screen,
-far from the checkboxes it is about. Next to the controls is where a warning about those controls
-belongs.
-
-**A settings save invalidates the settings cache** — the `fetch` wrapper watches for
-`configurePlugin` carrying our own `plugin_id` and drops it. This is nothing to do with the notice,
-which reads the DOM: it is for **auto mode**, which caches settings for `AUTO_SETTINGS_TTL_MS` and
-would otherwise keep writing under the old ones for up to ten seconds after you enable a mode. Two
-details: re-read only **after** `mutationSucceeded`, or the old values come straight back and are
-cached for another ten seconds; and scope it to our `plugin_id`, since the settings page saves each
-plugin in its own mutation.
+There is also no way to collapse seven tri-states into seven controls: `PluginSettingTypeEnum` is
+`STRING | NUMBER | BOOLEAN`, so Stash has no dropdown for a plugin setting - which is exactly why
+the modes are a string and the **Auto Mode Settings...** dialog exists.
 
 > **A detour worth not repeating.** 1.2.3 and 1.2.4 both tried to make a *config-derived* notice keep
 > up with a click — first by invalidating on `configurePlugin`, then by polling settings once a
@@ -906,6 +985,14 @@ plugin in its own mutation.
 > code running. The per-second poll is gone; the invalidation stayed only because auto mode wants it
 > for its own reasons.
 
+**A settings save invalidates the settings cache** — the `fetch` wrapper watches for
+`configurePlugin` carrying our own `plugin_id` and drops it. This is nothing to do with the
+renormalization above, which reads the DOM: it is for **auto mode**, which caches settings for `AUTO_SETTINGS_TTL_MS` and
+would otherwise keep writing under the old ones for up to ten seconds after you enable a mode. Two
+details: re-read only **after** `mutationSucceeded`, or the old values come straight back and are
+cached for another ten seconds; and scope it to our `plugin_id`, since the settings page saves each
+plugin in its own mutation.
+
 Mechanics worth keeping: the group is found by a **heading carrying the plugin name**, never by
 position, since the page lists every installed plugin — the same rule as the task interception in
 §2.
@@ -914,7 +1001,7 @@ position, since the page lists every installed plugin — the same rule as the t
 plugin setting an id built from the plugin id and the setting key:
 
 ```jsx
-id: `plugin-${pluginID}-${setting.name}`   // plugin-NormalizeParentTags-a8AutoPruneOnUpdate
+id: `plugin-${pluginID}-${setting.name}`   // plugin-NormalizeParentTags-a1AutoModes
 ```
 
 That is ours by construction — no version suffix, no localisation, nothing formatted for display.
@@ -922,10 +1009,27 @@ That is ours by construction — no version suffix, no localisation, nothing for
 *also* what tells us the plugins settings page is showing, so there is no route test either; that
 was one more assumption with nothing checking it, and those ids cannot exist on another page.
 
-The notice goes at the **top of the group box**, not beside the setting: the settings themselves sit
-inside a `<Collapse>` that `SettingsPluginsPanel` shuts by default, so a notice in there would be
-invisible until the user expanded the very group it is telling them to look at. The group header is
-outside the Collapse, so the top of the box is visible either way.
+**And it falls back to the heading's group when there is no id at all** (4.0.0). That fallback used
+to exist only for the both-modes notice, and it outlived it: everything else this section puts on
+that page - the README link, the description split, the per-setting tooltips, the stale-script
+banner - needs the same box, and a Stash that stopped setting those ids would have dropped all of
+them silently. It is what `normalize-auto`'s five heading spellings now check.
+
+**The fallback has to exclude the Tasks page, and finding out why was worth the check.**
+Settings → Tasks heads *its* group with the same plugin name, so the heading alone matches both
+pages - and decorating the wrong one is not cosmetic. `readmeLinkSlot` picks a slot by structure,
+and in a tasks group that slot landed **inside the task button**, so the link became the button's
+only child and the button's label became "NormalizeParentTags/README.md". `ownTaskName` matches on
+that label, so the button stopped being ours: no interception, no amber, a click queueing a
+server-side job for a plugin that has nothing to execute. `hasOwnTaskButton` is the discriminator -
+the heading says who we are, the buttons say which page - and the suite pins both halves, including
+that the button is still repainted, since painting is a different function asking a different
+question.
+
+Anything placed *inside* the group has to reckon with the `<Collapse>` that `SettingsPluginsPanel`
+shuts by default: a notice in there is invisible until the user expands the very group it is
+telling them to look at. The group header is outside it, which is why the README link and the stale
+banner sit there.
 
 **Two releases shipped this broken by matching the heading text instead, and the tests agreed with
 the bug both times** — they were written from the same guess as the code, so they modelled a DOM
@@ -944,7 +1048,7 @@ heading: `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`
 
 so the `h3` there reads `Normalize Parent Tags (1.2.0)` — and, since that template interpolates the
 literal when a plugin has no version, sometimes `Normalize Parent Tags undefined`. Matching the bare
-name found neither, so the notice never appeared. `headingIsOurs` strips the suffix and compares
+name found neither, so the notice this fallback was built for never appeared. `headingIsOurs` strips the suffix and compares
 **exactly**; do not relax it to a prefix test, or a plugin called `Normalize Parent Tags Extra`
 becomes us. All five spellings are pinned in `normalize-auto`, and both the original bug and the
 prefix-match "fix" fail those checks.
@@ -953,8 +1057,7 @@ The lesson generalises: every one of this plugin's footholds in Stash's markup i
 runs against a real Stash, and a test written from the same guess confirms nothing. When a DOM
 assumption is added here, read the component that produces it. Rendering is idempotent, because the tick runs on a timer and on every navigation. Settings are
 only read while that page is showing, so a tab parked anywhere else costs two string comparisons a
-second and no queries. And a failed settings read leaves whatever is on screen rather than
-flickering the notice off and back on. There is deliberately **no MutationObserver** here, unlike
+second and no queries. There is deliberately **no MutationObserver** here, unlike
 the sibling's button injection: a banner in a settings panel does not have to land before the user
 can click it, so the timer plus the navigation hooks are enough and cannot fight a React re-render.
 
@@ -979,12 +1082,8 @@ enablePerformers …`, which puts Scene Markers between Images and Performers an
 Organized toggle into the middle of the string filters. The prefixes buy three blocks the user
 can read top to bottom:
 
-- `a1`–`a7` — the entity toggles, in the §5 processing order, so the settings page and the run
-  agree about what happens first.
-- `a8`–`a9` — the two auto modes (§5b). They read better at the head of the block, above the toggles
-  that scope them, and they are at its foot anyway: a key is the storage key, so renumbering `a1`–`a7`
-  to make room would silently reset every entity toggle on every existing install. Directly under
-  the toggles is the next best place, and it is where the settings page puts them.
+- `a1` — the automatic modes, all seven types in one string (§6a). It was `a1`–`a9`, nine booleans,
+  until 4.0.0.
 - `b1`–`b2` — the entity-level exclusions.
 - `c1`–`c6` — the tag-level filters: the both-directions one first, then the add/remove name pair,
   then `c4TagNameSeparator` directly under the two settings it splits, then the add/remove
@@ -1000,14 +1099,54 @@ differently from the page it produces is a trap for the next edit.
 
 A key is also the **storage key** — Stash saves values under it — so renaming one silently
 resets that setting for every existing install and strands the old value in the config. Renaming
-happened once, at 0.1.1, while the only install was the author's. It should not happen again
-without a good reason. New settings get a prefix in the block they belong to; if there is no gap
-left, renumber the whole block in one go rather than bolting on a `c5a`.
+happened once at 0.1.1, while the only install was the author's, and once at 4.0.0, where all nine
+`a` keys went at once — **with a migration that reads the old ones and writes their meaning into
+the new one**, which is the only way this should ever be done to a released plugin. New settings get
+a prefix in the block they belong to; if there is no gap left, renumber the whole block in one go
+rather than bolting on a `c5a`.
 
 **A new key has to be added to `DEFAULTS` as well.** `loadSettings` copies only the keys that table
 declares, so a setting present in the manifest and missing from `DEFAULTS` reads as empty forever —
 configurable in the UI and inert in the run. `c4TagNameSeparator` shipped that way for one test run;
 the suite caught it because the separator case was written to fail without the feature.
+
+### 6a. The auto-mode string (4.0.0)
+
+`a1AutoModes` holds all seven types: `PERFORMERS=OFF, STUDIOS=OFF, GROUPS=OFF, GALLERIES=OFF,
+SCENES=PRUNE, IMAGES=OFF, MARKERS=OFF`. Everything about its shape follows from one fact:
+**`PluginSettingTypeEnum` is `STRING | NUMBER | BOOLEAN`** — no tri-state, no enum, no repeated
+group — so seven tri-states are either fourteen checkboxes with an illegal combination in each
+pair, or one line of text.
+
+**Parsing forgives, formatting does not.** `MODE_PAIR` picks `<type>=<mode>` out of anything, so
+order, case, separators and surrounding prose are all free; `typeByToken` accepts the singular
+(`SCENE`); `ROLL UP`, `ROLL-UP` and `ROLL_UP` all read as `ROLLUP`; an unknown word is ignored
+rather than guessed at; a type named twice takes its **last** mention, because a line like this is
+edited by appending far more often than by rewriting; and a type nobody mentioned is OFF.
+`formatAutoModes` writes the seven pairs in processing order, joined with `', '`, always.
+
+**`settingsFrom` is the one place the two meet**, so nothing downstream parses the string twice:
+it fills the defaults, migrates a pre-4.0.0 install, and hangs `modes` off the result. `modeOf(s,
+type)` is what everything else asks.
+
+**The migration.** `hasLegacySettings` + `legacyModes`: an enabled type takes whichever single auto
+mode was on; both on migrates to **OFF**, since that combination was 3.2.0's own documented no-op
+and picking a direction the user never chose would be worse than the reset this is avoiding. It
+runs once per page, only when the new key is empty, and writes the result back with
+`saveAutoModes` — the old keys are left where they are, harmless and unread, because deleting a
+user's data to tidy up is not this code's business.
+
+**`saveAutoModes` is the only mutation this plugin sends that is not about the library.** It is
+`configurePlugin` with our own `plugin_id`, which the fetch wrapper already watches for, so a save
+made here drops the settings cache exactly as a save made by hand does.
+
+**The Auto Mode Settings... task is the editor**, and it is why the string is acceptable as a
+setting at all: nobody has to type it. It reads the current value with `loadSettings` (not the
+10s-cached `autoSettings` — this dialog is where the user finds out what is configured, and a
+stale answer here would be a lie they then overwrite), shows the seven selectors and a preview of
+the exact string Save would write, and saves nothing until Save is pressed. Its head warns about
+what an automatic mode does; it deliberately does **not** carry the backup instruction, because it
+writes a setting rather than the library — see the repo-root rule, and §1.
 
 ### Descriptions: a summary on the page, the rest on hover (1.7.0)
 
@@ -1088,8 +1227,7 @@ Four rules hold it together:
   the description with nowhere else to be read.
 
 **Why the group description needs a toggle rather than a tooltip.** It is in the group *header*,
-which is outside the `<Collapse>` — the same fact `readmeLinkSlot` relies on, and the reason the
-conflict notice sits where it does. So it is on screen at full height whether the group is expanded
+which is outside the `<Collapse>` — the same fact `readmeLinkSlot` relies on. So it is on screen at full height whether the group is expanded
 or not, and **per-plugin collapse does not shorten it**; hiding paragraphs is the only thing that
 does. Five paragraphs in a native `title` would also render badly and OS-dependently.
 
@@ -1278,8 +1416,8 @@ no path id on either side.
 
 ## 9. Testing
 
-Five suites cover this plugin — `normalize-plan`, `normalize-apply`, `normalize-tasks`,
-`normalize-tree`, `normalize-auto` — plus
+Seven suites cover this plugin — `normalize-plan`, `normalize-apply`, `normalize-tasks`,
+`normalize-tree`, `normalize-auto`, `normalize-modes`, `normalize-api` — plus
 `coop` for the sibling's half of the lease. They run on `npt-harness.js`, which differs from the
 sibling's harness in having a fake DOM real enough to build and read back a dialog, and which
 starts runs by posting a `runPluginTask` mutation rather than by simulating a click. What they
@@ -1296,6 +1434,16 @@ cover:
   name filters: several substrings each protecting on their own, padding and repeated whitespace
   yielding no empty term, and a blank setting protecting nothing rather than everything.
 - **Two-phase dialog** — no mutation is issued before Proceed; Cancel issues none at all.
+- **The modes** (`normalize-modes`) — the parser through the run it produces (singular, case,
+  two-word Roll Up, arbitrary separators, unknown words ignored, last mention winning), the
+  selectors seeded from the settings with Images off, one run pruning one type while rolling up
+  another and writing both deltas, a selector change disabling Proceed and revealing Rescan, a
+  Rescan not re-seeding the selectors, the keep-this-selection box storing and forgetting, a
+  corrupt stored value reading as OFF, and the settings dialog's preview, Save, Cancel and Escape.
+  Migration is covered where it is observable rather than in a unit test of its own: in
+  `normalize-auto`, a pre-4.0.0 install still reacting and writing its migrated string back once;
+  in `normalize-api`, a caller getting the same answers it always did; in `tagclip`, the sibling
+  plugin not noticing that every setting key it depends on was renamed.
 - **The hierarchy viewer** (`normalize-tree`) — that it issues no mutation and nothing beyond the
   settings and tag queries, that a diamond appears under both parents with exactly one of them the
   repeat, that cyclic tags are still reachable, that badges and the inspector name the filter

@@ -713,7 +713,8 @@ relationship-copying plugin needs no edit to either.
 
 **`checkHierarchySibling` — a different kind of collision, and not part of `declares`.** Ported
 from `MergePerformerTagsToScenes`' own `checkSibling`, reading `NormalizeParentTags`' raw settings
-(`a8AutoPruneOnUpdate` / `a9AutoRollUpOnUpdate`) out of the same `{ configuration { plugins } }`
+(`a1AutoModes` since its 4.0.0, the `a8AutoPruneOnUpdate` / `a9AutoRollUpOnUpdate` pair it replaced
+before that — `nptAutoModes` reads whichever is there) out of the same `{ configuration { plugins } }`
 response `loadSettings()` already fetches — `loaded.all[NPT_ID]`, no second query. Unlike the
 overlap above, this is not "the same path": Prune can remove any tag this run adds regardless of
 which of the eleven tag paths added it, and Roll Up piles ancestors on top of it the same way. That

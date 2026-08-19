@@ -28,10 +28,15 @@ const recapSpans = (env, verb) => {
 const recapTips = (env, verb) => recapSpans(env, verb).filter((n) => n.title)
   .map((n) => ({ text: n.textContent, title: n.title }));
 
-function scan(opts, task) {
+// `mode` is what Scenes are set to: since 4.0.0 one task does both directions and the
+// per-type setting decides which, so a roll-up case is a settings case.
+function scan(opts, mode) {
+  opts = Object.assign({}, opts);
+  opts.settings = Object.assign({ a1AutoModes: h.autoModes({ scenes: mode || 'prune' }) },
+    opts.settings);
   const env = h.makeEnv({ quiet: true, respond: h.makeResponder(opts), clipboard: opts.clipboard });
   h.run(env.ctx);
-  h.startTask(env.ctx, task || h.TASK_PRUNE);
+  h.startTask(env.ctx, h.TASK_RUN);
   return h.flush().then(() => ({ env, d: () => h.dialog(env.body) }));
 }
 
@@ -128,7 +133,7 @@ Promise.resolve()
       },
     });
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     return h.flush().then(() => {
       h.check('no lease is held during the review pass',
         seen.every((s) => s.leases === 0), JSON.stringify(seen.slice(0, 3)));
@@ -140,7 +145,7 @@ Promise.resolve()
           (env.ctx.window.StashPluginCoop.leases || []).length === 0);
         const held = seen.filter((s) => s.bulk);
         h.check('the lease names its owner and task, and expires',
-          held.every((s) => s.owner === 'NormalizeParentTags' && s.label === h.TASK_PRUNE &&
+          held.every((s) => s.owner === 'NormalizeParentTags' && s.label === h.TASK_RUN &&
             s.until > Date.now()), JSON.stringify(held[0]));
       });
     });
@@ -152,7 +157,7 @@ Promise.resolve()
     const opts = { entities: bigLibrary(), failBulk: () => true };
     const env = h.makeEnv({ quiet: true, respond: h.makeResponder(opts) });
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     return h.flush().then(() => {
       h.dialog(env.body).button('Proceed').click();
       return h.flush().then(() => {
@@ -175,7 +180,7 @@ Promise.resolve()
         ? h.HANG : responder(req, calls)),
     });
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     const cursor = () => env.body.descendants().filter((n) => h.hasClass(n, 'npt-spin'))[0] || null;
     return h.flush().then(() => {
       h.check('no cursor once the review pass is over', !cursor());
@@ -215,7 +220,7 @@ Promise.resolve()
     // Stand in for a sibling new enough to register itself.
     env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = { leases: [], respecters: { MergePerformerTagsToScenes: true } };
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     return h.flush().then(() => {
       const d = h.dialog(env.body);
       h.check('a sibling that honours leases is reported, not warned about',
@@ -332,14 +337,14 @@ Promise.resolve()
     const env = h.makeEnv({ quiet: true, respond: (req, calls) => {
       if ((req.query || '').indexOf('configuration') !== -1) {
         pass++;
-        const plugins = { NormalizeParentTags: { a5EnableScenes: true } };
+        const plugins = { NormalizeParentTags: { a1AutoModes: h.autoModes({ scenes: 'prune' }) } };
         if (pass === 1) plugins.MergePerformerTagsToScenes = { a3AutoMergeOnSceneUpdate: true };
         return { data: { configuration: { plugins } } };
       }
       return inner(req, calls);
     } });
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     const d = () => h.dialog(env.body);
     return h.flush().then(() => {
       h.check('the sibling warning is on the dialog while it applies',
@@ -508,7 +513,7 @@ Promise.resolve()
       return h.makeResponder({ entities: {} })(req, calls);
     } });
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     const d = () => h.dialog(env.body);
     return h.flush().then(() => {
       d().button('Proceed').click();
@@ -549,7 +554,7 @@ Promise.resolve()
       respecters: { MergePerformerTagsToScenes: true },
     };
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     return h.flush().then(() => {
       const d = h.dialog(env.body);
       h.check('a lease held by another plugin is warned about',
@@ -623,7 +628,7 @@ Promise.resolve()
         list: [{ id: '20', title: 'Leaf', organized: false, tags: [{ id: '3' }] }],
       },
     },
-  }, h.TASK_ROLLUP)).then(({ env, d }) => {
+  }, 'rollup')).then(({ env, d }) => {
     d().button('Proceed').click();
     return h.flush().then(() => {
       const applied = h.bulkCalls(env.calls);
@@ -663,7 +668,7 @@ Promise.resolve()
       },
     });
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     return h.flush().then(() => {
       const d = () => h.dialog(env.body);
       d().button('Proceed').click();
@@ -705,7 +710,7 @@ Promise.resolve()
       },
     });
     h.run(env.ctx);
-    h.startTask(env.ctx, h.TASK_PRUNE);
+    h.startTask(env.ctx, h.TASK_RUN);
     return h.flush().then(() => {
       const d = () => h.dialog(env.body);
       d().button('Proceed').click();
@@ -719,7 +724,7 @@ Promise.resolve()
               during.length === 4 && during.every((s) => s.leases === 1),
               JSON.stringify(during));
             h.check('and it names itself as an undo',
-              during.every((s) => s.label === h.TASK_PRUNE + ' (undo)'), JSON.stringify(during[0]));
+              during.every((s) => s.label === h.TASK_RUN + ' (undo)'), JSON.stringify(during[0]));
             h.check('released when the undo finishes',
               (env.ctx.window.StashPluginCoop.leases || []).length === 0);
           });

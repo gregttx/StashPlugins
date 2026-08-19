@@ -21,13 +21,21 @@ const LIB = {
   findPerformers: { node: 'performers', list: PERFORMERS },
 };
 
-// `settings` is merged over the auto-prune-on-scenes baseline every case starts from.
-function boot(settings, opts) {
+// `modes` replaces the auto-prune-on-scenes baseline every case starts from; since
+// 4.0.0 a type carries its own mode, so a case that used to flip one of two global
+// booleans names the type it is about instead. `settings` is anything else.
+function boot(modes, opts, settings) {
   const o = Object.assign({
     quiet: true,
     respond: h.makeResponder(Object.assign({
       entities: LIB,
-      settings: Object.assign({ a5EnableScenes: true, a8AutoPruneOnUpdate: true }, settings),
+      // A case naming its own `aN` key is either writing the new string or the
+      // pre-4.0.0 booleans it replaced; defaulting over the second would hide the
+      // migration such a case exists to exercise.
+      settings: Object.assign(
+        Object.keys(settings || {}).some((k) => /^a\d/.test(k))
+          ? {} : { a1AutoModes: h.autoModes(modes || { scenes: 'prune' }) },
+        settings),
     }, opts || {})),
   }, {});
   const env = h.makeEnv(o);
@@ -37,11 +45,11 @@ function boot(settings, opts) {
 
 const tagQueries = (calls) => calls.filter((c) => /NPTTags/.test(c.query || ''));
 
-  // `checks` sets the two checkboxes; pass null for a Stash whose settings inputs
-  // cannot be read, which is the only case that falls back to querying the server.
-  function page(checks, opts) {
+  // `value` is what the auto-mode field holds; pass null for a Stash whose settings
+  // inputs cannot be read at all, which is what the heading fallback is for.
+  function page(value, opts) {
     opts = opts || {};
-    const env = boot(opts.settings);
+    const env = boot(opts.modes, null, opts.settings);
     const other = h.makeElement('div');
     other.className = 'setting-group';
     const otherH = h.makeElement('h3');
@@ -71,19 +79,21 @@ const tagQueries = (calls) => calls.filter((c) => /NPTTags/.test(c.query || ''))
     const rows = {};
     // Each row the way Inputs.tsx builds one: an <h3> for the name and a
     // .sub-heading for the description, with the id on the input rather than the row
-    // (Stash puts it on the Form.Switch). a8 carries the real warning text, because
-    // keeping that in the *visible* half is the point of the split.
+    // (Stash puts it on the Form.Switch, and on the text input for a STRING setting).
+    // a1 carries the real warning text, because keeping that in the *visible* half is
+    // the point of the split; b2 is a one-paragraph description, which is the case
+    // that must be left alone.
     const descs = {
-      a8AutoPruneOnUpdate:
-        'Whenever Stash saves an entity of an enabled type above, immediately remove ' +
-        'any tag on it that another tag on the same entity already implies.' +
-        '\n\nWARNING: Updates immediately, with no dialog, no review and no undo, ' +
-        'and it deletes tag assignments.' +
-        '\n\nThe exclusion filters below still apply. ' +
-        'Has no effect if Auto Roll Up is also enabled.',
-      a9AutoRollUpOnUpdate: 'Adds every ancestor as Stash saves.',   // one paragraph
+      a1AutoModes:
+        'What happens by itself whenever Stash saves an entity, for each of the ' +
+        'seven types: PERFORMERS=OFF, STUDIOS=OFF, GROUPS=OFF, GALLERIES=OFF, ' +
+        'SCENES=OFF, IMAGES=OFF, MARKERS=OFF.' +
+        '\n\nWARNING: a type set to PRUNE or ROLLUP is updated immediately, with no ' +
+        'dialog, no review and no undo, and PRUNE deletes tag assignments.' +
+        '\n\nThe exclusion filters below still apply.',
+      b2ExcludeOrganized: 'Skips any entity whose Organized flag is set.',  // one paragraph
     };
-    [['a8AutoPruneOnUpdate', 0], ['a9AutoRollUpOnUpdate', 1]].forEach(([k, i]) => {
+    ['a1AutoModes', 'b2ExcludeOrganized'].forEach((k) => {
       const row = h.makeElement('div');
       row.className = 'setting';
       const rowH = h.makeElement('h3');
@@ -95,7 +105,7 @@ const tagQueries = (calls) => calls.filter((c) => /NPTTags/.test(c.query || ''))
       row.appendChild(rowSub);
       const input = h.makeElement('input');
       input.id = 'plugin-NormalizeParentTags-' + k;
-      if (checks) input.checked = checks[i];
+      if (k === 'a1AutoModes' && value !== null && value !== undefined) input.value = value;
       row.appendChild(input);
       collapsed.appendChild(row);
       rows[k] = { row, input, h3: rowH, sub: rowSub };
@@ -127,7 +137,7 @@ Promise.resolve()
   })
 
   .then(() => {
-    const env = boot({ a8AutoPruneOnUpdate: false, a9AutoRollUpOnUpdate: true });
+    const env = boot({ scenes: 'rollup' });
     return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '20' })
       .then(() => h.flush()).then(() => {
         const bulks = h.bulkCalls(env.calls);
@@ -147,7 +157,7 @@ Promise.resolve()
       quiet: true,
       respond: h.makeResponder({
         entities: LIB,
-        settings: { a5EnableScenes: true, a9AutoRollUpOnUpdate: true },
+        settings: { a1AutoModes: h.autoModes({ scenes: 'rollup' }) },
       }),
     });
     env.ctx.console = { log() {}, info: (m) => info.push(m), warn() {}, error() {} };
@@ -179,35 +189,44 @@ Promise.resolve()
 
   // ── The settings gates ────────────────────────────────────────────────────
   .then(() => {
-    const env = boot({ a8AutoPruneOnUpdate: false });
+    const env = boot({});
     return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
       .then(() => h.flush()).then(() => {
-        h.check('both modes off writes nothing', h.bulkCalls(env.calls).length === 0);
+        h.check('every type OFF writes nothing', h.bulkCalls(env.calls).length === 0);
         h.check('and never loads the tag hierarchy', tagQueries(env.calls).length === 0);
       });
   })
 
-  // Exact opposites: one adds what the other removes, so both on runs neither.
+  // A type's mode is its own: another type being set says nothing about this one.
   .then(() => {
-    const env = boot({ a9AutoRollUpOnUpdate: true });
+    const env = boot({ images: 'prune' });
     return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
       .then(() => h.flush()).then(() => {
-        h.check('both modes on writes nothing', h.bulkCalls(env.calls).length === 0);
-      });
-  })
-
-  // The a1-a7 toggles scope auto mode exactly as they scope the tasks.
-  .then(() => {
-    const env = boot({ a1EnablePerformers: false });
-    return h.entityUpdate(env.ctx, 'performerUpdate', { id: '77' })
-      .then(() => h.flush()).then(() => {
-        h.check('a disabled entity type is not reacted to',
+        h.check('a mode set for another type writes nothing',
           h.bulkCalls(env.calls).length === 0);
       });
   })
 
+  // The pre-4.0.0 settings, migrated on the way in: an install that has not been
+  // touched since 3.2.0 must still react exactly as it did.
   .then(() => {
-    const env = boot({ a1EnablePerformers: true });
+    const env = boot(null, null, { a5EnableScenes: true, a8AutoPruneOnUpdate: true });
+    return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
+      .then(() => h.flush()).then(() => {
+        const bulks = h.bulkCalls(env.calls);
+        h.check('a pre-4.0.0 install still prunes what it was set to prune',
+          bulks.length === 1 && bulks[0].variables.input.tag_ids.mode === 'REMOVE',
+          'got ' + bulks.length);
+        const saved = env.calls.filter((c) => /configurePlugin/.test(c.query || ''));
+        h.check('and the migrated string is written back once, in canonical form',
+          saved.length === 1 &&
+          saved[0].variables.input.a1AutoModes === h.autoModes({ scenes: 'prune' }),
+          JSON.stringify(saved.map((c) => c.variables.input)));
+      });
+  })
+
+  .then(() => {
+    const env = boot({ scenes: 'prune', performers: 'prune' });
     return h.entityUpdate(env.ctx, 'performerUpdate', { id: '77' })
       .then(() => h.flush()).then(() => {
         const bulks = h.bulkCalls(env.calls);
@@ -353,7 +372,7 @@ Promise.resolve()
 
   // ── The exclusion filters still apply ─────────────────────────────────────
   .then(() => {
-    const env = boot({ c3ExcludeRemoveTagNameContains: 'Hair' });
+    const env = boot(null, null, { c3ExcludeRemoveTagNameContains: 'Hair' });
     return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
       .then(() => h.flush()).then(() => {
         const bulks = h.bulkCalls(env.calls);
@@ -363,14 +382,14 @@ Promise.resolve()
   })
 
   .then(() => {
-    const env = boot({ b2ExcludeOrganized: true }, {
+    const env = boot(null, {
       entities: {
         findScenes: {
           node: 'scenes',
           list: [{ id: '10', title: 'Ten', organized: true, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }],
         },
       },
-    });
+    }, { b2ExcludeOrganized: true });
     return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
       .then(() => h.flush()).then(() => {
         h.check('an organized entity is skipped', h.bulkCalls(env.calls).length === 0);
@@ -380,7 +399,7 @@ Promise.resolve()
   // A configured exclusion tag that matches nothing stops auto mode rather than
   // letting it run unfiltered over the entities it was meant to protect.
   .then(() => {
-    const env = boot({ b1ExcludeEntityWithTagName: 'No Such Tag' });
+    const env = boot(null, null, { b1ExcludeEntityWithTagName: 'No Such Tag' });
     return h.entityUpdate(env.ctx, 'sceneUpdate', { id: '10' })
       .then(() => h.flush()).then(() => {
         h.check('an unresolvable exclusion tag stops auto mode',
@@ -438,13 +457,13 @@ Promise.resolve()
   // governed by the old settings for up to ten seconds.
   .then(() => {
     let prune = false;
-    const inner = h.makeResponder({ entities: LIB, settings: { a5EnableScenes: true } });
+    const inner = h.makeResponder({ entities: LIB, settings: { a1AutoModes: h.autoModes({}) } });
     const env = h.makeEnv({
       quiet: true,
       respond: (req, calls) => {
         if ((req.query || '').indexOf('configuration') !== -1) {
           return { data: { configuration: { plugins: { NormalizeParentTags: {
-            a5EnableScenes: true, a8AutoPruneOnUpdate: prune } } } } };
+            a1AutoModes: h.autoModes(prune ? { scenes: 'prune' } : {}) } } } } };
         }
         return inner(req, calls);
       },
@@ -494,99 +513,84 @@ Promise.resolve()
       });
   })
 
-  // ── The both-modes-on notice on the settings page ─────────────────────────
+  // ── Renormalizing the auto-mode field ─────────────────────────────────────
   //
-  // Both modes on runs neither, which is safe and invisible. The notice makes it
-  // visible, next to the two checkboxes, and must never do more than report.
+  // The field is one line of text and the user may edit it, so the parse is
+  // forgiving; what gets stored is not. Once Stash has saved an edit, the plugin
+  // writes back what it understood, in canonical form - which is also how the user
+  // finds out it understood.
   //
-  // The DOM mirrors what Stash builds. Earlier versions of this suite invented it
-  // from the same guesses as the code, so they agreed with the bugs:
+  // Up to 3.2.0 this section held a notice for the one configuration the old settings
+  // could express and the plugin could not honour: both auto modes ticked at once,
+  // which ran neither. A tri-state per type cannot say that, so there is nothing left
+  // to warn about.
+  //
+  // The DOM mirrors what Stash builds:
   //
   //   <div class="setting-group collapsible">
   //     <div class="setting"><div><h3>ᝯㄝₓ Normalize Parent Tags (1.2.5)</h3></div></div>
   //     <div class="collapse">
-  //       <div class="setting"><input id="plugin-NormalizeParentTags-a8..." checked></div>
-  //       <div class="setting"><input id="plugin-NormalizeParentTags-a9..." checked></div>
+  //       <div class="setting"><input id="plugin-NormalizeParentTags-a1AutoModes"></div>
   //     </div>
   //   </div>
 
   .then(() => {
-    const notice = (env) => env.ctx.document.getElementById('npt-conflict-notice');
-
-    const a = page([true, true]);
-    const before = a.env.calls.length;
+    const a = page('scene=prune;  IMAGES = roll up | markers=off');
+    const saves = () => a.env.calls.filter((c) => /configurePlugin/.test(c.query || ''));
     a.env.tick();
     return h.flush().then(() => {
-      const n = notice(a.env);
-      h.check('both boxes ticked shows a notice', !!n);
-      h.check('it names both settings and says neither is running',
-        !!n && n.textContent.indexOf('Auto Prune on Entity Updates') !== -1 &&
-        n.textContent.indexOf('Auto Roll Up on Entity Updates') !== -1 &&
-        n.textContent.indexOf('neither is running') !== -1, n && n.textContent);
-      // Beside the checkboxes it is about, not up at the group header where an
-      // expanded group puts it off the top of the screen.
-      h.check('it sits immediately above the Auto Prune row',
-        !!n && n.parentNode === a.collapsed &&
-        a.collapsed.childNodes.indexOf(n) === a.collapsed.childNodes.indexOf(a.rows.a8AutoPruneOnUpdate.row) - 1,
-        n ? 'at ' + a.collapsed.childNodes.indexOf(n) : 'missing');
-      h.check('and not in the other plugin group',
-        a.other.descendants().indexOf(n) === -1);
-      // The whole point of reading the DOM: no round trip, so no lag.
-      h.check('reading the checkboxes costs no settings query',
-        a.env.calls.length === before, 'issued ' + (a.env.calls.length - before));
-
+      h.check('a hand-edited field is rewritten in canonical form', saves().length === 1 &&
+        saves()[0].variables.input.a1AutoModes ===
+          h.autoModes({ scenes: 'prune', images: 'rollup' }),
+        JSON.stringify(saves().map((c) => c.variables.input)));
+      h.check('and it is our own plugin id it is saved under',
+        saves()[0].variables.plugin_id === 'NormalizeParentTags');
       a.env.tick();
       return h.flush().then(() => {
-        const all = a.env.ctx.document.body.descendants()
-          .filter((x) => x.id === 'npt-conflict-notice');
-        h.check('repeated ticks do not duplicate it', all.length === 1, 'got ' + all.length);
-        h.check('it writes nothing', h.bulkCalls(a.env.calls).length === 0 &&
-          !a.env.calls.some((c) => /configurePlugin/.test(c.query || '')));
-
-        // Untick one: the notice must follow the checkbox, not the saved config.
-        // The responder still reports both modes on, so anything reading the server
-        // would leave the notice up.
-        a.rows.a9AutoRollUpOnUpdate.input.checked = false;
-        a.env.tick();
-        return h.flush().then(() => {
-          h.check('unticking one takes it down at once, without waiting for a save',
-            !notice(a.env));
-          a.rows.a9AutoRollUpOnUpdate.input.checked = true;
-          a.env.tick();
-          return h.flush().then(() => {
-            h.check('and re-ticking brings it straight back', !!notice(a.env));
-          });
-        });
+        h.check('a second tick over the same text does not write again',
+          saves().length === 1, 'got ' + saves().length);
       });
     });
   })
 
-  // One box ticked: nothing to say.
+  // The field is the user's to type in. A value that is already canonical needs no
+  // write, and one being typed into - focused - must not be replaced under the cursor.
   .then(() => {
-    const env = boot();
-    const group = h.makeElement('div');
-    group.className = 'setting-group';
-    [['a8AutoPruneOnUpdate', true], ['a9AutoRollUpOnUpdate', false]].forEach(([k, c]) => {
-      const row = h.makeElement('div');
-      row.className = 'setting';
-      const input = h.makeElement('input');
-      input.id = 'plugin-NormalizeParentTags-' + k;
-      input.checked = c;
-      row.appendChild(input);
-      group.appendChild(row);
-    });
-    env.ctx.document.body.appendChild(group);
-    env.tick();
+    const a = page(h.autoModes({ scenes: 'prune' }));
+    a.env.tick();
     return h.flush().then(() => {
-      h.check('one box ticked shows no notice',
-        !env.ctx.document.getElementById('npt-conflict-notice'));
+      h.check('a canonical field is left alone',
+        !a.env.calls.some((c) => /configurePlugin/.test(c.query || '')),
+        a.env.calls.map((c) => c.query).join(' | '));
+
+      const b = page('scenes=prune');
+      b.env.ctx.document.activeElement = b.rows.a1AutoModes.input;
+      b.env.tick();
+      return h.flush().then(() => {
+        h.check('and one being typed into is not rewritten under the cursor',
+          !b.env.calls.some((c) => /configurePlugin/.test(c.query || '')),
+          b.env.calls.map((c) => c.query).join(' | '));
+      });
+    });
+  })
+
+  // An empty field means "nothing configured", which is what a fresh install has.
+  // Writing seven OFFs into it would be the plugin saving settings for someone who
+  // has only looked at the page.
+  .then(() => {
+    const a = page('   ');
+    a.env.tick();
+    return h.flush().then(() => {
+      h.check('an empty field is not filled in',
+        !a.env.calls.some((c) => /configurePlugin/.test(c.query || '')),
+        a.env.calls.map((c) => c.query).join(' | '));
     });
   })
 
   // Our settings are not on the page: nothing rendered, and no settings query -
   // finding them is what stands in for a route test.
   .then(() => {
-    const env = boot({ a9AutoRollUpOnUpdate: true });
+    const env = boot({ scenes: 'rollup' });
     const stranger = h.makeElement('div');
     stranger.className = 'setting-group';
     const input = h.makeElement('input');
@@ -596,48 +600,26 @@ Promise.resolve()
     const before = env.calls.length;
     env.tick();
     return h.flush().then(() => {
-      h.check('no notice where our settings are not rendered',
-        !env.ctx.document.getElementById('npt-conflict-notice'));
+      h.check('nothing is injected where our settings are not rendered',
+        !env.ctx.document.getElementById('npt-readme-link'));
       h.check('and no settings query is issued there',
         env.calls.length === before, 'issued ' + (env.calls.length - before));
     });
   })
 
-  // Inputs present but unreadable (a Stash that renders these some other way):
-  // fall back to the saved config, lag and all.
-  .then(() => {
-    const env = boot({ a9AutoRollUpOnUpdate: true });
-    const group = h.makeElement('div');
-    group.className = 'setting-group';
-    ['a8AutoPruneOnUpdate', 'a9AutoRollUpOnUpdate'].forEach((k) => {
-      const row = h.makeElement('div');
-      row.className = 'setting';
-      const input = h.makeElement('input');
-      input.id = 'plugin-NormalizeParentTags-' + k;   // no `checked` property
-      row.appendChild(input);
-      group.appendChild(row);
-    });
-    env.ctx.document.body.appendChild(group);
-    env.tick();
-    return h.flush().then(() => {
-      h.check('unreadable checkboxes fall back to the saved settings',
-        !!env.ctx.document.getElementById('npt-conflict-notice'));
-    });
-  })
-
   // Fallback for a Stash that sets no ids at all: match the group heading. Each
-  // string is one Stash template's exact output.
+  // string is one Stash template's exact output. The README link is the signal now -
+  // it is what `ownSettingGroup` puts in a group it has found.
   .then(() => {
     function headingOnly(text) {
-      const env = boot({ a9AutoRollUpOnUpdate: true });
+      const env = boot({ scenes: 'rollup' });
       const group = h.makeElement('div');
       const heading = h.makeElement('h3');
       heading.textContent = text;
       group.appendChild(heading);
       env.ctx.document.body.appendChild(group);
       env.tick();
-      return h.flush().then(() =>
-        !!env.ctx.document.getElementById('npt-conflict-notice'));
+      return h.flush().then(() => !!env.ctx.document.getElementById('npt-readme-link'));
     }
     return Promise.all([
       headingOnly('ᝯㄝₓ Normalize Parent Tags (1.2.5)'),
@@ -654,13 +636,42 @@ Promise.resolve()
     });
   })
 
+  // Settings - Tasks heads its own group with the same name, and that group is not
+  // the settings one: it holds the task buttons and no settings, so the fallback must
+  // not decorate it with a README link and a split description.
+  .then(() => {
+    const env = boot({ scenes: 'rollup' });
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    const heading = h.makeElement('h3');
+    heading.textContent = 'ᝯㄝₓ Normalize Parent Tags';
+    group.appendChild(heading);
+    const row = h.makeElement('div');
+    row.className = 'setting';
+    const btn = h.makeElement('button');
+    btn.textContent = h.TASK_RUN;
+    row.appendChild(btn);
+    group.appendChild(row);
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    return h.flush().then(() => {
+      h.check('heading fallback: the tasks page group is left to its buttons',
+        !env.ctx.document.getElementById('npt-readme-link') &&
+        !h.hasClass(group, 'npt-own-group'), group.className);
+      // The buttons on it are still ours to paint, which is a different question and
+      // a different function.
+      h.check('and the task button on it is still repainted',
+        h.hasClass(btn, 'btn-warning'), btn.className);
+    });
+  })
+
   // ── The README link ──────────────────────────────────────────────────────
   //
   // Stash's own link for `url:` is an unlabelled chain icon in the header and is
   // easy to miss; the description cannot carry an <a> because Stash passes it to
   // React as a child. So the plugin puts a labelled one in its own group.
   .then(() => {
-    const p = page([false, false]);
+    const p = page(h.autoModes({ scenes: 'prune' }));
     p.env.tick();
     return h.flush().then(() => {
       const link = p.env.ctx.document.getElementById('npt-readme-link');
@@ -748,7 +759,7 @@ Promise.resolve()
   // The group description lives in the group header, outside the <Collapse>, so
   // per-plugin collapse never shortens it. Only hiding paragraphs does.
   .then(() => {
-    const p = page([false, false]);
+    const p = page(h.autoModes({ scenes: 'prune' }));
     p.env.tick();
     return h.flush().then(() => {
       const doc = p.env.ctx.document;
@@ -790,10 +801,10 @@ Promise.resolve()
 
   // Per-setting: first paragraph on the page, the rest on hover.
   .then(() => {
-    const p = page([false, false]);
+    const p = page(h.autoModes({ scenes: 'prune' }));
     p.env.tick();
     return h.flush().then(() => {
-      const a8 = p.rows.a8AutoPruneOnUpdate;
+      const a8 = p.rows.a1AutoModes;
       const kids = a8.sub.childNodes;
       const summary = kids.filter((n) => h.hasClass(n, 'npt-sum'))[0];
       const mark = kids.filter((n) => h.hasClass(n, 'npt-tip'))[0];
@@ -832,11 +843,11 @@ Promise.resolve()
       // somewhere - a split that dropped it would pass a laxer check.
       h.check('the summary is the plain description, without the warning',
         !!summary && summary.textContent.indexOf('WARNING') === -1 &&
-        /implies\.$/.test(summary.textContent), summary && summary.textContent);
+        /MARKERS=OFF\.$/.test(summary.textContent), summary && summary.textContent);
       h.check('and the warning is intact in the tooltip, ahead of the filter note',
         !!box && box.textContent.indexOf(
-          'WARNING: Updates immediately, with no dialog, no review and no undo, ' +
-          'and it deletes tag assignments.') === 0 &&
+          'WARNING: a type set to PRUNE or ROLLUP is updated immediately, with no ' +
+          'dialog, no review and no undo, and PRUNE deletes tag assignments.') === 0 &&
         box.textContent.indexOf('The exclusion filters below still apply') !== -1,
         box && box.textContent);
       // Stash's own slot for this, left empty for plugin settings by
@@ -857,10 +868,10 @@ Promise.resolve()
 
       // One paragraph has nothing to hide, so it must not sprout a mark that opens
       // on a hover to say what is already on the line.
-      const a9 = p.rows.a9AutoRollUpOnUpdate;
+      const a9 = p.rows.b2ExcludeOrganized;
       h.check('a one-paragraph description is left alone',
         a9.sub.childNodes.filter((n) => h.hasClass(n, 'npt-tip')).length === 0 &&
-        a9.sub.textContent === 'Adds every ancestor as Stash saves.', a9.sub.textContent);
+        a9.sub.textContent === 'Skips any entity whose Organized flag is set.', a9.sub.textContent);
       h.check('and its name opens nothing', !a9.h3.title &&
         (h.fire(a9.h3, 'mouseenter'), !h.hasClass(a9.sub, 'npt-tip-open')), a9.sub.className);
 

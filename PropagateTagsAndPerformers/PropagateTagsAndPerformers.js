@@ -43,7 +43,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '2.2.0';
+  var PLUGIN_VERSION = '2.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2152,6 +2152,31 @@
     });
   };
 
+  // NormalizeParentTags' automatic modes, as its settings actually spell them.
+  // Since its 4.0.0 that is one string carrying a mode per entity type
+  // ("SCENES=PRUNE, IMAGES=ROLLUP"), so both directions can be on at once for
+  // different types; before it, two booleans covering every type it was enabled for,
+  // where both at once was that plugin's own documented no-op.
+  //
+  // Read by name rather than through its `coop().api`, like the rest of this check:
+  // the API answers for one entity type at a time and needs the plugin to be running
+  // in this page, and what this warning is about is a setting that may be set while
+  // the plugin is disabled. Its 4.0.0 renamed every key it had, which is why the old
+  // pair is still read - an install that has not been touched since 3.2.0 still
+  // carries them, and this check has to keep working against it.
+  function nptAutoModes(ps) {
+    var modes = String((ps && ps.a1AutoModes) || '');
+    if (modes) {
+      return {
+        prune: /=\s*prune\b/i.test(modes),
+        rollup: /=\s*roll[\s_-]*up\b/i.test(modes),
+      };
+    }
+    var prune = !!(ps && ps.a8AutoPruneOnUpdate), rollup = !!(ps && ps.a9AutoRollUpOnUpdate);
+    if (prune === rollup) return { prune: false, rollup: false };
+    return { prune: prune, rollup: rollup };
+  }
+
   // The mirror of `MergePerformerTagsToScenes`' own check against the same sibling.
   // Unlike the overlap above, this is not "the same path" - it is prune/roll-up
   // along the tag *hierarchy* colliding with an addition along an entity
@@ -2161,17 +2186,22 @@
   // there is no path id on either side for a generic scan to match.
   Run.prototype.checkHierarchySibling = function (ps) {
     if (!ps) return;
-    var prune = !!ps.a8AutoPruneOnUpdate, rollup = !!ps.a9AutoRollUpOnUpdate;
-    // Both at once is that plugin's own documented no-op - they are exact inverses,
-    // so it runs neither - and warning about a mode that is not running would send
-    // the user to turn off something already inert.
-    if (prune === rollup) return;
+    var auto = nptAutoModes(ps);
+    if (!auto.prune && !auto.rollup) return;
 
-    var mode = prune ? 'Auto Prune on Entity Updates' : 'Auto Roll Up on Entity Updates';
-    var effect = prune
-      ? 'it will remove the tags this run adds, wherever a more specific tag on the same ' +
-        'entity already implies them'
-      : 'it will add every ancestor of the tags this run adds';
+    // Both, where its settings set one type to prune and another to roll up - a state
+    // its pre-4.0.0 pair of booleans could not express and this used to read as "no
+    // mode is running".
+    var mode = auto.prune && auto.rollup
+      ? 'automatic Prune and Roll Up'
+      : (auto.prune ? 'automatic Prune' : 'automatic Roll Up');
+    var effect = auto.prune && auto.rollup
+      ? 'it will rewrite the tags this run adds - removing the ones a more specific tag on ' +
+        'the same entity implies, or adding every ancestor, depending on the entity type'
+      : (auto.prune
+        ? 'it will remove the tags this run adds, wherever a more specific tag on the same ' +
+          'entity already implies them'
+        : 'it will add every ancestor of the tags this run adds');
 
     if (coop().respecters[NPT_ID]) {
       this.log('INFO', NPT_NAME + ' has ' + mode + ' enabled; it will stand down while this ' +

@@ -5,7 +5,7 @@
 const h = require('./npt-harness');
 
 function makeEnv() {
-  const env = h.makeEnv({ quiet: true, respond: h.makeResponder({ settings: { a5EnableScenes: false } }) });
+  const env = h.makeEnv({ quiet: true, respond: h.makeResponder({ settings: { a1AutoModes: '' } }) });
   h.run(env.ctx);
   return env;
 }
@@ -58,7 +58,7 @@ Promise.resolve()
   // ── Layer 1: the click ───────────────────────────────────────────────────
   .then(() => {
     const env = makeEnv();
-    const btn = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_PRUNE);
+    const btn = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_RUN);
     const ev = clickCapture(env, btn);
     return h.flush().then(() => {
       h.check('a task click is stopped before React sees it',
@@ -74,7 +74,7 @@ Promise.resolve()
     // Another plugin is free to declare a task with the same name; only the group
     // heading distinguishes them.
     const env = makeEnv();
-    const btn = taskButton(env, 'Some Other Plugin', h.TASK_PRUNE);
+    const btn = taskButton(env, 'Some Other Plugin', h.TASK_RUN);
     const ev = clickCapture(env, btn);
     return h.flush().then(() => {
       h.check('another plugin task with the same name is left alone',
@@ -93,20 +93,27 @@ Promise.resolve()
   })
 
   .then(() => {
+    // The second writing task went at 4.0.0 - one dialog does both directions - and
+    // the third opens the auto-mode editor rather than a run.
     const env = makeEnv();
-    const btn = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_ROLLUP);
+    const btn = taskButton(env, 'ᝯㄝₓ Normalize Parent Tags', h.TASK_MODES);
     clickCapture(env, btn);
     return h.flush().then(() => {
       const d = h.dialog(env.body);
-      h.check('the clicked task decides which run starts',
-        d.lines.some((l) => l.indexOf(h.TASK_ROLLUP) !== -1), d.lines.join(' | '));
+      const title = env.body.descendants().filter((n) => h.hasClass(n, 'npt-title'))[0];
+      h.check('the clicked task decides which dialog opens',
+        d.open && (title || {}).textContent.indexOf(h.TASK_MODES) !== -1,
+        (title || {}).textContent);
+      h.check('and the settings dialog scans nothing',
+        !env.calls.some((c) => /query NPT_find/.test(c.query || '')),
+        env.calls.map((c) => c.query).join(' | '));
     });
   })
 
   // ── Layer 2: the mutation ────────────────────────────────────────────────
   .then(() => {
     const env = makeEnv();
-    return runPluginTask(env, 'NormalizeParentTags', h.TASK_PRUNE).then(({ json, forwarded }) => {
+    return runPluginTask(env, 'NormalizeParentTags', h.TASK_RUN).then(({ json, forwarded }) => {
       h.check('runPluginTask for this plugin never reaches the server', !forwarded);
       h.check('the mutation is answered with a success rather than an error',
         !json.errors && !!json.data.runPluginTask, JSON.stringify(json));
@@ -128,9 +135,9 @@ Promise.resolve()
 
   .then(() => {
     const env = makeEnv();
-    return runPluginTask(env, 'NormalizeParentTags', h.TASK_PRUNE)
+    return runPluginTask(env, 'NormalizeParentTags', h.TASK_RUN)
       .then(() => h.flush())
-      .then(() => runPluginTask(env, 'NormalizeParentTags', h.TASK_PRUNE))
+      .then(() => runPluginTask(env, 'NormalizeParentTags', h.TASK_RUN))
       .then(() => h.flush())
       .then(() => {
         const modals = env.body.descendants().filter((n) => h.hasClass(n, 'npt-modal'));

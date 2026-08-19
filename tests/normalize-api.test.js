@@ -58,29 +58,44 @@ Promise.resolve()
 
   // ── autoMode: a question, not a settings read ─────────────────────────────
 
-  .then(() => prepare({ a5EnableScenes: true }))
-  .then((p) => h.check('no automatic mode enabled answers null', p.autoMode === null,
+  .then(() => prepare({ a1AutoModes: h.autoModes({}) }))
+  .then((p) => h.check('a type set to OFF answers null', p.autoMode === null,
     String(p.autoMode)))
 
-  .then(() => prepare({ a5EnableScenes: true, a8AutoPruneOnUpdate: true }))
-  .then((p) => h.check('Auto Prune on an included type answers "prune"',
+  .then(() => prepare({ a1AutoModes: h.autoModes({ scenes: 'prune' }) }))
+  .then((p) => h.check('a type set to PRUNE answers "prune"',
     p.autoMode === 'prune', String(p.autoMode)))
 
-  .then(() => prepare({ a5EnableScenes: true, a9AutoRollUpOnUpdate: true }))
-  .then((p) => h.check('Auto Roll Up answers "rollup"', p.autoMode === 'rollup',
+  .then(() => prepare({ a1AutoModes: h.autoModes({ scenes: 'rollup' }) }))
+  .then((p) => h.check('a type set to ROLLUP answers "rollup"', p.autoMode === 'rollup',
     String(p.autoMode)))
 
-  // Both at once is this plugin's own no-op - they are exact inverses, so it runs
-  // neither - and a caller must be told nothing will happen, not that both will.
+  // The question a caller was asking is "will anything happen to a Scene on save",
+  // which since 4.0.0 is per type: another type's mode is not this type's answer.
+  .then(() => prepare({ a1AutoModes: h.autoModes({ images: 'prune' }) }))
+  .then((p) => h.check('a mode set for another type answers null',
+    p.autoMode === null && p.includesType === false, String(p.autoMode)))
+
+  // The 3.2.0 settings this replaced, answered identically without the caller
+  // knowing they were ever migrated - which is the whole point of publishing the
+  // question rather than the settings.
+  .then(() => prepare({ a5EnableScenes: true, a8AutoPruneOnUpdate: true }))
+  .then((p) => h.check('a pre-4.0.0 install answers from its migrated settings',
+    p.autoMode === 'prune' && p.includesType === true, String(p.autoMode)))
+
+  .then(() => prepare({ a5EnableScenes: true, a9AutoRollUpOnUpdate: true }))
+  .then((p) => h.check('including the direction it had',
+    p.autoMode === 'rollup', String(p.autoMode)))
+
+  // Both at once was that release's own no-op - they are exact inverses, so it ran
+  // neither - and it migrates to OFF rather than to a direction nobody chose.
   .then(() => prepare({ a5EnableScenes: true, a8AutoPruneOnUpdate: true,
     a9AutoRollUpOnUpdate: true }))
-  .then((p) => h.check('both modes at once answers null, this plugin’s own no-op',
+  .then((p) => h.check('and both of them at once migrates to OFF, not to one of them',
     p.autoMode === null, String(p.autoMode)))
 
-  // The per-type toggle is part of the answer, which is the question a caller was
-  // asking: not "is Auto Prune on" but "will anything happen to a Scene on save".
   .then(() => prepare({ a5EnableScenes: false, a8AutoPruneOnUpdate: true }))
-  .then((p) => h.check('a mode enabled for a type this is not answers null',
+  .then((p) => h.check('a pre-4.0.0 type that was not included stays OFF',
     p.autoMode === null && p.includesType === false, String(p.autoMode)))
 
   // ── plan: prune ───────────────────────────────────────────────────────────
@@ -141,7 +156,7 @@ Promise.resolve()
   // The per-type toggle is available to `plan` too, and off by default: a hand-picked
   // list is not an entity update, so a caller has to ask for it. Having it ready is
   // what stops the day it is wanted from being a change of signature.
-  .then(() => prepare({ a5EnableScenes: false })).then((p) => {
+  .then(() => prepare({ a1AutoModes: h.autoModes({}) })).then((p) => {
     h.check('typeFilter shuts the planner for a type this plugin does not include',
       p.plan({ mode: 'rollup', tagIds: ['3'], typeFilter: true }) === null);
     h.check('and without it the plan is returned regardless',

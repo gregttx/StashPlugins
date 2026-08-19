@@ -459,9 +459,10 @@ amber for the same reason.
 - **`NormalizeParentTags`** walks the *tag hierarchy* instead of entity relationships, so the two
   compose rather than overlap: propagate tags onto an entity, then prune or roll up the parents. Its
   automatic modes and this plugin's stand down for one another while either is writing in bulk. And
-  since eleven of these thirteen paths add tags, the task dialog also warns when NormalizeParentTags'
-  **Auto Prune** or **Auto Roll Up on Entity Updates** is on — naming which, and what it would do to
-  what this run adds — exactly as `MergePerformerTagsToScenes`' own dialog already does.
+  since eleven of these thirteen paths add tags, the task dialog also warns when NormalizeParentTags
+  is set to prune or roll up an entity type automatically — naming which direction, and what it
+  would do to what this run adds — exactly as `MergePerformerTagsToScenes`' own dialog already
+  does.
 - **`CustomFieldsBulkEditor`** does not overlap at all: it edits *custom fields*, which nothing here
   reads or writes, and it puts its control in the list view's "..." menu rather than in an entity's
   action row. The one thing they share is the lease — this plugin's automatic modes stand down while

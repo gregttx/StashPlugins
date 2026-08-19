@@ -42,7 +42,7 @@ h.flush()
     h.check('auto-merge reacts to a scene save when no lease is held', reacted);
 
     e1.ctx.window.StashPluginCoop.leases.push({
-      owner: 'NormalizeParentTags', label: 'Prune Parent Tags from Entities',
+      owner: 'NormalizeParentTags', label: 'Normalize Parent Tags',
       until: Date.now() + 60000,
     });
     return saveScene(e1);

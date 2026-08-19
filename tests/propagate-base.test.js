@@ -357,10 +357,10 @@ Promise.resolve()
   // own check against the same sibling.
   .then(() => open({
     settings: { b1TagsPerformersToScenes: true },
-    otherPlugins: { NormalizeParentTags: { a8AutoPruneOnUpdate: true } },
+    otherPlugins: { NormalizeParentTags: { a1AutoModes: 'SCENES=PRUNE, IMAGES=OFF' } },
   })).then(({ d }) => {
-    h.check('an unregistered NormalizeParentTags with Auto Prune on warns in the head',
-      /Auto Prune on Entity Updates/.test(d.note), d.note);
+    h.check('an unregistered NormalizeParentTags with an automatic Prune warns in the head',
+      /automatic Prune/.test(d.note), d.note);
     h.check("the warning names what Prune would do to this run's additions",
       /remove the tags this run adds/.test(d.note), d.note);
   })
@@ -368,7 +368,7 @@ Promise.resolve()
   .then(() => {
     const env = h.makeEnv({ quiet: true, respond: responder({
       settings: { b1TagsPerformersToScenes: true },
-      otherPlugins: { NormalizeParentTags: { a9AutoRollUpOnUpdate: true } },
+      otherPlugins: { NormalizeParentTags: { a1AutoModes: 'PERFORMERS=ROLLUP' } },
     }) });
     env.ctx.window.StashPluginCoop = env.ctx.window.__GTTx__.StashPluginCoop = {
       leases: [], respecters: { NormalizeParentTags: true }, declares: {},
@@ -377,18 +377,37 @@ Promise.resolve()
     return h.startTask(env.ctx, TASK, NAME).then(() => h.flush()).then(() => {
       const d = h.dialog(env.ctx.document.body, PREFIX);
       h.check('a registered NormalizeParentTags is reported, not warned about',
-        d.lines.some((l) => /Normalize Parent Tags has Auto Roll Up on Entity Updates enabled/
+        d.lines.some((l) => /Normalize Parent Tags has automatic Roll Up enabled/
           .test(l)), d.lines.join('\n'));
       h.check('and nothing lands in the dialog head', d.note === '', d.note);
     });
+  })
+
+  // Since its 4.0.0 both directions at once is a legitimate configuration - one type
+  // pruned, another rolled up - and both collide with anything this plugin adds.
+  .then(() => open({
+    settings: { b1TagsPerformersToScenes: true },
+    otherPlugins: { NormalizeParentTags: { a1AutoModes: 'SCENES=PRUNE, PERFORMERS=ROLLUP' } },
+  })).then(({ d }) => {
+    h.check('a mode each way warns about both',
+      /automatic Prune and Roll Up/.test(d.note) &&
+      /depending on the entity type/.test(d.note), d.note);
+  })
+
+  // The settings it had up to 3.2.0, where both booleans on was its own documented
+  // no-op - exact inverses, so it ran neither.
+  .then(() => open({
+    settings: { b1TagsPerformersToScenes: true },
+    otherPlugins: { NormalizeParentTags: { a5EnableScenes: true, a8AutoPruneOnUpdate: true } },
+  })).then(({ d }) => {
+    h.check('a pre-4.0.0 sibling is still read', /automatic Prune/.test(d.note), d.note);
   })
 
   .then(() => open({
     settings: { b1TagsPerformersToScenes: true },
     otherPlugins: { NormalizeParentTags: { a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: true } },
   })).then(({ d }) => {
-    // Both on is NPT's own documented no-op - exact inverses, so it runs neither.
-    h.check('both of its modes on warns about neither', d.note === '', d.note);
+    h.check('and its both-on no-op warns about neither', d.note === '', d.note);
   })
 
   .then(() => open({ settings: { b1TagsPerformersToScenes: true } })).then(({ d }) => {

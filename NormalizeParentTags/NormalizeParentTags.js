@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '3.2.0';
+  var PLUGIN_VERSION = '4.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -48,16 +48,21 @@
     'script own version - the settings page reads the manifest instead, which can be newer ' +
     'than the script your browser has cached.');
 
-  var TASK_PRUNE  = 'Prune Parent Tags from Entities...';
-  var TASK_ROLLUP = 'Roll Up Parent Tags onto Entities...';
-  var TASK_TREE   = 'Show Tag Hierarchy...';
-  var TASKS = [TASK_PRUNE, TASK_ROLLUP, TASK_TREE];
+  // One task does both directions. Prune and Roll Up were two tasks for as long as a
+  // run had one mode for the whole library; now the mode is per entity type, chosen
+  // in the dialog, and "which task did you press" would only have set a default that
+  // the selectors immediately override.
+  var TASK_RUN   = 'Normalize Parent Tags...';
+  var TASK_MODES = 'Auto Mode Settings...';
+  var TASK_TREE  = 'Show Tag Hierarchy...';
+  var TASKS = [TASK_RUN, TASK_MODES, TASK_TREE];
 
   // Stash renders every plugin task with the same `btn-secondary`, so nothing on the
   // Tasks page says which of these three rewrites the library. Amber for the two that
-  // write, teal for the one that only reads - Show Tag Hierarchy opens a viewer and
-  // writes nothing, and it is the button a user should be able to press without
-  // checking first.
+  // lead to writes - Normalize writes the library, Auto Mode Settings decides what is
+  // written silently on every save - and teal for the one that only reads: Show Tag
+  // Hierarchy opens a viewer and writes nothing, and it is the button a user should be
+  // able to press without checking first.
   //
   // Bootstrap variant classes rather than colours of our own, so the hover, focus and
   // active states come from Stash's theme and stay in step with it. Its `btn-warning`
@@ -115,34 +120,39 @@
   // scenes, images, galleries and studios. Flipping one entry here is all it takes
   // if a later Stash adds it elsewhere.
   //
+  // `token` is the word this type wears in the auto-mode setting string
+  // ("SCENES=PRUNE"). It is not derived from `plural` - "Scene Markers" would spell
+  // itself SCENE MARKERS, and the setting is a single line the user may type by hand,
+  // where a token with a space in it is a token that cannot be parsed back.
+  //
   // `single` is the per-entity update mutation, watched by auto mode alongside
   // `bulk`. The two names never collide under a \b-anchored regex because Stash
   // capitalises the type inside the bulk name: "bulkSceneUpdate" does not contain
   // "sceneUpdate", and neither contains "sceneMarkerUpdate".
   var TYPES = [
-    { key: 'performers', setting: 'a1EnablePerformers', label: 'Performer', plural: 'Performers',
+    { key: 'performers', token: 'PERFORMERS', label: 'Performer', plural: 'Performers',
       find: 'findPerformers', node: 'performers',
       bulk: 'bulkPerformerUpdate', bulkInput: 'BulkPerformerUpdateInput', single: 'performerUpdate',
       organized: false, fields: 'id name' },
-    { key: 'studios', setting: 'a2EnableStudios', label: 'Studio', plural: 'Studios',
+    { key: 'studios', token: 'STUDIOS', label: 'Studio', plural: 'Studios',
       find: 'findStudios', node: 'studios',
       bulk: 'bulkStudioUpdate', bulkInput: 'BulkStudioUpdateInput', single: 'studioUpdate',
       organized: true, fields: 'id name' },
-    { key: 'groups', setting: 'a3EnableGroups', label: 'Group', plural: 'Groups',
+    { key: 'groups', token: 'GROUPS', label: 'Group', plural: 'Groups',
       find: 'findGroups', node: 'groups',
       bulk: 'bulkGroupUpdate', bulkInput: 'BulkGroupUpdateInput', single: 'groupUpdate',
       organized: false, fields: 'id name' },
-    { key: 'galleries', setting: 'a4EnableGalleries', label: 'Gallery', plural: 'Galleries',
+    { key: 'galleries', token: 'GALLERIES', label: 'Gallery', plural: 'Galleries',
       find: 'findGalleries', node: 'galleries',
       bulk: 'bulkGalleryUpdate', bulkInput: 'BulkGalleryUpdateInput', single: 'galleryUpdate',
       // A gallery is a zip (often .cbz) or a folder, and either way the title is
       // optional - so both fallbacks are needed to name one in the log.
       organized: true, fields: 'id title files { basename } folder { basename }' },
-    { key: 'scenes', setting: 'a5EnableScenes', label: 'Scene', plural: 'Scenes',
+    { key: 'scenes', token: 'SCENES', label: 'Scene', plural: 'Scenes',
       find: 'findScenes', node: 'scenes',
       bulk: 'bulkSceneUpdate', bulkInput: 'BulkSceneUpdateInput', single: 'sceneUpdate',
       organized: true, fields: 'id title files { basename }' },
-    { key: 'images', setting: 'a6EnableImages', label: 'Image', plural: 'Images',
+    { key: 'images', token: 'IMAGES', label: 'Image', plural: 'Images',
       find: 'findImages', node: 'images',
       bulk: 'bulkImageUpdate', bulkInput: 'BulkImageUpdateInput', single: 'imageUpdate',
       // Image.files is deprecated in favour of visual_files, which is a union of
@@ -151,7 +161,7 @@
       // types is the form every Stash 0.31 accepts.
       organized: true, pageSize: 500,
       fields: 'id title visual_files { ... on ImageFile { basename } ... on VideoFile { basename } }' },
-    { key: 'markers', setting: 'a7EnableMarkers', label: 'Scene Marker', plural: 'Scene Markers',
+    { key: 'markers', token: 'MARKERS', label: 'Scene Marker', plural: 'Scene Markers',
       find: 'findSceneMarkers', node: 'scene_markers',
       bulk: 'bulkSceneMarkerUpdate', bulkInput: 'BulkSceneMarkerUpdateInput', single: 'sceneMarkerUpdate',
       organized: false, fields: 'id title primary_tag { id name }' },
@@ -231,10 +241,11 @@
   //
   //   - **`autoMode` is a question, not a setting.** A caller asks what will happen
   //     automatically when Stash saves an entity of a given type, and gets 'prune',
-  //     'rollup' or null. Today that is `a8`/`a9` scoped by the type's `aN` toggle;
-  //     if this plugin ever splits those into a mode per type, every caller keeps
-  //     working and nothing about the API changes. A caller reading the settings
-  //     itself would break on that day, which is the whole argument.
+  //     'rollup' or null. That day came at 4.0.0: two global booleans scoped by seven
+  //     "Include ..." toggles became one mode per type, every setting key this plugin
+  //     had was renamed, and no caller changed a line. A caller reading the settings
+  //     itself would have broken - while sounding confident - which was the argument
+  //     for the mechanism before there was an example of it.
   //   - **Every call takes one options object**, so a field can be added without a
   //     new signature. `entityType` is taken by both calls, and `plan` takes
   //     `typeFilter` to apply the per-type toggle to the plan as well - which no
@@ -277,15 +288,16 @@
       return autoGraph(s);
     }).then(function (graph) {
       var filters = makeFilters(settings, graph);
-      var includes = !!(type && settings[type.setting]);
+      var mode = type ? modeOf(settings, type) : MODE_OFF;
+      var includes = mode !== MODE_OFF;
       var ctx = { settings: settings, graph: graph, filters: filters };
       return {
         version: API_VERSION,
         entityType: type ? type.key : null,
         includesType: includes,
-        // Null where nothing happens on its own: either no mode is on, both are (this
-        // plugin's own no-op), or this type is not one it touches.
-        autoMode: includes ? autoMode(settings) : null,
+        // Null where nothing happens on its own to this type - which since 4.0.0 is
+        // one question rather than two, since a type carries its own mode.
+        autoMode: includes ? mode : null,
         plan: function (req) {
           var r = req || {};
           if (r.typeFilter && !includes) return null;
@@ -372,19 +384,7 @@
   // are never shown in the UI, but they *are* the storage key, so renaming one
   // orphans whatever the user had configured under the old name.
   var DEFAULTS = {
-    a1EnablePerformers: false,
-    a2EnableStudios: false,
-    a3EnableGroups: false,
-    a4EnableGalleries: false,
-    a5EnableScenes: false,
-    a6EnableImages: false,
-    a7EnableMarkers: false,
-    // The auto modes sit at the end of the `a` block rather than at its head, where
-    // they read better, because a key is also the storage key: renumbering a1-a7 to
-    // make room would silently reset every entity toggle on an existing install. They
-    // still land under the toggles that scope them, which is the next best place.
-    a8AutoPruneOnUpdate: false,
-    a9AutoRollUpOnUpdate: false,
+    a1AutoModes: '',
     b1ExcludeEntityWithTagName: '',
     b2ExcludeOrganized: false,
     c1ExcludeTagWithIgnoreAutoTag: false,
@@ -395,16 +395,164 @@
     c6ExcludeRemoveTagWithCustomFieldName: '',
   };
 
+  // ── The auto-mode string ──────────────────────────────────────────────────
+  //
+  // One STRING setting holds all seven types: `SCENES=PRUNE, IMAGES=OFF, ...`. It
+  // replaced seven "Include ..." booleans plus two global "Auto ..." booleans, which
+  // could only ever say "every enabled type does the same thing". A type is now off,
+  // pruned or rolled up on its own, which is three states - and a Stash plugin
+  // setting is BOOLEAN, NUMBER or STRING, with no tri-state and no repeated group, so
+  // seven tri-states either become fourteen checkboxes with an illegal combination in
+  // every pair, or one line. It is one line, and the "Auto Mode Settings..." task is
+  // the editor for it: the field is there to be *read* at a glance and edited by hand
+  // when someone wants to, not to be the only way in.
+  //
+  // Parsing is therefore forgiving and formatting is strict. Anything shaped like
+  // `<type>=<mode>` is picked out wherever it sits, in any order, in any case, with
+  // any separators between the pairs and the singular of a type accepted for its
+  // plural; everything else in the string is ignored, and a type nobody mentioned is
+  // OFF. What is written back is always the same seven pairs in processing order,
+  // joined with ', '.
+  var MODE_OFF = 'off', MODE_PRUNE = 'prune', MODE_ROLLUP = 'rollup';
+  var MODE_TOKEN = { off: 'OFF', prune: 'PRUNE', rollup: 'ROLLUP' };
+
+  // "SCENES", "scene", "Scenes" - all the same type. Nothing else is accepted: a
+  // word this does not know is not a typo to guess at, it is a pair to ignore.
+  function typeByToken(word) {
+    var w = String(word || '').toUpperCase();
+    for (var i = 0; i < TYPES.length; i++) {
+      if (TYPES[i].token === w || TYPES[i].token === w + 'S') return TYPES[i];
+    }
+    return null;
+  }
+
+  // ROLLUP is what gets written; "roll up", "roll-up" and "roll_up" are accepted
+  // because a user typing this by hand is being asked to remember which one it is,
+  // and the answer costs one character class.
+  var MODE_PAIR = /([A-Za-z]+)\s*=\s*(OFF|PRUNE|ROLL[\s_-]*UP|ROLLUP)/gi;
+
+  function parseAutoModes(raw) {
+    var modes = {};
+    TYPES.forEach(function (t) { modes[t.key] = MODE_OFF; });
+    var text = String(raw == null ? '' : raw), m;
+    MODE_PAIR.lastIndex = 0;
+    while ((m = MODE_PAIR.exec(text)) !== null) {
+      var t = typeByToken(m[1]);
+      if (!t) continue;
+      var word = m[2].toUpperCase();
+      // A type named twice takes its last mention: the string is edited by appending
+      // far more often than by rewriting, so the last word is the newest intent.
+      modes[t.key] = word === 'OFF' ? MODE_OFF : (word === 'PRUNE' ? MODE_PRUNE : MODE_ROLLUP);
+    }
+    return modes;
+  }
+
+  function formatAutoModes(modes) {
+    return TYPES.map(function (t) {
+      return t.token + '=' + MODE_TOKEN[(modes && modes[t.key]) || MODE_OFF];
+    }).join(', ');
+  }
+
+  function modeOf(settings, type) {
+    var modes = (settings && settings.modes) || {};
+    return modes[type.key] || MODE_OFF;
+  }
+
+  // ── Migrating the nine booleans this setting replaced ─────────────────────
+  //
+  // Up to 3.2.0 the same configuration was `a1EnablePerformers`...`a7EnableMarkers`
+  // saying which types a run covered, and `a8AutoPruneOnUpdate`/`a9AutoRollUpOnUpdate`
+  // saying what happened automatically to all of them. The mapping is exact: an
+  // enabled type takes whichever single auto mode was on, and everything else is OFF.
+  // Both auto modes at once was that release's documented no-op - they are inverses -
+  // so it migrates to OFF rather than picking one.
+  //
+  // Renaming a key orphans what the user had; this is the one thing that stops the
+  // rename from being a silent reset. It runs once per page, only when the new
+  // setting is empty and at least one old key is set, and it writes the result back
+  // so the settings page shows it.
+  var LEGACY_ENABLE = {
+    performers: 'a1EnablePerformers', studios: 'a2EnableStudios', groups: 'a3EnableGroups',
+    galleries: 'a4EnableGalleries', scenes: 'a5EnableScenes', images: 'a6EnableImages',
+    markers: 'a7EnableMarkers',
+  };
+
+  function hasLegacySettings(raw) {
+    if (raw.a8AutoPruneOnUpdate || raw.a9AutoRollUpOnUpdate) return true;
+    for (var k in LEGACY_ENABLE) {
+      if (hasOwn(LEGACY_ENABLE, k) && raw[LEGACY_ENABLE[k]]) return true;
+    }
+    return false;
+  }
+
+  function legacyModes(raw) {
+    var prune = !!raw.a8AutoPruneOnUpdate, rollup = !!raw.a9AutoRollUpOnUpdate;
+    var mode = prune === rollup ? MODE_OFF : (prune ? MODE_PRUNE : MODE_ROLLUP);
+    var modes = {};
+    TYPES.forEach(function (t) {
+      modes[t.key] = raw[LEGACY_ENABLE[t.key]] ? mode : MODE_OFF;
+    });
+    return modes;
+  }
+
+  var _savingModes = false;
+
+  // The one mutation this plugin sends that is not about the library. Stash's own
+  // settings page sends the same shape, and our fetch hook already notices it and
+  // drops the settings cache - so a save made here reaches auto mode exactly as one
+  // made by hand does.
+  function saveAutoModes(text) {
+    _savingModes = true;
+    return gqlRequest(
+      'mutation NPTSaveModes($plugin_id: ID!, $input: Map!) {' +
+      '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
+      '}',
+      { plugin_id: PLUGIN_ID, input: { a1AutoModes: text } }
+    ).then(function (r) {
+      _savingModes = false;
+      invalidateAutoSettings();
+      return r;
+    }, function (e) {
+      _savingModes = false;
+      throw e;
+    });
+  }
+
+  var _migrated = false;
+
+  function migrateLegacy(text) {
+    if (_migrated) return;
+    _migrated = true;
+    npt('[npt] migrating the pre-4.0.0 entity and auto-mode settings to "' + text + '".');
+    saveAutoModes(text).then(null, function (e) {
+      npt('[npt] the migrated auto-mode setting could not be saved (' +
+        (e && e.message ? e.message : e) + '). It is being used for this page all the same; ' +
+        'set it by hand from the Auto Mode Settings task if this keeps happening.');
+    });
+  }
+
+  // Everything above, applied to one raw settings map: fill in the defaults, migrate
+  // if this install predates the string, and hang the parsed modes off the result so
+  // nothing downstream parses it twice.
+  function settingsFrom(raw) {
+    var s = {};
+    for (var k in DEFAULTS) {
+      if (!hasOwn(DEFAULTS, k)) continue;
+      s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (raw[k] || '');
+    }
+    if (!String(s.a1AutoModes).replace(/^\s+|\s+$/g, '') && hasLegacySettings(raw)) {
+      s.a1AutoModes = formatAutoModes(legacyModes(raw));
+      migrateLegacy(s.a1AutoModes);
+    }
+    s.modes = parseAutoModes(s.a1AutoModes);
+    return s;
+  }
+
   function loadSettings() {
     return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
       var all = (data.configuration || {}).plugins || {};
       var raw = all[PLUGIN_ID] || {};
-      var s = {};
-      for (var k in DEFAULTS) {
-        if (!hasOwn(DEFAULTS, k)) continue;
-        s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (raw[k] || '');
-      }
-      return { settings: s, sibling: all[SIBLING_ID] || null };
+      return { settings: settingsFrom(raw), sibling: all[SIBLING_ID] || null };
     });
   }
 
@@ -735,10 +883,10 @@
 
   // Counts entities per tag over a whole plan. A run only ever writes in one
   // direction, so the two lists never need keeping apart here.
-  function planTagCounts(plan) {
+  function planTagCounts(plan, dir) {
     var counts = {};
     plan.forEach(function (entry) {
-      (entry.remove.length ? entry.remove : entry.add).forEach(function (tid) {
+      (dir === 'remove' ? entry.remove : entry.add).forEach(function (tid) {
         counts[tid] = (hasOwn(counts, tid) ? counts[tid] : 0) + 1;
       });
     });
@@ -1011,7 +1159,8 @@
           // reasons - the same redundant parent is rarely redundant for the same
           // cause twice - so the line is built per entry, not per batch.
           run.log(batch.mode, changeLine(graph, batch.type, entry.label, tid, entry.reason));
-          run.appliedTags[tid] = (hasOwn(run.appliedTags, tid) ? run.appliedTags[tid] : 0) + 1;
+          var seen = run.appliedTags[batch.mode];
+          seen[tid] = (hasOwn(seen, tid) ? seen[tid] : 0) + 1;
         });
         run.applied++;
       });
@@ -1041,7 +1190,8 @@
           // No "due to" clause: the reason explained why the tag was written, and
           // this line is that write being taken back.
           run.log(mode, 'Undo - ' + changeLine(graph, batch.type, entry.label, tid, null));
-          run.undoneTags[tid] = (hasOwn(run.undoneTags, tid) ? run.undoneTags[tid] : 0) + 1;
+          var back = run.undoneTags[mode];
+          back[tid] = (hasOwn(back, tid) ? back[tid] : 0) + 1;
         });
         run.undone++;
       });
@@ -1128,8 +1278,26 @@
     '.npt-i-label{color:#7cc4ff;margin-top:.6rem;}' +
     '.npt-i-body{color:#d6dee4;white-space:pre-wrap;word-break:break-word;}' +
     '.npt-i-hint{color:#7d8f9c;}' +
-    '.npt-conflict{margin:.5rem 0;padding:.5rem .75rem;border-left:3px solid #ffb648;' +
-    'background:rgba(255,182,72,.12);color:#ffb648;font-size:.9rem;line-height:1.4;}' +
+    // The per-type mode selectors, in the head of the run dialog and as the whole
+    // body of the settings one. A grid rather than a flex row: seven labels of very
+    // different lengths line their selects up only if the columns are shared.
+    '.npt-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));' +
+    'gap:.35rem .9rem;margin:.5rem 0;}' +
+    '.npt-mode-row{display:flex;align-items:center;gap:.4rem;justify-content:space-between;}' +
+    '.npt-mode-name{color:#d6dee4;font-size:.9rem;}' +
+    // Byte-identical with TagBundleClipboard's .tbc-mode: a mode select in a dialog
+    // is the same thing in both, so the shared-CSS suite is right to insist.
+    '.npt-mode{background:#30404d;color:#f5f8fa;border:1px solid #394b59;' +
+    'border-radius:3px;padding:.15rem .35rem;font-size:.85rem;max-width:100%;}' +
+    // Amber wherever the selector is set to something that writes, the same rule the
+    // buttons follow. A <select> has no Bootstrap variant to borrow.
+    '.npt-mode-on{border-color:#ffb648;color:#ffb648;}' +
+    '.npt-persist{display:flex;align-items:center;gap:.4rem;color:#a7b6c2;' +
+    'font-size:.85rem;margin:.35rem 0 0;}' +
+    // The string the settings dialog is about to write, shown in the form the setting
+    // holds it - monospace, because it is a value rather than a sentence.
+    '.npt-modestring{font-family:monospace;font-size:.85rem;color:#a7b6c2;' +
+    'margin:.25rem 0 .5rem;word-break:break-word;}' +
     '.npt-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
     'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
     'font-weight:600;}' +
@@ -1198,10 +1366,13 @@
     //
     // This plugin has no console-logging setting, so it has no teal twin of the
     // rule the two siblings carry - only the read-only task button below is teal.
-    '#plugin-NormalizeParentTags-a8AutoPruneOnUpdate,' +
-    '#plugin-NormalizeParentTags-a9AutoRollUpOnUpdate{accent-color:#ffc107;}' +
-    '#plugin-NormalizeParentTags-a8AutoPruneOnUpdate:checked~.custom-control-label::before,' +
-    '#plugin-NormalizeParentTags-a9AutoRollUpOnUpdate:checked~.custom-control-label::before' +
+    //
+    // The auto-mode setting is a text field rather than a switch, so the two switch
+    // shapes the siblings use are joined by a border: whichever of the three Stash
+    // renders, one of them lands. It is the only setting here that makes the plugin
+    // write on its own, which is exactly what the amber says.
+    '#plugin-NormalizeParentTags-a1AutoModes{accent-color:#ffc107;border-color:#ffc107;}' +
+    '#plugin-NormalizeParentTags-a1AutoModes:checked~.custom-control-label::before' +
     '{background-color:#ffc107;border-color:#ffc107;}';
 
   function injectStyle() {
@@ -1217,6 +1388,65 @@
     if (className) node.className = className;
     if (text != null) node.textContent = text;
     return node;
+  }
+
+  // ── The per-type mode selectors ───────────────────────────────────────────
+  //
+  // The same seven selectors serve two dialogs: the run, where they say what this
+  // pass does, and the settings task, where they say what happens by itself on every
+  // save. One widget for both, because a user who has learnt one has learnt the other
+  // and because the two must never disagree about what "Roll Up" is called.
+  //
+  // `modes` is mutated in place and is the caller's own object - a run's `this.modes`
+  // is what the scan reads, so there is no second copy to keep in step.
+  var MODE_OPTIONS = [[MODE_OFF, 'Off'], [MODE_PRUNE, 'Prune'], [MODE_ROLLUP, 'Roll Up']];
+
+  function paintMode(sel) {
+    sel.className = 'npt-mode' + (sel.value !== MODE_OFF ? ' npt-mode-on' : '');
+  }
+
+  function modesPanel(modes, onChange) {
+    var wrap = el('div', 'npt-modes');
+    var selects = {};
+    TYPES.forEach(function (t) {
+      var row = el('div', 'npt-mode-row');
+      row.appendChild(el('span', 'npt-mode-name', t.plural));
+      var sel = el('select', 'npt-mode');
+      MODE_OPTIONS.forEach(function (o) {
+        var opt = el('option', null, o[1]);
+        opt.value = o[0];
+        sel.appendChild(opt);
+      });
+      sel.value = modes[t.key] || MODE_OFF;
+      paintMode(sel);
+      sel.title = t.plural + ': Prune removes a tag another tag on the same ' +
+        t.label.toLowerCase() + ' already implies; Roll Up adds every ancestor of the ' +
+        'tags it carries.';
+      sel.addEventListener('change', function () {
+        modes[t.key] = sel.value;
+        paintMode(sel);
+        if (onChange) onChange(t, sel.value);
+      });
+      row.appendChild(sel);
+      wrap.appendChild(row);
+      selects[t.key] = sel;
+    });
+    return {
+      el: wrap,
+      selects: selects,
+      // Sets the values without calling `onChange`: this is the dialog telling the
+      // selectors what it found, which is not the user changing them.
+      set: function (next) {
+        TYPES.forEach(function (t) {
+          modes[t.key] = (next && next[t.key]) || MODE_OFF;
+          selects[t.key].value = modes[t.key];
+          paintMode(selects[t.key]);
+        });
+      },
+      enable: function (on) {
+        TYPES.forEach(function (t) { selects[t.key].disabled = !on; });
+      },
+    };
   }
 
   function button(label, className) {
@@ -1333,14 +1563,80 @@
       _active.build();
       return;
     }
-    var mode = taskName === TASK_ROLLUP ? 'rollup' : 'prune';
-    _active = new Run(taskName, mode);
+    if (taskName === TASK_MODES) {
+      _active = new ModesDialog(taskName);
+      _active.build();
+      return;
+    }
+    _active = new Run(taskName);
     _active.begin();
   }
 
-  function Run(taskName, mode) {
+  // ── What one run covers ───────────────────────────────────────────────────
+  //
+  // `modes` is the run's own copy, seeded from the auto-mode settings and editable in
+  // the dialog. Images are the one type that does not inherit: the settings page has
+  // called them "usually the largest type and the slowest to scan" since 1.0.0, and a
+  // library-wide image pass is a decision worth taking per run rather than one to
+  // inherit from a setting about what happens when a single image is saved.
+  function defaultRunModes(settings) {
+    var modes = {};
+    TYPES.forEach(function (t) {
+      modes[t.key] = t.key === 'images' ? MODE_OFF : modeOf(settings, t);
+    });
+    return modes;
+  }
+
+  // The dialog's own selection, kept across close and reopen only while the box is
+  // ticked. In localStorage rather than in the plugin settings: it is one browser's
+  // convenience, not a configuration every tab and every user of that Stash shares -
+  // and a setting would put a second answer beside the auto modes, which is exactly
+  // the confusion this release removed. Re-parsed on the way out, so a hand-edited or
+  // truncated value can only ever read as OFF.
+  var RUN_MODES_KEY = '__GTTx__.nptRunModes';
+
+  function runModesStore() {
+    try {
+      return window.localStorage || null;
+    } catch (e) {
+      return null;                       // storage disabled: the box is a convenience
+    }
+  }
+
+  function storedRunModes() {
+    var store = runModesStore();
+    if (!store) return null;
+    try {
+      var v = JSON.parse(store.getItem(RUN_MODES_KEY) || 'null');
+      if (!v || typeof v !== 'object' || !v.persist) return null;
+      return parseAutoModes(formatAutoModes(v.modes || {}));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveRunModes(modes) {
+    var store = runModesStore();
+    if (!store) return;
+    try {
+      store.setItem(RUN_MODES_KEY, JSON.stringify({ persist: true, modes: modes }));
+    } catch (e) { /* quota, private mode: nothing here is worth an error for */ }
+  }
+
+  function clearRunModes() {
+    var store = runModesStore();
+    if (!store) return;
+    try { store.removeItem(RUN_MODES_KEY); } catch (e) { /* as above */ }
+  }
+
+  function Run(taskName) {
     this.taskName = taskName;
-    this.mode = mode;
+    // All off until the settings arrive. `modesReady` is deliberately not in reset():
+    // a Rescan re-enters begin(), and re-seeding the selectors there would throw away
+    // the choice the user made and then pressed Rescan to act on.
+    this.modes = {};
+    TYPES.forEach(function (t) { this.modes[t.key] = MODE_OFF; }, this);
+    this.modesReady = false;
     this.reset();
     this.build();
   }
@@ -1357,7 +1653,9 @@
     this.total = {};
     this.errors = 0;
     this.applied = 0;
-    this.appliedTags = {};
+    // Split by direction, because one run now prunes some types and rolls up others:
+    // a single map could only be summarised with a verb that was wrong for half of it.
+    this.appliedTags = { ADD: {}, REMOVE: {} };
     this.failed = 0;
     // What this dialog has written and can still take back: the batches the server
     // accepted, newest last. Session-scoped like `lines` rather than pass-scoped -
@@ -1367,10 +1665,14 @@
     this.undoable = [];
     this.undone = 0;
     this.undoFailed = 0;
-    this.undoneTags = {};
+    this.undoneTags = { ADD: {}, REMOVE: {} };
     this.undoTotal = 0;
     this.cancelled = false;
     this.stopped = false;
+    // Set when a selector moves after a plan has been made: what is on screen was
+    // computed for the previous selection, so Proceed would write something other
+    // than what the dialog now says it covers.
+    this.selectionDirty = false;
     this.lines = [];
     this.pending = [];
     // `lines` is the export buffer and survives a Rescan, because Copy log is meant
@@ -1414,6 +1716,17 @@
     head.appendChild(el('div', 'npt-legend',
       'Reading the log: the number in brackets after a name is that entity\'s or tag\'s id - ' +
       'Scene "My Scene" (123) is the scene with id 123. Counts are written as x250, never in brackets.'));
+    // What this run covers, and in which direction, per type. Seeded from the
+    // auto-mode settings once they load (see begin) and editable from here: the
+    // settings say what happens by itself, and one run is allowed to differ.
+    head.appendChild(el('div', 'npt-legend',
+      'Each type is planned on its own: Prune removes a tag another tag on the same ' +
+      'entity already implies, Roll Up adds every ancestor of the tags it carries, ' +
+      'Off leaves the type alone. The selection starts from the automatic modes in ' +
+      'the plugin settings, with Images off - change it here and press Rescan.'));
+    this.modesPanel = modesPanel(this.modes, function () { self.onModeChange(); });
+    head.appendChild(this.modesPanel.el);
+    head.appendChild(this.buildPersist());
     this.noteEl = el('div', 'npt-note', '');
     head.appendChild(this.noteEl);
     this.modal.appendChild(head);
@@ -1454,6 +1767,42 @@
     document.body.appendChild(this.backdrop);
   };
 
+  // Ticked, the selection above survives close and reopen; cleared, the next dialog
+  // starts from the settings again. Off by default, which is what a user who has
+  // never seen this box gets - and the box itself is what says the dialog is capable
+  // of remembering, since a preference nobody can see is one nobody can turn off.
+  Run.prototype.buildPersist = function () {
+    var self = this;
+    var row = el('label', 'npt-persist');
+    var box = el('input', 'npt-persist-box');
+    box.type = 'checkbox';
+    box.checked = !!storedRunModes();
+    box.addEventListener('change', function () {
+      if (box.checked) saveRunModes(self.modes);
+      else clearRunModes();
+    });
+    row.appendChild(box);
+    row.appendChild(el('span', null,
+      'Keep this selection for the next time this dialog opens'));
+    this.persistBox = box;
+    return row;
+  };
+
+  // A selector moved. Two things follow: the stored selection is kept up to date if
+  // the box is ticked, and a plan already on screen stops being something Proceed may
+  // act on - it was computed for the previous selection, and the honest next step is
+  // the Rescan this makes visible.
+  Run.prototype.onModeChange = function () {
+    if (this.persistBox && this.persistBox.checked) saveRunModes(this.modes);
+    if ((this.state === 'ready' || this.state === 'scanning') && !this.selectionDirty) {
+      this.selectionDirty = true;
+      this.log('INFO', 'Selection changed. Press Rescan to plan against it - Proceed stays ' +
+        'disabled until then, since the plan was made for the previous selection.');
+      this.flush();
+    }
+    this.setState(this.state);
+  };
+
   Run.prototype.focus = function () {
     if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
   };
@@ -1484,12 +1833,18 @@
     // plan over a library an earlier pass already changed, and that is exactly when
     // the user is deciding between applying more and taking back what is there.
     this.show(this.undoBtn, (ready || done) && this.undoable.length > 0);
-    this.show(this.rescanBtn, done);
+    // Offered in ready as well, but only once a selector has moved: that is the one
+    // state where the plan on screen and the selection above it disagree, and Rescan
+    // is what settles them.
+    this.show(this.rescanBtn, done || (ready && this.selectionDirty));
     this.show(this.closeBtn, done);
+    // The selection is what a write in flight is writing; changing it mid-write would
+    // describe something the run is not doing.
+    if (this.modesPanel) this.modesPanel.enable(!applying && !undoing);
     // Undo is deliberately not gated on `stale`: it reverses writes this dialog has
     // already made, and stranding the user with changes they cannot take back would
     // be a worse outcome than the mismatch it is protecting them from.
-    this.proceedBtn.disabled = !ready || !this.plan.length || this.stale;
+    this.proceedBtn.disabled = !ready || !this.plan.length || this.stale || this.selectionDirty;
     this.spin(scanning || applying || undoing);
   };
 
@@ -1658,15 +2013,24 @@
       self.settings = loaded.settings;
       self.checkSibling(loaded.sibling);
 
-      var types = TYPES.filter(function (t) { return self.settings[t.setting]; });
+      // Only on the first pass: a Rescan is the user acting on a selection they just
+      // made, and re-seeding it from the settings would undo the very change that
+      // made them press the button.
+      if (!self.modesReady) {
+        self.modesReady = true;
+        self.modesPanel.set(storedRunModes() || defaultRunModes(self.settings));
+      }
+
+      var types = TYPES.filter(function (t) { return self.modes[t.key] !== MODE_OFF; });
       if (!types.length) {
-        self.log('WARN', 'No entity types are enabled. Turn on at least one "Include ..." setting ' +
-          'in Settings - Plugins - ' + PLUGIN_NAME + ', then run the task again.');
+        self.log('WARN', 'Every entity type is set to Off, so there is nothing to plan. ' +
+          'Choose Prune or Roll Up for at least one type above, then press Rescan.');
         self.finishScan();
         return;
       }
       self.log('INFO', 'Included, in processing order: ' +
-        types.map(function (t) { return t.plural; }).join(', '));
+        types.map(function (t) { return t.plural + ' - ' + MODE_TOKEN[self.modes[t.key]]; })
+          .join(', '));
 
       return gqlRequest(tagQuery(self.settings), null).then(function (data) {
         var tags = ((data.findTags || {}).tags) || [];
@@ -1715,7 +2079,7 @@
             if (self.cancelled) return;
             self.scanned[t.key] = 0;
             self.renderProgress();
-            return scanType(t, self.mode, ctx);
+            return scanType(t, self.modes[t.key], ctx);
           });
         });
         return chain.then(function () { self.finishScan(); });
@@ -1786,8 +2150,8 @@
       this.log('INFO', 'Review complete: ' + plural(this.plan.length, 'entity change') +
         ' planned across ' + plural(buildBatches(this.plan).length, 'request') +
         '. Nothing has been written. Press Proceed to apply.');
-      this.logTagSummary(planTagCounts(this.plan),
-        this.mode === 'prune' ? 'to remove' : 'to add');
+      this.logTagSummary(planTagCounts(this.plan, 'remove'), 'to remove');
+      this.logTagSummary(planTagCounts(this.plan, 'add'), 'to add');
     }
     this.setState('ready');
     this.flush();
@@ -1839,7 +2203,7 @@
     var self = this;
     this.setState('applying');
     this.applied = 0;
-    this.appliedTags = {};
+    this.appliedTags = { ADD: {}, REMOVE: {} };
     this.failed = 0;
     this.log('INFO', 'Applying ' + plural(this.plan.length, 'entity change') + ' - ' + new Date().toISOString());
 
@@ -1855,7 +2219,8 @@
       '. Press Rescan to review what is left.');
     // Counted from what was written, not from the plan: a failed batch, or a Stop,
     // must not be summarised as though it had landed.
-    this.logTagSummary(this.appliedTags, this.mode === 'prune' ? 'removed' : 'added');
+    this.logTagSummary(this.appliedTags.REMOVE, 'removed');
+    this.logTagSummary(this.appliedTags.ADD, 'added');
     this.setState('done');
     this.flush();
   };
@@ -1895,7 +2260,7 @@
     this.stopped = false;
     this.undone = 0;
     this.undoFailed = 0;
-    this.undoneTags = {};
+    this.undoneTags = { ADD: {}, REMOVE: {} };
     this.undoTotal = undoableCount(this.undoable);
     this.log('INFO', 'Undoing ' + plural(this.undoTotal, 'entity change') + ' - ' + new Date().toISOString());
 
@@ -1917,8 +2282,11 @@
       (this.undoable.length
         ? '. ' + plural(undoableCount(this.undoable), 'change') + ' are still applied.'
         : '. Everything this dialog wrote has been taken back.'));
-    // Prune put tags back; Roll Up took its own additions off again.
-    this.logTagSummary(this.undoneTags, this.mode === 'prune' ? 'restored' : 'removed again');
+    // Undoing a prune puts tags back; undoing a roll-up takes its own additions off
+    // again. One run can have done both, so both lines are offered and an empty one
+    // prints nothing.
+    this.logTagSummary(this.undoneTags.ADD, 'restored');
+    this.logTagSummary(this.undoneTags.REMOVE, 'removed again');
     this.setState('done');
     this.flush();
   };
@@ -2012,6 +2380,121 @@
     this.disarmUndo();
     this.spin(false);
     if (this.flushTimer) { clearTimeout(this.flushTimer); this.flushTimer = null; }
+    if (this.backdrop && this.backdrop.parentNode) {
+      this.backdrop.parentNode.removeChild(this.backdrop);
+    }
+    if (_active === this) _active = null;
+  };
+
+  // ── The auto-mode settings dialog ─────────────────────────────────────────
+  //
+  // The editor for the one setting this plugin's `a` block now holds. It exists
+  // because a tri-state per type is not something Stash's settings page can render:
+  // a plugin setting is BOOLEAN, NUMBER or STRING and nothing else, so seven
+  // tri-states are one string - and a string is a thing to be typed wrong. The field
+  // stays editable by hand and this is what saves anyone from having to use it.
+  //
+  // It writes a setting, not the library, so it carries no backup instruction: there
+  // is nothing here for an Undo to reverse. What it does carry is the warning the two
+  // "Auto ..." booleans used to - a type set to Prune or Roll Up here is rewritten
+  // silently on every save, with no dialog, no review and no undo.
+  function ModesDialog(taskName) {
+    this.taskName = taskName;
+    this.modes = {};
+    TYPES.forEach(function (t) { this.modes[t.key] = MODE_OFF; }, this);
+    this.saving = false;
+  }
+
+  ModesDialog.prototype.build = function () {
+    injectStyle();
+    var self = this;
+
+    this.backdrop = el('div', 'npt-backdrop');
+    this.modal = el('div', 'npt-modal');
+    this.backdrop.appendChild(this.modal);
+
+    var head = el('div', 'npt-head');
+    head.appendChild(el('div', 'npt-title', PLUGIN_SHORT_NAME + ' - ' + this.taskName));
+    head.appendChild(el('div', 'npt-warn',
+      'A type set to Prune or Roll Up here is rewritten whenever Stash saves one - ' +
+      'immediately, with no dialog, no review and no undo. Off is what a type does ' +
+      'until you say otherwise; the tasks are unaffected either way, since the run ' +
+      'dialog asks again every time.'));
+    head.appendChild(el('div', 'npt-legend',
+      'Prune removes a tag another tag on the same entity already implies. Roll Up ' +
+      'adds every ancestor of the tags it carries. The exclusion filters in the plugin ' +
+      'settings apply to both.'));
+    this.noteEl = el('div', 'npt-note', 'Reading the current setting...');
+    head.appendChild(this.noteEl);
+    this.modal.appendChild(head);
+
+    this.panel = modesPanel(this.modes, function () { self.render(); });
+    this.panel.enable(false);
+    this.modal.appendChild(this.panel.el);
+
+    // What will be written, in the form the setting holds it. It is the same string
+    // the settings page shows, so someone who wants to edit it by hand can see what
+    // this dialog would have made of their edit before making it themselves.
+    this.previewEl = el('div', 'npt-modestring', '');
+    this.modal.appendChild(this.previewEl);
+
+    var foot = el('div', 'npt-foot');
+    this.saveBtn   = button('Save', 'npt-proceed');
+    this.cancelBtn = button('Cancel', 'npt-cancel');
+    this.saveBtn.disabled = true;
+    this.saveBtn.addEventListener('click', function () { self.save(); });
+    this.cancelBtn.addEventListener('click', function () { self.close(); });
+    [this.saveBtn, this.cancelBtn].forEach(function (b) { foot.appendChild(b); });
+    this.modal.appendChild(foot);
+
+    wireEscape(this);
+    document.body.appendChild(this.backdrop);
+
+    loadSettings().then(function (loaded) {
+      if (_active !== self) return;
+      self.panel.set(loaded.settings.modes);
+      self.panel.enable(true);
+      self.saveBtn.disabled = false;
+      self.noteEl.textContent = '';
+      self.render();
+    }, function (e) {
+      if (_active !== self) return;
+      self.noteEl.textContent = 'The current setting could not be read (' +
+        (e && e.message ? e.message : e) + '). Saving from here would replace it with ' +
+        'whatever is selected above, so Save stays disabled - close this and try again.';
+    });
+  };
+
+  ModesDialog.prototype.render = function () {
+    this.previewEl.textContent = formatAutoModes(this.modes);
+  };
+
+  ModesDialog.prototype.focus = function () {
+    if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
+  };
+
+  ModesDialog.prototype.save = function () {
+    if (this.saving || this.saveBtn.disabled) return;
+    var self = this;
+    this.saving = true;
+    this.saveBtn.disabled = true;
+    this.panel.enable(false);
+    this.noteEl.textContent = 'Saving...';
+    saveAutoModes(formatAutoModes(this.modes)).then(function () {
+      if (_active !== self) return;
+      self.close();
+    }, function (e) {
+      self.saving = false;
+      if (_active !== self) return;
+      self.saveBtn.disabled = false;
+      self.panel.enable(true);
+      self.noteEl.textContent = 'The setting could not be saved: ' +
+        (e && e.message ? e.message : e);
+    });
+  };
+
+  ModesDialog.prototype.close = function () {
+    unwireEscape(this);
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);
     }
@@ -2660,16 +3143,19 @@
   // are the only record - there is no Undo out here, because there is no dialog to
   // hang one on. The setting descriptions say so; do not soften them.
   //
-  // Which entity types are covered is the a1-a7 toggles, the same ones that scope
-  // the tasks. One list, so the settings page cannot describe two different
-  // libraries, and the all-off default carries over unchanged: a fresh install
-  // reacts to nothing until the user has said which types they have thought about.
+  // Which entity types are covered, and in which direction, is the one auto-mode
+  // string - so a type is off, pruned or rolled up on its own. The all-off default
+  // carries over unchanged: a fresh install reacts to nothing until the user has said
+  // which types they have thought about, and the task dialog starts from the same
+  // answer rather than from a second list that could disagree with it.
   //
-  // Four things keep this from eating a library:
+  // Three things keep this from eating a library:
   //
-  // 1. Prune and Roll Up are exact inverses, so both at once is incoherent rather
-  //    than merely redundant. Enabling both does nothing at all (see autoMode) - the
-  //    alternative, picking one silently, is a trap dressed as a convenience.
+  // 1. Prune and Roll Up are exact inverses, and a type carries exactly one of them,
+  //    so the incoherent combination the two global booleans allowed cannot be
+  //    expressed any more. That is the point of the tri-state: the old pair had four
+  //    combinations for three meanings, and the fourth had to be documented as a
+  //    no-op and warned about on the settings page.
   // 2. guarded() stops our own writes - auto or task - from re-entering.
   // 3. A lease, so *other* reactive plugins stand down while we write. This is what
   //    keeps the sibling's auto-merge from bouncing our prune straight back.
@@ -2706,28 +3192,7 @@
     }, function () { return false; });
   }
 
-  var AUTO_PRUNE_NAME  = 'Auto Prune on Entity Updates';
-  var AUTO_ROLLUP_NAME = 'Auto Roll Up on Entity Updates';
-
-  var _autoBothWarned = false;
-
-  // 'prune', 'rollup', or null for "do nothing". Both flags on is a configuration
-  // error rather than a preference: one adds exactly what the other removes, so
-  // whichever ran second would undo the first on every save.
-  function autoMode(s) {
-    var prune = !!s.a8AutoPruneOnUpdate, rollup = !!s.a9AutoRollUpOnUpdate;
-    if (prune && rollup) {
-      if (!_autoBothWarned) {
-        _autoBothWarned = true;
-        console.warn('[npt] "' + AUTO_PRUNE_NAME + '" and "' + AUTO_ROLLUP_NAME +
-          '" are both enabled. They are exact opposites - one adds every tag the ' +
-          'other removes - so neither is running. Turn one of them off.');
-      }
-      return null;
-    }
-    _autoBothWarned = false;
-    return prune ? 'prune' : (rollup ? 'rollup' : null);
-  }
+  var AUTO_MODES_NAME = 'Automatic mode per entity type';
 
   // Settings are re-read on demand and cached, rather than polled on a timer the way
   // the sibling does. The tasks were this plugin's only entry point until now, so
@@ -2829,7 +3294,7 @@
   // applyBatch pushes to it, and there is no dialog here to offer it from.
   function autoSink() {
     return {
-      undoable: [], appliedTags: {}, applied: 0, failed: 0, errors: 0,
+      undoable: [], appliedTags: { ADD: {}, REMOVE: {} }, applied: 0, failed: 0, errors: 0,
       log: function (kind, message) {
         autoLegend();
         var line = '[' + PLUGIN_ID + '] ' + message;
@@ -2885,10 +3350,10 @@
     if (!wanted.length) return Promise.resolve();
 
     return autoSettings().then(function (s) {
-      var mode = autoMode(s);
-      // Re-checked here rather than only at the call site: settings can have been
+      // Re-read here rather than only at the call site: settings can have been
       // refreshed between the mutation going out and this running.
-      if (!mode || !s[type.setting]) return;
+      var mode = modeOf(s, type);
+      if (mode === MODE_OFF) return;
 
       // Someone else is rewriting entities in bulk right now. Their writes look
       // exactly like user edits from in here, and normalizing each one as it lands
@@ -2928,8 +3393,8 @@
           // it will come back at us.
           markWritten(type, plan.map(function (e) { return String(e.id); }));
 
-          var lease = acquireLease(mode === 'prune' ? AUTO_PRUNE_NAME : AUTO_ROLLUP_NAME,
-            AUTO_LEASE_TTL_MS);
+          var lease = acquireLease(AUTO_MODES_NAME + ' - ' + type.token + '=' +
+            MODE_TOKEN[mode], AUTO_LEASE_TTL_MS);
           var i = 0;
           function nextBatch() {
             if (i >= batches.length) return Promise.resolve();
@@ -2965,34 +3430,21 @@
     return type[key];
   }
 
-  // ── The both-modes-on notice ──────────────────────────────────────────────
+  // ── The settings page ─────────────────────────────────────────────────────
   //
-  // Turning on both auto modes runs neither (see autoMode), which is the safe
-  // reading but an invisible one: the only signal was a console line, and nobody
-  // has the console open while ticking a checkbox. So the plugin says so where the
-  // mistake is made - in its own settings group, for as long as both are on.
+  // Up to 3.2.0 this section carried a notice for the one configuration the old
+  // settings could express and the plugin could not honour - both auto modes ticked
+  // at once, which ran neither. The tri-state string cannot say that, so the notice
+  // is gone and what is left is the opposite job: keeping the string the user typed
+  // in the shape everything else reads.
   //
-  // It only ever *reports*. Switching one of them off from here was the obvious
-  // alternative and was rejected twice over: plugin settings are server-side and
-  // shared by every tab and every user of that Stash, and Stash's settings page
-  // holds them in React component state, so a configurePlugin write would leave the
-  // checkbox visibly ticked until a reload - fixing the config and lying about it.
-  // Driving Stash's own onChange through PluginApi.patch would work, but it turns
-  // "both ticked does nothing" into "the second one you ticked is now live", which
-  // for Auto Prune means silent deletions starting from a click that used to be
-  // inert. A notice changes no behaviour and cannot surprise anyone.
-  var CONFLICT_ID = 'npt-conflict-notice';
-  var CONFLICT_TEXT = '⚠ ' + AUTO_PRUNE_NAME + ' and ' + AUTO_ROLLUP_NAME +
-    ' are both enabled. They are exact opposites - one adds every tag the other ' +
-    'removes - so neither is running. Turn one of them off.';
-
   // Where the notice goes, found by the one hook on that page that is not a
   // formatted display string: Stash gives every plugin setting an element id it
   // derives from the plugin id and the setting key -
   //
   //   id: `plugin-${pluginID}-${setting.name}`   (SettingsPluginsPanel.tsx)
   //
-  // so `plugin-NormalizeParentTags-a8AutoPruneOnUpdate` is ours by construction. No
+  // so `plugin-NormalizeParentTags-a1AutoModes` is ours by construction. No
   // version suffix, no localisation, nothing to guess. Two earlier attempts matched
   // the group's heading text instead and both were wrong about what it says; the
   // heading is now only a fallback, for a Stash that does not set those ids.
@@ -3014,11 +3466,41 @@
   // would be invisible until the user expanded the very group it is telling them to
   // look at.
   function ownSettingGroup() {
-    var node = settingElement('a8AutoPruneOnUpdate') || settingElement('a9AutoRollUpOnUpdate');
-    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+    var node = settingElement('a1AutoModes'), d;
+    for (d = 0; node && d < 10; d++, node = node.parentElement) {
       if (hasClass(node, 'setting-group')) return node;
     }
-    return null;
+    // Fallback for a Stash that sets no setting ids: the group headed with our own
+    // name. It was the both-modes notice's fallback until 4.0.0 and it outlived that
+    // notice, because everything else this section puts on the page - the README
+    // link, the description split, the stale banner - needs the same box.
+    //
+    // Settings - Tasks heads *its* group with the same name, and that group is not
+    // this one: it holds the task buttons and no settings, so decorating it would put
+    // a README link and a split description on a page that never had either. The
+    // heading is only enough to identify us; the buttons are what say which page.
+    var heading = ownSettingGroupHeading();
+    for (node = heading, d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (hasClass(node, 'setting-group')) return hasOwnTaskButton(node) ? null : node;
+    }
+    return heading && !hasOwnTaskButton(heading.parentElement)
+      ? heading.parentElement : null;
+  }
+
+  // A plain recursive walk rather than `querySelectorAll`, like the sibling plugins'
+  // `findActionByLabel`: it is a handful of nodes, and this way the check works on any
+  // node rather than only on one a selector engine will answer for.
+  function hasOwnTaskButton(node) {
+    if (!node) return false;
+    if (node.tagName === 'BUTTON' &&
+        TASKS.indexOf(String(node.textContent || '').replace(/^\s+|\s+$/g, '')) !== -1) {
+      return true;
+    }
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (hasOwnTaskButton(kids[i])) return true;
+    }
+    return false;
   }
 
   // The `.setting` row a given setting lives in. `settingElement` returns the input
@@ -3031,21 +3513,6 @@
       if (hasClass(node, 'setting')) return node;
     }
     return null;
-  }
-
-  // What the two checkboxes say *right now*, or null if they cannot be read.
-  //
-  // This is the state the user is looking at, and it is why the notice no longer
-  // asks the server what the settings are. Stash sets its own React state the moment
-  // you click, then debounces the save; a notice driven by re-reading the config
-  // therefore lagged the checkbox by seconds and disagreed with the screen while it
-  // did - which is worse than useless for a warning about which boxes are ticked.
-  function liveConflictState() {
-    var prune = settingElement('a8AutoPruneOnUpdate');
-    var rollup = settingElement('a9AutoRollUpOnUpdate');
-    if (!prune || !rollup) return null;
-    if (typeof prune.checked !== 'boolean' || typeof rollup.checked !== 'boolean') return null;
-    return prune.checked && rollup.checked;
   }
 
   // The two pages that show a group headed with our name do not head it the same
@@ -3079,47 +3546,39 @@
     return null;
   }
 
-  function removeConflictNotice() {
-    var node = document.getElementById(CONFLICT_ID);
-    if (node && node.parentNode) node.parentNode.removeChild(node);
-  }
+  // ── Renormalizing what was typed by hand ──────────────────────────────────
+  //
+  // The auto-mode field is one line of text, and a user is allowed to edit it: a
+  // parse that accepts any order, any case, any separators and the singular of a type
+  // is what makes that safe. What it is not is what the field should be left showing,
+  // so once Stash has saved an edit, the parsed value is written back in the canonical
+  // form - which is also the plugin's answer to "did it understand what I typed".
+  //
+  // Three rules stop this fighting the person typing:
+  //
+  //  - The input's own `value` is the truth, not the server's copy. Stash sets React
+  //    state on the keystroke and debounces the save, so a server read lags the box.
+  //  - Never while the field has focus. A value replaced under the cursor is a value
+  //    the user cannot finish typing.
+  //  - Never twice for the same text. The write is remembered by what it was made
+  //    *from*, so a Stash that does not re-render the field with the saved value
+  //    cannot turn this into a loop.
+  //
+  // An empty field is left alone. It means "nothing configured", which is what a
+  // fresh install has, and writing seven OFFs into it would be this plugin saving
+  // settings for a user who has only looked at the page.
+  var _normalizedFrom = null;
 
-  // Top of our own group box where the ids are available, otherwise under the
-  // heading. Returns null when neither is on the page, which is also how the tick
-  // knows the plugins settings page is not showing.
-  function conflictNoticeSlot() {
-    // Immediately above the two Auto settings, which is where the user is looking
-    // when they tick one. It used to go at the top of the group box so that it
-    // showed while the group was collapsed - but a collapsed group is one you
-    // cannot misconfigure from, and in an expanded one that put the notice off the
-    // top of the screen, far from the checkboxes it is about.
-    var row = settingRow('a8AutoPruneOnUpdate') || settingRow('a9AutoRollUpOnUpdate');
-    if (row && row.parentNode) return { parent: row.parentNode, before: row };
-    var group = ownSettingGroup();
-    if (group) return { parent: group, before: group.firstChild };
-    var heading = ownSettingGroupHeading();
-    if (heading && heading.parentNode) {
-      return { parent: heading.parentNode, before: heading.nextSibling };
-    }
-    return null;
-  }
-
-  function renderConflictNotice(show) {
-    var slot = show ? conflictNoticeSlot() : null;
-    if (!slot) { removeConflictNotice(); return; }
-    // Idempotent: the tick runs on a timer and on every navigation, so an already
-    // correctly placed notice must not be rebuilt - and one left behind by a React
-    // re-render must not be duplicated.
-    var existing = document.getElementById(CONFLICT_ID);
-    if (existing) {
-      if (existing.parentNode === slot.parent) return;
-      removeConflictNotice();
-    }
-    injectStyle();
-    var note = el('div', 'npt-conflict', CONFLICT_TEXT);
-    note.id = CONFLICT_ID;
-    if (slot.before) slot.parent.insertBefore(note, slot.before);
-    else slot.parent.appendChild(note);
+  function normalizeSettingField() {
+    var input = settingElement('a1AutoModes');
+    if (!input || typeof input.value !== 'string' || _savingModes) return;
+    if (document.activeElement === input) return;
+    var raw = input.value;
+    if (!raw.replace(/^\s+|\s+$/g, '') || raw === _normalizedFrom) return;
+    var canon = formatAutoModes(parseAutoModes(raw));
+    if (canon === raw) return;
+    _normalizedFrom = raw;
+    saveAutoModes(canon).then(null, function () {});
   }
 
   // Settings are only read while our own group is actually on the page, so a tab
@@ -3454,31 +3913,11 @@
   }
 
   function settingsTick() {
-    // Ahead of the conflict logic and outside its early return: the link belongs on
-    // the settings page whatever the two Auto settings happen to be.
+    // The link belongs on the settings page, and the task buttons are on a different
+    // tab from either of them, so both run before anything that looks for our group.
     ensureReadmeLink();
-    // Before it too, and before the early return below: the task buttons are on a
-    // different tab from the conflict notice, and that return is about this one.
     paintTaskButtons();
-    if (!conflictNoticeSlot()) {
-      removeConflictNotice();
-      return;
-    }
-    // The checkboxes are the truth here, and reading them costs nothing and lags by
-    // nothing. Only where they cannot be read - a Stash that renders these settings
-    // some other way - does this fall back to asking the server, with the lag that
-    // implies.
-    var live = liveConflictState();
-    if (live !== null) {
-      renderConflictNotice(live);
-      return;
-    }
-    autoSettings().then(function (s) {
-      renderConflictNotice(!!s.a8AutoPruneOnUpdate && !!s.a9AutoRollUpOnUpdate);
-    }, function () {
-      // A failed settings read says nothing about the conflict either way; leave
-      // whatever is on screen rather than flickering it off and back on.
-    });
+    normalizeSettingField();
   }
 
   // No MutationObserver here, unlike the sibling's button injection: this is a
@@ -3579,7 +4018,7 @@
         var parsed = JSON.parse(opts.body);
         var vars = parsed.variables || {};
         if (/\brunPluginTask\b/.test(parsed.query || '') && vars.plugin_id === PLUGIN_ID) {
-          startRun(vars.task_name || TASK_PRUNE);
+          startRun(vars.task_name || TASK_RUN);
           return Promise.resolve(fakeOk({ data: { runPluginTask: PLUGIN_ID + '-handled-in-browser' } }));
         }
       } catch (e) {

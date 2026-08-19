@@ -17,8 +17,30 @@ const SRC = process.env.SRC || path.join(
   __dirname, '..', 'NormalizeParentTags', 'NormalizeParentTags.js');
 
 const PLUGIN_ID = 'NormalizeParentTags';
-const TASK_PRUNE = 'Prune Parent Tags from Entities...';
-const TASK_ROLLUP = 'Roll Up Parent Tags onto Entities...';
+// One task does both directions since 4.0.0; which type is pruned, rolled up or left
+// alone comes from the auto-mode setting (and from the dialog's own selectors).
+const TASK_RUN = 'Normalize Parent Tags...';
+const TASK_MODES = 'Auto Mode Settings...';
+
+// The auto-mode string, built from a `{ scenes: 'prune' }`-shaped map so a suite can
+// say what it means rather than spelling out seven pairs. Anything not named is OFF,
+// which is what the plugin's own parser does with a missing pair.
+const TYPE_TOKENS = {
+  performers: 'PERFORMERS', studios: 'STUDIOS', groups: 'GROUPS', galleries: 'GALLERIES',
+  scenes: 'SCENES', images: 'IMAGES', markers: 'MARKERS',
+};
+// The dialog's own selection, as the run dialog persists it - `makeEnv({ localStorage:
+// storedModes({ images: 'prune' }) })` is how a suite covers a type the dialog would
+// otherwise start with Off, which since 4.0.0 is what Images always are.
+function storedModes(map) {
+  return { '__GTTx__.nptRunModes': JSON.stringify({ persist: true, modes: map || {} }) };
+}
+
+function autoModes(map) {
+  return Object.keys(TYPE_TOKENS).map((k) =>
+    TYPE_TOKENS[k] + '=' + String((map || {})[k] || 'off').toUpperCase().replace(/\s/g, ''))
+    .join(', ');
+}
 
 function makeElement(tag) {
   return {
@@ -175,6 +197,17 @@ function makeEnv(opts) {
   ctx.location = { pathname: opts.pathname || '/settings?tab=tasks' };
   ctx.window.location = ctx.location;
   ctx.window.addEventListener = () => {};
+  // The run dialog's "keep this selection" box writes here. A plain object store is
+  // enough: the plugin only ever gets, sets and removes one key, and a suite can read
+  // `env.storage.items` back to see what it wrote.
+  const storage = {
+    items: Object.assign({}, opts.localStorage),
+    getItem(k) { return Object.prototype.hasOwnProperty.call(this.items, k) ? this.items[k] : null; },
+    setItem(k, v) { this.items[k] = String(v); },
+    removeItem(k) { delete this.items[k]; },
+  };
+  ctx.localStorage = storage;
+  ctx.window.localStorage = storage;
 
   const body = makeElement('body');
   const head = makeElement('head');
@@ -260,7 +293,7 @@ function makeEnv(opts) {
   // `document` alongside `body` because the dialogs' Escape handler is registered on
   // the document rather than on any node a suite can reach through the tree.
   return {
-    ctx, calls, body, document: ctx.document, intervals,
+    ctx, calls, body, document: ctx.document, intervals, storage,
     tick: () => intervals.forEach((fn) => fn()),
   };
 }
@@ -357,7 +390,17 @@ const TAGS = [
 
 function makeResponder(opts) {
   opts = opts || {};
-  const settings = Object.assign({ a5EnableScenes: true }, opts.settings);
+  // Scenes are what most suites drive, and prune is the direction they were written
+  // against, so that is the default - `settings: { a1AutoModes: ... }` replaces it and
+  // `autoModes({...})` is the readable way to write one.
+  //
+  // A suite naming any `aN` key of its own gets no default at all: that is either the
+  // new string or the pre-4.0.0 booleans it replaced, and defaulting over the second
+  // would hide the migration the case is there to exercise.
+  const given = opts.settings || {};
+  const own = Object.keys(given).some((k) => /^a\d/.test(k));
+  const settings = Object.assign(
+    own ? {} : { a1AutoModes: autoModes({ scenes: 'prune' }) }, given);
   const entities = opts.entities || {};
   return function (req) {
     const q = req.query || '';
@@ -450,7 +493,7 @@ function fire(node, type, ev) {
 const HANG = { __hang: true };
 
 module.exports = {
-  SRC, PLUGIN_ID, TASK_PRUNE, TASK_ROLLUP, TAGS, HANG,
+  SRC, PLUGIN_ID, TASK_RUN, TASK_MODES, TAGS, HANG, autoModes, storedModes,
   makeEnv, run, startTask, flush, dialog, hasClass, makeElement, fire,
   check, finish, plural, makeResponder, bulkCalls, entityUpdate,
   results: () => failures,

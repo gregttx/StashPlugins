@@ -8,11 +8,22 @@ const h = require('./npt-harness');
 
 const scenes = (list) => ({ findScenes: { node: 'scenes', list: list } });
 
-// Runs one task to the end of phase 1 and hands back the dialog and the calls.
-function scan(opts, task) {
-  const env = h.makeEnv({ quiet: true, respond: h.makeResponder(opts) });
+// Runs the task to the end of phase 1 and hands back the dialog and the calls.
+//
+// `mode` is what the types under test are set to - since 4.0.0 the direction is per
+// type rather than per task, so it is the setting that decides, not which button was
+// pressed. `opts.runModes` seeds the dialog's own remembered selection, which is the
+// only way to cover Images: they start Off in the dialog however they are configured.
+function scan(opts, mode) {
+  opts = Object.assign({}, opts);
+  const types = opts.types || { scenes: mode || 'prune' };
+  opts.settings = Object.assign({ a1AutoModes: h.autoModes(types) }, opts.settings);
+  const env = h.makeEnv({
+    quiet: true, respond: h.makeResponder(opts),
+    localStorage: opts.runModes ? h.storedModes(opts.runModes) : null,
+  });
   h.run(env.ctx);
-  h.startTask(env.ctx, task || h.TASK_PRUNE);
+  h.startTask(env.ctx, h.TASK_RUN);
   return h.flush().then(() => ({
     d: h.dialog(env.body), calls: env.calls, ctx: env.ctx, body: env.body,
   }));
@@ -82,7 +93,7 @@ Promise.resolve()
   // ── Roll Up ──────────────────────────────────────────────────────────────
   .then(() => scan({
     entities: scenes([{ id: '20', title: 'Leaf', organized: false, tags: [{ id: '3' }] }]),
-  }, h.TASK_ROLLUP)).then(({ d }) => {
+  }, 'rollup')).then(({ d }) => {
     const a = additions(d);
     h.check('roll up adds every ancestor recursively', a.length === 3, a.join(' | '));
     h.check('roll up does not re-add what is present',
@@ -111,7 +122,7 @@ Promise.resolve()
 
   // ── Entity-level filters ─────────────────────────────────────────────────
   .then(() => scan({
-    settings: { a5EnableScenes: true, b2ExcludeOrganized: true },
+    settings: { b2ExcludeOrganized: true },
     entities: scenes([
       { id: '30', title: 'Organized', organized: true, tags: [{ id: '1' }, { id: '2' }] },
       { id: '31', title: 'Loose', organized: false, tags: [{ id: '1' }, { id: '2' }] },
@@ -122,7 +133,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, b1ExcludeEntityWithTagName: 'Rare' },
+    settings: { b1ExcludeEntityWithTagName: 'Rare' },
     entities: scenes([
       { id: '32', title: 'Protected', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '6' }] },
       { id: '33', title: 'Open', organized: false, tags: [{ id: '1' }, { id: '2' }] },
@@ -134,7 +145,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, b1ExcludeEntityWithTagName: 'rare' },
+    settings: { b1ExcludeEntityWithTagName: 'rare' },
     entities: scenes([{ id: '34', title: 'Any', organized: false, tags: [{ id: '1' }, { id: '2' }] }]),
   })).then(({ d, calls }) => {
     // Case-sensitive: "rare" does not match "Rare", and running unfiltered would
@@ -148,7 +159,7 @@ Promise.resolve()
 
   // ── Tag-level filters ────────────────────────────────────────────────────
   .then(() => scan({
-    settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: 'Hair' },
+    settings: { c3ExcludeRemoveTagNameContains: 'Hair' },
     entities: scenes([{ id: '40', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d }) => {
     const r = removals(d);
@@ -157,9 +168,9 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, c2ExcludeAddTagNameContains: 'Hair' },
+    settings: { c2ExcludeAddTagNameContains: 'Hair' },
     entities: scenes([{ id: '41', title: 'Leaf', organized: false, tags: [{ id: '3' }] }]),
-  }, h.TASK_ROLLUP)).then(({ d }) => {
+  }, 'rollup')).then(({ d }) => {
     const a = additions(d);
     // Skipping Hair Colour must not stop the climb - but it has no parents, so the
     // check that matters is that Blonde and Rare still arrive.
@@ -170,7 +181,7 @@ Promise.resolve()
   // The name filters take several substrings at once, separated by whitespace, and
   // a tag is protected when its name contains any one of them.
   .then(() => scan({
-    settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: 'Hair Body' },
+    settings: { c3ExcludeRemoveTagNameContains: 'Hair Body' },
     entities: scenes([
       { id: '44', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] },
       { id: '45', title: 'Other', organized: false, tags: [{ id: '4' }, { id: '5' }] },
@@ -184,7 +195,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: '   Hair\t\tBody  ' },
+    settings: { c3ExcludeRemoveTagNameContains: '   Hair\t\tBody  ' },
     entities: scenes([
       { id: '46', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] },
       { id: '47', title: 'Other', organized: false, tags: [{ id: '4' }, { id: '5' }] },
@@ -202,7 +213,6 @@ Promise.resolve()
   .then(() => scan({
     tags: artTags,
     settings: {
-      a5EnableScenes: true,
       c4TagNameSeparator: ',',
       c3ExcludeRemoveTagNameContains: 'Body Art',
     },
@@ -220,7 +230,7 @@ Promise.resolve()
   // and single letters protect most of a library. The split takes a string.
   .then(() => scan({
     tags: artTags,
-    settings: { a5EnableScenes: true, c4TagNameSeparator: '|', c3ExcludeRemoveTagNameContains: 'Deco' },
+    settings: { c4TagNameSeparator: '|', c3ExcludeRemoveTagNameContains: 'Deco' },
     entities: scenes([{
       id: '50', title: 'Art', organized: false,
       tags: [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }],
@@ -233,7 +243,7 @@ Promise.resolve()
 
   .then(() => scan({
     tags: artTags,
-    settings: { a5EnableScenes: true, c4TagNameSeparator: ',', c3ExcludeRemoveTagNameContains: ' , ,, ' },
+    settings: { c4TagNameSeparator: ',', c3ExcludeRemoveTagNameContains: ' , ,, ' },
     entities: scenes([{
       id: '51', title: 'Art', organized: false,
       tags: [{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }],
@@ -245,14 +255,14 @@ Promise.resolve()
 
   // An empty setting must not degenerate into a term matching every name.
   .then(() => scan({
-    settings: { a5EnableScenes: true, c3ExcludeRemoveTagNameContains: '   ' },
+    settings: { c3ExcludeRemoveTagNameContains: '   ' },
     entities: scenes([{ id: '48', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d }) => {
     h.check('a blank setting protects nothing', removals(d).length === 2, removals(d).join(' | '));
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, c1ExcludeTagWithIgnoreAutoTag: true },
+    settings: { c1ExcludeTagWithIgnoreAutoTag: true },
     tags: h.TAGS.map((t) => (t.id === '1' ? Object.assign({}, t, { ignore_auto_tag: true }) : t)),
     entities: scenes([{ id: '42', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d }) => {
@@ -262,7 +272,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, c6ExcludeRemoveTagWithCustomFieldName: 'keep' },
+    settings: { c6ExcludeRemoveTagWithCustomFieldName: 'keep' },
     tags: h.TAGS.map((t) => Object.assign({}, t, { custom_fields: t.id === '1' ? { keep: false } : {} })),
     entities: scenes([{ id: '43', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d, calls }) => {
@@ -275,7 +285,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, c6ExcludeRemoveTagWithCustomFieldName: 'constructor' },
+    settings: { c6ExcludeRemoveTagWithCustomFieldName: 'constructor' },
     tags: h.TAGS.map((t) => Object.assign({}, t, { custom_fields: {} })),
     entities: scenes([{ id: '44', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d }) => {
@@ -284,7 +294,6 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true },
     entities: scenes([{ id: '45', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }, { id: '3' }] }]),
   })).then(({ d, calls }) => {
     h.check('custom_fields is left out when no custom-field filter is set',
@@ -300,7 +309,7 @@ Promise.resolve()
 
   // ── Markers ──────────────────────────────────────────────────────────────
   .then(() => scan({
-    settings: { a7EnableMarkers: true },
+    types: { markers: 'prune' },
     entities: {
       findSceneMarkers: {
         node: 'scene_markers',
@@ -317,14 +326,14 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a7EnableMarkers: true },
+    types: { markers: 'rollup' },
     entities: {
       findSceneMarkers: {
         node: 'scene_markers',
         list: [{ id: '51', title: '', primary_tag: { id: '3', name: 'Platinum' }, tags: [] }],
       },
     },
-  }, h.TASK_ROLLUP)).then(({ d }) => {
+  })).then(({ d }) => {
     const a = additions(d);
     h.check('roll up puts a marker primary tag ancestors in the tag list', a.length === 3, a.join(' | '));
     h.check('an untitled marker is named by its primary tag',
@@ -350,7 +359,7 @@ Promise.resolve()
 
   .then(() => scan({
     entities: scenes([{ id: '32', title: 'C', organized: false, tags: [{ id: '3' }] }]),
-  }, h.TASK_ROLLUP)).then(({ d }) => {
+  }, 'rollup')).then(({ d }) => {
     const last = d.lines[d.lines.length - 1];
     h.check('roll up summarises what it plans to add',
       last === '[INFO] 3 tags to add: "Blonde" (2) x1, "Hair Colour" (1) x1, "Rare" (6) x1', last);
@@ -400,7 +409,7 @@ Promise.resolve()
   // zip) carries its name on the file, a folder gallery on the folder, and neither
   // used to be asked for - so every one of them logged as "untitled".
   .then(() => scan({
-    settings: { a4EnableGalleries: true },
+    types: { galleries: 'prune' },
     entities: {
       findGalleries: {
         node: 'galleries',
@@ -431,7 +440,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a6EnableImages: true },
+    runModes: { images: 'prune' },
     entities: {
       findImages: {
         node: 'images',
@@ -453,7 +462,6 @@ Promise.resolve()
 
   // ── Cycles ───────────────────────────────────────────────────────────────
   .then(() => scan({
-    settings: { a5EnableScenes: true },
     tags: [
       { id: '1', name: 'A', ignore_auto_tag: false, parents: [{ id: '2' }] },
       { id: '2', name: 'B', ignore_auto_tag: false, parents: [{ id: '1' }] },
@@ -470,9 +478,9 @@ Promise.resolve()
 
   // ── Types and ordering ───────────────────────────────────────────────────
   .then(() => scan({
-    settings: {
-      a5EnableScenes: true, a1EnablePerformers: true, a6EnableImages: true, a2EnableStudios: true,
-      a3EnableGroups: true, a4EnableGalleries: true, a7EnableMarkers: true,
+    runModes: {
+      performers: 'prune', studios: 'prune', groups: 'prune', galleries: 'prune',
+      scenes: 'prune', images: 'prune', markers: 'prune',
     },
     entities: {
       findScenes: { node: 'scenes', list: [] },
@@ -495,16 +503,16 @@ Promise.resolve()
     h.check('markers are scanned last', order[order.length - 1] === 'findSceneMarkers', order.join(', '));
   })
 
-  .then(() => scan({ settings: { a5EnableScenes: false } })).then(({ d, calls }) => {
-    h.check('no enabled types is reported rather than silently doing nothing',
-      d.lines.some((l) => l.indexOf('No entity types are enabled') !== -1), d.lines.join(' | '));
+  .then(() => scan({ types: {} })).then(({ d, calls }) => {
+    h.check('every type Off is reported rather than silently doing nothing',
+      d.lines.some((l) => l.indexOf('Every entity type is set to Off') !== -1), d.lines.join(' | '));
     h.check('no enabled types queries nothing beyond settings',
       !calls.some((c) => /NPTTags|query NPT_find/.test(c.query || '')));
   })
 
   // ── Query shape ──────────────────────────────────────────────────────────
   .then(() => scan({
-    settings: { a5EnableScenes: true, a1EnablePerformers: true },
+    types: { scenes: 'prune', performers: 'prune' },
     entities: {
       findScenes: { node: 'scenes', list: [] },
       findPerformers: { node: 'performers', list: [] },
@@ -520,7 +528,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true }, rejectSort: true,
+    rejectSort: true,
     entities: scenes([{ id: '70', title: 'Chain', organized: false, tags: [{ id: '1' }, { id: '2' }] }]),
   })).then(({ d, calls }) => {
     const sorted = calls.filter((c) => /query NPT_findScenes/.test(c.query || '') && c.query.indexOf('sort:') !== -1);
@@ -530,7 +538,7 @@ Promise.resolve()
   })
 
   .then(() => scan({
-    settings: { a5EnableScenes: true, a1EnablePerformers: true },
+    types: { scenes: 'prune', performers: 'prune' },
     failFind: 'findScenes',
     entities: {
       findScenes: { node: 'scenes', list: [] },

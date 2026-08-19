@@ -314,7 +314,7 @@ duration and resumes as soon as the apply finishes**, including if it fails or i
 line is written to the browser console when it happens:
 
 ```
-[cpt2s] auto-merge is standing down while NormalizeParentTags applies bulk changes (Prune Parent Tags from Entities...)
+[cpt2s] auto-merge is standing down while NormalizeParentTags applies bulk changes (Normalize Parent Tags...)
 ```
 
 Nothing is changed in your settings, other browser tabs are unaffected, and **manual button
@@ -326,15 +326,17 @@ library, so while it is applying changes **it takes the same kind of claim**, fo
 watches for one. And if you start it while another plugin is mid-run, the dialog says so and lets
 you decide — running both at once means each may undo part of the other.
 
-Normalize Parent Tags also has two settings of its own that react to every save — **Auto Prune on
-Entity Updates** and **Auto Roll Up on Entity Updates**. If either is on when you start the
+Normalize Parent Tags also normalizes on every save, per entity type — each one set to Prune, Roll
+Up or Off in its own settings. If any type is set to either direction when you start the
 library-wide task, the dialog tells you which, and what it would do to the merge:
 
-- **Auto Prune** removes the parent tags this merge adds, wherever a more specific tag on the same
+- **Prune** removes the parent tags this merge adds, wherever a more specific tag on the same
   scene already implies them. That is often exactly what you want — merge everything, then let the
   redundant parents fall away — but it is worth knowing before you read the result.
-- **Auto Roll Up** adds every ancestor of the tags this merge adds, so scenes end up with more tags
+- **Roll Up** adds every ancestor of the tags this merge adds, so scenes end up with more tags
   than the review listed.
+- Both, where one type is set to prune and another to roll up, which its own settings can say since
+  its 4.0.0.
 
 If that plugin is new enough to stand down for the claim, the dialog says so and there is nothing
 to do. If it is not — or if it is switched off in Stash, which looks the same from here — you get a

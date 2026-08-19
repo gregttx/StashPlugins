@@ -1024,7 +1024,7 @@ const btn = (body, label) => body.descendants()
 
   {
     const env = start(autoOpts({
-      nptSettings: { a8AutoPruneOnUpdate: true, a5EnableScenes: true } }));
+      nptSettings: { a1AutoModes: 'SCENES=PRUNE' } }));
     await openDialog(env, []);
     await h.flush();
     const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
@@ -1050,7 +1050,7 @@ const btn = (body, label) => body.descendants()
 
   {
     const env = start(autoOpts({
-      nptSettings: { a9AutoRollUpOnUpdate: true, a5EnableScenes: true } }));
+      nptSettings: { a1AutoModes: 'SCENES=ROLLUP' } }));
     await openDialog(env, []);
     await h.flush();
     h.check('and Auto Roll Up says what it will add instead',
@@ -1063,23 +1063,24 @@ const btn = (body, label) => body.descendants()
     // The type it is being pasted onto is the whole question. Scenes off there means
     // the mode does not fire on this save, so there is nothing to warn about.
     const env = start(autoOpts({
-      nptSettings: { a8AutoPruneOnUpdate: true, a6EnableImages: true } }));
+      nptSettings: { a1AutoModes: 'IMAGES=PRUNE, SCENES=OFF' } }));
     await openDialog(env, []);
     await h.flush();
-    h.check('a mode enabled for a type this is not says nothing',
-      !/Auto Prune/.test(h.dialog(env.body, 'tbc').lines.join(' | ')),
+    h.check('a mode set for a type this is not says nothing',
+      !/automatically/.test(h.dialog(env.body, 'tbc').lines.join(' | ')),
       h.dialog(env.body, 'tbc').lines.join(' | '));
   }
 
   {
-    // Both at once is that plugin's own documented no-op - exact inverses, so it runs
-    // neither - and a warning here would send the user to turn off something inert.
+    // The settings that plugin had up to 3.2.0, migrated on the way in. Nothing here
+    // knows that happened, which is the point of asking it rather than reading them:
+    // this file has never mentioned a setting key of its sibling's.
     const env = start(autoOpts({ nptSettings: {
-      a8AutoPruneOnUpdate: true, a9AutoRollUpOnUpdate: true, a5EnableScenes: true } }));
+      a8AutoPruneOnUpdate: true, a5EnableScenes: true } }));
     await openDialog(env, []);
     await h.flush();
-    h.check('both modes at once is that plugin’s no-op, and stays quiet',
-      !/Auto (Prune|Roll Up)/.test(h.dialog(env.body, 'tbc').lines.join(' | ')),
+    h.check('a pre-4.0.0 sibling answers from its migrated settings',
+      /set to prune Scenes automatically/.test(h.dialog(env.body, 'tbc').lines.join(' | ')),
       h.dialog(env.body, 'tbc').lines.join(' | '));
   }
 
@@ -1091,7 +1092,7 @@ const btn = (body, label) => body.descendants()
     // plugin that is not there cannot be asked. Nothing in this tab's save will reach
     // it either.
     const env = start({ storage: { [KEY]: CHAIN }, pathname: '/scenes/43',
-      nptSettings: { a8AutoPruneOnUpdate: true, a5EnableScenes: true } });
+      nptSettings: { a1AutoModes: 'SCENES=PRUNE' } });
     await openDialog(env, []);
     await h.flush();
     const lines = h.dialog(env.body, 'tbc').lines.join(' | ');
@@ -1167,14 +1168,14 @@ const btn = (body, label) => body.descendants()
     // with it, and the line naming what will happen on Save is worth repeating because
     // the answer is new.
     const opts = { storage: { [KEY]: CHAIN }, pathname: '/scenes/43', npt: true,
-      nptSettings: { a5EnableScenes: true } };
+      nptSettings: { a1AutoModes: 'SCENES=OFF' } };
     const env = start(opts);
     await openDialog(env, []);
     await h.flush();
     h.check('the redundancy choice is offered while nothing is automatic',
       !h.hasClass(modeSel(env), 'tbc-hidden'), modeSel(env).className);
 
-    opts.nptSettings = { a5EnableScenes: true, a8AutoPruneOnUpdate: true };
+    opts.nptSettings = { a1AutoModes: 'SCENES=PRUNE' };
     const realNow = Date.now;
     try {
       Date.now = () => realNow.call(Date) + 60000;

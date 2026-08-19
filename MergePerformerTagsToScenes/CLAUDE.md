@@ -672,9 +672,9 @@ the merge does, keeps the backup instruction, and states Undo's limits.
 
 ## 7c. Warning about the sibling's reactive modes (1.7.0)
 
-`NormalizeParentTags` 1.1.0 gained **Auto Prune / Auto Roll Up on Entity Updates**, which react to
+`NormalizeParentTags` 1.1.0 gained automatic Prune / Roll Up on entity updates, which react to
 entity saves the way our auto-merge does. `checkSibling()` is the mirror of the check that plugin
-has always run against *us*: it reads the sibling's flags out of the shared
+has always run against *us*: it reads the sibling's settings out of the shared
 `configuration { plugins }` response — which we already pay for — and reports them at the top of
 the task dialog.
 
@@ -683,10 +683,21 @@ Prune removes the parent tags this merge adds, wherever a more specific tag on t
 implies them; Auto Roll Up piles further ancestors on top of them. A generic "the sibling is
 active" would leave the user to work out which of those they are looking at.
 
-**Both of its modes on at once is silence, not a double warning.** That is the sibling's own
-documented no-op — they are exact inverses, so it runs neither — and warning about a mode that is
-not running would send the user to switch off something already inert. `prune === rollup` covers
-that and the both-off case in one test.
+**Its settings changed shape at its 4.0.0, and `siblingAutoModes` is where that is absorbed.** It
+now publishes one string with a mode per entity type (`SCENES=PRUNE, IMAGES=ROLLUP`), so both
+directions can genuinely be on at once — for different types — and the warning says so rather than
+picking one. The pre-4.0.0 pair of booleans is still read when the string is absent, and there
+**both on at once is silence**: that was the sibling's own documented no-op — exact inverses, so it
+ran neither — and warning about a mode that is not running would send the user to switch off
+something already inert.
+
+**This is the cost the `api` registry note in the repo root predicted, paid once.** That plugin
+publishes `autoMode` as *a question, not a setting*, precisely so a caller survives a
+repartitioning of its settings; `TagBundleClipboard`, which asks the question, changed nothing when
+every one of those keys was renamed. This check reads the settings by name and therefore did
+change. It stays that way for the reason §7c gives - the warning is about a setting that may be set
+while that plugin is disabled and answering nothing - and the trade is now a measured one rather
+than an assumed one.
 
 **Registered means reported; unregistered means warned.** `coop().respecters[SIBLING_ID]` is the
 same signal the sibling reads about us, and a registered copy stands down for the lease the apply

@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.2.0';
+  var PLUGIN_VERSION      = '3.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1598,6 +1598,31 @@
     });
   };
 
+  // NormalizeParentTags' automatic modes, as its settings actually spell them.
+  // Since its 4.0.0 that is one string carrying a mode per entity type
+  // ("SCENES=PRUNE, IMAGES=ROLLUP"), so both directions can be on at once for
+  // different types; before it, two booleans covering every type it was enabled for,
+  // where both at once was that plugin's own documented no-op.
+  //
+  // Read by name rather than through its `coop().api`, like the rest of this check:
+  // the API answers for one entity type at a time and needs the plugin to be running
+  // in this page, and what this warning is about is a setting that may be set while
+  // the plugin is disabled. Its 4.0.0 renamed every key it had, which is why the old
+  // pair is still read - an install that has not been touched since 3.2.0 still
+  // carries them, and this check has to keep working against it.
+  function siblingAutoModes(ps) {
+    var modes = String((ps && ps.a1AutoModes) || '');
+    if (modes) {
+      return {
+        prune: /=\s*prune\b/i.test(modes),
+        rollup: /=\s*roll[\s_-]*up\b/i.test(modes),
+      };
+    }
+    var prune = !!(ps && ps.a8AutoPruneOnUpdate), rollup = !!(ps && ps.a9AutoRollUpOnUpdate);
+    if (prune === rollup) return { prune: false, rollup: false };
+    return { prune: prune, rollup: rollup };
+  }
+
   // The mirror of NormalizeParentTags' own check: it reads our auto-merge flags out
   // of the shared settings response and says whether we will stand down, and since
   // its 1.1.0 it has reactive modes worth the same treatment in reverse. Both of its
@@ -1612,17 +1637,22 @@
     var ps = _siblingSettings;
     if (!ps) return;
 
-    var prune = !!ps.a8AutoPruneOnUpdate, rollup = !!ps.a9AutoRollUpOnUpdate;
-    // Both at once is that plugin's own documented no-op - they are exact inverses,
-    // so it runs neither - and warning about a mode that is not running would send
-    // the user to turn off something already inert.
-    if (prune === rollup) return;
+    var auto = siblingAutoModes(ps);
+    if (!auto.prune && !auto.rollup) return;
 
-    var mode = prune ? 'Auto Prune on Entity Updates' : 'Auto Roll Up on Entity Updates';
-    var effect = prune
-      ? 'it will remove the parent tags this merge adds, wherever a more specific tag on the ' +
-        'same scene already implies them'
-      : 'it will add every ancestor of the tags this merge adds';
+    // Both, where its settings set one type to prune and another to roll up - a state
+    // its pre-4.0.0 pair of booleans could not express and this used to read as "no
+    // mode is running".
+    var mode = auto.prune && auto.rollup
+      ? 'automatic Prune and Roll Up'
+      : (auto.prune ? 'automatic Prune' : 'automatic Roll Up');
+    var effect = auto.prune && auto.rollup
+      ? 'it will rewrite the tags this merge adds - removing the ones a more specific tag ' +
+        'on the same scene implies, or adding every ancestor, depending on the entity type'
+      : (auto.prune
+        ? 'it will remove the parent tags this merge adds, wherever a more specific tag on the ' +
+          'same scene already implies them'
+        : 'it will add every ancestor of the tags this merge adds');
 
     if (coop().respecters[SIBLING_ID]) {
       this.log('INFO', SIBLING_NAME + ' has ' + mode + ' enabled; it will stand down while ' +

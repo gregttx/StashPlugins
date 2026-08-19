@@ -12,6 +12,26 @@
 > while it stays open. It is a way out of a run you regret in the moment, not a safety net — the
 > backup is the safety net.
 
+> ## 4.0.0 — nine settings became one, and two tasks became one
+>
+> **Every entity setting this plugin had has been replaced.** The seven "Include …" toggles and
+> the two "Auto …" toggles are gone; in their place is one field, **Automatic mode per entity
+> type**, holding a mode for each of the seven:
+>
+> ```
+> PERFORMERS=OFF, STUDIOS=OFF, GROUPS=OFF, GALLERIES=OFF, SCENES=PRUNE, IMAGES=OFF, MARKERS=OFF
+> ```
+>
+> **Your old settings are carried over automatically** the first time this version loads: an
+> enabled type takes whichever auto mode was on, and everything else is OFF. (Both auto modes on
+> was this plugin's own no-op — it ran neither — so it migrates to OFF rather than to a direction
+> you never chose.) Nothing is lost, but it is worth a look afterwards.
+>
+> **Prune and Roll Up are no longer two tasks.** There is one **Normalize Parent Tags...** task,
+> and the direction is chosen per entity type *in the dialog* — so one run can prune your scenes
+> and roll up your performers. A new **Auto Mode Settings...** task edits the field above without
+> your having to type it.
+>
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (two of the exclusion filters) and the
 > `organized` flag on studios both depend on it.
 >
@@ -19,25 +39,26 @@
 > behind it, but that is not the same thing — which is another reason to take the backup above
 > and to read the review log before pressing Proceed.
 
-A front-end-only Stash plugin that adds three tasks to **Settings → Tasks → Plugin Tasks** — two
-that change tag assignments, and one that only looks:
+A front-end-only Stash plugin that adds three tasks to **Settings → Tasks → Plugin Tasks**:
 
-- **Prune Parent Tags from Entities...** — removes every tag on an entity that another tag on the
-  *same* entity already implies.
-- **Roll Up Parent Tags onto Entities...** — adds every parent tag, recursively, of the tags already
-  on the entity.
+- **Normalize Parent Tags...** — the one that changes tag assignments. Each entity type is set to
+  **Prune** (remove every tag on an entity that another tag on the *same* entity already implies),
+  **Roll Up** (add every parent tag, recursively, of the tags already there) or **Off**, in the
+  dialog, before anything is scanned.
+- **Auto Mode Settings...** — sets what happens by itself whenever Stash saves an entity. Writes
+  the setting and nothing else.
 - **Show Tag Hierarchy...** — a read-only browser of your tag tree. Writes nothing.
 
-The first two open a dialog that lists every change *before* anything is written. Nothing is
-saved until you press **Proceed**. The third never writes at all.
+The first lists every change *before* anything is written; nothing is saved until you press
+**Proceed**. The third never writes at all.
 
-The colours on that page say which is which: the two writing tasks are **amber**, and
-**Show Tag Hierarchy...** is **teal**, the plugin's colour for something that only reads. Two of the
-settings below are amber for the same reason — see [Automatic mode](#automatic-mode).
+The colours on that page say which is which: the two that lead to writes are **amber**, and
+**Show Tag Hierarchy...** is **teal**, the plugin's colour for something that only reads. The
+automatic-mode setting is amber for the same reason — see [Automatic mode](#automatic-mode).
 
-Either direction can also be kept up **automatically**, applying to each entity as Stash saves it
-rather than to the whole library at once — see [Automatic mode](#automatic-mode). That path has no
-dialog and no undo, and it is off by default.
+Either direction can also be kept up **automatically**, per entity type, applying as Stash saves
+each entity rather than to the whole library at once — see [Automatic mode](#automatic-mode). That
+path has no dialog and no undo, and every type is off by default.
 
 ## Why
 
@@ -53,15 +74,27 @@ depends on how you search and browse:
 tags, and also any intermediate tag whose children — direct or further down — are absent. Only
 tags genuinely superseded by something more specific on the same entity are removed.
 
-The two tasks are opposites: running Roll Up and then Prune gets you back where you started
-(apart from anything an exclusion filter protected).
+The two directions are opposites: rolling a type up and then pruning it gets you back where you
+started (apart from anything an exclusion filter protected). That is also why a type carries one
+of them rather than both.
 
 Neither task ever modifies the tag hierarchy itself. Tags, their parents and their children are
 left exactly as they are — only which tags sit on which entity changes.
 
 ## The two-step dialog
 
-Running a task opens a dialog that works in two phases.
+Running the task opens a dialog that works in two phases.
+
+**At the top of it are the seven selectors** — one per entity type, each Off, Prune or Roll Up.
+They start from the automatic modes in the settings, **with Images off** whatever that setting
+says: images are usually the largest type and the slowest to scan, and a library-wide image pass
+is worth deciding per run rather than inheriting from a setting about what happens when one image
+is saved.
+
+Change a selector and the plan on screen stops being what **Proceed** would write, so Proceed is
+disabled and **Rescan** appears; pressing it re-plans against the new selection. **Keep this
+selection for the next time this dialog opens** does what it says — it lives in your browser, not
+in the plugin settings, so it is yours and not every tab's.
 
 **Press Escape** to close the dialog, exactly as Cancel or Close would. While a write is actually in flight it does nothing - there is no Cancel to reach at that moment, and Stop is not something a stray keypress should do.
 
@@ -171,8 +204,8 @@ back for the rest.
 ## Browsing the tag hierarchy
 
 A third task, **Show Tag Hierarchy...**, opens a read-only browser of your whole tag tree. It writes
-nothing, so it is safe to open at any time — and it is the quickest way to understand what the
-other two tasks would do before running either.
+nothing, so it is safe to open at any time — and it is the quickest way to understand what Prune
+and Roll Up would do before running either.
 
 ```
 ▾ Hair Colour (45)                                    2 children
@@ -242,24 +275,24 @@ a second click re-fetches.
 
 ## Entity types
 
-Every type is **off** until you enable it in **Settings → Plugins → ᝯㄝₓ Normalize Parent Tags**.
-Stash has no default value for a plugin setting, and since Prune deletes tag assignments, opting
-in per type is deliberate.
+Seven types, each set to **Off**, **Prune** or **Roll Up** on its own:
 
-| Setting | Covers |
+| Type | Notes |
 | --- | --- |
-| **Include Performers** | Performers |
-| **Include Studios** | Studios |
-| **Include Groups** | Groups |
-| **Include Galleries** | Galleries |
-| **Include Scenes** | Scenes |
-| **Include Images** | Images — usually the biggest type, and the slowest to scan |
-| **Include Scene Markers** | Scene markers — see below |
+| **Performers** | |
+| **Studios** | |
+| **Groups** | |
+| **Galleries** | |
+| **Scenes** | |
+| **Images** | Usually the biggest type, and the slowest to scan — which is why the task dialog starts them Off whatever the setting says |
+| **Scene Markers** | See below |
 
-They are listed on the settings page in that same order, which is the order enabled types are
-always processed in, whichever order you switch them on: **performers → studios → groups →
-galleries → scenes → images → markers**. Performers lead because of the sibling-plugin
-interaction described at the end of this file.
+That table order is the order types are always processed in, whichever order you set them:
+**performers → studios → groups → galleries → scenes → images → markers**. Performers lead
+because of the sibling-plugin interaction described at the end of this file.
+
+Everything is **Off** until you say otherwise. Stash has no default value for a plugin setting,
+and since Prune deletes tag assignments, opting in per type is deliberate.
 
 **Scene markers** work slightly differently, because a marker has a required *primary tag* on top
 of its ordinary tags. The primary tag is never added and never removed — but it does count as
@@ -268,34 +301,45 @@ tags.
 
 ## Automatic mode
 
-The two tasks normalize your library **once**. These two settings keep it that way:
+The task normalizes your library **once**. One setting keeps it that way — **Automatic mode per
+entity type**, a single line holding all seven:
 
-| Setting | Does |
-| --- | --- |
-| **Auto Prune on Entity Updates** | Every time Stash saves an entity, remove any tag on it that another tag on the same entity already implies |
-| **Auto Roll Up on Entity Updates** | Every time Stash saves an entity, add every ancestor of the tags on it |
+```
+PERFORMERS=OFF, STUDIOS=OFF, GROUPS=ROLLUP, GALLERIES=OFF, SCENES=PRUNE, IMAGES=OFF, MARKERS=OFF
+```
+
+A type set to **PRUNE** has any tag another tag on the same entity implies removed, every time
+Stash saves one; a type set to **ROLLUP** has every ancestor added; **OFF** is left alone. A type
+that is not mentioned at all is OFF.
+
+**The Auto Mode Settings... task is the editor for it** — seven selectors and a Save, so nobody
+has to type the line. Typing it is allowed all the same, and the parse is forgiving: any order,
+any case, the singular of a type (`SCENE=PRUNE`), `ROLL UP` for `ROLLUP`, and whatever separators
+you like between the pairs. Whatever it understood is written back in the form above once Stash
+has saved your edit, which is also how you can tell it understood you.
 
 > ### ⚠ There is no dialog and no undo out here
 >
-> The tasks show you a plan and wait for **Proceed**. Automatic mode does not: it writes the moment
-> you press Save. **Auto Prune deletes tag assignments**, silently, one save at a time, and the
-> only record is a line in your browser's developer console (F12). If it is misconfigured you will
-> find out from your library, not from a log you can still read.
+> The task shows you a plan and waits for **Proceed**. Automatic mode does not: it writes the
+> moment you press Save. **A type set to PRUNE has tag assignments deleted**, silently, one save at
+> a time, and the only record is a line in your browser's developer console (F12). If it is
+> misconfigured you will find out from your library, not from a log you can still read.
 >
-> Run the **Prune** task manually at least once, and read what it plans, before you turn this on.
+> Run the task manually at least once, with that type set to Prune, and read what it plans, before
+> you set it here.
 
-**Their switches are amber on the settings page**, not Stash's blue. They are the only two
-settings here that make the plugin write on its own — the rest just choose what a task covers —
-so they are the two worth a second look before they are ticked.
+**The field is amber on the settings page**, not Stash's blue. It is the only setting here that
+makes the plugin write on its own — the rest just choose what a run covers — so it is the one
+worth a second look.
 
 Things worth knowing:
 
-- **Both settings on does nothing at all.** They are exact opposites — one adds precisely what the
-  other removes — so turning both on runs neither. The plugin says so on its own settings page, in
-  a notice that stays up until you turn one of them off.
-- **Which entity types are covered is the same "Include …" toggles** the tasks use, so a type you
-  have not enabled is not touched here either. That also means you cannot auto-prune only scenes
-  while the task covers everything; it is one list.
+- **A type carries one direction, never both.** Prune and Roll Up are exact opposites, so the
+  question "which one, for this type" has three answers and the setting has three values. Up to
+  3.2.0 it was two checkboxes for the whole library, where ticking both ran neither.
+- **Each type is separate**, so auto-pruning your scenes while leaving images alone is one line.
+- **The task dialog starts from these modes** and lets you change them for that one run — with
+  Images off to begin with, whatever this setting says.
 - **All the exclusion filters below still apply**, entity-level and tag-level alike.
 - **Bulk edits count.** Editing 500 scenes from Stash's bulk edit dialog normalizes all 500. This
   is usually what you want and it is also the largest thing this mode does without asking.
@@ -435,7 +479,7 @@ Pure client-side JavaScript (`ui.javascript` in the manifest). It calls Stash's 
 endpoint from your browser using your existing logged-in session — no server-side plugin runtime,
 no Python.
 
-The two tasks are declared in the manifest so that Stash lists them natively under **Plugin
+The three tasks are declared in the manifest so that Stash lists them natively under **Plugin
 Tasks**, but they are handled entirely in the browser: the click is caught before it can queue a
 server-side job, which is why the dialog appears instead of a job in the queue.
 
@@ -445,8 +489,8 @@ mid-run, that means the changes already written stay written and the rest are ne
 ## Notes / limitations
 
 - **Read carefully:** [⚠ Back up your database before the first run](#-back-up-your-database-before-the-first-run)
-- Both tasks always cover your whole library. Filters and selections in the scene, image or
-  performer lists are not read.
+- A run always covers your whole library, for every type it is not set to Off. Filters and
+  selections in the scene, image or performer lists are not read.
 - Changes are written as add/remove deltas rather than as a wholesale rewrite of each entity's
   tag list, so a tag added from another browser tab between the review and the apply is not
   reverted. It may, however, mean the applied result differs slightly from the reviewed plan.
@@ -457,8 +501,8 @@ mid-run, that means the changes already written stay written and the rest are ne
   under the plain rule, every tag in a cycle implies every other one, so all of them would
   otherwise be deleted.
 - Installing this plugin does not undo anything you have already tagged. Out of the box it only
-  ever acts when you click one of the two tasks and then press Proceed — automatic mode is off
-  until you turn it on.
+  ever acts when you run the task and press Proceed — every type is Off for automatic mode until
+  you say otherwise.
 - Settings are read at the start of each run, so a change takes effect on the next run without a
   page reload. Automatic mode re-reads them at most every ten seconds, so a change there can take
   a few seconds to bite.
@@ -483,8 +527,8 @@ settings, and other browser tabs are unaffected.
 
 That cooperation now runs both ways. This plugin's [automatic mode](#automatic-mode) stands down
 in turn while *that* plugin's library-wide task is writing, and it takes its own short-lived
-notice while it writes, so auto-merge does not chase each automatic prune. If you run **Auto
-Prune** and **Auto Merge On Scene Updates** together you are still asking for two opposite things
+notice while it writes, so auto-merge does not chase each automatic prune. If you set scenes to
+**PRUNE** and run **Auto Merge On Scene Updates** you are still asking for two opposite things
 on every save — the tags a performer contributes will keep arriving, and Prune will keep removing
 the redundant ones — but they will not trade writes back and forth over the same scene.
 
@@ -506,9 +550,11 @@ Its paste dialog can prune the parent tags a paste makes redundant, or roll a pa
 parents. Those are this plugin's two operations, and it asks this plugin to work out the answer —
 so your [exclusion filters](#exclusion-filters) apply there without that plugin knowing what they
 are, and both modes disappear from its dialog if this plugin is not running on the page. It needs
-this plugin at **3.2.0 or newer**; with an older copy it says so and offers neither.
+this plugin at **3.2.0 or newer**; with an older copy it says so and offers neither. It asks a
+question rather than reading these settings, which is why 4.0.0 renaming every one of them cost
+that plugin no change at all.
 
-If you have **Auto Prune** or **Auto Roll Up** on for the entity type being pasted onto, that dialog
+If the entity type being pasted onto is set to PRUNE or ROLLUP here, that dialog
 withdraws the choice and says why: pressing Stash's **Save** is what this plugin reacts to, so the
 decision is already being made on every save and choosing differently for one paste would not
 survive it.

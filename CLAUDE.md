@@ -225,10 +225,14 @@ paths at load and gets warned about, and warns about, both siblings automaticall
 is the entire reason this exists rather than a second hardcoded pairwise check.
 
 **What it deliberately does *not* replace: `NormalizeParentTags`' collision with either sibling.**
-`checkSibling` in `MergePerformerTagsToScenes` (reading NPT's `a8AutoPruneOnUpdate` /
-`a9AutoRollUpOnUpdate`) and its mirror in `PropagateTagsAndPerformers` (`checkHierarchySibling`,
-added alongside `declares` for the same reason) stayed hardcoded, name-based checks reading a named
-sibling's actual settings. That collision is not "the same path" — NPT walks the tag *hierarchy*
+`checkSibling` in `MergePerformerTagsToScenes` (reading NPT's `a1AutoModes`, and the
+`a8AutoPruneOnUpdate` / `a9AutoRollUpOnUpdate` pair it replaced at 4.0.0) and its mirror in
+`PropagateTagsAndPerformers` (`checkHierarchySibling`, added alongside `declares` for the same
+reason) stayed hardcoded, name-based checks reading a named sibling's actual settings. **That
+choice has now been billed**: NPT 4.0.0 renamed every setting it had, and these two needed an edit
+while `TagBundleClipboard`, which asks its API a question instead, needed none. Both still read the
+settings, because what they warn about is a mode that may be configured while that plugin is
+disabled - and a disabled plugin publishes no API to ask. That collision is not "the same path" — NPT walks the tag *hierarchy*
 and the other two walk entity *relationships*, two different graphs — so there is no path id on
 either side for a generic scan to match. Prune can undo an addition regardless of which relationship
 put the tag there, which is a category-level interaction (any hierarchy-rewriter versus any
@@ -285,7 +289,13 @@ Four properties, and each one is a decision the next API here should repeat:
   whole reason the mechanism is a function call.
 - **One options object per call.** A field can be added without a new signature, which is what lets
   a reserved parameter exist at all. Two are already there for a caller that does not exist yet.
-- **`version` is a floor for a log line, not a handshake.** Callers feature-detect
+- **The design was tested by exactly the change it was built for.** `NormalizeParentTags` 4.0.0
+replaced its seven per-type toggles and two global auto flags with one mode per type - the
+repartitioning the `autoMode` note names as the hypothetical - and `TagBundleClipboard` did not
+change a line. A caller reading `a8AutoPruneOnUpdate` would have gone on answering confidently and
+wrongly.
+
+**`version` is a floor for a log line, not a handshake.** Callers feature-detect
   (`typeof api.prepare === 'function'`); the number is so a dialog can say *"the copy running here
   is older than 3.2.0"* rather than *"something is missing"*.
 

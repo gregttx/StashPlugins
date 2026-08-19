@@ -167,13 +167,19 @@ Promise.resolve()
       },
     });
     return h.flush().then(() => {
+      const input = saved(env).length === 1 ? saved(env)[0].variables.input : {};
       h.check('all four are adopted where this plugin has none of its own',
-        saved(env).length === 1 &&
-        JSON.stringify(saved(env)[0].variables.input) === JSON.stringify({
-          f1ExcludeTargetWithTagName: 'NoTouch', f2ExcludeTargetOrganized: true,
-          f3ExcludeTagWithIgnoreAutoTag: true, f4ExcludeTagWithCustomFieldName: 'NoCopy',
-        }),
+        saved(env).length === 1 && input.f1ExcludeTargetWithTagName === 'NoTouch' &&
+        input.f2ExcludeTargetOrganized === true &&
+        input.f3ExcludeTagWithIgnoreAutoTag === true &&
+        input.f4ExcludeTagWithCustomFieldName === 'NoCopy',
         JSON.stringify(saved(env).map((c) => c.variables.input)));
+      // `configurePlugin` REPLACES this plugin's config map rather than merging into
+      // it, so a mutation naming only the keys it changes deletes every other setting
+      // the user has. Reported live, twice over: a config left holding exactly the two
+      // keys the last write named.
+      h.check('and every setting the write did not name is carried through with them',
+        input.b1Paths === 'tags:studio>scene=ON', JSON.stringify(input));
       h.check('under our own plugin id, not the sibling id',
         saved(env)[0].variables.plugin_id === NAME, saved(env)[0].variables.plugin_id);
     });
@@ -314,6 +320,26 @@ Promise.resolve()
         saved(env)[0].variables.input.b1Paths === 'tags:scene>group=COMMON, tags:group>scene=ON',
         JSON.stringify(saved(env).map((c) => c.variables.input)));
       h.check('and the dialog closes', !d(env).open);
+    });
+  })
+
+  // The same rule from the dialog's own Save, which is the write a user makes most
+  // often: it names one key and must still send the map it did not name.
+  .then(() => open({
+    settings: {
+      b1Paths: 'tags:studio>scene=ON', a1ShowManualButtons: true,
+      f1ExcludeTargetWithTagName: 'NoTouch', g1LogToConsole: true,
+    },
+  })).then((env) => {
+    setSelect(env, 'Tags: Groups → Scenes', 'on');
+    d(env).button('Save').click();
+    return h.flush().then(() => {
+      const input = saved(env).length === 1 ? saved(env)[0].variables.input : {};
+      h.check('Save carries every other setting through with the paths',
+        input.b1Paths === 'tags:studio>scene=ON, tags:group>scene=ON' &&
+        input.a1ShowManualButtons === true &&
+        input.f1ExcludeTargetWithTagName === 'NoTouch' && input.g1LogToConsole === true,
+        JSON.stringify(input));
     });
   })
 

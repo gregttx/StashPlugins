@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.6.1';
+  var PLUGIN_VERSION = '4.6.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -523,18 +523,46 @@
 
   var _savingModes = false;
 
-  // The one mutation this plugin sends that is not about the library. Stash's own
-  // settings page sends the same shape, and our fetch hook already notices it and
-  // drops the settings cache - so a save made here reaches auto mode exactly as one
-  // made by hand does.
+  // ── Writing one of our own settings ───────────────────────────────────────
+  //
+  // **`configurePlugin` REPLACES `plugins.<id>`; it does not merge into it.** Stash's
+  // `ConfigureUI` merges explicitly (`utils.MergeMaps`) and `ConfigurePlugin` does
+  // not, so the difference is deliberate on both sides and there is nothing to fix
+  // upstream. A mutation naming only the key it changes therefore **deletes every
+  // other setting this plugin has** - all eight exclusion filters, every time this one
+  // is saved, and once more for anybody the 4.0.0 migration ran for.
+  //
+  // Found in `PropagateTagsAndPerformers` after a user lost their settings twice to
+  // the same shape, copied from here. `CustomFieldsBulkEditor` had known it since its
+  // 2.0.1 and said so beside `followHideRename`; the knowledge stayed in one plugin
+  // while two others copied the broken shape, which is why the rule is now in the
+  // repo-root CLAUDE.md rather than in a comment.
+  //
+  // So: read the stored map, apply the patch to a copy, send the whole thing. The read
+  // is per write rather than off the settings cache - a value another tab changed is a
+  // value we would otherwise write back over - and this mutation is rare enough that
+  // one query is nothing.
+  function writeOwnSettings(patch) {
+    return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
+      var raw = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
+      var input = {}, k;
+      for (k in raw) if (hasOwn(raw, k)) input[k] = raw[k];
+      for (k in patch) if (hasOwn(patch, k)) input[k] = patch[k];
+      return gqlRequest(
+        'mutation NPTSaveSettings($plugin_id: ID!, $input: Map!) {' +
+        '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
+        '}',
+        { plugin_id: PLUGIN_ID, input: input }
+      );
+    });
+  }
+
+  // Stash's own settings page sends the same mutation, and our fetch hook already
+  // notices it and drops the settings cache - so a save made here reaches auto mode
+  // exactly as one made by hand does.
   function saveAutoModes(text) {
     _savingModes = true;
-    return gqlRequest(
-      'mutation NPTSaveModes($plugin_id: ID!, $input: Map!) {' +
-      '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
-      '}',
-      { plugin_id: PLUGIN_ID, input: { a1AutoModes: text } }
-    ).then(function (r) {
+    return writeOwnSettings({ a1AutoModes: text }).then(function (r) {
       _savingModes = false;
       invalidateAutoSettings();
       return r;

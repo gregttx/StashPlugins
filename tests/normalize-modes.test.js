@@ -25,7 +25,9 @@ function open(opts) {
     quiet: true,
     respond: h.makeResponder({
       entities: opts.entities || LIB,
-      settings: { a1AutoModes: opts.modes === undefined ? h.autoModes({ scenes: 'prune' }) : opts.modes },
+      settings: Object.assign(
+        { a1AutoModes: opts.modes === undefined ? h.autoModes({ scenes: 'prune' }) : opts.modes },
+        opts.settings),
       installed: opts.installed,
     }),
     localStorage: opts.localStorage,
@@ -223,7 +225,10 @@ Promise.resolve()
 
   // ── The settings dialog ───────────────────────────────────────────────────
 
-  .then(() => open({ modes: 'SCENES=PRUNE, IMAGES=ROLLUP', task: h.TASK_MODES }))
+  .then(() => open({
+    modes: 'SCENES=PRUNE, IMAGES=ROLLUP', task: h.TASK_MODES,
+    settings: { b1ExcludeEntityWithTagName: 'Leave me', c1ExcludeTagWithIgnoreAutoTag: true },
+  }))
   .then((env) => {
     h.check('the settings task opens with what the setting says',
       selected(env) === 'off,off,off,off,prune,rollup,off', selected(env));
@@ -266,6 +271,14 @@ Promise.resolve()
           h.autoModes({ scenes: 'rollup', images: 'rollup' }),
         JSON.stringify(saved.map((c) => c.variables.input)));
       h.check('under our own plugin id', saved[0].variables.plugin_id === 'NormalizeParentTags');
+      // `configurePlugin` REPLACES plugins.<id> rather than merging into it, so a
+      // mutation naming only this key deletes all eight exclusion filters - every time
+      // this dialog is saved, and once more for anybody the 4.0.0 migration ran for.
+      // Found in `PropagateTagsAndPerformers`, which copied the shape from here.
+      h.check('and every other setting is carried through with it',
+        saved[0].variables.input.b1ExcludeEntityWithTagName === 'Leave me' &&
+        saved[0].variables.input.c1ExcludeTagWithIgnoreAutoTag === true,
+        JSON.stringify(saved[0].variables.input));
       h.check('and the dialog closes', !d(env).open);
     });
   })

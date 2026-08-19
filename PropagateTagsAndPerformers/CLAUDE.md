@@ -5,12 +5,27 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.1.1.** Every step in the table below has landed, so the version left the
+**Status: released, 3.1.2.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
 
-**3.1.1 stops the settings row deleting a value it could not read.** Reported live as "I lost my
+**3.1.2 is the actual cause of the lost settings, and 3.1.1 was not it.** `configurePlugin`
+**replaces** `plugins.<id>` rather than merging into it, so every partial write this plugin made
+deleted every other setting the user had. The user's `config.yml` settled it in one paste: it held
+exactly the two keys the 3.1.0 exclusion import had named, and nothing else - no `b1Paths`, no
+`a1ShowManualButtons`, none of the legacy path booleans. The 3.0.0 migration had wiped the map once
+by writing `b1Paths` alone, and the import wiped what was left. Every write now goes through
+`writeOwnSettings`, which reads the stored map, patches a copy and sends the whole thing.
+
+**The rule is in the repo-root CLAUDE.md now, with the Stash source that settles it**, because it
+had been in `CustomFieldsBulkEditor`'s `followHideRename` comment since its 2.0.1 while two plugins
+copied the broken shape. A fact about Stash's API in one plugin's comment is a fact the next plugin
+will not have.
+
+**3.1.1 stops the settings row deleting a value it could not read.** Still worth having, and it is
+where this investigation started - but it was the wrong suspect: a value written by 3.0.x parses
+cleanly, and the paths were never unreadable. They were gone. Reported live as "I lost my
 path settings". `pathFieldTick` rewrites a hand-typed value in canonical form - the convenience
 copied from `NormalizeParentTags` - and canonical form is *whatever `parsePaths` understood*. Run
 over a value this copy only half reads, that is a rewrite that deletes the other half; run over one

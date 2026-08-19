@@ -1072,6 +1072,61 @@ passed, so `plural(kids.length, 'child', 'children')` is the only call in the re
 third argument. This is about *generic* parentheses in generated text; a parenthesis quoting one of
 Stash's own captions, or a regex like `/tag(s)?Update/`, is untouched.
 
+## `configurePlugin` replaces a plugin's settings; it never merges
+
+Read off `stashapp/stash` `develop` `internal/api/resolver_mutation_configure.go`, 2026-08-19,
+after a user lost their settings twice in two releases. It is four lines and there is no ambiguity
+in them:
+
+```go
+func (r *mutationResolver) ConfigurePlugin(ctx context.Context, pluginID string, input map[string]interface{}) (map[string]interface{}, error) {
+	c := config.GetInstance()
+	input = convertMapJSONNumbers(input)
+	c.SetPluginConfiguration(pluginID, input)   // sets `plugins.<id>` to exactly this map
+	...
+}
+```
+
+**The neighbouring resolver merges, which is what makes this a decision rather than an oversight.**
+`ConfigureUI` calls `utils.MergeMaps(existing, partial)` explicitly. `ConfigurePlugin` does not, so
+there is nothing to report upstream and nothing that will change under us.
+
+**So a mutation naming only the keys it changes deletes every other setting the plugin has.** Any
+write from a plugin here must therefore read `configuration { plugins }`, copy its own stored map,
+apply the change to the copy, and send the whole thing:
+
+```js
+function writeOwnSettings(patch) {
+  return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
+    var raw = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
+    var input = {}, k;
+    for (k in raw) if (hasOwn(raw, k)) input[k] = raw[k];
+    for (k in patch) if (hasOwn(patch, k)) input[k] = patch[k];
+    return gqlRequest('mutation ...configurePlugin(plugin_id: $plugin_id, input: $input)...',
+      { plugin_id: PLUGIN_ID, input: input });
+  });
+}
+```
+
+**Read per write, not off the settings cache.** A value another tab changed is a value the cache
+does not have and this mutation would otherwise write back over. These writes are rare - a
+migration, a dialog's Save, a normalization - so the extra query costs nothing.
+
+**The knowledge existed in this repo the whole time, in one plugin, as a comment.**
+`CustomFieldsBulkEditor` found it at its 2.0.1 and both of its writers have always sent the whole
+map, with `followHideRename` carrying the sentence that explains why. `NormalizeParentTags` 4.0.0
+and `PropagateTagsAndPerformers` 3.0.0 then wrote partial maps, and PTP2RE's user lost thirteen
+enabled paths and two toggles - twice, once to the path migration and once to the exclusion import,
+the second leaving a config holding exactly the two keys that write had named. **A fact about
+Stash's API that lives in one plugin's comment is a fact the next plugin will not have**, which is
+why it is here now and not there.
+
+**The damage is silent and looks like something else entirely.** Nothing errors, the write
+succeeds, and the settings page keeps showing the old values until it is reloaded - so the first
+symptom is a plugin behaving as though it were never configured, one release after the release that
+actually did it. If a user reports settings "lost" after an upgrade, check what the last mutation
+sent before looking anywhere else.
+
 ## Reference: a plugin setting's id is not always on a control
 
 Read off `stashapp/stash` `develop` `ui/v2.5/src/components/Settings/Inputs.tsx`, 2026-08-18, when

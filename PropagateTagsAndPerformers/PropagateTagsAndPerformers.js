@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.1.1';
+  var PLUGIN_VERSION = '3.1.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -697,20 +697,48 @@
     return modes;
   }
 
+  // ── Writing one of our own settings ───────────────────────────────────────
+  //
+  // **`configurePlugin` REPLACES `plugins.<id>`; it does not merge into it.** Stash's
+  // `ConfigureUI` merges explicitly (`utils.MergeMaps`) and `ConfigurePlugin` does
+  // not, so the difference is deliberate on both sides and there is nothing to fix
+  // upstream. A mutation naming only the keys it changes therefore **deletes every
+  // other setting this plugin has**.
+  //
+  // That is not a hypothetical: it is what took a user's thirteen enabled paths, their
+  // manual-button toggle and their console toggle, twice - once when the 3.0.0
+  // migration wrote `b1Paths` on its own, and again when 3.1.0's exclusion import
+  // wrote two keys and left a config holding exactly those two. `CustomFieldsBulkEditor`
+  // had already found this and says so beside `followHideRename`; the knowledge stayed
+  // in one plugin while two others copied the broken shape.
+  //
+  // So: read the stored map, apply the patch to a copy, send the whole thing. The read
+  // is per write rather than off the settings cache, for the same reason that plugin
+  // re-reads - a value another tab changed is a value we would otherwise write back
+  // over - and these writes are rare enough that one query is nothing.
+  function writeOwnSettings(patch) {
+    return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
+      var raw = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
+      var input = {}, k;
+      for (k in raw) if (hasOwn(raw, k)) input[k] = raw[k];
+      for (k in patch) if (hasOwn(patch, k)) input[k] = patch[k];
+      return gqlRequest(
+        'mutation PTPSaveSettings($plugin_id: ID!, $input: Map!) {' +
+        '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
+        '}',
+        { plugin_id: PLUGIN_ID, input: input }
+      );
+    });
+  }
+
   var _savingPaths = false;
 
-  // The one mutation this plugin sends that is not about the library. Stash's own
-  // settings page sends the same shape, and the fetch hook already notices it and
-  // drops the settings cache - so a save made here reaches the automatic modes and
-  // the manual buttons exactly as one made by hand does.
+  // Stash's own settings page sends the same mutation, and the fetch hook already
+  // notices it and drops the settings cache - so a save made here reaches the
+  // automatic modes and the manual buttons exactly as one made by hand does.
   function savePaths(text) {
     _savingPaths = true;
-    return gqlRequest(
-      'mutation PTPSavePaths($plugin_id: ID!, $input: Map!) {' +
-      '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
-      '}',
-      { plugin_id: PLUGIN_ID, input: { b1Paths: text } }
-    ).then(function (r) {
+    return writeOwnSettings({ b1Paths: text }).then(function (r) {
       _savingPaths = false;
       invalidateAutoSettings();
       return r;
@@ -965,12 +993,7 @@
     ptp2re('[ptp2re] adopting ' + plural(names.length, 'exclusion setting') + ' from ' +
       MPTTS_NAME + ' (' + names.join(', ') + '): this plugin had never been set to ' +
       'anything for ' + (names.length === 1 ? 'it' : 'them') + '. Change them here from now on.');
-    gqlRequest(
-      'mutation PTPImportExclusions($plugin_id: ID!, $input: Map!) {' +
-      '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
-      '}',
-      { plugin_id: PLUGIN_ID, input: input }
-    ).then(function () { invalidateAutoSettings(); }, function (e) {
+    writeOwnSettings(input).then(function () { invalidateAutoSettings(); }, function (e) {
       ptp2re('[ptp2re] the adopted exclusion settings could not be saved (' +
         (e && e.message ? e.message : e) + '). They are in force for this page all the ' +
         'same; set them by hand if this keeps happening.');

@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.6.1.** This file is both the design and the map of the code — the
+**Status: implemented at 4.6.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1245,6 +1245,18 @@ dialog at least prints the plan it would write. So the same `checkInstalledVersi
 `build()`, the box goes above the note (the note reports on *reading* the setting; this says the
 answer will not be written back whatever it says), and **the selectors stay live** — the string can
 still be read off the preview, which is most of what someone opens this dialog for.
+
+**4.6.2 stops `saveAutoModes` deleting the eight exclusion filters.** `configurePlugin` replaces
+`plugins.<id>` rather than merging into it, so a mutation naming `a1AutoModes` alone wiped every
+other setting this plugin had - on every Save from the Auto Mode Settings dialog, and once more for
+anybody the 4.0.0 migration ran for. `writeOwnSettings` reads the stored map, patches a copy and
+sends the whole thing. The rule, and the Stash source that settles it, are in the repo-root
+CLAUDE.md.
+
+**Found in `PropagateTagsAndPerformers`, which copied this shape from here**, after its user lost
+thirteen enabled paths twice. `CustomFieldsBulkEditor` had known since its 2.0.1 and said so in a
+comment. Nothing here noticed for six releases because the loss is silent: the write succeeds, and
+the settings page goes on showing the old values until it is reloaded.
 
 **4.6.1 is one token in `modeFieldTick`, found from another plugin's fixture.** Where the row has
 no `.value` span the host for our line was `row.childNodes[0] || row` - and on the second tick that

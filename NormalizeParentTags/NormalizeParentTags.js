@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.0.1';
+  var PLUGIN_VERSION = '4.0.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1367,11 +1367,14 @@
     // This plugin has no console-logging setting, so it has no teal twin of the
     // rule the two siblings carry - only the read-only task button below is teal.
     //
-    // The auto-mode setting is a text field rather than a switch, so the two switch
-    // shapes the siblings use are joined by a border: whichever of the three Stash
-    // renders, one of them lands. It is the only setting here that makes the plugin
-    // write on its own, which is exactly what the amber says.
-    '#plugin-NormalizeParentTags-a1AutoModes{accent-color:#ffc107;border-color:#ffc107;}' +
+    // The auto-mode setting is a text field rather than a switch, and 4.0.1 tried to
+    // mark it amber with a `border-color` on the input. That was wrong on a live page:
+    // the field's border *is* the line the user reads as the divider between that
+    // setting row and the next, so the mark did not read as "this one writes on its
+    // own", it read as a broken separator. The two switch shapes stay - they cost
+    // nothing and cover a Stash that renders this as a control instead - but nothing
+    // here paints a border, because no border on this page is only ours.
+    '#plugin-NormalizeParentTags-a1AutoModes{accent-color:#ffc107;}' +
     '#plugin-NormalizeParentTags-a1AutoModes:checked~.custom-control-label::before' +
     '{background-color:#ffc107;border-color:#ffc107;}';
 

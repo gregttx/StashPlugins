@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.1.2';
+  var PLUGIN_VERSION = '3.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -518,6 +518,12 @@
   var PATH_LABEL_COMMON = { off: 'Off', on: 'All tags', common: 'Common tags only' };
 
   function pathLabels(path) { return path.common ? PATH_LABEL_COMMON : PATH_LABEL; }
+
+  // The order the dialog's button cycles through, which is also the order they are
+  // listed in its title. Off first, so a press from the resting state turns a path on.
+  function pathStates(path) {
+    return path.common ? [PATH_OFF, PATH_ON, PATH_COMMON] : [PATH_OFF, PATH_ON];
+  }
 
   // ALL is accepted as a synonym of ON because that is the word the two mode-carrying
   // paths' own selector shows, and someone typing the line by hand reads it there.
@@ -1076,14 +1082,11 @@
     'gap:.3rem .6rem;align-items:center;align-content:start;}' +
     '.ptp2re-path-row{display:contents;}' +
     '.ptp2re-path-name{color:#d6dee4;font-size:.9rem;}' +
-    // Byte-identical with NormalizeParentTags' .npt-mode and TagBundleClipboard's
-    // .tbc-mode: a mode select in a dialog is the same thing in all three, so the
-    // shared-CSS suite is right to insist.
-    '.ptp2re-mode{background:#30404d;color:#f5f8fa;border:1px solid #394b59;' +
-    'border-radius:3px;padding:.15rem .35rem;font-size:.85rem;max-width:100%;}' +
-    // Amber wherever the selector is set to something that writes, the same rule the
-    // buttons follow. A <select> has no Bootstrap variant to borrow.
-    '.ptp2re-mode-on{border-color:#ffb648;color:#ffb648;}' +
+    // The per-path toggle. Everything visual comes from Bootstrap's own `btn btn-sm`
+    // plus the variant the paint swaps, so this rule only has to stop thirteen buttons
+    // of five different caption widths from looking ragged: the grid column is already
+    // `max-content`, and stretching each button across it lines their edges up.
+    '.ptp2re-toggle{justify-self:stretch;white-space:nowrap;}' +
     '.ptp2re-pathsbody{padding:.5rem 1rem;overflow:auto;}' +
     // The enabled paths as the settings row shows them. Prose rather than the
     // sibling's monospace: what is rendered here is `pathLabel`, the same sentence
@@ -3157,9 +3160,34 @@
     this.stale = false;
   }
 
-  // One select per path, in two columns filled top to bottom so that reading down
-  // one and then the other is still pipeline order - which the head states is
-  // semantics here, not presentation. The label is `pathLabel`, the same string the
+  // ── One button per path, and it *is* the control ──────────────────────────
+  //
+  // A `<select>` costs two clicks to change anything: one to open the list, one to
+  // pick. Thirteen of them is twenty-six clicks to set up a library, for a control
+  // whose options are two thirds of the time just Off and On. A button that carries
+  // the current state and takes the next one on click is one click.
+  //
+  // **There is no tri-state button in HTML**, so the two paths that offer "common tags
+  // only" get a *cycling* button - Off → All tags → Common tags only → Off - which is
+  // never worse than the select it replaces (that cost two clicks for every change)
+  // and is one click for the common case of turning a path on. The alternative, a
+  // segmented group of three, is one click to *any* state and self-documenting, and
+  // was not taken: it is a second widget shape in a column of thirteen, three times
+  // the markup for two rows, and it widens the column for every other row with it.
+  // The cycle is named in the button's title instead, which is what a select's open
+  // list was doing for discoverability.
+  //
+  // A checkbox's `indeterminate` is the other thing that gets called tri-state and is
+  // not one: a user cannot set it, only script can, and its third state means "unknown"
+  // rather than a third choice.
+  //
+  // Bootstrap variants rather than colours of our own, so hover, focus and active come
+  // from Stash's theme - and the amber is the repo's "this plugin writes" colour, which
+  // is what a path being on means. Off is `btn-secondary`, both on-states are amber;
+  // which of the two an amber button is in is what its caption says.
+  //
+  // In two columns filled top to bottom so that reading down one and then the other is
+  // still pipeline order - which the head states is semantics here, not presentation. The label is `pathLabel`, the same string the
   // log and the dialog heads use, so there is no second naming of a path anywhere.
   //
   // Deliberately *not* grouped under an "Into <plural>" heading, which is what this
@@ -3173,46 +3201,48 @@
     var cols = [el('div', 'ptp2re-paths-col'), el('div', 'ptp2re-paths-col')];
     cols.forEach(function (c) { wrap.appendChild(c); });
     var split = Math.ceil(PATHS.length / 2);
-    this.selects = {};
+    this.toggles = {};
     PATHS.forEach(function (p, i) {
       var col = cols[i < split ? 0 : 1];
       var row = el('div', 'ptp2re-path-row');
       row.appendChild(el('span', 'ptp2re-path-name', pathLabel(p)));
-      var sel = el('select', 'ptp2re-mode');
-      var labels = pathLabels(p);
-      var options = p.common ? [PATH_OFF, PATH_ON, PATH_COMMON] : [PATH_OFF, PATH_ON];
-      options.forEach(function (m) {
-        var opt = el('option', null, labels[m]);
-        opt.value = m;
-        sel.appendChild(opt);
+      var labels = pathLabels(p), states = pathStates(p);
+      var btn = el('button', null);
+      btn.type = 'button';
+      btn.title = 'Click to cycle: ' + states.map(function (m) { return labels[m]; }).join(' \u2192 ');
+      function paint() {
+        var mode = self.modes[p.id] || PATH_OFF;
+        btn.textContent = labels[mode];
+        btn.className = 'btn btn-sm ptp2re-toggle ' +
+          (mode === PATH_OFF ? 'btn-secondary' : PLUGIN_BTN_VARIANT);
+      }
+      paint();
+      btn.addEventListener('click', function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        var at = states.indexOf(self.modes[p.id] || PATH_OFF);
+        self.modes[p.id] = states[(at + 1) % states.length];
+        paint();
       });
-      sel.value = self.modes[p.id] || PATH_OFF;
-      paintPathMode(sel);
-      sel.addEventListener('change', function () {
-        self.modes[p.id] = sel.value;
-        paintPathMode(sel);
-      });
-      row.appendChild(sel);
+      row.appendChild(btn);
       col.appendChild(row);
-      self.selects[p.id] = sel;
+      self.toggles[p.id] = { el: btn, paint: paint };
     });
     return wrap;
   };
 
-  // Sets the values without firing `change`: this is the dialog telling the selectors
-  // what it found, which is not the user changing them.
+  // Sets the modes without going through a click: this is the dialog telling the
+  // buttons what it found, which is not the user pressing them.
   PathsDialog.prototype.set = function (modes) {
     var self = this;
     PATHS.forEach(function (p) {
       self.modes[p.id] = (modes && modes[p.id]) || PATH_OFF;
-      self.selects[p.id].value = self.modes[p.id];
-      paintPathMode(self.selects[p.id]);
+      self.toggles[p.id].paint();
     });
   };
 
   PathsDialog.prototype.enable = function (on) {
     var self = this;
-    PATHS.forEach(function (p) { self.selects[p.id].disabled = !on; });
+    PATHS.forEach(function (p) { self.toggles[p.id].el.disabled = !on; });
   };
 
   PathsDialog.prototype.build = function () {
@@ -3337,11 +3367,6 @@
     invalidateButtonProbes();
   };
 
-  // Amber wherever the selector is set to something that writes, the same rule the
-  // buttons follow. A <select> has no Bootstrap variant to borrow.
-  function paintPathMode(sel) {
-    sel.className = 'ptp2re-mode' + (sel.value !== PATH_OFF ? ' ptp2re-mode-on' : '');
-  }
 
   // ── The settings page ─────────────────────────────────────────────────────
 

@@ -5,10 +5,38 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.1.2.** Every step in the table below has landed, so the version left the
+**Status: released, 3.2.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.2.0 makes each path's control a button that carries its own state.** A `<select>` costs two
+clicks for every change - one to open the list, one to pick - so thirteen of them is twenty-six
+clicks to set a library up, for a control whose choice is two thirds of the time just Off and On.
+The button shows the state and takes the next one on a press.
+
+**There is no tri-state button in HTML, so the two "common tags only" paths cycle.** Off → All tags
+→ Common tags only → Off, one press each, with the cycle named in the title - which is the job the
+select's open list was doing for discoverability. It is never worse than what it replaces: that
+select cost two clicks for *every* change, and this costs one for the common case and at most two
+for the rest.
+
+**The alternative was a segmented group of three, and it was not taken.** One click to *any* state
+and self-documenting, which is genuinely better on those two rows - and it is a second widget shape
+in a column of thirteen, three times the markup for two of them, and it widens the column for the
+other eleven with it. If a third path ever grows a mode, revisit it.
+
+**A checkbox's `indeterminate` is the other thing called tri-state and is not one:** a user cannot
+set it, only script can, and its third state means "unknown" rather than a third choice.
+
+**Bootstrap variants rather than a stylesheet of our own**, so hover, focus and active come from
+Stash's theme - and `btn-warning` is the repo's "this plugin writes" amber, which is exactly what a
+path being on means. Off is `btn-secondary`; both on-states are amber, and which of the two an amber
+button is in is what its caption says. The only rule left is
+`.ptp2re-toggle{justify-self:stretch}`, so thirteen captions of five different widths do not leave a
+ragged column - the grid column is already `max-content`, and stretching each button across it lines
+their edges up. `.ptp2re-mode`/`.ptp2re-mode-on` went with the selects; `NormalizeParentTags` and
+`TagBundleClipboard` still share them, so the CSS suite still compares those two.
 
 **3.1.2 is the actual cause of the lost settings, and 3.1.1 was not it.** `configurePlugin`
 **replaces** `plugins.<id>` rather than merging into it, so every partial write this plugin made

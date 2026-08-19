@@ -50,16 +50,21 @@ function open(opts) {
 
 const api = (env) => env.ctx.window.__ptp2re;
 const d = (env) => h.dialog(env.ctx.document.body, PREFIX);
-const selects = (env) =>
-  env.ctx.document.body.descendants().filter((n) => h.hasClass(n, PREFIX + '-mode'));
-const rowName = (sel) => sel.previousSibling.textContent;
-const selectFor = (env, label) => selects(env).filter((s) => rowName(s) === label)[0] || null;
+// One button per path since 3.2.0, carrying its own state as its caption. A select
+// cost two clicks for every change - one to open, one to pick - and thirteen of them
+// is twenty-six to set a library up.
+const toggles = (env) =>
+  env.ctx.document.body.descendants().filter((n) => h.hasClass(n, PREFIX + '-toggle'));
+const rowName = (btn) => btn.previousSibling.textContent;
+const toggleFor = (env, label) => toggles(env).filter((b) => rowName(b) === label)[0] || null;
 const saved = (env) => env.calls.filter((c) => /configurePlugin/.test(c.query || ''));
 
-function setSelect(env, label, value) {
-  const sel = selectFor(env, label);
-  sel.value = value;
-  h.fire(sel, 'change');
+// Presses until the caption is the wanted one, giving up after a full cycle rather
+// than spinning: a button that cannot reach a state is the failure worth reporting.
+function setMode(env, label, caption) {
+  const btn = toggleFor(env, label);
+  for (let i = 0; i < 4 && btn.textContent !== caption; i++) btn.click();
+  return btn;
 }
 
 // The parser and the formatter are read straight off the plugin's own exports here:
@@ -261,16 +266,16 @@ Promise.resolve()
 
   .then(() => open({ settings: { b1Paths: 'tags:studio>scene=ON, tags:scene>group=COMMON' } }))
   .then((env) => {
-    h.check('one selector per path, thirteen of them', selects(env).length === 13,
-      String(selects(env).length));
+    h.check('one button per path, thirteen of them', toggles(env).length === 13,
+      String(toggles(env).length));
     // pathLabel, the same string the log and every dialog head use. A second naming of
     // a path is a second thing to keep in step.
     h.check('named the way the log names a path',
-      rowName(selects(env)[0]) === 'Performers: Images → Galleries',
-      selects(env).map(rowName).join(' | '));
+      rowName(toggles(env)[0]) === 'Performers: Images → Galleries',
+      toggles(env).map(rowName).join(' | '));
     h.check('in the order a run walks them',
-      selects(env).map(rowName).join(',') === api(env).PATHS.map(api(env).pathLabel).join(','),
-      selects(env).map(rowName).join(','));
+      toggles(env).map(rowName).join(',') === api(env).PATHS.map(api(env).pathLabel).join(','),
+      toggles(env).map(rowName).join(','));
     // Two columns, filled top to bottom, so reading down one and then the other is
     // still pipeline order. Deliberately not grouped under an "Into <plural>"
     // heading: pipeline order visits a target, leaves it and comes back, so a heading
@@ -283,21 +288,45 @@ Promise.resolve()
     h.check('and nothing groups them by target, which would break that order',
       !env.ctx.document.body.descendants().some((n) => /Into /.test(n.textContent || '') &&
         h.hasClass(n, PREFIX + '-path-name')),
-      selects(env).map(rowName).join(','));
-    h.check('the dialog opens with what the setting says',
-      selectFor(env, 'Tags: Studio → Scenes').value === 'on' &&
-      selectFor(env, 'Tags: Scenes → Groups').value === 'common' &&
-      selectFor(env, 'Tags: Groups → Scenes').value === 'off',
-      selects(env).map((s) => s.value).join(','));
-    // Only the two aggregations into a Group have a third state to offer.
-    h.check('only the two common-capable paths offer a third option',
-      selects(env).filter((s) => s.childNodes.length === 3).map(rowName).join(',') ===
-        'Tags: Scenes → Groups,Tags: Sub-groups → Groups',
-      selects(env).map((s) => rowName(s) + '=' + s.childNodes.length).join(' '));
-    h.check('an enabled selector is amber, like every other control that writes',
-      h.hasClass(selectFor(env, 'Tags: Studio → Scenes'), PREFIX + '-mode-on') &&
-      !h.hasClass(selectFor(env, 'Tags: Groups → Scenes'), PREFIX + '-mode-on'),
-      selectFor(env, 'Tags: Studio → Scenes').className);
+      toggles(env).map(rowName).join(','));
+    h.check('the dialog opens with what the setting says, on the buttons themselves',
+      toggleFor(env, 'Tags: Studio → Scenes').textContent === 'On' &&
+      toggleFor(env, 'Tags: Scenes → Groups').textContent === 'Common tags only' &&
+      toggleFor(env, 'Tags: Groups → Scenes').textContent === 'Off',
+      toggles(env).map((b) => b.textContent).join(','));
+    // One click is the whole point: a select cost two for every change.
+    h.check('one press turns a path on',
+      (() => { const b = toggleFor(env, 'Tags: Groups → Scenes'); b.click();
+        return b.textContent === 'On'; })(),
+      toggleFor(env, 'Tags: Groups → Scenes').textContent);
+    // Only the two aggregations into a Group have a third state, and there is no
+    // tri-state button in HTML - so theirs cycles, and says so in its title.
+    // Presses until the caption comes back round, so it reports the cycle and leaves
+    // the button where it found it - a helper with a side effect would be re-run by
+    // the failure message and report something the check never saw.
+    const cycle = (label) => {
+      const b = toggleFor(env, label);
+      const first = b.textContent, seen = [first];
+      for (let i = 0; i < 4; i++) {
+        b.click();
+        if (b.textContent === first) break;
+        seen.push(b.textContent);
+      }
+      return seen;
+    };
+    const three = cycle('Tags: Scenes → Groups'), two = cycle('Tags: Studio → Scenes');
+    h.check('only the two common-capable paths cycle through three states',
+      three.length === 3 && three.indexOf('All tags') !== -1 &&
+      three.indexOf('Common tags only') !== -1 && two.length === 2,
+      three.join(' → ') + ' / ' + two.join(' → '));
+    h.check('and the third state is named in the title, which is where the open list was',
+      toggleFor(env, 'Tags: Sub-groups → Groups').title ===
+        'Click to cycle: Off → All tags → Common tags only',
+      toggleFor(env, 'Tags: Sub-groups → Groups').title);
+    h.check('a path that is on wears the amber every writing control here wears',
+      h.hasClass(setMode(env, 'Tags: Studio → Scenes', 'On'), 'btn-warning') &&
+      h.hasClass(setMode(env, 'Tags: Groups → Scenes', 'Off'), 'btn-secondary'),
+      toggleFor(env, 'Tags: Studio → Scenes').className);
 
     // It configures what a run covers rather than writing anything itself, so it
     // carries no backup instruction - there is nothing here for an Undo to reverse.
@@ -311,8 +340,8 @@ Promise.resolve()
       h.hasClass(d(env).button('Save'), 'btn-warning'), d(env).button('Save').className);
     h.check('and nothing is saved until Save is pressed', saved(env).length === 0);
 
-    setSelect(env, 'Tags: Groups → Scenes', 'on');
-    setSelect(env, 'Tags: Studio → Scenes', 'off');
+    setMode(env, 'Tags: Groups → Scenes', 'On');
+    setMode(env, 'Tags: Studio → Scenes', 'Off');
     d(env).button('Save').click();
     return h.flush().then(() => {
       h.check('Save writes the enabled paths, in canonical form',
@@ -331,7 +360,7 @@ Promise.resolve()
       f1ExcludeTargetWithTagName: 'NoTouch', g1LogToConsole: true,
     },
   })).then((env) => {
-    setSelect(env, 'Tags: Groups → Scenes', 'on');
+    setMode(env, 'Tags: Groups → Scenes', 'On');
     d(env).button('Save').click();
     return h.flush().then(() => {
       const input = saved(env).length === 1 ? saved(env)[0].variables.input : {};
@@ -344,7 +373,7 @@ Promise.resolve()
   })
 
   .then(() => open({ settings: { b1Paths: 'tags:studio>scene=ON' } })).then((env) => {
-    setSelect(env, 'Tags: Studio → Scenes', 'off');
+    setMode(env, 'Tags: Studio → Scenes', 'Off');
     d(env).button('Cancel').click();
     return h.flush().then(() => {
       h.check('Cancel writes nothing and closes', !d(env).open && saved(env).length === 0,

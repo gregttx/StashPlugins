@@ -60,6 +60,12 @@ Every one of them is **off** on a fresh install. Which paths run is one setting,
 setting's own row under **Settings → Plugins**. Each path is *Off* or *On*, and the two group
 aggregations offer a third choice, *Common tags only*.
 
+One button per path, and it is the control: it shows the state the path is in, and a click takes
+the next one. Turning a path on is a single click, and a path that is on wears the plugin's amber.
+The two paths with a third state cycle *Off → All tags → Common tags only*, with the cycle named in
+the button's tooltip — HTML has no tri-state button, so cycling is what a single control can offer,
+and it is still never more clicks than the drop-down it replaced.
+
 ### Tags
 
 | Onto | From | Notes |

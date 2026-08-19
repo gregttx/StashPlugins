@@ -53,8 +53,7 @@ The first lists every change *before* anything is written; nothing is saved unti
 **Proceed**. The third never writes at all.
 
 The colours on that page say which is which: the two that lead to writes are **amber**, and
-**Show Tag Hierarchy...** is **teal**, the plugin's colour for something that only reads. The
-automatic-mode setting is amber for the same reason — see [Automatic mode](#automatic-mode).
+**Show Tag Hierarchy...** is **teal**, the plugin's colour for something that only reads.
 
 Either direction can also be kept up **automatically**, per entity type, applying as Stash saves
 each entity rather than to the whole library at once — see [Automatic mode](#automatic-mode). That
@@ -328,9 +327,8 @@ has saved your edit, which is also how you can tell it understood you.
 > Run the task manually at least once, with that type set to Prune, and read what it plans, before
 > you set it here.
 
-**The field is amber on the settings page**, not Stash's blue. It is the only setting here that
-makes the plugin write on its own — the rest just choose what a run covers — so it is the one
-worth a second look.
+**It is the only setting here that makes the plugin write on its own** — the rest just choose what
+a run covers — so it is the one worth a second look.
 
 Things worth knowing:
 

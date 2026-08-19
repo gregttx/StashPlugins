@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.0.1.** This file is both the design and the map of the code — the
+**Status: implemented at 4.0.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -1165,6 +1165,16 @@ dialog at least prints the plan it would write. So the same `checkInstalledVersi
 `build()`, the box goes above the note (the note reports on *reading* the setting; this says the
 answer will not be written back whatever it says), and **the selectors stay live** — the string can
 still be read off the preview, which is most of what someone opens this dialog for.
+
+**The field carries no amber, and that is a correction** (4.0.2). The repo convention is amber for a
+setting that makes a plugin write on its own, and this is the only one here that does — but the
+convention was written for a Bootstrap switch, where the colour goes on a track that is ours alone.
+On a text field the only property available was `border-color`, and 4.0.1 used it: live, the field's
+border *is* the line the user reads as the divider between that setting row and the next, so the
+mark read as a broken separator rather than as a warning. **On a page that is not ours, only paint a
+property nothing else on that page is drawing with.** The two switch shapes stay in the CSS — they
+cost nothing and cover a Stash that renders this as a control — and `tests/style.test.js`
+deliberately does not pin *which* settings are coloured, so dropping one is not a drift.
 
 ### Descriptions: a summary on the page, the rest on hover (1.7.0)
 

@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.2.1';
+  var PLUGIN_VERSION = '4.2.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -164,8 +164,7 @@
       // routinely makes a whole-library pass a decision rather than a habit, which is
       // also why it starts Off in the run dialog whatever the setting says.
       note: 'Usually the largest type in a library and the slowest to scan: a ' +
-        'whole-library image pass can take a long time. The automatic mode is ' +
-        'unaffected - it handles one image as Stash saves it.',
+        'whole-library image pass can take a long time.',
       fields: 'id title visual_files { ... on ImageFile { basename } ... on VideoFile { basename } }' },
     { key: 'markers', token: 'MARKERS', label: 'Scene Marker', plural: 'Scene Markers',
       find: 'findSceneMarkers', node: 'scene_markers',
@@ -1435,7 +1434,10 @@
     sel.className = 'npt-mode' + (sel.value !== MODE_OFF ? ' npt-mode-on' : '');
   }
 
-  function modesPanel(modes, onChange) {
+  // `quiet` drops the `note` and its marker: the warning is about a whole-library
+  // pass, which is the run dialog's business and not the settings dialog's - that one
+  // configures what happens as a single entity is saved.
+  function modesPanel(modes, onChange, quiet) {
     var wrap = el('div', 'npt-modes');
     var selects = {};
     TYPES.forEach(function (t) {
@@ -1444,7 +1446,7 @@
       // tooltip nobody knows to hover for is not a warning.
       var name = el('span', 'npt-mode-name');
       name.appendChild(el('span', null, t.plural));
-      if (t.note) name.appendChild(el('span', 'npt-i-hint', ' (slow)'));
+      if (t.note && !quiet) name.appendChild(el('span', 'npt-i-hint', ' (slow)'));
       row.appendChild(name);
       var sel = el('select', 'npt-mode');
       MODE_OPTIONS.forEach(function (o) {
@@ -1456,7 +1458,7 @@
       paintMode(sel);
       sel.title = t.plural + ': Prune removes a tag another tag on the same ' +
         t.label.toLowerCase() + ' already implies; Roll Up adds every ancestor of the ' +
-        'tags it carries.' + (t.note ? '\n\n' + t.note : '');
+        'tags it carries.' + (t.note && !quiet ? '\n\n' + t.note : '');
       name.title = sel.title;
       sel.addEventListener('change', function () {
         modes[t.key] = sel.value;
@@ -2466,7 +2468,7 @@
     this.modal.appendChild(head);
 
     var body = el('div', 'npt-modesbody');
-    this.panel = modesPanel(this.modes, function () { self.render(); });
+    this.panel = modesPanel(this.modes, function () { self.render(); }, true);
     this.panel.enable(false);
     body.appendChild(this.panel.el);
 

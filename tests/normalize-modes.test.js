@@ -222,6 +222,12 @@ Promise.resolve()
   .then((env) => {
     h.check('the settings task opens with what the setting says',
       selected(env) === 'off,off,off,off,prune,rollup,off', selected(env));
+    // The (slow) warning is about a whole-library pass, which is the run dialog's
+    // business: this dialog configures what happens as one entity is saved. (4.2.2)
+    h.check('and says nothing here about a whole-library pass being slow',
+      env.body.descendants().filter((n) => h.hasClass(n, 'npt-i-hint')).length === 0 &&
+      !/largest type/.test(selectFor(env, 'Images').title),
+      selectFor(env, 'Images').title);
     const preview = env.body.descendants().filter((n) => h.hasClass(n, 'npt-modestring'))[0];
     h.check('and shows the string it would write',
       preview.textContent === h.autoModes({ scenes: 'prune', images: 'rollup' }),

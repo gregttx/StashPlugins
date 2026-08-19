@@ -91,8 +91,9 @@ Running the task opens a dialog that works in two phases.
 They start from the automatic modes in the settings, **with Images off** whatever that setting
 says: images are usually the largest type and the slowest to scan, and a library-wide image pass
 is worth deciding per run rather than inheriting from a setting about what happens when one image
-is saved. The Images selector is marked **(slow)** for the same reason, in both dialogs, and
-hovering it or its label says why.
+is saved. The Images selector is marked **(slow)** here for the same reason, and hovering it or its
+label says why. The Auto Mode Settings dialog does not mark it, since nothing there starts a
+whole-library pass.
 
 Change a selector and the plan on screen stops being what **Proceed** would write, so Proceed is
 disabled and **Rescan** appears; pressing it re-plans against the new selection. **Keep this

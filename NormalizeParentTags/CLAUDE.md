@@ -3,7 +3,7 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.2.1.** This file is both the design and the map of the code — the
+**Status: implemented at 4.2.2.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
 
@@ -463,11 +463,16 @@ a **keep this selection** checkbox. Five decisions in it are worth not re-litiga
 - **Images start Off however they are configured.** The user asked for this specifically, and the
   reason is in the setting's own description since 1.0.0: images are usually the largest type and
   the slowest to scan. A whole-library image pass is a decision per run; the automatic mode is
-  about one image at a time. **The selector says so too** (4.2.0): a `note` on a type in `TYPES`
-  puts a grey `(slow)` beside its name and the sentence in the title of both the label and the
-  select. A tooltip alone would have been a warning nobody knows to hover for, and the setting
-  description that carried this since 1.0.0 is on a different page from the dialog that acts on it.
-  It is a field on the type rather than a test for `images`, so a second slow type costs a string.
+  about one image at a time. **The run dialog's selector says so too** (4.2.0): a `note` on a type
+  in `TYPES` puts a grey `(slow)` beside its name and the sentence in the title of both the label
+  and the select. A tooltip alone would have been a warning nobody knows to hover for, and the
+  setting description that carried this since 1.0.0 is on a different page from the dialog that
+  acts on it. It is a field on the type rather than a test for `images`, so a second slow type
+  costs a string. **The settings dialog passes `quiet` and shows neither** (4.2.2): the warning is
+  about a whole-library pass, and that dialog starts none - it configures what happens as a single
+  entity is saved. Which is also why the note no longer ends by saying the automatic mode is
+  unaffected: the only dialog that still carries it is the one that is not about the automatic
+  mode.
 - **Changing a selector after a plan exists disables Proceed and reveals Rescan.** The plan on
   screen was computed for the previous selection, so pressing Proceed would write something other
   than what the dialog now says it covers - the one way this UI could lie. `selectionDirty` is

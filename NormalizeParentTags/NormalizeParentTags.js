@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.1.1';
+  var PLUGIN_VERSION = '4.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -160,6 +160,12 @@
       // plain basename selection. Both implement BaseFile, but naming the concrete
       // types is the form every Stash 0.31 accepts.
       organized: true, pageSize: 500,
+      // Why this one type carries a warning in the UI: it is the only one whose size
+      // routinely makes a whole-library pass a decision rather than a habit, which is
+      // also why it starts Off in the run dialog whatever the setting says.
+      note: 'Usually the largest type in a library and the slowest to scan: a ' +
+        'whole-library image pass can take a long time. The automatic mode is ' +
+        'unaffected - it handles one image as Stash saves it.',
       fields: 'id title visual_files { ... on ImageFile { basename } ... on VideoFile { basename } }' },
     { key: 'markers', token: 'MARKERS', label: 'Scene Marker', plural: 'Scene Markers',
       find: 'findSceneMarkers', node: 'scene_markers',
@@ -1434,7 +1440,12 @@
     var selects = {};
     TYPES.forEach(function (t) {
       var row = el('div', 'npt-mode-row');
-      row.appendChild(el('span', 'npt-mode-name', t.plural));
+      // A type carrying a `note` says so beside its name as well as in the title: a
+      // tooltip nobody knows to hover for is not a warning.
+      var name = el('span', 'npt-mode-name');
+      name.appendChild(el('span', null, t.plural));
+      if (t.note) name.appendChild(el('span', 'npt-i-hint', ' (slow)'));
+      row.appendChild(name);
       var sel = el('select', 'npt-mode');
       MODE_OPTIONS.forEach(function (o) {
         var opt = el('option', null, o[1]);
@@ -1445,7 +1456,8 @@
       paintMode(sel);
       sel.title = t.plural + ': Prune removes a tag another tag on the same ' +
         t.label.toLowerCase() + ' already implies; Roll Up adds every ancestor of the ' +
-        'tags it carries.';
+        'tags it carries.' + (t.note ? '\n\n' + t.note : '');
+      name.title = sel.title;
       sel.addEventListener('change', function () {
         modes[t.key] = sel.value;
         paintMode(sel);

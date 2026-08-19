@@ -39,7 +39,9 @@ function open(opts) {
 // the plugin scans in, not the alphabetical one the old settings page imposed.
 const selects = (env) => env.body.descendants().filter((n) => h.hasClass(n, 'npt-mode'));
 const selected = (env) => selects(env).map((s) => s.value).join(',');
-const rowName = (sel) => sel.parentNode.childNodes[0].textContent;
+// The label, without the hint a type with a `note` wears beside it.
+const rowName = (sel) =>
+  sel.parentNode.childNodes[0].textContent.replace(/ \(slow\)$/, '');
 const selectFor = (env, plural) => selects(env).filter((s) => rowName(s) === plural)[0] || null;
 
 function setSelect(env, plural, value) {
@@ -64,6 +66,18 @@ Promise.resolve()
     // Images are the exception and the only one: the settings page has called them
     // the largest and slowest type since 1.0.0, and a library-wide image pass is a
     // decision per run rather than one inherited from what happens on a single save.
+    // The one type whose whole-library pass is a decision rather than a habit says so
+    // beside its name, not only in a tooltip nobody knows to hover for. (4.2.0)
+    const hinted = env.body.descendants()
+      .filter((n) => h.hasClass(n, 'npt-i-hint'))
+      .map((n) => rowName(n.parentNode.parentNode.childNodes[1]));
+    h.check('only Images warns about how long a whole-library pass takes',
+      hinted.join(',') === 'Images', hinted.join(','));
+    h.check('and the reason is in the title of both the label and the selector',
+      /largest type/.test(selectFor(env, 'Images').title) &&
+      /largest type/.test(selectFor(env, 'Images').parentNode.childNodes[0].title),
+      selectFor(env, 'Images').title);
+
     h.check('the selection starts from the automatic modes, with Images off',
       selected(env) === 'rollup,off,off,off,prune,off,off', selected(env));
     h.check('and the types it covers are the ones not set to Off',

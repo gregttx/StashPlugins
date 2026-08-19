@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.1.0';
+  var PLUGIN_VERSION = '3.1.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -542,6 +542,25 @@
     return modes;
   }
 
+  // How many `<something>=<something>` pairs the string holds that this script did
+  // *not* recognise. Neither a path id nor a mode contains an `=`, so the count of
+  // `=` is how many pairs were meant, and anything left over is a pair this copy
+  // cannot read - a hand edit, or a path id a newer release knows and this one does
+  // not. It is what stands between "rewrite this in canonical form" and "delete the
+  // half I did not understand".
+  // Counting what was *applied*, not what the regex matched: a well-shaped id this
+  // release does not have - `tags:everything>everywhere=ON`, the exact case a newer
+  // sibling release produces - matches the pattern and is then dropped by `pathById`.
+  // Counting matches called that fully understood and deleted it on the next tick.
+  function unrecognisedPairs(raw) {
+    var text = String(raw == null ? '' : raw), applied = 0, m;
+    PATH_PAIR.lastIndex = 0;
+    while ((m = PATH_PAIR.exec(text)) !== null) {
+      if (pathById(m[1].toLowerCase())) applied++;
+    }
+    return (text.split('=').length - 1) - applied;
+  }
+
   function formatPaths(modes) {
     return PATHS.filter(function (p) {
       return modes && modes[p.id] && modes[p.id] !== PATH_OFF;
@@ -582,20 +601,41 @@
   // matter.
   //
   // Elements rather than `textContent`, so the list can be a list.
-  function renderPathString(box, modes) {
+  function renderPathString(box, modes, raw) {
     while (box.firstChild) box.removeChild(box.firstChild);
+    var text = String(raw == null ? '' : raw).replace(/^\s+|\s+$/g, '');
     var on = PATHS.filter(function (p) { return modes && modes[p.id] !== PATH_OFF; });
-    if (!on.length) {
-      box.style.gridTemplateRows = '';
+    // The three columns live on a list inside the row rather than on the row itself,
+    // so the warning below can sit beside them rather than in a cell of the grid.
+    var list = el('div', 'ptp2re-pathstring-list');
+    // "Nothing enabled" and "I could not read what is stored" look identical from the
+    // paths alone and are not the same thing at all: the first is a choice, the second
+    // is a value still sitting in the config that this script is declining to touch.
+    // Saying the first over the second is what would make the loss look deliberate.
+    if (!on.length && !text) {
       box.appendChild(el('div', null, 'No paths enabled - nothing is copied anywhere.'));
       return;
     }
+    // A partly-read value gets both: the paths that *are* in force, and a line saying
+    // the rest is not. Without it the row is a short list with nothing to explain why.
+    // `!on.length` is the other half of the same question: a stored value that yields
+    // no paths at all is unread whether or not it contains anything pair-shaped, and
+    // a string with no `=` in it counts no unrecognised pairs by construction.
+    if (text && (unrecognisedPairs(raw) > 0 || !on.length)) {
+      box.appendChild(el('div', 'ptp2re-pathstring-warn', '\u26a0 Part of the stored ' +
+        'value is not something this script understands, so it is left exactly as it ' +
+        'is - and whatever it could not read is not in force. Open Path Settings to ' +
+        'set the paths again, or check whether the script running here is older than ' +
+        'the plugin installed.'));
+    }
+    if (!on.length) return;
+    box.appendChild(list);
     on = on.filter(function (p) { return !p.common; })
       .concat(on.filter(function (p) { return p.common; }));
     // The row count is what turns `grid-auto-flow: column` into three columns; the
     // stylesheet cannot know how many entries there are. Fewer than three enabled
     // means one row and one column each, which is the right shape for a short list.
-    box.style.gridTemplateRows = 'repeat(' + Math.ceil(on.length / 3) + ', auto)';
+    list.style.gridTemplateRows = 'repeat(' + Math.ceil(on.length / 3) + ', auto)';
     on.forEach(function (p) {
       var line = el('div', 'ptp2re-pathstring-on');
       // The label is a span rather than the div's own text: a mode is appended after
@@ -605,7 +645,7 @@
         line.appendChild(el('span', 'ptp2re-pathstring-mode',
           '  (' + pathLabels(p)[modes[p.id]] + ')'));
       }
-      box.appendChild(line);
+      list.appendChild(line);
     });
   }
 
@@ -1030,14 +1070,17 @@
     // `renderPathString` sets, since the stylesheet cannot know how many paths are on.
     // `max-content` columns and `justify-content: start` so the block is only as wide
     // as the entries in it: with equal columns the longest entry would set all three.
-    '.ptp2re-pathstring{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;' +
-    'justify-content:start;gap:.1rem 1.5rem;font-size:.85rem;color:#a7b6c2;' +
-    'margin:.25rem 0 .5rem;}' +
+    '.ptp2re-pathstring{font-size:.85rem;color:#a7b6c2;margin:.25rem 0 .5rem;}' +
+    '.ptp2re-pathstring-list{display:grid;grid-auto-flow:column;' +
+    'grid-auto-columns:max-content;justify-content:start;gap:.1rem 1.5rem;}' +
     // Amber for the same reason the selectors are: a path that is on is one this
     // plugin writes along. The mode in brackets stays grey - it qualifies the line
     // rather than being a second thing that is on.
     '.ptp2re-pathstring-on{color:#ffb648;}' +
     '.ptp2re-pathstring-mode{color:#a7b6c2;font-size:.8rem;}' +
+    // The row's own "I could not read this" line. The stale banner's red, because it
+    // is the same kind of message: something is configured and not in force.
+    '.ptp2re-pathstring-warn{color:#ff7373;}' +
     '.ptp2re-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
     'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
     'font-weight:600;}' +
@@ -3198,7 +3241,16 @@
       self.set(loaded.settings.paths);
       self.enable(true);
       self.saveBtn.disabled = self.stale;
-      self.noteEl.textContent = '';
+      // Save rewrites the whole setting from these selectors, so a value this script
+      // could not read is about to be replaced by what it managed to make of it. That
+      // is a fair thing to do on a press, and not one to do without saying so.
+      var raw = String(loaded.settings.b1Paths || '').replace(/^\s+|\s+$/g, '');
+      self.noteEl.textContent = raw && unrecognisedPairs(raw) > 0
+        ? '\u26a0 Part of the stored setting is not something this script understands ' +
+          '("' + raw + '"). It is shown below as far as it could be read, and it is left ' +
+          'alone until you press Save - which replaces the whole of it with what is ' +
+          'selected here.'
+        : '';
     }, function (e) {
       if (_active !== self) return;
       self.noteEl.textContent = 'The current setting could not be read (' +
@@ -4382,13 +4434,27 @@
     var modes = _autoSettings.paths, canon = formatPaths(modes);
     // Redrawn only when the value moves: this runs every second, and rebuilding the
     // list under the user's pointer for an unchanged value is churn.
-    if (line._ptp2reText !== canon) {
-      line._ptp2reText = canon;
-      renderPathString(line, modes);
-    }
     var raw = String(_autoSettings.b1Paths || '');
+    if (line._ptp2reText !== canon + '\u0000' + raw) {
+      line._ptp2reText = canon + '\u0000' + raw;
+      renderPathString(line, modes, raw);
+    }
     if (_savingPaths || !raw.replace(/^\s+|\s+$/g, '')) return;
     if (raw === canon || raw === _normalizedFrom) return;
+    // **Never write nothing over something, and never write away a pair this script
+    // could not read.** The rewrite is a convenience for a hand-typed value; a value
+    // it does not fully understand is one where "canonical form" means "the half I
+    // recognised", and writing that deletes the rest with no way back. A newer
+    // release's path id is exactly that case, and so is a typo - the difference is
+    // invisible from here, and only one of the two is safe to act on.
+    if (!canon || unrecognisedPairs(raw) > 0) {
+      _normalizedFrom = raw;
+      ptp2re('[ptp2re] the stored path setting is not one this script fully understands ' +
+        '("' + raw + '"), so it is left exactly as it is. Nothing is copied along a path ' +
+        'it could not read; open Path Settings to set them again, or check whether the ' +
+        'script running here is older than the plugin installed.');
+      return;
+    }
     _normalizedFrom = raw;
     savePaths(canon).then(null, function () {});
   }

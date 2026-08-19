@@ -410,12 +410,14 @@ Promise.resolve()
       // the two long ones share the last column - each column is sized to its own
       // content, so scattering them would widen two columns instead of one. The row
       // count is what makes `grid-auto-flow: column` three columns rather than one.
+      const list = line && line.childNodes
+        .filter((n) => h.hasClass(n, PREFIX + '-pathstring-list'))[0];
       h.check('laid out in three columns, with the moded entry last',
-        !!line && line.style.gridTemplateRows === 'repeat(1, auto)' &&
-        line.childNodes[line.childNodes.length - 1].textContent
+        !!list && list.style.gridTemplateRows === 'repeat(1, auto)' &&
+        list.childNodes[list.childNodes.length - 1].textContent
           .indexOf('Tags: Scenes → Groups') === 0,
-        line && line.style.gridTemplateRows + ' / ' +
-          line.childNodes.map((n) => n.textContent).join(' | '));
+        list && list.style.gridTemplateRows + ' / ' +
+          list.childNodes.map((n) => n.textContent).join(' | '));
       h.check('Stash own value is hidden rather than removed',
         value.style.display === 'none' && value.parentNode === left, value.style.display);
       h.check('and so is its Edit button',
@@ -453,9 +455,60 @@ Promise.resolve()
         !!line && /No paths enabled/.test(line.textContent), line && line.textContent);
       // A row count left over from a longer listing would leave the sentence in a
       // column of its own with two empty ones beside it.
-      h.check('and the column layout is cleared with it',
-        !!line && !line.style.gridTemplateRows, line && line.style.gridTemplateRows);
+      h.check('and no list is drawn for it to sit in',
+        !!line && !line.childNodes.some((n) => h.hasClass(n, PREFIX + '-pathstring-list')),
+        line && line.childNodes.map((n) => n.className).join(','));
     });
+  })
+
+  // **A value this script cannot fully read is left exactly as it is.** The rewrite
+  // below is a convenience for a hand-typed value; run over a value it only half
+  // understands, "canonical form" means "the half I recognised" and writing it deletes
+  // the rest with no way back. Reported live: path settings gone after an upgrade.
+  .then(() => {
+    const cases = {
+      'a mode this release does not have': 'tags:performer>scene=YES',
+      'a path id a newer release added': 'tags:performer>scene=ON, tags:new>thing=ON',
+      'nothing recognisable at all': 'who knows what this is',
+    };
+    return Object.keys(cases).reduce((chain, what) => chain.then(() => {
+      const env = boot({ settings: { b1Paths: cases[what] } });
+      const doc = env.ctx.document;
+      const row = h.makeElement('div');
+      row.className = 'setting';
+      row.id = 'plugin-' + NAME + '-b1Paths';
+      doc.body.appendChild(row);
+      env.tick();
+      return h.flush().then(() => {
+        env.tick();
+        return h.flush().then(() => {
+          env.tick();
+          h.check(what + ' is never written over', saved(env).length === 0,
+            JSON.stringify(saved(env).map((c) => c.variables.input)));
+          // "Nothing enabled" and "I could not read what is stored" look identical
+          // from the paths alone and are not the same thing: the second is a value
+          // still sitting in the config that this script is declining to touch.
+          const line = doc.getElementById(PREFIX + '-paths-line');
+          h.check('and the row says so rather than "No paths enabled"',
+            !!line && /not something this script understands/.test(line.textContent) &&
+            !/No paths enabled/.test(line.textContent), line && line.textContent);
+        });
+      });
+    }), Promise.resolve());
+  })
+
+  .then(() => open({ settings: { b1Paths: 'tags:performer>scene=ON, tags:new>thing=ON' } }))
+  .then((env) => {
+    // Save rewrites the whole setting from the selectors, so it *will* drop what it
+    // could not read - which is a fair thing to do on a press and not one to do
+    // without saying so.
+    h.check('and the dialog says what pressing Save would replace',
+      /not something this script understands/.test(d(env).note) &&
+      /replaces the whole of it/.test(d(env).note), d(env).note);
+  })
+
+  .then(() => open({ settings: { b1Paths: 'tags:performer>scene=ON' } })).then((env) => {
+    h.check('a value it read completely raises no such note', !d(env).note, d(env).note);
   })
 
   // A config file can hold anything and Stash's own modal is still reachable if ours

@@ -447,6 +447,13 @@ release carries your existing path toggles over untouched.
 **Exclusion filters** — skip entities carrying a tag you name, skip entities marked Organized,
 never copy tags set to *Ignore auto tag*, and never copy tags carrying a custom field you name.
 
+The **Paths** row leaves a value it cannot read exactly as it is, and says so in red rather than
+reporting "No paths enabled" — the two look the same from the list and are not the same thing. A
+value it reads only in part is left alone too, with the paths it *did* read shown above the warning;
+only what it understands completely is ever tidied into canonical form. Pressing **Save** in the
+dialog replaces the whole setting with what the selectors show, which the dialog says before you do
+it.
+
 If you also run `MergePerformerTagsToScenes`, these are the same four questions it asks, worded for
 a wider set of entities — so any of them you have **never set here** takes that plugin's answer the
 first time this one loads, and is saved here as yours. It is asked once. From then on this is where

@@ -5,10 +5,46 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.1.0.** Every step in the table below has landed, so the version left the
+**Status: released, 3.1.1.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.1.1 stops the settings row deleting a value it could not read.** Reported live as "I lost my
+path settings". `pathFieldTick` rewrites a hand-typed value in canonical form - the convenience
+copied from `NormalizeParentTags` - and canonical form is *whatever `parsePaths` understood*. Run
+over a value this copy only half reads, that is a rewrite that deletes the other half; run over one
+it cannot read at all, it writes an **empty string**, and the setting is gone with no way back and
+nothing said.
+
+**The sibling cannot have this bug, which is why the copy did not inherit its safety.**
+`formatAutoModes` always emits seven pairs, so its canonical form is never empty and never shorter
+than what it read. `formatPaths` emits only the enabled paths, which was the right call for
+thirteen - and it is exactly what makes an unreadable value formattable as nothing. **A rule copied
+from a sibling carries the sibling's preconditions, and this one changed them in the same release
+it copied it.**
+
+- **Two guards, and the second is the one that matters more.** Empty canon is the catastrophic case;
+  `unrecognisedPairs(raw) > 0` is the quiet one - twelve paths this release knows and one a newer
+  release added would have been rewritten to twelve, which is data loss that looks like a working
+  plugin.
+- **It counts pairs *applied*, not pairs matched.** `tags:everything>everywhere=ON` satisfies
+  `PATH_PAIR` and is then dropped by `pathById`, so counting matches called that value fully
+  understood and deleted it on the next tick. The first version of the guard did exactly that and
+  the fixture caught it.
+- **The row distinguishes "nothing enabled" from "I could not read this".** They look identical
+  from the paths alone and are not the same thing: the first is a choice, the second is a value
+  still sitting in the config that this script is declining to touch. Saying the first over the
+  second is what makes the loss look deliberate. A *partly* read value gets both - the paths in
+  force, and a line saying the rest is not - which is why the three-column grid moved onto an inner
+  `.ptp2re-pathstring-list`, so the warning can sit beside it rather than in a cell of it.
+- **The dialog says it too**, because Save rewrites the whole setting from its selectors and so
+  *will* drop what could not be read. That is fair on a press and not fair in silence.
+
+**What this does not explain is how the value became unreadable in the first place**, and that is
+still open: a value written by 3.0.x parses cleanly here. The fix is right either way - it is the
+difference between a bad value and a lost one - but if it happens again the console line now names
+the string, which is the thing nobody had.
 
 **3.1.0 adopts `MergePerformerTagsToScenes`' four exclusion filters where this plugin has none of
 its own.** They are the same four questions worded for a wider set of entities -

@@ -1,13 +1,16 @@
 // Scene Variants
 //
+// Requires Stash 0.28.0 or newer: the scene page's `ScenePage.Tabs` and
+// `ScenePage.TabContent` patch points are what this plugin is built on.
+//
 // A scene is often in the library twice: the whole thing, and a cut out of it. Stash
-// has no first-class relation for "these two files are the same work", so the panel
-// this plugin draws on a scene page is that relation, derived rather than stored: the
-// scenes sharing this one's stash-id, with whichever of them is the full-length one
+// has no first-class relation for "these two files are the same work", so the Siblings
+// tab this plugin adds to the scene page is that relation, derived rather than stored:
+// the scenes sharing this one's stash-id, with whichever of them is the full-length one
 // named as such.
 //
-// **Nothing in this file writes to the library.** It reads two queries and draws a
-// list of links. There is no mutation to undo, no lease to take and nothing to stand a
+// **Nothing in this file writes to the library.** It reads one query and draws a list
+// of links. There is no mutation to undo, no lease to take and nothing to stand a
 // reactive plugin down for.
 //
 // The design notes, and the reasoning behind the parts that look arbitrary, are in
@@ -32,7 +35,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.0.2';
+  var PLUGIN_VERSION = '0.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -51,10 +54,15 @@
   var README_LINK_ID = 'svr-readme-link';
   var DESC_TOGGLE_ID = 'svr-desc-toggle';
   var STYLE_ID       = 'svr-style';
-  var PANEL_ID       = 'svr-panel';
+
+  // The tab's own key, in the namespace Stash's own nine sit in - `scene-details-panel`,
+  // `scene-edit-panel` and the rest. `svr` in the middle of it because the key is a
+  // string in a space Stash owns and any plugin can write into: it is not a class we
+  // prefix by convention, it is the value `activeTabKey` holds while our tab is open.
+  var TAB_KEY = 'scene-svr-siblings-panel';
+  var TAB_LABEL = 'Siblings';
 
   var SETTINGS_TTL_MS = 10000;   // settings are re-read at most this often
-  var SCENE_ROUTE = /^\/scenes\/(\d+)(?:[/?#]|$)/;
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
@@ -116,53 +124,6 @@
     return c;
   }
 
-  // ── The shared DOM bus ────────────────────────────────────────────────────
-  //
-  // One MutationObserver on Stash's root for every plugin in this repo, rather than one
-  // each. The four that need one watch the same subtree for the same reason - a control
-  // has to land before the user reads the panel it is in - and with all of them installed
-  // that was four registrations firing on every DOM burst, which on a Scene page with
-  // video playing is continuous. It is the one place the "five copies of one design" rule
-  // compounds rather than merely repeats, which is why this is shared rather than copied.
-  //
-  // Whichever plugin loads first creates the observer; the rest subscribe to it. Each
-  // keeps its own debounce, because what a burst costs each of them differs.
-  //
-  // Advisory in exactly the way the lease is: a plugin too old to know about the bus makes
-  // its own observer and still works, and one subscriber throwing does not silence the
-  // rest. `subscribe` is idempotent and safe to call again - which is what the load-event
-  // retry does when there was no root to observe at script bottom - and answers whether
-  // anything is being observed yet, so a caller with a polling fallback can tell.
-  //
-  // Byte-identical in every plugin that has one, like `coopObject` above and for the same
-  // reason; `tests/style.test.js` fails on a drifted copy.
-  function domBus() {
-    var ns = window.__GTTx__;
-    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
-    var bus = ns.domBus;
-    if (bus && typeof bus.subscribe === 'function') return bus;
-    bus = ns.domBus = { subs: [], observing: false };
-    bus.notify = function () {
-      for (var i = 0; i < bus.subs.length; i++) {
-        try { bus.subs[i](); } catch (e) { /* one subscriber must not silence the rest */ }
-      }
-    };
-    bus.subscribe = function (fn) {
-      if (bus.subs.indexOf(fn) === -1) bus.subs.push(fn);
-      if (bus.observing || typeof MutationObserver !== 'function') return bus.observing;
-      var root = document.getElementById('root') || document.body || document.documentElement;
-      if (!root) return false;
-      try {
-        new MutationObserver(bus.notify).observe(root, { childList: true, subtree: true });
-        bus.observing = true;
-      } catch (e) {
-        bus.observing = false;
-      }
-      return bus.observing;
-    };
-    return bus;
-  }
-
   function coop() {
     var c = coopObject();
     if (!c.leases) c.leases = [];
@@ -172,8 +133,8 @@
     return c;
   }
 
-  // **Four of the five shared mechanisms are correctly left alone, and each absence is
-  // a rule rather than an omission:**
+  // **Five of the shared mechanisms are correctly left alone, and each absence is a rule
+  // rather than an omission:**
   //
   //   no lease           - a lease announces a bulk *write*, and this plugin issues no
   //                        mutation at all.
@@ -183,21 +144,26 @@
   //                        relationship copy, keyed by a path id. Nothing here copies a
   //                        relationship, so any path id would be a lie.
   //   no `order`         - the ordering protocol is for buttons sharing one of Stash's
-  //                        own action rows. This plugin draws a panel in a container of
-  //                        its own, with nobody to be ordered against.
+  //                        own action rows. This plugin draws no button at all.
+  //   no `domBus`        - the shared MutationObserver is for a control that has to be
+  //                        put back into Stash's DOM after every re-render. This plugin
+  //                        hands React a component and React renders it, so there is
+  //                        nothing to reconcile and nothing to watch for. The settings
+  //                        page is decoration, which the one-second timer covers - the
+  //                        same position `NormalizeParentTags` is in.
   //
-  // What it does read is `debugButtons`, below - the panel is a control drawn into
-  // Stash's chrome and "why is it not there" is the same question that flag answers for
-  // every sibling.
+  // What it does read is `debugButtons`, below - the tab is a control drawn into Stash's
+  // chrome and "why is it not there" is the same question that flag answers for every
+  // sibling.
 
-  // ── Panel gating diagnostics ─────────────────────────────────────────────
+  // ── Tab gating diagnostics ───────────────────────────────────────────────
   //
   // Off unless `__GTTx__.StashPluginCoop.debugButtons = true`, which is typed into the
   // browser console: no setting, no reload, no file edit, and the flag is read at call
   // time so it takes effect on the next tick.
   //
-  // Deduplicated per channel, because the tick runs every second and on every DOM
-  // mutation burst. Turning the flag off clears the channels, so switching it back on
+  // Deduplicated per channel, because a React re-render can ask the same question many
+  // times a second. Turning the flag off clears the channels, so switching it back on
   // restates the current position rather than staying silent until something moves.
   var _gateLast = {};
   function gateLogOnce(channel, line) {
@@ -234,9 +200,8 @@
     });
   }
 
-  // Read synchronously by the tick and refreshed on a timer, the shape every sibling
-  // uses. Awaiting a settings query inside a draw would put a round trip in front of a
-  // value that changes once a year.
+  // Read synchronously by the settings tick and refreshed on a timer, the shape every
+  // sibling plugin uses.
   var _settings = null, _settingsAt = 0, _settingsWait = null;
 
   function settings() {
@@ -257,14 +222,12 @@
   function logToConsole(msg) {
     if (settings().b1LogToConsole) console.info('[svr] ' + msg);
   }
-
   // ── Finding the siblings ──────────────────────────────────────────────────
   //
-  // Two queries, not one. The filter needs this scene's stash-ids, so the second call
-  // cannot be written until the first has answered; the plan's single-query sketch
-  // assumed a caller that already held them. Both are cached per scene id for the life
-  // of the page, which is what keeps a panel that redraws on every DOM burst from
-  // asking again.
+  // One query, which is what the plan sketched and what a DOM-injected panel could not
+  // have: the tab is handed `props.scene`, a `SceneDataFragment`, and that fragment
+  // already carries `stash_ids`. Reading them off the page instead of asking for them is
+  // the whole saving - there is nothing to look up before the filter can be written.
   //
   // `stash_ids_endpoint` takes a *list*, so one call covers a scene carrying several
   // ids, and the endpoint is deliberately left out: a sibling set that spans two
@@ -278,60 +241,57 @@
   // ids, which is the semantics wanted here. INCLUDES is the natural guess for a list
   // criterion and every other list filter in Stash takes it, so this is the one place
   // reading like its neighbours is wrong.
-  var SCENE_QUERY =
-    'query SVRScene($id: ID!) { findScene(id: $id) { id title stash_ids { endpoint stash_id } } }';
-
   var SIBLINGS_QUERY =
     'query SVRSiblings($ids: [String!]) { findScenes(' +
     'scene_filter: { stash_ids_endpoint: { stash_ids: $ids, modifier: EQUALS } }, ' +
     'filter: { per_page: -1 }) { scenes { id title tags { id name } ' +
     'files { duration width height } } } }';
 
-  // One entry, replaced when the route changes. A scene page is looked at for minutes
-  // and a second one is a navigation away, so a map keyed by id would grow for the life
-  // of the tab to serve a hit rate of nearly zero.
-  var _probe = null;
-
-  function probe(sceneId) {
-    if (_probe && _probe.id === sceneId) return _probe;
-    _probe = { id: sceneId, done: false, siblings: [], why: 'probing' };
-    var entry = _probe;
-    gqlRequest(SCENE_QUERY, { id: sceneId })
-      .then(function (data) {
-        var scene = (data && data.findScene) || null;
-        var ids = ((scene && scene.stash_ids) || []).map(function (s) { return s.stash_id; })
-          .filter(function (v) { return !!v; });
-        if (!ids.length) return { scenes: [], why: 'this scene carries no stash-id' };
-        return gqlRequest(SIBLINGS_QUERY, { ids: ids }).then(function (found) {
-          return {
-            scenes: ((found && found.findScenes) || {}).scenes || [],
-            why: 'matched on ' + plural(ids.length, 'stash-id'),
-          };
-        });
-      })
-      .then(function (result) {
-        if (_probe !== entry) return;                 // the user navigated away
-        entry.siblings = result.scenes.filter(function (s) {
-          return String(s.id) !== String(sceneId);
-        });
-        entry.done = true;
-        entry.why = result.why;
-        logToConsole('scene ' + sceneId + ': ' +
-          plural(entry.siblings.length, 'sibling') + ' (' + entry.why + ')');
-        scheduleTick();
-      }, function (err) {
-        if (_probe !== entry) return;
-        entry.done = true;
-        entry.why = 'the sibling query failed';
-        // Loud rather than silent: a panel that never appears because a filter field is
-        // named differently on this Stash looks exactly like a panel that decided there
-        // was nothing to show, and only one of those is worth reporting.
-        console.warn('[svr] sibling lookup failed for scene ' + sceneId + ': ' + err.message);
-        scheduleTick();
-      });
-    return _probe;
+  // Resolves once the first settings read has landed, so the rows are classified against
+  // the user's tag names rather than against the empty defaults. The pane reads settings
+  // exactly once, when it mounts, and nothing re-renders it afterwards - so a
+  // classification made half a second early would simply be wrong for as long as the tab
+  // stayed open.
+  function settingsReady() {
+    settings();
+    // `_settingsWait`'s own handlers return nothing - they assign `_settings` and are
+    // done - so what resolves has to be read back rather than passed through.
+    return _settingsWait ? _settingsWait.then(function () { return _settings; })
+      : Promise.resolve(_settings);
   }
 
+  // Everything the tab shows, as one promise: the rows in the order they go on screen,
+  // and the sentence explaining what they were matched on. The three empty answers are
+  // values rather than failures - a scene with no stash-id is the ordinary case here,
+  // not an error - and only the fourth, a query the server refused, is loud.
+  function findSiblings(scene) {
+    var ids = ((scene && scene.stash_ids) || []).map(function (s) { return s.stash_id; })
+      .filter(function (v) { return !!v; });
+    if (!ids.length) {
+      return Promise.resolve({ rows: [], why: 'This scene carries no stash-id, which is ' +
+        'the only evidence this plugin uses so far.' });
+    }
+    return settingsReady().then(function (s) {
+      return gqlRequest(SIBLINGS_QUERY, { ids: ids }).then(function (data) {
+        var scenes = (((data || {}).findScenes) || {}).scenes || [];
+        var others = scenes.filter(function (o) { return String(o.id) !== String(scene.id); });
+        logToConsole('scene ' + scene.id + ': ' + plural(others.length, 'sibling') +
+          ' from ' + plural(ids.length, 'stash-id'));
+        return {
+          rows: ordered(others, s),
+          why: others.length
+            ? 'Matched on ' + plural(ids.length, 'stash-id') + '.'
+            : 'No other scene shares this one’s ' + plural(ids.length, 'stash-id') + '.',
+        };
+      });
+    }).then(null, function (err) {
+      // Loud rather than silent: a pane that stays empty because a filter field is
+      // named differently on this Stash looks exactly like a scene with no siblings,
+      // and only one of those is worth reporting.
+      console.warn('[svr] sibling lookup failed for scene ' + scene.id + ': ' + err.message);
+      return { rows: [], why: 'The sibling query failed: ' + err.message };
+    });
+  }
   // ── Classifying a sibling ─────────────────────────────────────────────────
   //
   // The dimension is read off a tag, which is the whole of what makes it cheap: the
@@ -394,38 +354,42 @@
       return ((bestFile(b.scene) || {}).duration || 0) - ((bestFile(a.scene) || {}).duration || 0);
     });
   }
-
   // ── Style ─────────────────────────────────────────────────────────────────
 
   var CSS =
-    // ── The panel ───────────────────────────────────────────────────────────
+    // ── The tab's pane ──────────────────────────────────────────────────────
     //
-    // Its own rules, not the shared dialog chrome: this plugin puts up no dialog, so
-    // the backdrop, the log and the footer would be a stylesheet for markup that never
-    // exists. The greys are the dialogs' greys all the same - #202b33 behind, #394b59
-    // for a border, #a7b6c2 and #7d8f9c for the two dim steps - because the panel sits
-    // on the same page as those dialogs and a sixth palette would read as a sixth
-    // author.
-    '.svr-panel{background:#202b33;border:1px solid #394b59;border-radius:4px;' +
-    'margin:.5rem 0;padding:.35rem 0;}' +
-    '.svr-panel-head{padding:.25rem .75rem;color:#7d8f9c;font-size:.8rem;}' +
-    '.svr-sib{display:flex;align-items:baseline;gap:.5rem;padding:.25rem .75rem;' +
-    'flex-wrap:wrap;}' +
+    // Not the shared dialog chrome: this plugin puts up no dialog, so a backdrop, a log
+    // and a footer would be a stylesheet for markup that never exists. It is not a card
+    // either - the pane sits inside Stash's own tab content, beside Details and File
+    // Info, so it takes no background and no border of its own and lets the page's
+    // showing through. The greys are the dialogs' greys all the same - #a7b6c2 and
+    // #7d8f9c, the two dim steps - because a sixth palette would read as a sixth author.
+    // `.svr-tabpane`, not `.svr-pane`: TagBundleClipboard already has a `.pane` and it
+    // is a different thing - a scrolling column inside a two-column dialog. A class two
+    // plugins share has to mean the same thing in both, and a *tab* pane is not that.
+    '.svr-tabpane{padding:1rem;}' +
+    '.svr-summary{color:#7d8f9c;margin-bottom:.5rem;}' +
+    '.svr-sib{display:flex;align-items:baseline;gap:.5rem;padding:.35rem .5rem;' +
+    'flex-wrap:wrap;border-radius:3px;}' +
     '.svr-sib:hover{background:#3c4f5d;}' +
     // The floor a flex item keeps by default is the width of its longest word, which a
     // filename-shaped title blows straight through; releasing it is what lets the title
-    // wrap instead of pushing the meta column off the panel.
-    '.svr-sib-title{flex:1 1 20rem;min-width:0;overflow-wrap:anywhere;color:#7cc4ff;}' +
-    '.svr-sib-title:hover{color:#7cc4ff;text-decoration:underline;}' +
+    // wrap instead of pushing the meta column off the row.
+    '.svr-sib-title{flex:1 1 20rem;min-width:0;overflow-wrap:anywhere;}' +
     '.svr-meta{color:#a7b6c2;font-size:.85rem;white-space:nowrap;}' +
     '.svr-role{font-size:.85rem;white-space:nowrap;}' +
-    // Green for the full-length one, because it is the answer the panel exists to give.
+    // Green for the full-length one, because it is the answer the tab exists to give.
     // Grey for a partial and for an untagged scene: both are context rather than an
     // answer, and a library that has not adopted the tags reads as quiet rather than
     // broken. Red only for the scene wearing both, which is a contradiction.
     '.svr-role-fl{color:#84d68a;}' +
     '.svr-role-pl{color:#7d8f9c;}' +
     '.svr-role-bad{color:#ff7373;}' +
+    // Byte-identical to TagBundleClipboard's, because a class two plugins share has to
+    // mean the same thing in both and here it does: the line standing in for a list
+    // that has nothing in it.
+    '.svr-empty{padding:.5rem 1rem;color:#7d8f9c;}' +
     // Stash's own .sub-heading is white-space: normal, so this plugin's description
     // would collapse into one paragraph. Scoped to the group we marked, never to
     // .sub-heading at large: another plugin's description is not ours to reflow.
@@ -504,108 +468,139 @@
     if (!root || typeof root.querySelector !== 'function') return null;
     try { return root.querySelector('.' + name) || null; } catch (e) { return null; }
   }
-
-  // ── Where the panel goes ──────────────────────────────────────────────────
+  // ── The tab ───────────────────────────────────────────────────────────────
   //
-  // Ported from TagBundleClipboard, which found this anchor against a live Stash. A
-  // scene page renders no action row at all - it shows a tab strip instead, Details /
-  // File Info / Chapters / Edit - so the strip is the one landmark to hang something
-  // off, and the panel goes in a container of ours immediately after it.
+  // A real tab beside Details, Queue, Markers, Group, Filter, File Info, History and
+  // Edit - not a block injected under the strip. Stash renders its tab strip and its tab
+  // content each wrapped in a `PatchContainerComponent`, which exists for exactly this:
   //
-  // **The strip is found by its Edit tab's key, not by its class.** Scene renders a
-  // second element whose text is exactly "Edit", and a Gallery page renders two
-  // `.nav-tabs` strips of which only the entity's own carries a `*-edit-panel` key.
-  function hasEditPanelTab(node) {
-    if (!node) return false;
-    var key = node.getAttribute && node.getAttribute('data-rb-event-key');
-    if (typeof key === 'string' && key.length > 11 && key.slice(-11) === '-edit-panel') return true;
-    var kids = node.childNodes || [];
-    for (var i = 0; i < kids.length; i++) if (hasEditPanelTab(kids[i])) return true;
-    return false;
+  //   const ScenePageTabs      = PatchContainerComponent<IProps>("ScenePage.Tabs");
+  //   const ScenePageTabContent = PatchContainerComponent<IProps>("ScenePage.TabContent");
+  //
+  // Each renders `props.children` and nothing else, so an `after` patch is handed the
+  // rendered children and returns whatever should be there instead. Appending is the
+  // whole of what this plugin does to them.
+  //
+  // Three facts this is built on, read off `stashapp/stash` and worth not re-deriving:
+  //
+  //   * The after-patch is invoked as `afterFn.apply(ctx, args.concat(result))`, so for
+  //     a component it receives `(props, result)` and must return the new result.
+  //     The patch list is read when the component *renders*, not when it is defined, so
+  //     registering at script load is early enough however late Scene.tsx is imported.
+  //   * `props.scene` is a `SceneDataFragment`, which already carries `stash_ids`. That
+  //     is what makes this one query rather than two: there is nothing to look up before
+  //     the filter can be written.
+  //   * `activeTabKey` is a plain `useState("scene-details-panel")` with no whitelist, so
+  //     a key of our own is selectable exactly like Stash's nine.
+  //
+  // There is deliberately **no DOM fallback** for a Stash without these patch points. A
+  // second implementation of the same tab, injected into the strip by hand, is the kind
+  // of duplicate this repo has already decided against paying for elsewhere: it would
+  // have to reproduce tab activation, pane switching and every re-render React does for
+  // free. A Stash too old gets one console line and no tab.
+
+  function pluginApi() {
+    var api = window.PluginApi;
+    return api && api.patch && typeof api.patch.after === 'function' ? api : null;
   }
 
-  function findTabStrip() {
-    var lists = document.querySelectorAll('.nav-tabs') || [];
-    for (var i = 0; i < lists.length; i++) if (hasEditPanelTab(lists[i])) return lists[i];
-    return null;
+  // The tab is always present, even on the scenes - most of them, today - with no
+  // stash-id and so no possible sibling. A tab that came and went as a query landed
+  // would move the strip under the pointer, and the empty cases are the ones worth
+  // explaining: "this scene carries no stash-id" is a fact about the library the user
+  // can act on, and a tab that hid itself would be the one place it could never appear.
+  //
+  // The caption carries no count, which is the price of that: the strip and the pane are
+  // two separate patches rendering two separate components, so a count in the caption
+  // would need the query's answer to be shared between them - a module-level cache and a
+  // subscription, to save the user one click. The pane counts its own rows in its first
+  // line instead.
+  function TabLink(React, Nav) {
+    return React.createElement(Nav.Item, { key: TAB_KEY },
+      React.createElement(Nav.Link, { eventKey: TAB_KEY }, TAB_LABEL));
   }
 
-  // ── The panel ─────────────────────────────────────────────────────────────
-
-  function clearPanel() {
-    var node = document.getElementById(PANEL_ID);
-    if (node && node.parentNode) node.parentNode.removeChild(node);
+  // One row. `row.cls.label` is empty for an unclassified scene and the span is then not
+  // rendered at all, rather than rendered blank - an untagged sibling is listed as
+  // context, and a column of empty marks would read as something missing.
+  function SiblingRow(React, row) {
+    var kids = [React.createElement('a', {
+      key: 'title', className: 'svr-sib-title', href: '/scenes/' + row.scene.id,
+    }, row.scene.title || ('Scene ' + row.scene.id))];
+    if (row.cls.label) {
+      kids.push(React.createElement('span',
+        { key: 'role', className: 'svr-role svr-role-' + row.cls.role }, row.cls.label));
+    }
+    var meta = metaOf(row.scene);
+    if (meta) kids.push(React.createElement('span', { key: 'meta', className: 'svr-meta' }, meta));
+    return React.createElement('div', { key: row.scene.id, className: 'svr-sib' }, kids);
   }
 
-  function buildPanel(sceneId, rows, why) {
-    var panel = el('div', 'svr-panel');
-    panel.id = PANEL_ID;
-    panel._svrKey = sceneId + ':' + rows.map(function (r) {
-      return r.scene.id + ':' + r.cls.role;
-    }).join(',');
-    panel.appendChild(el('div', 'svr-panel-head',
-      plural(rows.length, 'other scene') + ' ' +
-      (rows.length === 1 ? 'is' : 'are') + ' the same work — ' + why));
-    rows.forEach(function (row) {
-      var line = el('div', 'svr-sib');
-      var link = el('a', 'svr-sib-title', row.scene.title || ('Scene ' + row.scene.id));
-      link.href = '/scenes/' + row.scene.id;
-      line.appendChild(link);
-      if (row.cls.label) {
-        line.appendChild(el('span', 'svr-role svr-role-' + row.cls.role, row.cls.label));
+  // `found` is null until the query lands, which is the loading state; after that it is
+  // `{ rows, why }` and `why` is a whole sentence, because every one of the empty answers
+  // needs one. The effect is keyed on the scene id so that walking the queue re-runs it,
+  // and its cleanup drops the answer to a scene the user has already left.
+  function SiblingsPane(React) {
+    return function (props) {
+      var scene = (props && props.scene) || {};
+      var state = React.useState(null);
+      var found = state[0], setFound = state[1];
+
+      React.useEffect(function () {
+        var live = true;
+        setFound(null);
+        findSiblings(scene).then(function (result) { if (live) setFound(result); });
+        return function () { live = false; };
+      }, [scene.id]);
+
+      if (!found) {
+        return React.createElement('div', { className: 'svr-tabpane' },
+          React.createElement('div', { className: 'svr-empty' }, 'Looking for siblings…'));
       }
-      var meta = metaOf(row.scene);
-      if (meta) line.appendChild(el('span', 'svr-meta', meta));
-      panel.appendChild(line);
+      var kids = [React.createElement('div', { key: 'why', className: 'svr-summary' },
+        found.rows.length
+          ? plural(found.rows.length, 'other scene') + ' ' +
+            (found.rows.length === 1 ? 'is' : 'are') + ' the same work. ' + found.why
+          : found.why)];
+      found.rows.forEach(function (row) { kids.push(SiblingRow(React, row)); });
+      return React.createElement('div', { className: 'svr-tabpane' }, kids);
+    };
+  }
+
+  var _patched = false;
+
+  function installTabs() {
+    if (_patched) return true;
+    var api = pluginApi();
+    if (!api) {
+      gateLogOnce('patch', 'PluginApi component patching is unavailable - no Siblings tab. ' +
+        'This plugin needs Stash 0.28.0 or newer.');
+      return false;
+    }
+    var React = api.React;
+    var Bootstrap = (api.libraries || {}).Bootstrap;
+    var Nav = Bootstrap && Bootstrap.Nav, Tab = Bootstrap && Bootstrap.Tab;
+    if (!React || !Nav || !Tab) {
+      gateLogOnce('patch', 'PluginApi is present but React or react-bootstrap is not - ' +
+        'no Siblings tab.');
+      return false;
+    }
+    var Pane = SiblingsPane(React);
+    api.patch.after('ScenePage.Tabs', function (props, result) {
+      return React.createElement(React.Fragment, null, result, TabLink(React, Nav));
     });
-    return panel;
-  }
-
-  // Reconciliation, not tracking: React can tear down and rebuild the scene page on a
-  // re-render, so there is nothing durable to hold on to. Each tick rebuilds its opinion
-  // of what the panel should say and replaces the old one only when that opinion has
-  // changed - a panel rebuilt on every DOM burst would drop the user's text selection
-  // in it once a second.
-  function panelTick() {
-    var m = SCENE_ROUTE.exec(location.pathname);
-    if (!m) {
-      gateLogOnce('route', 'not on a Scene page');
-      clearPanel();
-      return;
-    }
-    var sceneId = m[1];
-    gateLogOnce('route', 'on Scene ' + sceneId);
+    api.patch.after('ScenePage.TabContent', function (props, result) {
+      return React.createElement(React.Fragment, null, result,
+        React.createElement(Tab.Pane, { key: TAB_KEY, eventKey: TAB_KEY },
+          React.createElement(Pane, { scene: props.scene })));
+    });
+    _patched = true;
+    gateLogOnce('patch', 'the Siblings tab is registered on the scene page');
+    // The pane's own CSS has to be on the page before React first renders it, and there
+    // is no tick watching the scene page any more to put it there.
     injectStyle();
-
-    var found = probe(sceneId);
-    if (!found.done) { gateLogOnce('panel', 'still looking for siblings of Scene ' + sceneId); return; }
-    if (!found.siblings.length) {
-      gateLogOnce('panel', 'no siblings for Scene ' + sceneId + ' - ' + found.why +
-        ' - panel not shown');
-      clearPanel();
-      return;
-    }
-
-    var strip = findTabStrip();
-    if (!strip || !strip.parentNode) {
-      gateLogOnce('panel', 'no tab strip on Scene ' + sceneId + ' - panel not shown');
-      clearPanel();
-      return;
-    }
-
-    var rows = ordered(found.siblings, settings());
-    var panel = buildPanel(sceneId, rows, found.why);
-    var existing = document.getElementById(PANEL_ID);
-    if (existing && existing.parentNode === strip.parentNode &&
-        existing._svrKey === panel._svrKey) {
-      gateLogOnce('panel', plural(rows.length, 'sibling') + ' shown for Scene ' + sceneId);
-      return;
-    }
-    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-    strip.parentNode.insertBefore(panel, strip.nextSibling);
-    gateLogOnce('panel', plural(rows.length, 'sibling') + ' shown for Scene ' + sceneId);
+    return true;
   }
-
   // ── The settings page ─────────────────────────────────────────────────────
 
   // SettingsPluginsPanel.tsx gives every plugin setting an id built from the plugin id
@@ -901,42 +896,30 @@
   function settingsTick() {
     ensureReadmeLink();
   }
-
   // ── Wiring ────────────────────────────────────────────────────────────────
-
-  var _tickTimer = null;
+  //
+  // Patches have to be registered before the components they target first render, so
+  // this runs at script load; the `load` retry only covers Stash setting
+  // window.PluginApi later than usual.
+  //
+  // The timer is for the settings page alone. There is no MutationObserver and no click
+  // or popstate handler, because there is nothing left to put back into the DOM: React
+  // renders the tab and the pane, and re-renders them itself. That is the same position
+  // `NormalizeParentTags` is in, and the reason this plugin subscribes to no `domBus`.
 
   function tick() {
     try { settingsTick(); } catch (e) { console.error('[svr] settings tick:', e); }
-    try { panelTick(); } catch (e) { console.error('[svr] panel tick:', e); }
   }
 
-  function scheduleTick() {
-    if (_tickTimer) return;
-    _tickTimer = setTimeout(function () { _tickTimer = null; tick(); }, 100);
-  }
-
-  // The shared bus rather than an observer of our own - see `domBus`. This is called at
-  // script bottom *and* from the `load` handler, so that a script evaluated after `load`
-  // has already fired is still observed; `subscribe` is idempotent, which is what stops
-  // the ordinary case registering twice for the life of the page.
-  function startObserver() {
-    domBus().subscribe(scheduleTick);
-  }
+  installTabs();
 
   if (window.addEventListener) {
     window.addEventListener('load', function () {
-      startObserver();
+      installTabs();
       tick();
     });
-    window.addEventListener('popstate', function () { setTimeout(tick, 300); });
   }
-  document.addEventListener('click', function () {
-    setTimeout(tick, 0);
-    setTimeout(tick, 300);
-  }, true);
   setInterval(tick, 1000);
-  settings();   // warm the settings cache so the first panel knows the two tag names
-  startObserver();
+  settings();   // warm the settings cache so the first pane knows the two tag names
   tick();
 }());

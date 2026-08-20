@@ -1,21 +1,113 @@
-// SceneVariants: the Siblings panel.
+// SceneVariants: the Siblings tab.
 //
 // The plugin makes no mutation, so there is nothing to assert about writes. What is
 // worth pinning is the shape of the answer: which scenes it decides are siblings, what
-// order it puts them in, what it calls each one, and the three cases where it correctly
-// shows nothing at all.
+// order it puts them in, what it calls each one, and the four cases where it correctly
+// lists nothing — three of which are ordinary answers and one of which is a failure.
 //
-// The tab strip fixture is reproduced from a live Stash the same way
-// `tests/tagclip.test.js` reproduces it - by the Edit tab's `data-rb-event-key`, since
-// a scene page renders a second element whose text is exactly "Edit".
+// **This suite drives the real patch callbacks.** The plugin no longer touches the DOM
+// on a scene page at all: it hands Stash's `ScenePage.Tabs` and `ScenePage.TabContent`
+// extension points a React element each, so a suite that inspected `document` would be
+// inspecting nothing. The fake React below is the smallest thing that can render a
+// function component with `useState` and `useEffect` and re-render it when state moves —
+// which is exactly the machinery the pane is built on and nothing more.
 'use strict';
 const path = require('path');
 const h = require('./npt-harness');
 
 const SRC = process.env.SRC || path.join(__dirname, '..', 'SceneVariants', 'SceneVariants.js');
 
-// Scene 42, one stash-id, three siblings sharing it: a full-length one, a partial and
-// an untagged one, deliberately returned in an order the panel has to change.
+// ── A React small enough to read ────────────────────────────────────────────
+//
+// Elements are `{ type, props, children }`. A component is rendered by calling it with
+// its props while a hook slot list is current; `setState` re-runs the same component
+// against the same slots and runs whatever effects changed. There is no reconciliation
+// and no tree diffing, because nothing here depends on either — the pane renders one
+// flat list and its only state transition is "the query landed".
+function makeReact() {
+  const Fragment = { fragment: true };
+  const flatten = (out, kid) => {
+    if (Array.isArray(kid)) kid.forEach((k) => flatten(out, k));
+    else if (kid !== null && kid !== undefined && kid !== false) out.push(kid);
+    return out;
+  };
+  const React = {
+    Fragment,
+    createElement(type, props, ...children) {
+      return { type, props: props || {}, children: children.reduce(flatten, []) };
+    },
+  };
+
+  // One mounted component instance: its hook slots, its pending effects, and the last
+  // element it produced.
+  let current = null;
+  React.useState = (initial) => {
+    const inst = current;
+    const i = inst.slot++;
+    if (!(i in inst.slots)) inst.slots[i] = initial;
+    return [inst.slots[i], (v) => { inst.slots[i] = v; inst.render(); }];
+  };
+  React.useEffect = (fn, deps) => {
+    const inst = current;
+    const i = inst.slot++;
+    const prev = inst.effects[i];
+    const changed = !prev || !deps || deps.length !== prev.deps.length ||
+      deps.some((d, n) => d !== prev.deps[n]);
+    if (!changed) return;
+    if (prev && prev.cleanup) prev.cleanup();
+    inst.effects[i] = { deps, cleanup: null, fn };
+    inst.pending.push(i);
+  };
+
+  // Mounts a component and returns a handle whose `.el` is always its latest output.
+  React.mount = (Component, props) => {
+    const inst = {
+      slots: {}, effects: {}, slot: 0, pending: [], el: null,
+      render() {
+        inst.slot = 0;
+        inst.pending = [];
+        const prev = current;
+        current = inst;
+        try { inst.el = Component(props); } finally { current = prev; }
+        inst.pending.forEach((i) => { inst.effects[i].cleanup = inst.effects[i].fn() || null; });
+      },
+      unmount() {
+        Object.keys(inst.effects).forEach((i) => {
+          if (inst.effects[i].cleanup) inst.effects[i].cleanup();
+        });
+      },
+    };
+    inst.render();
+    return inst;
+  };
+  return React;
+}
+
+// react-bootstrap, as far as this plugin uses it: four component identities it puts in
+// a `type`. Objects rather than functions so a test can name them by reference.
+const Bootstrap = {
+  Nav: { Item: { name: 'Nav.Item' }, Link: { name: 'Nav.Link' } },
+  Tab: { Pane: { name: 'Tab.Pane' } },
+};
+
+// ── Reading an element tree back ────────────────────────────────────────────
+
+function walk(node, out) {
+  if (!node || typeof node !== 'object') return out;
+  out.push(node);
+  (node.children || []).forEach((k) => walk(k, out));
+  return out;
+}
+const nodes = (el) => walk(el, []);
+const byClass = (el, cls) => nodes(el).filter((n) =>
+  String((n.props || {}).className || '').split(' ').indexOf(cls) !== -1);
+const textOf = (n) => (n.children || []).map((k) =>
+  (typeof k === 'object' ? textOf(k) : String(k))).join('');
+
+// ── The fixture ─────────────────────────────────────────────────────────────
+
+// Scene 42, one stash-id, three siblings sharing it: a full-length one, a partial and an
+// untagged one, deliberately returned in an order the tab has to change.
 const SIBLINGS = [
   { id: '42', title: 'Cool Shoot - Clip 2', tags: [{ id: '2', name: 'Partial Length' }],
     files: [{ duration: 243, width: 1920, height: 1080 }] },
@@ -23,11 +115,23 @@ const SIBLINGS = [
     files: [{ duration: 300, width: 1280, height: 720 }] },
   { id: '9', title: 'Cool Shoot', tags: [{ id: '1', name: 'Full Length' }],
     files: [{ duration: 2472, width: 1920, height: 1080 }] },
-  // Longer than the full-length one on purpose: role has to outrank running time, or
-  // a duration-only sort would pass this fixture by accident.
+  // Longer than the full-length one on purpose: role has to outrank running time, or a
+  // duration-only sort would pass this fixture by accident.
   { id: '55', title: 'Cool Shoot (rip)', tags: [],
     files: [{ duration: 2500, width: 3840, height: 2160 }] },
 ];
+
+// What Stash hands the patch points: a `SceneDataFragment`, which already carries
+// `stash_ids`. That is the whole reason this is one query rather than two, so the
+// fixture has to be that shape rather than a bare id.
+function sceneProp(opts) {
+  return {
+    id: '42', title: 'Cool Shoot - Clip 2',
+    stash_ids: opts.stashIds === undefined
+      ? [{ endpoint: 'https://stashdb.org/graphql', stash_id: 'abc' }]
+      : opts.stashIds,
+  };
+}
 
 function responder(opts) {
   return (req) => {
@@ -38,120 +142,142 @@ function responder(opts) {
         a2PartialLengthTag: 'Partial Length',
       }, opts.settings) } } } };
     }
-    if (q.indexOf('SVRScene') !== -1) {
-      return { data: { findScene: {
-        id: '42', title: 'Cool Shoot - Clip 2',
-        stash_ids: opts.stashIds === undefined
-          ? [{ endpoint: 'https://stashdb.org/graphql', stash_id: 'abc' }]
-          : opts.stashIds,
-      } } };
-    }
     if (q.indexOf('SVRSiblings') !== -1) {
-      if (opts.siblingsFail) return { errors: [{ message: 'unknown field stash_ids_endpoint' }] };
+      if (opts.siblingsFail) return { errors: [{ message: 'invalid modifier' }] };
       return { data: { findScenes: { scenes: opts.siblings || SIBLINGS } } };
     }
     return { data: {} };
   };
 }
 
-// The scene page's tab strip: the entity's own is the one whose Edit tab carries a
-// `*-edit-panel` key, and it is preceded here by a decoy that has neither, exactly as a
-// Gallery page renders two.
-function tabStrip(body) {
-  const decoy = h.makeElement('div');
-  decoy.className = 'nav nav-tabs';
-  const decoyTab = h.makeElement('a');
-  decoyTab.setAttribute('data-rb-event-key', 'images');
-  decoyTab.textContent = 'Edit';
-  decoy.appendChild(decoyTab);
-  body.appendChild(decoy);
-
-  const wrap = h.makeElement('div');
-  const strip = h.makeElement('div');
-  strip.className = 'mr-auto nav nav-tabs';
-  const tab = h.makeElement('a');
-  tab.setAttribute('data-rb-event-key', 'scene-edit-panel');
-  tab.textContent = 'Edit';
-  strip.appendChild(tab);
-  wrap.appendChild(strip);
-  body.appendChild(wrap);
-  return { wrap, strip };
-}
-
 function start(opts) {
   opts = opts || {};
   const warnings = [];
   const env = h.makeEnv({
-    quiet: true,
-    pathname: opts.pathname || '/scenes/42',
-    respond: opts.respond || responder(opts),
+    quiet: true, pathname: '/scenes/42', respond: opts.respond || responder(opts),
   });
   env.warnings = warnings;
   env.ctx.console = { log() {}, info() {}, error() {}, warn: (m) => warnings.push(String(m)) };
+  env.patches = {};
+  env.React = makeReact();
+  // `noPluginApi` is what a Stash older than the extension points looks like.
+  if (!opts.noPluginApi) {
+    env.ctx.PluginApi = {
+      React: env.React,
+      libraries: opts.noBootstrap ? {} : { Bootstrap },
+      patch: { after: (name, fn) => { (env.patches[name] = env.patches[name] || []).push(fn); } },
+    };
+    env.ctx.window.PluginApi = env.ctx.PluginApi;
+  }
   h.run(env.ctx, SRC);
+
+  // Stash rendering the two container components: each renders its children, and the
+  // after-patches are applied to that result in turn, exactly as `PatchFunction` does.
+  env.render = (name, props, own) => {
+    let result = own;
+    (env.patches[name] || []).forEach((fn) => { result = fn(props, result); });
+    return result;
+  };
   return env;
 }
 
-const panel = (body) => body.descendants().filter((n) => n.id === 'svr-panel')[0] || null;
-const rows = (p) => (p ? p.childNodes.slice(1) : []);
-const titles = (p) => rows(p).map((r) => r.childNodes[0].textContent);
+// Mounts the pane the TabContent patch produced, and returns the live instance.
+function mountPane(env, props) {
+  const content = env.render('ScenePage.TabContent', props, { type: 'stash-panes', props: {}, children: [] });
+  const pane = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0];
+  const inner = pane.children[0];
+  return { pane, inst: env.React.mount(inner.type, inner.props) };
+}
+
+const rows = (el) => byClass(el, 'svr-sib');
+const titles = (el) => rows(el).map((r) => textOf(r.children[0]));
 const roleOf = (row) => {
-  const span = row.childNodes.filter((n) => (n.className || '').indexOf('svr-role') === 0)[0];
-  return span ? span.className.replace('svr-role svr-role-', '') + ':' + span.textContent : null;
+  const span = (row.children || []).filter((n) =>
+    String((n.props || {}).className || '').indexOf('svr-role') === 0)[0];
+  return span ? span.props.className.replace('svr-role svr-role-', '') + ':' + textOf(span) : null;
 };
+const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] });
 
 (async function () {
   {
+    // The strip. Stash's own children come through untouched and ours is appended after
+    // them, so the tab lands at the end of the strip rather than in the middle of it.
     const env = start();
-    tabStrip(env.body);
-    await h.flush();
-    env.tick();
-    await h.flush();
-    const p = panel(env.body);
-    h.check('the panel is drawn on a scene with siblings', !!p);
-    h.check('the scene being viewed is not listed as its own sibling',
-      titles(p).indexOf('Cool Shoot - Clip 2') === -1, titles(p).join(' | '));
-    // Full-length first even though the untagged rip is the longer file, then by running
-    // time: the rip outranks the 5-minute partial.
-    h.check('full-length first, then longest',
-      JSON.stringify(titles(p)) ===
-        JSON.stringify(['Cool Shoot', 'Cool Shoot (rip)', 'Cool Shoot - Clip 1']),
-      titles(p).join(' | '));
-    h.check('the head counts the siblings and says what matched them on',
-      p.childNodes[0].textContent === '3 other scenes are the same work — matched on 1 stash-id',
-      p.childNodes[0].textContent);
-    // The one thing in the query that is neither a guess nor a preference. The stash IDs
-    // criterion accepts four modifiers and rejects the rest outright, INCLUDES among
-    // them - which is the natural guess for a list criterion, is what every other list
-    // filter in Stash takes, and is what shipped and failed on a live server. EQUALS
-    // over a list ORs the ids, which is the "any of these" the panel needs.
-    const sibQuery = env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1)[0].query;
-    h.check('the sibling query asks with EQUALS, the modifier the server accepts',
-      sibQuery.indexOf('modifier: EQUALS') !== -1 && sibQuery.indexOf('INCLUDES') === -1,
-      sibQuery);
-    h.check('each row links to its scene',
-      rows(p).map((r) => r.childNodes[0].href).join(' ') === '/scenes/9 /scenes/55 /scenes/77',
-      rows(p).map((r) => r.childNodes[0].href).join(' '));
+    const own = { type: 'stash-tabs', props: {}, children: [] };
+    const strip = env.render('ScenePage.Tabs', { scene: sceneProp({}) }, own);
+    const items = nodes(strip).filter((n) => n.type === Bootstrap.Nav.Item);
+    const link = nodes(strip).filter((n) => n.type === Bootstrap.Nav.Link)[0];
+    h.check('a Nav.Item is appended to the tab strip', items.length === 1);
+    h.check("and Stash's own children are kept, ahead of it",
+      nodes(strip).indexOf(own) !== -1 && nodes(strip).indexOf(own) < nodes(strip).indexOf(items[0]));
+    h.check('the tab is captioned Siblings', !!link && textOf(link) === 'Siblings', textOf(link));
+    // The key sits in the namespace Stash's own nine tab keys use, and `activeTabKey` is
+    // a plain useState with no whitelist - so a key of our own is selectable like theirs.
+    h.check('the tab key is in the scene page\'s own key namespace',
+      link.props.eventKey === 'scene-svr-siblings-panel', link.props.eventKey);
   }
 
   {
     const env = start();
-    const fx = tabStrip(env.body);
+    const props = { scene: sceneProp({}) };
+    const own = { type: 'stash-panes', props: {}, children: [] };
+    const content = env.render('ScenePage.TabContent', props, own);
+    const pane = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0];
+    h.check('a Tab.Pane is appended to the tab content', !!pane);
+    h.check('under the same key the strip named',
+      pane.props.eventKey === 'scene-svr-siblings-panel', pane.props.eventKey);
+    h.check("and Stash's own panes are kept", nodes(content).indexOf(own) !== -1);
+  }
+
+  {
+    const env = start();
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    // Before the query lands the pane says so rather than rendering an empty list, which
+    // would read as "no siblings" for as long as the round trip takes.
+    h.check('the pane says it is looking while the query is out',
+      textOf(inst.el).indexOf('Looking for siblings') !== -1, textOf(inst.el));
     await h.flush();
-    env.tick();
+    h.check('the viewed scene is not listed as its own sibling',
+      titles(inst.el).indexOf('Cool Shoot - Clip 2') === -1, titles(inst.el).join(' | '));
+    // Full-length first even though the untagged rip is the longer file, then by running
+    // time: the rip outranks the 5-minute partial.
+    h.check('full-length first, then longest',
+      JSON.stringify(titles(inst.el)) ===
+        JSON.stringify(['Cool Shoot', 'Cool Shoot (rip)', 'Cool Shoot - Clip 1']),
+      titles(inst.el).join(' | '));
+    h.check('the first line counts them and says what matched them',
+      summary(inst.el) === '3 other scenes are the same work. Matched on 1 stash-id.',
+      summary(inst.el));
+    h.check('each row links to its scene',
+      rows(inst.el).map((r) => r.children[0].props.href).join(' ') === '/scenes/9 /scenes/55 /scenes/77',
+      rows(inst.el).map((r) => r.children[0].props.href).join(' '));
+    // The one thing in the query that is neither a guess nor a preference. The stash IDs
+    // criterion accepts four modifiers and rejects the rest outright, INCLUDES among
+    // them - which is the natural guess for a list criterion, is what every other list
+    // filter in Stash takes, and is what shipped and failed on a live server. EQUALS
+    // over a list ORs the ids, which is the "any of these" the tab needs.
+    const sib = env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1)[0].query;
+    h.check('the sibling query asks with EQUALS, the modifier the server accepts',
+      sib.indexOf('modifier: EQUALS') !== -1 && sib.indexOf('INCLUDES') === -1, sib);
+    // The stash-ids come off the props Stash already handed us, so nothing looks the
+    // scene up first. A second query here is the two-round-trip version coming back.
+    h.check('the scene itself is never queried - its stash-ids came from the props',
+      env.calls.every((c) => c.query.indexOf('findScene(') === -1),
+      env.calls.map((c) => c.query.slice(0, 40)).join(' | '));
+  }
+
+  {
+    const env = start();
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
-    const p = panel(env.body);
-    h.check('the panel sits after the entity\'s own strip, not the decoy',
-      p.parentNode === fx.wrap &&
-        fx.wrap.childNodes.indexOf(p) === fx.wrap.childNodes.indexOf(fx.strip) + 1);
     h.check('a full-length sibling is named and marked',
-      roleOf(rows(p)[0]) === 'fl:Full Length', roleOf(rows(p)[0]));
+      roleOf(rows(inst.el)[0]) === 'fl:Full Length', roleOf(rows(inst.el)[0]));
     h.check('an untagged sibling is listed with no role at all',
-      roleOf(rows(p)[1]) === null, roleOf(rows(p)[1]));
-    // The stored tag name is padded and lower-cased; these are typed into a settings
-    // box by hand, so a comparison that respected either would classify nothing.
+      roleOf(rows(inst.el)[1]) === null, roleOf(rows(inst.el)[1]));
+    // The stored tag name is padded and lower-cased; these are typed into a settings box
+    // by hand, so a comparison that respected either would classify nothing.
     h.check('the tag match ignores case and surrounding space',
-      roleOf(rows(p)[2]) === 'pl:Partial Length', roleOf(rows(p)[2]));
+      roleOf(rows(inst.el)[2]) === 'pl:Partial Length', roleOf(rows(inst.el)[2]));
   }
 
   {
@@ -162,35 +288,46 @@ const roleOf = (row) => {
       { id: '9', title: 'Confused', tags: [{ id: '1', name: 'Full Length' },
         { id: '2', name: 'Partial Length' }], files: [{ duration: 60 }] },
     ] });
-    tabStrip(env.body);
-    await h.flush();
-    env.tick();
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
     h.check('a scene carrying both tags is flagged rather than classified',
-      roleOf(rows(panel(env.body))[0]) === 'bad:both tags',
-      roleOf(rows(panel(env.body))[0]));
+      roleOf(rows(inst.el)[0]) === 'bad:both tags', roleOf(rows(inst.el)[0]));
   }
 
   {
     const env = start({ settings: { a1FullLengthTag: '', a2PartialLengthTag: '' } });
-    tabStrip(env.body);
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
-    env.tick();
+    h.check('with no tag names configured the pane still lists the siblings',
+      titles(inst.el).length === 3, titles(inst.el).join(' | '));
+    h.check('and classifies none of them', rows(inst.el).every((r) => roleOf(r) === null));
+  }
+
+  {
+    // The rows are classified against the user's tag names, and those arrive over the
+    // wire. A pane that rendered against the empty defaults because the settings had not
+    // landed yet would be wrong for as long as the tab stayed open, since nothing
+    // re-renders it afterwards.
+    const env = start();
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
-    const p = panel(env.body);
-    h.check('with no tag names configured the panel still lists the siblings',
-      titles(p).length === 3, titles(p).join(' | '));
-    h.check('and classifies none of them',
-      rows(p).every((r) => roleOf(r) === null));
+    const settingsAt = env.calls.findIndex((c) => c.query.indexOf('configuration') !== -1);
+    const siblingsAt = env.calls.findIndex((c) => c.query.indexOf('SVRSiblings') !== -1);
+    h.check('the settings are read before the rows are classified',
+      settingsAt !== -1 && settingsAt < siblingsAt,
+      'settings at ' + settingsAt + ', siblings at ' + siblingsAt);
+    h.check('so the classification uses them', roleOf(rows(inst.el)[0]) === 'fl:Full Length');
   }
 
   {
     const env = start({ stashIds: [] });
-    tabStrip(env.body);
+    const { inst } = mountPane(env, { scene: sceneProp({ stashIds: [] }) });
     await h.flush();
-    env.tick();
-    await h.flush();
-    h.check('a scene with no stash-id gets no panel', !panel(env.body));
+    h.check('a scene with no stash-id lists nothing', rows(inst.el).length === 0);
+    // The tab is always there, so this is the one place the reason can be given - and it
+    // is the ordinary case, not an error. It reads as a fact about the library.
+    h.check('and the pane says which of the reasons applies',
+      summary(inst.el).indexOf('carries no stash-id') !== -1, summary(inst.el));
     h.check('and the sibling query is never sent',
       env.calls.every((c) => c.query.indexOf('SVRSiblings') === -1),
       env.calls.map((c) => c.query.slice(0, 30)).join(' | '));
@@ -198,50 +335,67 @@ const roleOf = (row) => {
 
   {
     const env = start({ siblings: [] });
-    tabStrip(env.body);
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
-    env.tick();
-    await h.flush();
-    h.check('a scene whose stash-id nobody shares gets no panel', !panel(env.body));
+    h.check('a stash-id nobody shares lists nothing and says so',
+      rows(inst.el).length === 0 && summary(inst.el).indexOf('No other scene shares') !== -1,
+      summary(inst.el));
   }
 
   {
-    // A filter field named differently on this Stash looks exactly like "there was
-    // nothing to show", and only one of those is worth reporting - so the failure is
-    // loud whatever the logging setting says.
+    // A filter field named differently on this Stash looks exactly like a scene with no
+    // siblings, and only one of those is worth reporting - so the failure is loud
+    // whatever the logging setting says, and the pane names it rather than going quiet.
     const env = start({ siblingsFail: true });
-    tabStrip(env.body);
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
-    env.tick();
-    await h.flush();
-    h.check('a failed sibling query draws no panel', !panel(env.body));
+    h.check('a failed sibling query lists nothing', rows(inst.el).length === 0);
     h.check('and says so on the console without being asked',
       env.warnings.some((w) => w.indexOf('sibling lookup failed for scene 42') !== -1),
       env.warnings.join(' | '));
+    h.check('and says so in the pane too',
+      summary(inst.el).indexOf('The sibling query failed') !== -1, summary(inst.el));
   }
 
   {
+    // Walking the queue changes the scene under a mounted pane. The effect is keyed on
+    // the scene id, so it re-runs; a pane keyed on nothing would go on showing the
+    // previous scene's siblings for as long as the tab stayed open.
     const env = start();
-    tabStrip(env.body);
+    const content = env.render('ScenePage.TabContent', { scene: sceneProp({}) },
+      { type: 'stash-panes', props: {}, children: [] });
+    const inner = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0].children[0];
+    const props = { scene: sceneProp({}) };
+    const inst = env.React.mount(inner.type, props);
     await h.flush();
-    env.tick();
+    const before = env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1).length;
+    inst.render();
     await h.flush();
-    const first = panel(env.body);
-    const queries = env.calls.filter((c) => c.query.indexOf('SVR') !== -1).length;
-    env.tick();
-    env.tick();
+    h.check('re-rendering the same scene asks the server nothing further',
+      env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1).length === before,
+      String(env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1).length));
+    props.scene = { id: '99', stash_ids: [{ endpoint: 'e', stash_id: 'xyz' }] };
+    inst.render();
     await h.flush();
-    h.check('ticking again neither duplicates the panel nor replaces it',
-      env.body.descendants().filter((n) => n.id === 'svr-panel').length === 1 &&
-        panel(env.body) === first);
-    h.check('and asks the server nothing further',
-      env.calls.filter((c) => c.query.indexOf('SVR') !== -1).length === queries,
-      String(env.calls.filter((c) => c.query.indexOf('SVR') !== -1).length));
+    h.check('but moving to another scene re-runs the lookup',
+      env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1).length === before + 1);
+    h.check('and the new scene is the one excluded from its own list',
+      titles(inst.el).indexOf('Cool Shoot - Clip 2') !== -1, titles(inst.el).join(' | '));
+  }
 
-    env.ctx.location.pathname = '/performers/3';
-    env.tick();
-    await h.flush();
-    h.check('leaving the scene page takes the panel with it', !panel(env.body));
+  {
+    // No extension points, no tab - and no hand-built imitation of one either. A second
+    // implementation would have to reproduce tab activation and pane switching, which is
+    // exactly what patching gets for free.
+    const env = start({ noPluginApi: true });
+    h.check('a Stash without the extension points gets no tab and no DOM fallback',
+      env.body.descendants().length === 0, String(env.body.descendants().length));
+  }
+
+  {
+    const env = start({ noBootstrap: true });
+    h.check('and neither does one whose PluginApi has no react-bootstrap',
+      Object.keys(env.patches).length === 0, Object.keys(env.patches).join(' '));
   }
 
   h.finish();

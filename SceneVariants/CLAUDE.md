@@ -6,55 +6,88 @@ name prefix) are in `../CLAUDE.md` and still apply. The user-facing description 
 this file is for the reasoning that does not belong in either. The design this was built from is
 `../.plans/scene-variants.md`, which covers five further levels.
 
-**The first live session found one thing and could not get far enough to look at the rest.** The
-sibling query was rejected outright — `invalid modifier INCLUDES for stash IDs criterion` — so the
-panel has still never been drawn on a real page. What that failure did confirm is §2's field name
-and shape, since the criterion parsed and reached its handler; everything about the panel itself is
-still a guess. `tests/scenevariants.test.js` is 20
+**The presentation was rebuilt once, before it had ever been seen working.** The first cut injected
+a block of DOM under the scene page's tab strip; what was actually wanted was a *tab* — one more
+entry beside Details, Queue, Markers, Group, Filter, File Info, History and Edit. The rebuild is a
+net deletion, and §1 is why.
+
+**Nothing here has been seen working on a live page yet.** The first live session got as far as the
+sibling query being rejected outright — `invalid modifier INCLUDES for stash IDs criterion` — which
+confirmed §2's field name and shape (the criterion parsed and reached its handler) and nothing else. `tests/scenevariants.test.js` is 20
 checks against four mutants, and every one of them is a fact about the plugin's own logic — not one
 of them can tell you the tab strip is where this thinks it is, or that `stash_ids_endpoint` is
 spelled that way on the server in front of you.
 
-## 1. What L0 is, and what it deliberately is not
+## 1. A tab, and the three things that got deleted to build one
 
-The plan's L0 was **a button** whose caption depended on the sibling count — straight to the one
-match, a picker dialog for several. The user asked for a **panel** instead, and the panel is
-strictly less machinery for strictly more information: it answers the one-sibling case and the
-many-sibling case with the same markup, so the picker dialog, the count-dependent caption, the
-`"..."` convention, `insertBeforeImportantAction`, `applyButtonSpacing` and the `coop().order`
-registration are all *not built* rather than deferred. A panel is also the honest shape for the
-question: "is there a full-length of this" is something you want answered while you are looking at
-the page, not after a click.
+The plan's L0 was **a button** whose caption depended on the sibling count. That became a DOM panel
+under the tab strip, and then — on the correction that "tab" meant a real one — a tab. Each step was
+a deletion, and the last was the largest:
 
-The plan's suggestion of a `coop().order` of **15** is still the right number if buttons ever
-arrive, and the gap it sits in is still open.
+**Gone with the DOM panel:** `findTabStrip` and `hasEditPanelTab`, the `svr-panel` reconciliation
+(build a panel, compare a content key, replace only on a change), `clearPanel`, the route regex, the
+`domBus` subscription, the click and `popstate` handlers, and the two-query probe with its
+single-entry cache and in-flight guard. Roughly two hundred lines, all of it machinery for putting
+something back into a DOM React kept taking away.
 
-## 2. Two queries, not the plan's one
+**What replaced it is React's:** the tab and the pane are components handed to two extension points,
+and React renders them, re-renders them and unmounts them. The pane's own state is one `useState`
+and one `useEffect` keyed on the scene id.
 
-`../.plans/scene-variants.md` §4 shows the sibling lookup as a single `findScenes` call. That is
-true of the *filter* and false of the *plugin*: the filter needs this scene's stash-ids, and a page
-gives you an id in a URL. So it is `findScene` for the ids, then `findScenes` for the siblings, and
-the first is what the second's variables come from.
+**And the query halved.** `props.scene` is a `SceneDataFragment`, which already carries `stash_ids` —
+so the plan's single-`findScenes` sketch in §4 turns out to be right after all. It was only ever two
+queries because a DOM plugin starts from an id in a URL and has to ask who that scene is. A tab is
+*handed* the scene.
 
-**`endpoint` is deliberately omitted from the criterion.** A sibling set spanning two metadata
-providers is still one work, and naming an endpoint would hide half of it. Whether omitting it
-matches across endpoints is one of the things §5 lists as unverified.
+The plan's `coop().order` of **15** is still the right number if buttons ever arrive, and the gap it
+sits in is still open.
 
-## 3. The cache is one entry, not a map
+## 2. The extension points, and why there is no fallback
 
-`_probe` holds the last scene probed and is replaced when the route changes. A map keyed by scene id
-would grow for the life of the tab to serve a hit rate close to zero — you look at a scene page for
-minutes and reach the next one by navigating, which is exactly when the entry is replaced. The one
-entry is doing the real work: the panel is redrawn on every DOM burst, and without it every burst
-would be two queries.
+Read off `stashapp/stash`; `Scene.tsx` declares both, and they are in v0.28.0 and v0.31.1 alike:
 
-The in-flight guard is `if (_probe !== entry) return`, not a flag: the user can navigate away while
-the sibling query is out, and the answer that comes back then belongs to a scene nobody is looking
-at.
+```ts
+const ScenePageTabs       = PatchContainerComponent<IProps>("ScenePage.Tabs");
+const ScenePageTabContent = PatchContainerComponent<IProps>("ScenePage.TabContent");
+```
 
-## 4. Four decisions in the panel that look arbitrary
+A `PatchContainerComponent` renders `props.children` and nothing else. It exists to be patched.
+Four facts worth not re-deriving:
 
-- **Role outranks running time in the sort.** The panel's usual question is *which of these is the
+- **`after(component, fn)` is invoked as `afterFn.apply(ctx, args.concat(result))`**, so for a
+  component the callback is `(props, result)` and returns the new result. Appending is
+  `<>{result}<Ours/></>`.
+- **The patch list is read when the component renders**, not when it is defined, so registering at
+  script load is early enough however late `Scene.tsx` is imported.
+- **`props.scene` is a `SceneDataFragment`** and carries `stash_ids` — see §1.
+- **`activeTabKey` is a plain `useState("scene-details-panel")` with no whitelist**, so a key of our
+  own is selectable exactly like Stash's nine. `TAB_KEY` sits in their namespace deliberately.
+
+**There is no DOM fallback for a Stash without these**, and that is a decision rather than an
+omission. A hand-built tab would have to reproduce activation, pane switching and every re-render
+React does for free — a second implementation of the thing that was just deleted. An old Stash gets
+one console line, and the README states the requirement.
+
+## 3. The tab is always there, and carries no count
+
+Two decisions that pull against each other, and both go the same way for the same reason: the strip
+must not move.
+
+**Always rendered**, including on the scenes — most of them today — with no stash-id and therefore
+no possible sibling. A tab that appeared when a query landed would shift every tab to its left under
+the user's pointer. And the empty cases are the ones worth explaining: "this scene carries no
+stash-id" is a fact about the library the user can act on, and a tab that hid itself is the one
+place it could never be said.
+
+**No count in the caption.** The strip and the pane are two separate patches rendering two separate
+components, so a count beside the word would mean sharing one query's answer between them — a
+module-level cache and a subscription — to save the user one click. The pane counts its own rows in
+its first line instead. A count would also have to *change* after the tab first rendered, which is
+the strip moving again.
+
+## 4. Four decisions in the pane that look arbitrary
+
+- **Role outranks running time in the sort.** The pane's usual question is *which of these is the
   whole thing*, so a tagged full-length scene sits above a longer untagged rip. The suite's fixture
   makes the untagged sibling the longer file on purpose; without that, a duration-only sort produces
   the same order and the rank is untested.
@@ -66,21 +99,26 @@ at.
   is no correct winner to pick; the plan's §7 lists this as the first diagnosis and its L3 answer is
   "ask which", which needs a dialog this plugin does not have. Showing it is the whole of what L0
   can honestly do.
-- **The panel is replaced only when its content changes.** `_svrKey` is the scene id plus each
-  sibling's id and role, and an existing panel with the same key in the same parent is left alone.
-  Rebuilding it on every burst would drop a text selection in it about once a second.
+- **The settings are awaited before the rows are classified.** `settingsReady()` sits in front of
+  the query rather than the pane reading `settings()` synchronously, because the pane reads them
+  exactly once — on mount — and nothing re-renders it afterwards. Classifying half a second early
+  against the empty defaults would be wrong for as long as the tab stayed open, and would look
+  exactly like two tag names that do not match.
 
 ## 5. Unverified — the list a first live session empties
 
 Everything in it is a guess about Stash that no test here can check:
 
-1. **The tab strip anchor.** Ported from `TagBundleClipboard`, which found it live — but that plugin
-   puts a *row of buttons* under the strip and this puts a bordered panel, so what is confirmed is
-   the anchor, not that a panel looks right there.
-2. **The panel's own CSS** against Stash's theme: the greys are the dialogs' greys, but no dialog in
-   this repo sits inline on a page the way this does.
+1. **That the tab renders at all.** Everything in §2 is read off Stash's source and none of it has
+   been exercised. The most likely way this is wrong is not the patch names but the *shape* of what
+   an after-patch may return.
+2. **The pane's own CSS** against Stash's theme: the greys are the dialogs' greys, but no dialog in
+   this repo sits inline in a tab pane the way this does, and the pane takes no background of its
+   own.
 3. **That a sibling set is ever found at all** — the query is right by construction now, and nobody
    has seen it return two scenes.
+4. **Where the tab lands in the strip.** It is appended, so it should sit after Edit; whether that
+   reads better before Edit is a judgement nobody has been able to make yet.
 
 **Confirmed, and worth not re-deriving:** `stash_ids_endpoint` exists, is spelled that way and takes
 a list (the live rejection came from inside its handler, so everything before the modifier parsed);
@@ -98,9 +136,9 @@ the one place this plugin is deliberately noisy. Every other way of showing noth
 no sibling — is a legitimate answer, and the three are indistinguishable to a user looking at a page
 with no panel on it. Only one of them is worth a line.
 
-## 6. Why there is no dialog, and what that cost in the suite
+## 6. Why there is no dialog, and what that cost in the suites
 
-The plugin draws a panel and links. There is no backdrop, no log, no footer — so
+The plugin draws a tab pane and links. There is no backdrop, no log, no footer — so
 `tests/style.test.js` gained a `chrome: false` flag beside its existing `settings` one, plus the
 inverse check that a plugin claiming no dialog defines none of the chrome *and* names no backdrop of
 its own in its source. That is the same shape as the settings flag: a flag recording an absence has
@@ -110,24 +148,42 @@ The settings half of the shared design is **not** waived. Every plugin here gets
 and a description whether or not it puts up a dialog, and the per-setting tooltip applies the moment
 there is a setting row. Both halves are byte-identical to the siblings'.
 
-## 7. The three shared mechanisms this plugin correctly does not use
+## 7. The five shared mechanisms this plugin correctly does not use
 
 No lease (it issues no mutation), no `respecters` entry (it reacts to no save), no `declares` entry
 (it copies no relationship, so any path id would be a lie). `TagBundleClipboard` is the precedent for
-all three. A fourth is added here: no `coop().order`, because the ordering protocol is about buttons
-sharing one of Stash's own action rows and this panel has its own container with nobody in it.
+those three. Two more are added here: no `coop().order`, because the ordering protocol is about
+buttons sharing one of Stash's own action rows and this plugin draws no button; and **no `domBus`**,
+because the shared observer exists to put a control back after a re-render and React is doing the
+rendering. That leaves the settings page, which is decoration a one-second timer covers — exactly
+the position `NormalizeParentTags` is in, and it is the second plugin here to subscribe to nothing.
 
 What it *does* read is `coop().debugButtons`, on the same reasoning the name already stretched to
-cover a list-view menu item: the flag answers "why is this control not there", and a panel is a
+cover a list-view menu item: the flag answers "why is this control not there", and a tab is a
 control.
+
+## 7b. The suite had to grow a React
+
+The plugin no longer touches the DOM on a scene page, so a suite reading `document` would be reading
+nothing. `tests/scenevariants.test.js` carries about forty lines of fake React — `createElement`
+producing `{type, props, children}`, plus a `useState` and a `useEffect` over hook slots with a
+re-render on `setState`. That is the whole of what the pane uses, and building it was cheaper than
+the alternative on offer, which was to test nothing about the pane at all.
+
+It also drives the patch callbacks the way `PatchFunction` does — feed each registered `after` the
+props and the previous result — so what the checks read is the element tree Stash would render.
 
 ## 8. Where L1 goes when it arrives
 
-The title and shared-performer fallbacks are the plan's §5 L1, and the seam for them is `probe`'s
-`if (!ids.length)` branch — today it returns an empty set with a reason string, and the reason
-string is already what the panel head prints. A title-matched sibling has to be *marked* as such in
-the row, since the confidence differs from an id match; the `cls` object each row carries is where
-that goes.
+The title and shared-performer fallbacks are the plan's §5 L1, and the seam for them is
+`findSiblings`' `if (!ids.length)` branch — today it returns an empty set with a reason sentence, and
+that sentence is already what the pane's first line prints. A title-matched sibling has to be
+*marked* as such in the row, since the confidence differs from an id match; the `cls` object each row
+carries is where that goes.
+
+The tab being permanent is what makes L1 land well: the scenes it will help are exactly the ones
+looking at "This scene carries no stash-id" today, and they will not have to discover a tab that was
+not there before.
 
 With about two scenes in three carrying no stash-id in the user's library, L1 is worth more than
 everything above it in the plan.

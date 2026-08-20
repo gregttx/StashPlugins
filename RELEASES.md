@@ -10,11 +10,12 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-20 |  |  |  |  | 0.1.2 (`b4cec90`) |  | SceneVariants 0.1.2: prove the patch shape against the real React |
-| 2026-08-20 |  |  |  |  | 0.1.1 (`f997b2d`) |  | SceneVariants 0.1.1: the after-patch reads its result off the end |
-| 2026-08-20 |  |  |  |  | 0.1.0 (`6f8240f`) |  | SceneVariants 0.1.0: a real Siblings tab on the scene page |
-| 2026-08-20 |  |  |  |  | 0.0.2 (`1349356`) |  | SceneVariants 0.0.2: the sibling query asks with EQUALS |
-| 2026-08-20 |  |  |  |  | 0.0.1 (`5a37e41`) |  | SceneVariants 0.0.1: L0 of the scene-variants plan, as a Siblings panel |
+| 2026-08-20 |  |  |  |  | 0.2.0 (`c0dd2a6`) |  | SceneVariants 0.2.0: covers and previews, and one word for one idea |
+| 2026-08-20 |  |  |  |  | [0.1.2](https://github.com/gregttx/StashPlugins/commit/b4cec90) |  | SceneVariants 0.1.2: prove the patch shape against the real React |
+| 2026-08-20 |  |  |  |  | [0.1.1](https://github.com/gregttx/StashPlugins/commit/f997b2d) |  | SceneVariants 0.1.1: the after-patch reads its result off the end |
+| 2026-08-20 |  |  |  |  | [0.1.0](https://github.com/gregttx/StashPlugins/commit/6f8240f) |  | SceneVariants 0.1.0: a real Siblings tab on the scene page |
+| 2026-08-20 |  |  |  |  | [0.0.2](https://github.com/gregttx/StashPlugins/commit/1349356) |  | SceneVariants 0.0.2: the sibling query asks with EQUALS |
+| 2026-08-20 |  |  |  |  | [0.0.1](https://github.com/gregttx/StashPlugins/commit/5a37e41) |  | SceneVariants 0.0.1: L0 of the scene-variants plan, as a Siblings panel |
 | 2026-08-20 |  | [3.7.0](https://github.com/gregttx/StashPlugins/commit/e8c5914) |  |  |  |  | MPTTS 3.7.0: the superseded notice reads PTP2RE's settings too |
 | 2026-08-20 |  | [3.6.2](https://github.com/gregttx/StashPlugins/commit/15dc942) |  |  |  |  | MPTTS 3.6.2: the superseded notice sits in the heading, after the name |
 | 2026-08-20 |  | [3.6.1](https://github.com/gregttx/StashPlugins/commit/7d1ad93) |  |  |  |  | MPTTS 3.6.1: the superseded notice moves to the heading line |

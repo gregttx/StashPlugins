@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-20 |  |  |  |  | 0.1.2 (`b4cec90`) |  | SceneVariants 0.1.2: prove the patch shape against the real React |
 | 2026-08-20 |  |  |  |  | 0.1.1 (`f997b2d`) |  | SceneVariants 0.1.1: the after-patch reads its result off the end |
 | 2026-08-20 |  |  |  |  | 0.1.0 (`6f8240f`) |  | SceneVariants 0.1.0: a real Siblings tab on the scene page |
 | 2026-08-20 |  |  |  |  | 0.0.2 (`1349356`) |  | SceneVariants 0.0.2: the sibling query asks with EQUALS |

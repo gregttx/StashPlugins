@@ -1289,6 +1289,12 @@ most-linked id in the whole table, so counting there would resolve a select-all 
 Findings from reading `stashapp/stash` `graphql/schema/types/*` on `main`, 2026-08-04. Verify
 against the running Stash version before relying on any of it — this is a snapshot, not a contract.
 
+**Confirmed against a live server by introspection, 2026-08-20**, every row of the table below:
+the five bulk inputs carrying `custom_fields`, the two without, and `SceneMarker` having none at
+all. `BulkSceneMarkerUpdateInput` does exist there, which the table never claimed either way; it
+takes no `custom_fields`, so nothing here changes. Still verify after a Stash upgrade - what this
+buys is that the reading behind the table was right, not that it is a contract.
+
 **`CustomFieldsBulkEditor` is what came of this section**, and it acts on every line of it: the
 seven types are its `ENTITIES` table, the two without a bulk input are the two it writes one at a
 time, `partial`/`remove` are the only two inputs it uses, and "there is no way to query objects for

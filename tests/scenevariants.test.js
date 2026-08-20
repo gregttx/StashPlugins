@@ -26,20 +26,40 @@ const SRC = process.env.SRC || path.join(__dirname, '..', 'SceneVariants', 'Scen
 // flat list and its only state transition is "the query landed".
 function makeReact() {
   const Fragment = { fragment: true };
-  const flatten = (out, kid) => {
-    if (Array.isArray(kid)) kid.forEach((k) => flatten(out, k));
-    else if (kid !== null && kid !== undefined && kid !== false) out.push(kid);
-    return out;
-  };
   const React = {
     Fragment,
+    // **Children live in `props.children`, and a single child is not wrapped in an
+    // array.** This fake used to hang them off a `children` property of its own, which
+    // read fine in the checks and is not where React puts them — and the plugin now reads
+    // `container.props.children` to splice its tab in ahead of Edit. That is the third
+    // time a divergence between this fake and React would have mattered, so it is
+    // faithful here even though it makes the readers below do a little more work.
     createElement(type, props, ...children) {
-      return { type, props: props || {}, children: children.reduce(flatten, []), _el: true };
+      const p = Object.assign({}, props || {});
+      if (children.length === 1) p.children = children[0];
+      else if (children.length > 1) p.children = children;
+      return { type, props: p, _el: true };
     },
     // The plugin checks this before appending to anything, so the fake has to answer it.
     // `_el` stands in for React's `$$typeof` symbol: the point is only that an element is
     // distinguishable from a plain object, which is the distinction that was missed.
     isValidElement: (v) => !!(v && typeof v === 'object' && v._el === true),
+    Children: {
+      // Flattens, drops what React drops, and assigns a key to everything - which is the
+      // reason the plugin uses it rather than the raw value, so a fake that skipped the
+      // keys would not be testing the thing that matters.
+      toArray(children) {
+        const out = [];
+        const walk = (kid) => {
+          if (Array.isArray(kid)) return kid.forEach(walk);
+          if (kid === null || kid === undefined || typeof kid === 'boolean') return;
+          out.push(React.isValidElement(kid) && kid.props.key === undefined
+            ? Object.assign({}, kid, { key: '.' + out.length }) : kid);
+        };
+        walk(children);
+        return out;
+      },
+    },
   };
 
   // One mounted component instance: its hook slots, its pending effects, and the last
@@ -96,17 +116,23 @@ const Bootstrap = {
 
 // ── Reading an element tree back ────────────────────────────────────────────
 
+function kidsOf(node) {
+  const k = node && node.props ? node.props.children : null;
+  if (k === null || k === undefined) return [];
+  return Array.isArray(k) ? k : [k];
+}
 function walk(node, out) {
+  if (Array.isArray(node)) { node.forEach((k) => walk(k, out)); return out; }
   if (!node || typeof node !== 'object') return out;
   out.push(node);
-  (node.children || []).forEach((k) => walk(k, out));
+  kidsOf(node).forEach((k) => walk(k, out));
   return out;
 }
 const nodes = (el) => walk(el, []);
 const byClass = (el, cls) => nodes(el).filter((n) =>
   String((n.props || {}).className || '').split(' ').indexOf(cls) !== -1);
-const textOf = (n) => (n.children || []).map((k) =>
-  (typeof k === 'object' ? textOf(k) : String(k))).join('');
+const textOf = (n) => kidsOf(n).map((k) =>
+  (k && typeof k === 'object' ? textOf(k) : String(k))).join('');
 
 // The legacy context object React hands a function component as its second argument.
 // One shared identity so a check can look for it by reference in a rendered tree.
@@ -115,7 +141,23 @@ const REACT_LEGACY_CONTEXT = {};
 // What a container component rendered before our patch is chained onto it. `_el` is the
 // fake React's stand-in for `$$typeof`: the plugin refuses to append to anything that is
 // not an element, so a fixture that skipped this would be testing the refusal path.
-const stashRendered = (type) => ({ type, props: {}, children: [], _el: true });
+const stashRendered = (type) => ({ type, props: {}, _el: true });
+
+// Stash's own tab strip, as `ScenePageTabs` renders it. Each tab is a `Nav.Item` around a
+// `Nav.Link`, so the key that identifies one is a level in - and the conditional tabs
+// render `""` when their content is absent, which is why the plugin reaches for
+// `React.Children.toArray` rather than for the raw children value.
+function stashStrip(React, keys) {
+  const kids = keys.map((k, i) => (k === null ? '' : React.createElement(Bootstrap.Nav.Item,
+    { key: 'tab' + i },
+    React.createElement(Bootstrap.Nav.Link, { eventKey: k }, k.replace(/^scene-|-panel$/g, '')))));
+  return React.createElement(React.Fragment, null, ...kids);
+}
+
+// The eventKeys of a rendered strip, in order.
+const tabKeys = (el) => nodes(el)
+  .filter((n) => n.type === Bootstrap.Nav.Link)
+  .map((n) => n.props.eventKey);
 
 // ── The fixture ─────────────────────────────────────────────────────────────
 
@@ -213,7 +255,7 @@ function start(opts) {
 function mountPane(env, props) {
   const content = env.render('ScenePage.TabContent', props, stashRendered('stash-panes'));
   const pane = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0];
-  const inner = pane.children[0];
+  const inner = kidsOf(pane)[0];
   return { pane, inst: env.React.mount(inner.type, inner.props) };
 }
 
@@ -231,21 +273,40 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
 
 (async function () {
   {
-    // The strip. Stash's own children come through untouched and ours is appended after
-    // them, so the tab lands at the end of the strip rather than in the middle of it.
+    // The strip. Stash's own tabs come through untouched and ours is spliced in ahead of
+    // Edit, which is the one tab that is an action rather than a view.
     const env = start();
-    const own = stashRendered('stash-tabs');
+    const own = stashStrip(env.React, ['scene-details-panel', null, 'scene-markers-panel',
+      null, 'scene-video-filter-panel', 'scene-file-info-panel', 'scene-history-panel',
+      'scene-edit-panel']);
     const strip = env.render('ScenePage.Tabs', { scene: sceneProp({}) }, own);
     const items = nodes(strip).filter((n) => n.type === Bootstrap.Nav.Item);
-    const link = nodes(strip).filter((n) => n.type === Bootstrap.Nav.Link)[0];
-    h.check('a Nav.Item is appended to the tab strip', items.length === 1);
-    h.check("and Stash's own children are kept, ahead of it",
-      nodes(strip).indexOf(own) !== -1 && nodes(strip).indexOf(own) < nodes(strip).indexOf(items[0]));
-    h.check('the tab is captioned Siblings', !!link && textOf(link) === 'Variants', textOf(link));
+    const link = nodes(strip).filter((n) =>
+      n.type === Bootstrap.Nav.Link && n.props.eventKey === 'scene-svr-variants-panel')[0];
+    h.check('a Nav.Item is added to the tab strip', items.length === 7, String(items.length));
+    h.check("and Stash's own tabs all survive",
+      tabKeys(strip).filter((k) => k !== 'scene-svr-variants-panel').join(' ') ===
+        'scene-details-panel scene-markers-panel scene-video-filter-panel ' +
+        'scene-file-info-panel scene-history-panel scene-edit-panel',
+      tabKeys(strip).join(' '));
+    h.check('the tab goes before Edit rather than after it',
+      tabKeys(strip).indexOf('scene-svr-variants-panel') ===
+        tabKeys(strip).indexOf('scene-edit-panel') - 1, tabKeys(strip).join(' '));
+    h.check('the tab is captioned Variants', !!link && textOf(link) === 'Variants', textOf(link));
     // The key sits in the namespace Stash's own nine tab keys use, and `activeTabKey` is
     // a plain useState with no whitelist - so a key of our own is selectable like theirs.
     h.check('the tab key is in the scene page\'s own key namespace',
       link.props.eventKey === 'scene-svr-variants-panel', link.props.eventKey);
+    // Placement is an *attempt*: a Stash that renames or drops its Edit tab loses the
+    // position, not the tab. Appending is what this did before there was a position to
+    // want, so it is also the fallback.
+    const noEdit = stashStrip(env.React, ['scene-details-panel', 'scene-history-panel']);
+    const fallback = env.render('ScenePage.Tabs', { scene: sceneProp({}) }, noEdit);
+    h.check('with no Edit tab to find, ours is appended rather than lost',
+      tabKeys(fallback).join(' ') ===
+        'scene-details-panel scene-history-panel scene-svr-variants-panel',
+      tabKeys(fallback).join(' '));
+
     // The patch takes its result off the *end* of the arguments rather than by position,
     // so React's legacy-context second argument cannot end up rendered as a child. Both
     // patches are checked, because getting this right in one and wrong in the other is
@@ -297,6 +358,18 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     h.check('the first line counts them and says what matched them',
       summary(inst.el) === '3 other variants of this scene. Matched on 1 stash-id.',
       summary(inst.el));
+    // The value at the head of the facts line, not trailing the title: titles vary in
+    // length, so a value after one starts somewhere different on every row and the eye
+    // has to hunt for it.
+    const firstRow = rows(inst.el)[0];
+    const facts = inRow(firstRow, 'svr-facts');
+    h.check('the value and the file facts share the line under the title',
+      !!facts && byClass(facts, 'svr-role').length === 1 && byClass(facts, 'svr-meta').length === 1,
+      facts && textOf(facts));
+    h.check('and the value comes first on it',
+      !!facts && kidsOf(facts)[0] === byClass(facts, 'svr-role')[0], facts && textOf(facts));
+    h.check('with the title outside that line',
+      !!facts && byClass(facts, 'svr-variant-title').length === 0);
     h.check('each row links to its scene',
       rows(inst.el).map(linkOf).join(' ') === '/scenes/9 /scenes/55 /scenes/77',
       rows(inst.el).map(linkOf).join(' '));
@@ -472,7 +545,7 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     const env = start();
     const content = env.render('ScenePage.TabContent', { scene: sceneProp({}) },
       stashRendered('stash-panes'));
-    const inner = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0].children[0];
+    const inner = kidsOf(nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0])[0];
     const props = { scene: sceneProp({}) };
     const inst = env.React.mount(inner.type, props);
     await h.flush();

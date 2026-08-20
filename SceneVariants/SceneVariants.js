@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.2.1';
+  var PLUGIN_VERSION = '0.2.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -66,6 +66,9 @@
   // prefix by convention, it is the value `activeTabKey` holds while our tab is open.
   var TAB_KEY = 'scene-svr-variants-panel';
   var TAB_LABEL = 'Variants';
+  // The tab this one goes in front of. Edit is last in Stash's strip and is the one tab
+  // that is an action rather than a view, so it wants to stay at the end.
+  var BEFORE_TAB_KEY = 'scene-edit-panel';
 
   var SETTINGS_TTL_MS = 10000;   // settings are re-read at most this often
 
@@ -401,12 +404,14 @@
     '.svr-thumb-link{flex:0 0 auto;display:block;line-height:0;}' +
     '.svr-thumb{width:10rem;aspect-ratio:16/9;object-fit:cover;background:#0d1317;' +
     'border-radius:3px;display:block;}' +
-    '.svr-variant-body{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;' +
-    'gap:.5rem;flex-wrap:wrap;}' +
+    // A column: the title, then the facts line under it.
+    '.svr-variant-body{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;' +
+    'gap:.15rem;}' +
+    '.svr-facts{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;}' +
     // The floor a flex item keeps by default is the width of its longest word, which a
     // filename-shaped title blows straight through; releasing it is what lets the title
     // wrap instead of pushing the meta column off the row.
-    '.svr-variant-title{flex:1 1 12rem;min-width:0;overflow-wrap:anywhere;}' +
+    '.svr-variant-title{overflow-wrap:anywhere;}' +
     // One rule for both, so the two things sitting after the title cannot end up at
     // different sizes: they are read together, at a glance, and a half-step between them
     // reads as one of them being an afterthought.
@@ -560,7 +565,52 @@
   // Untouched is the *only* safe answer. There is nothing else to fall back to - the
   // result is what the container component produced, so passing it through unchanged is
   // exactly the page as it would have been without this plugin.
-  function safeAppend(React, args, build) {
+  // Does this element, or anything inside it, carry `eventKey`? Stash's strip is a list
+  // of `Nav.Item`s each wrapping a `Nav.Link`, and the key is on the link - so finding the
+  // Edit tab means looking one level in. The same shape the deleted DOM version needed to
+  // tell one `.nav-tabs` from another, for the same reason: the key is the only
+  // unambiguous mark on that page, and the caption "Edit" is not unique.
+  function carriesEventKey(React, node, key) {
+    if (!React.isValidElement(node)) return false;
+    if (node.props && node.props.eventKey === key) return true;
+    var kids = node.props && node.props.children;
+    if (kids == null) return false;
+    var arr = React.Children.toArray(kids);
+    for (var i = 0; i < arr.length; i++) {
+      if (carriesEventKey(React, arr[i], key)) return true;
+    }
+    return false;
+  }
+
+  // Rebuilds a container's children with `extra` spliced in ahead of the one carrying
+  // `key`. Returns null when there is nothing to splice into or no such child, which is
+  // what makes this an *attempt*: the caller appends instead, and a Stash that renames or
+  // drops its Edit tab loses the placement rather than the tab.
+  //
+  // `React.Children.toArray` rather than the raw value, because the raw value is not a
+  // list: `props.children` is a single element when there is one child, an array when
+  // there are several, and may hold nested arrays, `null`s and the empty strings Stash's
+  // conditional tabs render. `toArray` normalises all of that.
+  //
+  // It also assigns keys, which turns out *not* to matter here and is worth writing down
+  // so nobody re-derives it as a reason: React marks a child passed directly to
+  // `createElement` as validated, so Stash's key-less static tabs do not start warning
+  // when they are moved into an array. `toArray` is the right API for the shape, not a
+  // fix for a warning.
+  function insertBefore(React, container, extra, key) {
+    var kids = container.props && container.props.children;
+    if (kids == null) return null;
+    var arr = React.Children.toArray(kids);
+    for (var i = 0; i < arr.length; i++) {
+      if (carriesEventKey(React, arr[i], key)) {
+        arr.splice(i, 0, extra);
+        return React.createElement(React.Fragment, null, arr);
+      }
+    }
+    return null;
+  }
+
+  function safeAppend(React, args, build, beforeKey) {
     var last = args.length ? args[args.length - 1] : null;
     try {
       // Backwards for the first *element*, rather than an index. The result is last
@@ -570,7 +620,9 @@
       // it survives anything else arriving on either side.
       for (var i = args.length - 1; i >= 0; i--) {
         if (React.isValidElement(args[i])) {
-          return React.createElement(React.Fragment, null, args[i], build());
+          var extra = build();
+          var placed = beforeKey ? insertBefore(React, args[i], extra, beforeKey) : null;
+          return placed || React.createElement(React.Fragment, null, args[i], extra);
         }
       }
       // Nothing element-shaped at all. There is nothing to append to and nothing better
@@ -648,19 +700,27 @@
     });
   }
 
+  // Two lines: the title, then everything that describes the file. The value sits at the
+  // head of the second line rather than after the title, which is what keeps a column of
+  // them scannable - titles vary in length, so a value trailing one starts at a different
+  // place on every row, and the eye has to hunt for it.
   function VariantRow(React, row) {
-    var line = [React.createElement('a', {
-      key: 'title', className: 'svr-variant-title', href: '/scenes/' + row.scene.id,
-    }, row.scene.title || ('Scene ' + row.scene.id))];
+    var facts = [];
     if (row.cls.label) {
-      line.push(React.createElement('span', {
+      facts.push(React.createElement('span', {
         key: 'role', className: 'svr-role svr-role-' + row.cls.role,
         // The tag that decided it, for whoever wants to confirm the match.
         title: row.cls.tags ? 'Tagged ' + row.cls.tags : null,
       }, row.cls.label));
     }
     var meta = metaOf(row.scene);
-    if (meta) line.push(React.createElement('span', { key: 'meta', className: 'svr-meta' }, meta));
+    if (meta) facts.push(React.createElement('span', { key: 'meta', className: 'svr-meta' }, meta));
+    var line = [React.createElement('a', {
+      key: 'title', className: 'svr-variant-title', href: '/scenes/' + row.scene.id,
+    }, row.scene.title || ('Scene ' + row.scene.id))];
+    if (facts.length) {
+      line.push(React.createElement('div', { key: 'facts', className: 'svr-facts' }, facts));
+    }
     var thumb = VariantThumb(React, row.scene);
     var kids = [React.createElement('div', { key: 'body', className: 'svr-variant-body' }, line)];
     if (thumb) {
@@ -723,7 +783,8 @@
     }
     var Pane = VariantsPane(React);
     api.patch.after('ScenePage.Tabs', function () {
-      return safeAppend(React, arguments, function () { return TabLink(React, Nav); });
+      return safeAppend(React, arguments,
+        function () { return TabLink(React, Nav); }, BEFORE_TAB_KEY);
     });
     api.patch.after('ScenePage.TabContent', function (props) {
       return safeAppend(React, arguments, function () {

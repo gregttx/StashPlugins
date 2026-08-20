@@ -110,10 +110,21 @@ function respond(req) {
   const ScenePageTabContent = patch.container('ScenePage.TabContent');
 
   const props = { scene };
+  // Two of Stash's own tabs and one of the empty strings its conditional tabs render, so
+  // the splice has to survive both - React's own `Children.toArray` is what the plugin
+  // uses to get past them, and this is where that is actually exercised.
+  // **No `key` on Stash's own tabs**, because Scene.tsx writes them as static JSX siblings
+  // and static siblings need none. Faithful rather than convenient - though it turns out
+  // not to be the trap it looks like: React marks a child passed directly to
+  // `createElement` as validated, so moving these into an array does not make it warn.
+  // The capture below is still worth having for everything else React says out loud.
+  const tab = (key, label) => React.createElement(Bootstrap.Nav.Item, null,
+    React.createElement(Bootstrap.Nav.Link, { eventKey: key }, label));
   const Strip = () => React.createElement('ul', { className: 'nav nav-tabs' },
     React.createElement(ScenePageTabs, props,
-      React.createElement(Bootstrap.Nav.Item, { key: 'details' },
-        React.createElement(Bootstrap.Nav.Link, { eventKey: 'scene-details-panel' }, 'Details'))));
+      tab('scene-details-panel', 'Details'),
+      '',
+      tab('scene-edit-panel', 'Edit')));
   const Content = () => React.createElement('div', { className: 'tab-content' },
     React.createElement(ScenePageTabContent, props,
       React.createElement(Bootstrap.Tab.Pane, { key: 'details', eventKey: 'scene-details-panel' },
@@ -122,16 +133,26 @@ function respond(req) {
   // The whole suite in one line each: React renders it, or React throws. #31 is what a
   // patch returning the legacy-context object as a child produces, and it is thrown here
   // rather than reported.
+  // React reports a missing key by calling `console.error`, not by throwing, so a render
+  // that "worked" can still be one the browser console fills up over. Captured around
+  // both renders and asserted empty at the end.
+  const complaints = [];
+  const realError = console.error;
+  console.error = (...a) => complaints.push(a.join(' '));
+
   let stripHtml = null, stripErr = null;
   try { stripHtml = renderToStaticMarkup(React.createElement(Strip)); }
   catch (e) { stripErr = e; }
   h.check('the tab strip renders under the real React',
     !stripErr, stripErr && stripErr.message);
-  h.check('Stash’s own tab survives the patch',
-    !!stripHtml && stripHtml.indexOf('scene-details-panel') !== -1, stripHtml);
-  h.check('and the Variants tab is appended after it',
-    !!stripHtml && stripHtml.indexOf('Variants') !== -1 &&
-      stripHtml.indexOf('scene-details-panel') < stripHtml.indexOf('Variants'), stripHtml);
+  h.check('Stash’s own tabs survive the patch',
+    !!stripHtml && stripHtml.indexOf('scene-details-panel') !== -1 &&
+      stripHtml.indexOf('scene-edit-panel') !== -1, stripHtml);
+  h.check('and the Variants tab lands between Details and Edit',
+    !!stripHtml &&
+      stripHtml.indexOf('scene-details-panel') < stripHtml.indexOf('scene-svr-variants-panel') &&
+      stripHtml.indexOf('scene-svr-variants-panel') < stripHtml.indexOf('scene-edit-panel'),
+    stripHtml);
 
   let contentHtml = null, contentErr = null;
   try { contentHtml = renderToStaticMarkup(React.createElement(Content)); }
@@ -146,6 +167,10 @@ function respond(req) {
   // is in for as long as the query is out, and the one the user sees first.
   h.check('the pane paints its looking-for-variants line before the query lands',
     !!contentHtml && contentHtml.indexOf('Looking for variants') !== -1, contentHtml);
+
+  console.error = realError;
+  h.check('and React had nothing to complain about while rendering either',
+    complaints.length === 0, complaints.join(' | '));
 
   h.check('nothing was logged as an error', errors.length === 0, errors.join(' | '));
   h.finish();

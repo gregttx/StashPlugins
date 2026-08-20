@@ -45,6 +45,25 @@ So: **no 1.0.0 until the GoodToRelease level**, which is L1 at the very least (t
 performer fallbacks, without which most scenes have nothing to show) and is the user's to name. The
 level, not the live run, is the gate.
 
+## 0c. The dimension is hard-coded, deliberately, and only the tag names are not
+
+L0 knows exactly one dimension — full-length versus partial-length — and knows it in the code:
+`ROLES`, `classify`, `ROLE_RANK` and the two setting keys are all written for that pair. Only the
+two **tag names** are configuration.
+
+**That is the plan's design, not a shortcut taken under it.** §5 says L4 is where a settings-driven
+table of dimensions arrives, and that it should not be built until L0 has been used against a real
+library — because a table generalising one example is a guess about the second one. The user has
+said a second dimension will involve different variants, possibly with no easy match and a different
+heuristic, which is precisely the thing a table written today would get wrong.
+
+**The seam, when it comes:** `classify` returns `{role, label, tags}` and everything downstream —
+the sort rank, the CSS class, the hover text — is keyed off `role`. A dimension becomes a row in a
+config table with a list of values, and `classify` becomes a loop over that table returning one
+answer per dimension. What is *not* affected is the half that finds the variants: the plan's split
+between the relation and the dimension is what keeps `findVariants` untouched by any of this, and it
+has held so far.
+
 ## 1. A tab, and the three things that got deleted to build one
 
 The plan's L0 was **a button** whose caption depended on the variant count. That became a DOM panel
@@ -130,6 +149,13 @@ one console line, and the README states the requirement.
 Two decisions that pull against each other, and both go the same way for the same reason: the strip
 must not move.
 
+**Placed before Edit**, by splicing into the strip's children rather than appending to them: Edit is
+the one tab that is an action rather than a view, so it stays at the end. `insertBefore` finds it by
+`eventKey` — one level in, since the key is on the `Nav.Link` inside each `Nav.Item` — and returns
+null when there is no such child, in which case the tab is appended as before. **Placement is an
+attempt; the tab is not.** A Stash that renames or drops that key loses the position and keeps the
+tab.
+
 **Always rendered**, including on the scenes — most of them today — with no stash-id and therefore
 no possible variant. A tab that appeared when a query landed would shift every tab to its left under
 the user's pointer. And the empty cases are the ones worth explaining: "this scene carries no
@@ -144,6 +170,10 @@ the strip moving again.
 
 ## 4. Four decisions in the pane that look arbitrary
 
+- **The value sits at the head of the line under the title, not after it.** Titles vary in length,
+  so a value trailing one starts somewhere different on every row and has to be hunted for; a column
+  of them under the titles is read at a glance, which is the whole reason the value is coloured.
+  The row is a thumbnail beside a two-line body: title, then value and file facts on one line.
 - **The label is the dimension's value, never the tag that carried it.** These shipped echoing the
   configured tag name back, and the live paste is what showed why that is wrong: the user's taxonomy
   is Unicode-marked namespaces, so every partial-length row read `✨🎥Promo⚠∙` in a column meant to

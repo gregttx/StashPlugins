@@ -11,13 +11,15 @@ Open a scene. Beside **Details**, **File Info** and **Edit** there is now a **Va
 Details   Queue   Markers   Filter   File Info   History   Variants   Edit
 ──────────────────────────────────────────────────────────┴────────────────
 2 other variants of this scene. Matched on 1 stash-id.
-  ┌────────┐
-  │ cover  │  Cool Shoot            Full-length     1920×1080 · 41:12
+  ┌────────┐  Cool Shoot
+  │ cover  │  Full-length · 1920×1080 · 41:12
   └────────┘
-  ┌────────┐
-  │ cover  │  Cool Shoot - Clip 2   Partial-length  1920×1080 · 4:03
+  ┌────────┐  Cool Shoot - Clip 2
+  │ cover  │  Partial-length · 1920×1080 · 4:03
   └────────┘
 ```
+
+The tab sits just before **Edit**, which stays last.
 
 Each cover and title is a link, and a cover plays the scene's preview loop while the pointer is over
 it — the same preview the scene cards use. Nothing is written to your library at any point: the tab
@@ -45,8 +47,8 @@ Names are typed rather than picked, and compared without regard to case or surro
 Leave both empty and the tab still lists the variants — it just says nothing about which is which.
 
 Rows are ordered full-length first, then longest running time, because "which of these is the whole
-thing" is the question the tab exists to answer. Full-length is green and partial-length amber, so a
-short list can be read at a glance; a scene with neither tag simply has no label. A scene carrying
+thing" is the question the tab exists to answer. The value starts the line under each title, so a
+short list reads as a column: full-length is green and partial-length amber; a scene with neither tag simply has no label. A scene carrying
 **both** is shown in red — the two are mutually exclusive by definition, so the contradiction is
 reported rather than resolved.
 
@@ -61,6 +63,10 @@ that carry the id convention and nowhere else.
 the tab notices that looks wrong is shown and left alone.
 
 **Scene pages only.** There is nothing on a performer, studio or group.
+
+**One dimension, and it is built in.** Full-length versus partial-length is the only distinction the
+plugin knows; the two tag names are the only part of it you can configure. A settings-driven table of
+dimensions — resolution, cut, release — is a later level, and deliberately not guessed at now.
 
 **No count on the tab caption.** The strip and the pane are two separate extension points rendering
 two separate components, so a count beside the word would mean sharing the query's answer between

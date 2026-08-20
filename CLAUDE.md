@@ -1057,39 +1057,51 @@ same release, so the comparison still holds. The major digit is for a rename use
 `ownSettingGroup` and `ownTaskName` match on the plugin **name**, which is why the `ᝯㄝₓ ` prefix
 cost one and this does not.
 
-## A README describes the plugin, not its history
+## A README and a source file describe the plugin, not its history
 
-**Only a major version earns a release-note block at the top of a README.** A major digit here means
-a rename, a settings reset, or something else a user already running the plugin has to *do*
-something about — that is worth interrupting them for before they read a word about what the plugin
-does. A minor or a patch is not: the new behaviour belongs in the prose that describes the
-behaviour, written in the present tense, where the person reading it is already looking.
+**Neither a `README.md` nor a plugin's own source says which release changed what.** Both describe
+how the thing works now, in the present tense. The reader of a README wants to know what the plugin
+does; the reader of a comment wants to know what the code in front of them does. Every clause spent
+on what it used to do is a clause they have to discard, and it goes stale the moment the next
+release lands.
 
-**Where the feature goes is the test of whether the note was needed.** Every note removed in this
-pass had a natural home in the body — the stale-script banner belongs under "Checking which version
-is actually running", `CustomFieldsBulkEditor`'s belongs in Troubleshooting — and none of them said
-anything there that the note had been the only record of. A release note that has nowhere else to go
-is usually describing a *change* rather than the plugin, and that is the thing this rule is against.
+**One exception, and it is narrow: a breaking change with no trivial migration.** A release-note
+block at the top of a README is earned only where a user already running the plugin has to *do*
+something — settings they must re-enter by hand, a name they matched on that has moved, a state the
+plugin cannot repair for them. **A major digit does not earn one by itself.** `NormalizeParentTags`
+4.0.0 renamed every setting it had and shipped a migration that carries the old ones over on first
+load; there is nothing for the user to do, so the block came back out. The test is whether the note
+ends in an instruction the user must follow.
 
-**Nor in the middle of a sentence.** "since 0.13.0", "up to 0.12.14 the answer was computed and
-thrown away", "(0.18.1)" — a changelog scattered through an explanation of how the plugin behaves
-now, one parenthesis at a time. `PropagateTagsAndPerformers` had eleven of these and lost all of
-them: the reader wants to know what it does, and every clause spent on what it used to do is a
-clause they have to discard. Three shapes of version reference *are* kept, because each one is a
-fact about today: a **requirement** (`Requires Stash 0.31.0 or newer`, `needs MergePerformerTagsToScenes
-1.12.1 or newer`), the **plugin's own current version** where a file states it, and nothing else. A
-sample console line takes `<version>` rather than a number, which is the same rule applied to an
-example: the number in it was never the point, and a stale one reads as an instruction.
+**Nor in the middle of a sentence, in either kind of file.** "since 0.13.0", "up to 0.12.14 the
+answer was computed and thrown away", "(0.18.1)", `// 4.0.0 renamed all nine at once` — a changelog
+scattered through an explanation of how something behaves now, one parenthesis at a time. Where a
+comment's *reason* is historical, state the reason without the number: "a release can rename every
+setting the plugin has" says the same thing and stays true.
 
-**This rule is about a plugin's `README.md` and nothing else.** `tests/README.md` keeps its
-"since X.Y.Z" markers on purpose: it is the suite map, it does not ship in `files:`, and which
-release a check was added for is exactly what makes `SRC=/path/to/old.js node tests/<suite>.test.js`
-usable. Confirmed with the user when the rule was set.
+Three shapes of version reference *are* kept, because each one is a fact about today: a
+**requirement** (`Requires Stash 0.31.0 or newer`, `needs MergePerformerTagsToScenes 1.12.1 or
+newer`), the **plugin's own current version** where a file states it, and nothing else. A sample
+console line takes `<version>` rather than a number, which is the same rule applied to an example:
+the number in it was never the point, and a stale one reads as an instruction.
+
+**Tests are the moderate exception.** `tests/README.md` keeps its "since X.Y.Z" markers on purpose:
+it is the suite map, it does not ship in `files:`, and which release a check was added for is
+exactly what makes `SRC=/path/to/old.js node tests/<suite>.test.js` usable. A suite's own comments
+may name a release where that is genuinely what a check is pinned against. *In moderation* — a
+version in a test comment that is only narrating when someone noticed something is the same clause
+the rule deletes everywhere else.
 
 **The reasoning still gets written down — in the plugin's own `CLAUDE.md`,** which is where a
 per-version note has always belonged and which does not ship to users (`files:` carries the `js`,
-the `yml` and the `README.md`). This rule moves nothing out of that file; it stops the same material
-being kept twice, once for a reader who wants it and once for a reader who does not.
+the `yml` and the `README.md`). That file is the changelog; the README and the source are not.
+
+**How this rule was lost once, which is the reason it is written this widely now.** It shipped
+scoped to the README — the previous version of this section opened "This rule is about a plugin's
+`README.md` and nothing else" — so the plugins' own sources went on accumulating version references
+in comments unchecked, several hundred of them, and a repo-wide review pass added more without
+anything reading as a violation. A rule stated as being about one file is a rule that will be
+followed in one file. State the principle, then name the exception; not the reverse.
 
 ## Tests
 

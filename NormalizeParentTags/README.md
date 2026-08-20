@@ -12,26 +12,6 @@
 > while it stays open. It is a way out of a run you regret in the moment, not a safety net — the
 > backup is the safety net.
 
-> ## 4.0.0 — nine settings became one, and two tasks became one
->
-> **Every entity setting this plugin had has been replaced.** The seven "Include …" toggles and
-> the two "Auto …" toggles are gone; in their place is one field, **Automatic mode per entity
-> type**, holding a mode for each of the seven:
->
-> ```
-> PERFORMERS=OFF, STUDIOS=OFF, GROUPS=OFF, GALLERIES=OFF, SCENES=PRUNE, IMAGES=OFF, MARKERS=OFF
-> ```
->
-> **Your old settings are carried over automatically** the first time this version loads: an
-> enabled type takes whichever auto mode was on, and everything else is OFF. (Both auto modes on
-> was this plugin's own no-op — it ran neither — so it migrates to OFF rather than to a direction
-> you never chose.) Nothing is lost, but it is worth a look afterwards.
->
-> **Prune and Roll Up are no longer two tasks.** There is one **Normalize Parent Tags...** task,
-> and the direction is chosen per entity type *in the dialog* — so one run can prune your scenes
-> and roll up your performers. A new **Auto Mode Settings...** task edits the field above without
-> your having to type it.
->
 > **Requires Stash 0.31.0 or newer.** Tag custom fields (two of the exclusion filters) and the
 > `organized` flag on studios both depend on it.
 >
@@ -347,8 +327,7 @@ in that row**, so what will happen by itself is readable without opening anythin
 Things worth knowing:
 
 - **A type carries one direction, never both.** Prune and Roll Up are exact opposites, so the
-  question "which one, for this type" has three answers and the setting has three values. Up to
-  3.2.0 it was two checkboxes for the whole library, where ticking both ran neither.
+  question "which one, for this type" has three answers and the setting has three values.
 - **Each type is separate**, so auto-pruning your scenes while leaving images alone is one line.
 - **The task dialog starts from these modes** and lets you change them for that one run — with
   Images off to begin with, whatever this setting says.
@@ -501,8 +480,7 @@ parents. Those are this plugin's two operations, and it asks this plugin to work
 so your [exclusion filters](#exclusion-filters) apply there without that plugin knowing what they
 are, and both modes disappear from its dialog if this plugin is not running on the page. It needs
 this plugin at **3.2.0 or newer**; with an older copy it says so and offers neither. It asks a
-question rather than reading these settings, which is why 4.0.0 renaming every one of them cost
-that plugin no change at all.
+question rather than reading these settings, so renaming one costs that plugin no change at all.
 
 If the entity type being pasted onto is set to PRUNE or ROLLUP here, that dialog
 withdraws the choice and says why: pressing Stash's **Save** is what this plugin reacts to, so the

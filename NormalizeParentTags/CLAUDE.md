@@ -3,9 +3,17 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.6.3.** This file is both the design and the map of the code — the
+**Status: implemented at 4.6.4.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**4.6.4 takes the version history back out of the README and the source.** The repo rule against
+release notes was written as being about a plugin's `README.md` "and nothing else", so the sources
+went on collecting version references in comments. It now covers both, with one exception: a
+breaking change with **no trivial migration**. This plugin's own 4.0.0 block was the worked example
+of what that excludes — it renamed every setting and migrated them automatically on first load, so
+there was never anything for the user to do, and the block is gone. `ownSettingGroup`'s comment
+states its reason without the number, which was always the better sentence.
 
 **4.6.3 is three findings from a full read of the repo, and one of them is 4.0.0's bill arriving
 again.** `ownSettingGroup` anchored on `settingElement('a1AutoModes')` — **one** named key, in the

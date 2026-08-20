@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.6.3';
+  var PLUGIN_VERSION = '4.6.4';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3583,8 +3583,8 @@
   // would be invisible until the user expanded the very group it is telling them to
   // look at.
   function ownSettingGroup() {
-    // Every key rather than one named one: 4.0.0 renamed all nine at once, and a
-    // single named anchor is exactly what a rename of the one key it names breaks.
+    // Every key rather than one named one: a release can rename every setting the
+    // plugin has, and a single named anchor is exactly what such a rename breaks.
     var node = null, d, key;
     for (key in DEFAULTS) {
       if (!hasOwn(DEFAULTS, key)) continue;

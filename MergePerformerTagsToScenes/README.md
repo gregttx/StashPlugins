@@ -282,8 +282,7 @@ library-wide task, the dialog tells you which, and what it would do to the merge
   redundant parents fall away — but it is worth knowing before you read the result.
 - **Roll Up** adds every ancestor of the tags this merge adds, so scenes end up with more tags
   than the review listed.
-- Both, where one type is set to prune and another to roll up, which its own settings can say since
-  its 4.0.0.
+- Both, where one type is set to prune and another to roll up, which its own settings can say.
 
 If that plugin is new enough to stand down for the claim, the dialog says so and there is nothing
 to do. If it is not — or if it is switched off in Stash, which looks the same from here — you get a

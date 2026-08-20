@@ -380,7 +380,7 @@ const btn = (body, label) => body.descendants()
     h.check('it registers no lease, no respecter and no declaration',
       (coop.leases || []).length === 0 && !coop.respecters[PLUGIN_ID] &&
         !coop.declares[PLUGIN_ID]);
-    // A fourth absence, pinned as a *pair* since 0.7.0. `ownSettingGroup` falls back to
+    // A fourth absence, pinned as a *pair*. `ownSettingGroup` falls back to
     // the group headed with the plugin name, and the three siblings guard that fallback
     // with `hasOwnTaskButton` so it cannot decorate Settings - Tasks, which heads its own
     // group with the same name and whose task button is destroyed by being decorated.

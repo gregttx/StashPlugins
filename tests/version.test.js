@@ -18,7 +18,7 @@ const PLUGINS = ['NormalizeParentTags', 'MergePerformerTagsToScenes',
 
 // The script-side table each plugin's settings are read through. Every plugin has
 // exactly one, and a key in the yml that is missing from it is a setting the plugin
-// never reads - or, in MergePerformerTagsToScenes' case before 3.5.0, one that
+// never reads - or one that
 // silently never got a tooltip.
 const SETTING_TABLE = {
   NormalizeParentTags: 'var DEFAULTS = {',
@@ -122,7 +122,7 @@ PLUGINS.forEach((name) => {
     !/https?:\/\//.test(declaredDescription(read(name, name + '.yml')) || ''),
     (declaredDescription(read(name, name + '.yml')) || '').slice(0, 120));
 
-  // Per-*setting* descriptions, which nothing checked until 3.5.0 - which is how
+  // Per-*setting* descriptions, which nothing used to check - which is how
   // MergePerformerTagsToScenes' settings page went on describing its two buttons as
   // "Copy ..." for two releases after the captions became "Add ...". A setting
   // description is read while the user is looking at the thing it describes, so a

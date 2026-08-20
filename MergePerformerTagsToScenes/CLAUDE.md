@@ -5,8 +5,12 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.5.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.5.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.5.1 drops a version reference from the README's prose**, under the widened repo rule: neither a
+README nor a source file says which release changed what, and only a breaking change with no
+trivial migration earns a note. Nothing else moved.
 
 **3.5.0 folds four hand-kept lists into one, and joins the shared observer.** The repo read that
 produced it found this plugin holding its nine manifest keys in three places — the nine `ps.*` reads

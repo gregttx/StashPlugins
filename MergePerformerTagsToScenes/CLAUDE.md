@@ -5,8 +5,23 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.5.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.6.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.6.0 says on the settings page when this plugin has been superseded.**
+`PropagateTagsAndPerformers` performs this plugin's whole job as one of its thirteen paths and
+adopts these four exclusion filters where it has never had its own, so someone running both is
+running two implementations of one operation. `ensureSupersededNotice` puts an amber line
+beside Stash's own Disable button saying so. Neither half of the claim is assumed:
+`coop().declares` is what says the path is *enabled* over there rather than merely installed -
+it republishes its enabled paths on every settings load, so a copy with `tags:performer>scene`
+switched off supersedes nothing and the notice goes away on the next tick - and the four
+filters are compared value by value, because that plugin's import only fires for a key it has
+never been set to and two plugins configured differently by hand is a real state. Matching
+filters get "Uninstall safe"; differing ones get told to check first. The Disable button
+carries no class of ours, so it is found by its caption the way a row's Delete is, falling back
+to the stale banner's slot above the description where the caption is not found - the notice
+appears either way.
 
 **3.5.3 fixes the grammar of the load banner.** Four of the five plugins printed "the running
 script own version" at load: the pass that replaced their curly quotes and em dashes with ASCII

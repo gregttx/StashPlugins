@@ -234,6 +234,15 @@ entries containing a path id it also handles, and notes the overlap in its dialo
 only, never a head warning, because redundant work is not a hazard the way NPT's collision (below)
 is.
 
+**The same registry answers a narrower question: "has this plugin been replaced?"**
+`MergePerformerTagsToScenes` has exactly one path, and `PropagateTagsAndPerformers` performs it as
+one of thirteen, so a `declares` entry naming that path is the whole of "the sibling does everything
+this plugin does". Its settings page says so beside Stash's own Disable button. What makes
+`declares` the right thing to read rather than a name check is that it carries the *enabled* paths:
+a sibling installed with that path switched off supersedes nothing, and the notice has to know the
+difference. A plugin with more than one path could not ask this question this way, which is fine -
+it is not a general mechanism, it is one plugin reading a registry that happens to answer it.
+
 **A future third relationship-copying plugin needs no existing plugin edited.** It declares its own
 paths at load and gets warned about, and warns about, both siblings automatically — that genericity
 is the entire reason this exists rather than a second hardcoded pairwise check.

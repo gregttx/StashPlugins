@@ -42,6 +42,9 @@ function makeResponder(opts) {
       // Stash cannot scope this query to one plugin, so the sibling's settings
       // arrive in the same response - which is what checkSibling reads.
       if (opts.siblingSettings) plugins.NormalizeParentTags = opts.siblingSettings;
+      // And so do the superseding sibling's, which the settings-page notice compares
+      // this plugin's four exclusion filters against.
+      if (opts.supersederSettings) plugins.PropagateTagsAndPerformers = opts.supersederSettings;
       return { data: { configuration: { plugins } } };
     }
     if (/CPT2S_TaskPerformers|findPerformers/.test(q)) {
@@ -147,6 +150,37 @@ function openAfterSettings(opts, respecter) {
 // Same shape, but seeding `coop().declares` with another plugin's entry rather
 // than a respecter flag - simulating a second relationship-copying plugin having
 // already loaded and published what it does.
+// The settings-page group, as SettingsPluginsPanel builds it, with the Enable/Disable
+// button Stash puts in the header. `label` is what that button says.
+function settingsGroup(ctx, label) {
+  const group = h.makeElement('div');
+  group.className = 'setting-group collapsible';
+  const header = h.makeElement('div');
+  header.className = 'setting';
+  const headBox = h.makeElement('div');
+  const heading = h.makeElement('h3');
+  // No parenthesised version: this fixture is about the superseded notice, and a
+  // version here would raise the stale banner into the same header.
+  heading.textContent = 'ᝯㄝₓ Merge Performer Tags To Scenes';
+  const sub = h.makeElement('div');
+  sub.className = 'sub-heading';
+  sub.textContent = 'Copies each performer tags onto their scenes.';
+  headBox.appendChild(heading);
+  headBox.appendChild(sub);
+  header.appendChild(headBox);
+  const actions = h.makeElement('div');
+  const disable = h.makeElement('button');
+  disable.textContent = label;
+  actions.appendChild(disable);
+  header.appendChild(actions);
+  group.appendChild(header);
+  const input = h.makeElement('input');
+  input.id = 'plugin-MergePerformerTagsToScenes-a1ShowManualMergeButtons';
+  group.appendChild(input);
+  ctx.document.body.appendChild(group);
+  return { group, actions, disable };
+}
+
 function openWithDeclares(opts, declares) {
   const env = h.makeEnv({ quiet: true, respond: makeResponder(opts || {}) });
   h.run(env.ctx, SRC);
@@ -866,6 +900,84 @@ Promise.resolve()
   .then(({ d }) => {
     h.check('with nothing else declaring the path, nothing is said about it',
       !d().lines.some((l) => l.indexOf('also merges performer tags') !== -1), d().lines.join(' | '));
+  })
+
+  // ── "PropagateTagsAndPerformers has taken this over" ─────────────────────
+  //
+  // The claim the notice makes is about the user's own install, so both halves are
+  // read rather than assumed: the path enabled *there* (`declares`, republished on
+  // every settings load, so an installed-but-switched-off path supersedes nothing),
+  // and this plugin's four exclusion filters actually present on that side.
+
+  .then(() => {
+    const mine = { b1ExcludeSceneWithTagName: 'skipme', b2ExcludeSceneOrganized: true };
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({
+      settings: mine,
+      supersederSettings: { f1ExcludeTargetWithTagName: 'skipme', f2ExcludeTargetOrganized: true },
+    }) });
+    h.run(env.ctx, SRC);
+    env.ctx.window.StashPluginCoop.declares.PropagateTagsAndPerformers =
+      ['tags:performer>scene', 'tags:studio>group'];
+    const { actions, disable } = settingsGroup(env.ctx, 'Disable');
+    env.tick();
+    return h.flush(20).then(() => {
+      env.tick();
+      const note = env.ctx.document.getElementById('cpt2s-superseded-notice');
+      h.check('a superseding sibling is named on the settings page', !!note,
+        note && note.textContent);
+      h.check('by the name the user sees, not the plugin id', !!note &&
+        note.textContent.indexOf('ᝯㄝₓ Propagate Tags and Performers') !== -1,
+        note && note.textContent);
+      h.check('and the settings it carried over are called safe to leave behind',
+        !!note && /Settings migrated\. Uninstall safe/.test(note.textContent),
+        note && note.textContent);
+      h.check('left of the button that acts on it', !!note &&
+        note.parentNode === actions &&
+        actions.childNodes.indexOf(note) < actions.childNodes.indexOf(disable),
+        note && String(actions.childNodes.indexOf(note)));
+
+      // The path can be switched off over there while this page is open, and this
+      // tick is what notices - a notice that outlived its reason would be a claim
+      // that uninstalling is safe when it is not.
+      env.ctx.window.StashPluginCoop.declares.PropagateTagsAndPerformers = ['tags:studio>group'];
+      env.tick();
+      h.check('the path switched off over there takes the notice away',
+        !env.ctx.document.getElementById('cpt2s-superseded-notice'));
+    });
+  })
+
+  .then(() => {
+    // Its import only fires for a key it has never been set to, so two plugins
+    // configured differently by hand is a real state - and the opposite claim.
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({
+      settings: { b1ExcludeSceneWithTagName: 'skipme' },
+      supersederSettings: { f1ExcludeTargetWithTagName: 'somethingelse' },
+    }) });
+    h.run(env.ctx, SRC);
+    env.ctx.window.StashPluginCoop.declares.PropagateTagsAndPerformers = ['tags:performer>scene'];
+    settingsGroup(env.ctx, 'Disable');
+    env.tick();
+    return h.flush(20).then(() => {
+      env.tick();
+      const note = env.ctx.document.getElementById('cpt2s-superseded-notice');
+      h.check('exclusion filters that did not carry over say so instead', !!note &&
+        /do not match these/.test(note.textContent) &&
+        !/Uninstall safe/.test(note.textContent), note && note.textContent);
+    });
+  })
+
+  .then(() => {
+    // Nothing declared at all: the plugin is not installed, or is disabled in Stash.
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });
+    h.run(env.ctx, SRC);
+    const { actions } = settingsGroup(env.ctx, 'Disable');
+    env.tick();
+    return h.flush(20).then(() => {
+      env.tick();
+      h.check('with nothing superseding this plugin, the header is left alone',
+        !env.ctx.document.getElementById('cpt2s-superseded-notice') &&
+        actions.childNodes.length === 1, String(actions.childNodes.length));
+    });
   })
 
   // ── The README link on the settings page ─────────────────────────────────

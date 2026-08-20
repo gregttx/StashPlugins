@@ -304,6 +304,14 @@ both plugins only ever add tags, so running both is redundant work and doubled l
 wrong data. Nothing is suppressed and nothing blocks; disable one if you would rather not see it
 twice.
 
+**Settings → Plugins says so too, beside this plugin's own Disable button**, in amber: that plugin
+is present and functionally supersedes this one. The notice appears only while its
+performer-tags-onto-scenes path is actually enabled — installed with that path switched off, it
+replaces nothing and nothing is said. It also checks that this plugin's four exclusion filters are
+set the same way over there, which that plugin adopts by itself wherever it has never had its own:
+where they match, the notice says this plugin is safe to uninstall; where they do not, it says to
+check them first.
+
 Where both plugins' manual buttons land in the same row (the performer detail view, the scene Edit
 tab), the two agree on a fixed relative order, so it is the same on every page load rather than
 whichever plugin's button appeared last. Both land **between Save and Delete**; a page with Save

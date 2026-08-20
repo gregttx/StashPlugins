@@ -44,7 +44,7 @@ screen now. The five worth having, and what each one settles:
 | a Performer | `.details-edit` in both places, the `.delete` navbar class |
 | a Group | the wrapper and empty-slot cases that doubled the gap |
 | a list view | `.grid-card`, `#more-menu`, `.dropdown-menu` |
-| Settings → Plugins | every `plugin-<id>-<key>` id and what element it landed on |
+| Settings → Plugins | every `plugin-<id>-<key>` id and what element it landed on, and each of our own groups' header buttons (the Enable/Disable the superseded notice inserts before) |
 
 Settings → **Tasks** is worth a look by eye at the same time. It is the half of a
 rename most likely to break while the settings page still looks right.
@@ -59,7 +59,8 @@ no probe: it is wrong with authority. Whoever reads the output applies the rule.
 
 Sections: containers by selector and count · each button row's layout and every
 child's margins, `_coopOwner` and wrapped `.btn` · every action by label and
-class · `plugin-<id>-<key>` ids and the element each lands on · `h3` headings as
+class · `plugin-<id>-<key>` ids and the element each lands on · our own setting
+groups' header actions · `h3` headings as
 Stash renders them, version suffix included · the themed colours of five button
 variants · the whole `__GTTx__` object (leases, respecters, order, declares, api,
 domBus) · a GraphQL introspection of the custom-fields table in the root

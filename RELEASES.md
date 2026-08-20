@@ -6,9 +6,11 @@ One row per commit that shipped a version, newest first; a blank cell means that
 not move in that commit. A version links to its commit, or carries the short id where the
 commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEASES.md`.
 
+**CFBE** [CustomFieldsBulkEditor](CustomFieldsBulkEditor/RELEASES.md) · **MPTTS** [MergePerformerTagsToScenes](MergePerformerTagsToScenes/RELEASES.md) · **NPT** [NormalizeParentTags](NormalizeParentTags/RELEASES.md) · **PTP2RE** [PropagateTagsAndPerformers](PropagateTagsAndPerformers/RELEASES.md) · **TBC** [TagBundleClipboard](TagBundleClipboard/RELEASES.md)
+
 | Date | CFBE | MPTTS | NPT | PTP2RE | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-20 | 2.2.2 (`9a4f14a`) | 3.5.3 (`9a4f14a`) | 4.6.6 (`9a4f14a`) | 3.11.2 (`9a4f14a`) | 0.7.2 (`9a4f14a`) | One grammatical load banner, in all five |
+| 2026-08-20 | [2.2.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [3.5.3](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [4.6.6](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [3.11.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [0.7.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | One grammatical load banner, in all five |
 | 2026-08-19 | [2.2.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [3.5.2](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [4.6.5](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [3.11.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [0.7.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | Release history out of all five plugin sources |
 | 2026-08-19 |  | [3.5.1](https://github.com/gregttx/StashPlugins/commit/256fe0f) | [4.6.4](https://github.com/gregttx/StashPlugins/commit/256fe0f) |  |  | No version history in a README or in shipped source |
 | 2026-08-19 | [2.2.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | [3.5.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | [4.6.3](https://github.com/gregttx/StashPlugins/commit/c50338b) | [3.11.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | [0.7.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | Repo review 2026-08-19: all 27 findings fixed |
@@ -221,9 +223,3 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 | 2026-07-29 |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/4dd8362) |  |  |  | Add auto-merge settings and bump to 0.3.0 |
 | 2026-07-29 |  | [0.2.0](https://github.com/gregttx/StashPlugins/commit/e10da90) |  |  |  | Bump version to 0.2.0 and update descriptions |
 | 2026-07-29 |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/a3e604d) |  |  |  | First commit |
-
-- **CFBE** — [CustomFieldsBulkEditor](CustomFieldsBulkEditor/RELEASES.md)
-- **MPTTS** — [MergePerformerTagsToScenes](MergePerformerTagsToScenes/RELEASES.md)
-- **NPT** — [NormalizeParentTags](NormalizeParentTags/RELEASES.md)
-- **PTP2RE** — [PropagateTagsAndPerformers](PropagateTagsAndPerformers/RELEASES.md)
-- **TBC** — [TagBundleClipboard](TagBundleClipboard/RELEASES.md)

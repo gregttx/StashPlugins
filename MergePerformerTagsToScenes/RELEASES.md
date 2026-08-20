@@ -8,7 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 3.5.3 (`9a4f14a`) | 2026-08-20 | One grammatical load banner, in all five |
+| [3.5.3](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | 2026-08-20 | One grammatical load banner, in all five |
 | [3.5.2](https://github.com/gregttx/StashPlugins/commit/fb346a7) | 2026-08-19 | Release history out of all five plugin sources |
 | [3.5.1](https://github.com/gregttx/StashPlugins/commit/256fe0f) | 2026-08-19 | No version history in a README or in shipped source |
 | [3.5.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | 2026-08-19 | Repo review 2026-08-19: all 27 findings fixed |

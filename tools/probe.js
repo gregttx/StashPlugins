@@ -103,6 +103,32 @@
       ' hasInputInside=' + (el.querySelector && el.querySelector('input') ? 'yes' : 'no'));
   });
 
+  // Where a plugin of ours draws into Stash's own plugin block: the group's header
+  // actions, in order. `ensureSupersededNotice` inserts before the Enable/Disable
+  // button it finds by caption, and nothing else on this page identifies that button.
+  head('our setting groups (header actions, in document order)');
+  var ourGroups = 0;
+  Array.prototype.forEach.call(q('.setting-group'), function (g, i) {
+    var h3 = g.querySelector ? g.querySelector('h3') : null;
+    var name = h3 ? (h3.textContent || '').trim() : '';
+    if (name.indexOf('ᝯㄝₓ') !== 0) return;
+    ourGroups++;
+    var acts = [];
+    (function walk(n) {
+      Array.prototype.forEach.call(n.childNodes || [], function (k) {
+        if (k.tagName === 'BUTTON' || k.tagName === 'A') {
+          acts.push('<' + k.tagName.toLowerCase() + '> "' + txt(k) + '" [' + cls(k) + ']' +
+            ' parent=[' + cls(k.parentElement) + ']');
+        }
+        walk(k);
+      });
+    })(g);
+    w('  "' + name.slice(0, 60) + '"');
+    acts.forEach(function (a) { w('     ' + a); });
+    if (!acts.length) w('     (no button or link in this group)');
+  });
+  if (!ourGroups) w('  (none - not on Settings > Plugins)');
+
   head('setting-group headings (manifest name + version as Stash renders them)');
   Array.prototype.forEach.call(q('h3'), function (h) {
     var t = (h.textContent || '').trim();

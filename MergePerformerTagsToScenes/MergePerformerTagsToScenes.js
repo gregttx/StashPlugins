@@ -18,6 +18,11 @@
   var PLUGIN_SHORT_NAME   = PLUGIN_NAME;
   var SIBLING_ID          = 'NormalizeParentTags';
   var SIBLING_NAME        = 'ᝯㄝₓ Normalize Parent Tags';
+  // The other named sibling, and the only one that does this plugin's own job.
+  // `SIBLING_*` is the hierarchy plugin, which collides with a merge; this one
+  // *replaces* it - see `ensureSupersededNotice`.
+  var SUPERSEDER_ID       = 'PropagateTagsAndPerformers';
+  var SUPERSEDER_NAME     = 'ᝯㄝₓ Propagate Tags and Performers to Related Entities';
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and updates as soon as plugins are reloaded, while the browser can still
@@ -26,7 +31,7 @@
   // constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.5.3';
+  var PLUGIN_VERSION      = '3.6.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -924,6 +929,7 @@
   var _settingsLoadedAt = 0;
   var _settingsInFlight = false;
   var _siblingSettings = null;
+  var _supersederSettings = null;
 
   // force skips the rate limit but never the in-flight check — there is nothing to be
   // gained by stacking a second copy of the same query on a slow connection.
@@ -947,6 +953,10 @@
         // into named flags: they are somebody else's wire names, and the one place
         // that reads them is the one place that should know them.
         _siblingSettings = ((data.configuration || {}).plugins || {})[SIBLING_ID] || null;
+        // Same response, same reasoning: the superseding sibling's four exclusion
+        // filters are what the settings-page notice compares these against.
+        _supersederSettings =
+          ((data.configuration || {}).plugins || {})[SUPERSEDER_ID] || null;
         announceLogging();
       })
       .catch(function () {})
@@ -991,6 +1001,12 @@
     '.cpt2s-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
     'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
     'font-weight:600;}' +
+    // Amber, not the stale banner's red: nothing is broken and nothing needs doing
+    // today. It is the repo's "a plugin wrote this" colour, used here for the one
+    // thing on this page that is about a plugin rather than about a setting.
+    '.cpt2s-super{display:inline-block;max-width:24rem;margin:.35rem .75rem .35rem 0;' +
+    'padding:.35rem .6rem;border-left:4px solid #ffb648;background:rgba(255,182,72,.14);' +
+    'color:#ffb648;font-size:.85rem;line-height:1.35;font-weight:600;}' +
     '.cpt2s-ERROR{color:#ff7373;} .cpt2s-WARN{color:#ffb648;} .cpt2s-MERGE{color:#84d68a;}' +
     '.cpt2s-INFO{color:#a7b6c2;}' +
     '.cpt2s-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
@@ -3676,6 +3692,88 @@
     slot.parent.insertBefore(box, slot.before);
   }
 
+  // ── "PropagateTagsAndPerformers has taken this over" ──────────────────────
+  //
+  // That plugin performs this plugin's whole job as one of its thirteen paths, and
+  // adopts these four exclusion filters where it has never had its own. Somebody
+  // running both is running two implementations of one operation, and the place to
+  // say so is beside the button that turns this one off.
+  //
+  // Neither half of the claim is assumed:
+  //
+  //  - **`declares` is what says the path is enabled there**, not merely that the
+  //    plugin is installed. It republishes its *currently enabled* paths on every
+  //    settings load, so a copy with `tags:performer>scene` switched off supersedes
+  //    nothing and the notice stays away. This is the same registry
+  //    `checkDeclaredOverlap` reads, asked a narrower question.
+  //  - **"Settings migrated" is checked value by value**, because it is a claim about
+  //    this user's configuration. That plugin's import only fires for a key it has
+  //    never been set to, so two plugins configured differently by hand is a real
+  //    state, and the notice says the opposite thing there.
+  //
+  // A filter left at its default is nothing to carry over and cannot fail the check.
+  var SUPERSEDED_PATH = 'tags:performer>scene';
+  var SUPERSEDED_ID = 'cpt2s-superseded-notice';
+
+  // Our internal name -> their manifest key: the mirror of that plugin's own
+  // `SIBLING_EXCLUSIONS`, which maps the same four in the other direction.
+  var SUPERSEDER_EXCLUSIONS = {
+    excludeSceneWithTagName:       'f1ExcludeTargetWithTagName',
+    excludeSceneOrganized:         'f2ExcludeTargetOrganized',
+    excludeTagWithIgnoreAutoTag:   'f3ExcludeTagWithIgnoreAutoTag',
+    excludeTagWithCustomFieldName: 'f4ExcludeTagWithCustomFieldName',
+  };
+
+  function supersederCovers() {
+    return (coop().declares[SUPERSEDER_ID] || []).indexOf(SUPERSEDED_PATH) !== -1;
+  }
+
+  function exclusionsMigrated(theirs) {
+    if (!theirs) return false;
+    for (var mine in SUPERSEDER_EXCLUSIONS) {
+      if (!hasOwn(SUPERSEDER_EXCLUSIONS, mine)) continue;
+      var ours = settings[mine];
+      if (!ours) continue;                                  // default: '' or false
+      var there = theirs[SUPERSEDER_EXCLUSIONS[mine]];
+      if (typeof ours === 'boolean' ? !there : String(there || '') !== String(ours)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Beside the button that acts on it. Stash gives that button no class of ours to
+  // match, so it is found by its caption the way a row's Delete is - and where it is
+  // not found at all the notice falls back to the stale banner's slot, above the
+  // description, rather than not appearing.
+  function supersededSlot(group) {
+    var btn = findActionByLabel(group, 'Disable') || findActionByLabel(group, 'Enable');
+    if (btn && btn.parentNode) return { parent: btn.parentNode, before: btn };
+    return staleSlot(group);
+  }
+
+  function ensureSupersededNotice(group) {
+    var node = document.getElementById(SUPERSEDED_ID);
+    if (!supersederCovers()) {
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      return;
+    }
+    var text = '\u26a0 ' + SUPERSEDER_NAME + ' is present and functionally supersedes ' +
+      'this plugin. ' + (exclusionsMigrated(_supersederSettings)
+        ? 'Settings migrated. Uninstall safe \u2705'
+        : 'Its exclusion filters do not match these - check them before uninstalling.');
+    // Rewritten rather than replaced: either half can change while the page is open -
+    // a path toggled there, a filter edited here - and this tick is what notices.
+    if (node && node.parentNode) {
+      if (node.textContent !== text) node.textContent = text;
+      return;
+    }
+    var box = taskEl('div', 'cpt2s-super', text);
+    box.id = SUPERSEDED_ID;
+    var slot = supersededSlot(group);
+    slot.parent.insertBefore(box, slot.before);
+  }
+
   function ensureReadmeLink() {
     var group = ownSettingGroup();
     if (!group) return;
@@ -3690,6 +3788,7 @@
     collapseDescription(group);   // after the split: it counts the .cpt2s-p divs
     tipSettings();
     ensureStaleNotice(group);     // before the early return: the link outlives it
+    ensureSupersededNotice(group);
     if (document.getElementById(README_LINK_ID)) return;
     var link = taskEl('a', 'cpt2s-readme', 'MergePerformerTagsToScenes/README.md');
     link.id = README_LINK_ID;

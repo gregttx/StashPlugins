@@ -32,7 +32,7 @@ const PLUGINS = fs.readdirSync(REPO)
   .sort();
 
 // Short column headings, because five full plugin names make a table nothing can
-// read. The legend under the table is what maps them back.
+// read. The legend above the table is what maps them back.
 const SHORT = {
   NormalizeParentTags: 'NPT',
   MergePerformerTagsToScenes: 'MPTTS',
@@ -125,10 +125,10 @@ function rootFile(all) {
     'One row per commit that shipped a version, newest first; a blank cell means that plugin did\n' +
     'not move in that commit. A version links to its commit, or carries the short id where the\n' +
     'commit has not been pushed yet. Per-plugin notes are in each plugin\'s own `RELEASES.md`.\n\n' +
+    PLUGINS.map((p) => '**' + short(p) + '** [' + p + '](' + p + '/RELEASES.md)').join(' · ') + '\n\n' +
     '| Date | ' + PLUGINS.map(short).join(' | ') + ' | Change |\n' +
     '| --- |' + PLUGINS.map(() => ' --- |').join('') + ' --- |\n' +
-    rows.join('\n') + '\n\n' +
-    PLUGINS.map((p) => '- **' + short(p) + '** — [' + p + '](' + p + '/RELEASES.md)').join('\n') + '\n';
+    rows.join('\n') + '\n';
 }
 
 const files = {};

@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.1.1 (`f997b2d`) | 2026-08-20 | SceneVariants 0.1.1: the after-patch reads its result off the end |
 | 0.1.0 (`6f8240f`) | 2026-08-20 | SceneVariants 0.1.0: a real Siblings tab on the scene page |
 | 0.0.2 (`1349356`) | 2026-08-20 | SceneVariants 0.0.2: the sibling query asks with EQUALS |
 | 0.0.1 (`5a37e41`) | 2026-08-20 | SceneVariants 0.0.1: L0 of the scene-variants plan, as a Siblings panel |

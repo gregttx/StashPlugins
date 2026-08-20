@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.2.0';
+  var PLUGIN_VERSION = '0.2.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -407,14 +407,23 @@
     // filename-shaped title blows straight through; releasing it is what lets the title
     // wrap instead of pushing the meta column off the row.
     '.svr-variant-title{flex:1 1 12rem;min-width:0;overflow-wrap:anywhere;}' +
-    '.svr-meta{color:#a7b6c2;font-size:.85rem;white-space:nowrap;}' +
-    '.svr-role{font-size:.85rem;white-space:nowrap;}' +
-    // Green for the full-length one, because it is the answer the tab exists to give.
-    // Grey for a partial and for an untagged scene: both are context rather than an
-    // answer, and a library that has not adopted the tags reads as quiet rather than
-    // broken. Red only for the scene wearing both, which is a contradiction.
+    // One rule for both, so the two things sitting after the title cannot end up at
+    // different sizes: they are read together, at a glance, and a half-step between them
+    // reads as one of them being an afterthought.
+    '.svr-role,.svr-meta{font-size:.85rem;white-space:nowrap;}' +
+    '.svr-meta{color:#a7b6c2;}' +
+    // Green for the full-length one, because it is the answer the tab exists to give;
+    // amber for a partial; red for the scene wearing both tags, which is a contradiction.
+    // An untagged scene has no label at all, which is the only quiet state left.
+    //
+    // The partial was grey to begin with, on the reasoning that it is context rather than
+    // an answer. Live use said otherwise, and the reasoning was wrong in a way worth
+    // keeping written down: a reader is not looking up one row, they are scanning a short
+    // list to see *which is which*, and a value rendered as the same grey as the metadata
+    // beside it does not answer that at a glance. Both values are the answer; only the
+    // absence of one is context.
     '.svr-role-fl{color:#84d68a;}' +
-    '.svr-role-pl{color:#7d8f9c;}' +
+    '.svr-role-pl{color:#ffb648;}' +
     '.svr-role-bad{color:#ff7373;}' +
     // Byte-identical to TagBundleClipboard's, because a class two plugins share has to
     // mean the same thing in both and here it does: the line standing in for a list

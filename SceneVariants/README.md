@@ -45,8 +45,10 @@ Names are typed rather than picked, and compared without regard to case or surro
 Leave both empty and the tab still lists the variants — it just says nothing about which is which.
 
 Rows are ordered full-length first, then longest running time, because "which of these is the whole
-thing" is the question the tab exists to answer. A scene carrying **both** tags is shown in red:
-the two are mutually exclusive by definition, so the contradiction is reported rather than resolved.
+thing" is the question the tab exists to answer. Full-length is green and partial-length amber, so a
+short list can be read at a glance; a scene with neither tag simply has no label. A scene carrying
+**both** is shown in red — the two are mutually exclusive by definition, so the contradiction is
+reported rather than resolved.
 
 ## What it does not do
 

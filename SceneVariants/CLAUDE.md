@@ -158,7 +158,16 @@ the strip moving again.
 - **An untagged variant is listed with no role at all**, not with a guess and not with a warning. In
   a library that has not adopted the tags — or has not tagged this set yet — every row is in that
   state, and a column full of "unknown" would read as a broken plugin rather than as an unanswered
-  question.
+  question. That absence is the only quiet state in the column: green for full-length, **amber for
+  partial-length**, red for both.
+
+  The partial was grey at first, on the reasoning that it is context rather than an answer, and live
+  use said otherwise. The reasoning was wrong in a way worth keeping: a reader is not looking up one
+  row, they are scanning a short list to see *which is which*, and a value rendered in the same grey
+  as the metadata beside it does not answer that at a glance. Both values are the answer; only the
+  absence of one is context. The label and the metadata are also pinned to one font-size rule for
+  the same reason — they are read together, and a half-step between them reads as one of them being
+  an afterthought.
 - **Both tags on one scene is red.** The two values are mutually exclusive by definition, so there
   is no correct winner to pick; the plan's §7 lists this as the first diagnosis and its L3 answer is
   "ask which", which needs a dialog this plugin does not have. Showing it is the whole of what L0

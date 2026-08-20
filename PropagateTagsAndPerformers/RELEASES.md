@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 3.11.2 (`9a4f14a`) | 2026-08-20 | One grammatical load banner, in all five |
 | [3.11.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | 2026-08-19 | Release history out of all five plugin sources |
 | [3.11.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | 2026-08-19 | Repo review 2026-08-19: all 27 findings fixed |
 | [3.10.0](https://github.com/gregttx/StashPlugins/commit/b523556) | 2026-08-19 | PTP2RE 3.10.0: the paths dialog draws the paths, and you can rearrange them |

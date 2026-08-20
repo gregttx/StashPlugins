@@ -6,8 +6,11 @@ name prefix) are in `../CLAUDE.md` and still apply. The user-facing description 
 this file is for the reasoning that does not belong in either. The design this was built from is
 `../.plans/scene-variants.md`, which covers five further levels.
 
-**Nothing in this plugin has been run in a live Stash.** That is what the zero in the version means
-here, and the list below is what a first live session is for. `tests/scenevariants.test.js` is 20
+**The first live session found one thing and could not get far enough to look at the rest.** The
+sibling query was rejected outright — `invalid modifier INCLUDES for stash IDs criterion` — so the
+panel has still never been drawn on a real page. What that failure did confirm is §2's field name
+and shape, since the criterion parsed and reached its handler; everything about the panel itself is
+still a guess. `tests/scenevariants.test.js` is 20
 checks against four mutants, and every one of them is a fact about the plugin's own logic — not one
 of them can tell you the tab strip is where this thinks it is, or that `stash_ids_endpoint` is
 spelled that way on the server in front of you.
@@ -74,13 +77,21 @@ Everything in it is a guess about Stash that no test here can check:
 1. **The tab strip anchor.** Ported from `TagBundleClipboard`, which found it live — but that plugin
    puts a *row of buttons* under the strip and this puts a bordered panel, so what is confirmed is
    the anchor, not that a panel looks right there.
-2. **`stash_ids_endpoint`** existing, being spelled that way, and taking `[String!]`. Read off
-   `stashapp/stash` `develop` in the plan, never sent to a server. A failure here is loud — see
-   below — which is the mitigation, not a substitute.
-3. **`INCLUDES` being the right modifier** for "shares any of these ids" rather than "has all".
-4. **Omitting `endpoint`** matching across endpoints rather than matching nothing.
-5. **The panel's own CSS** against Stash's theme: the greys are the dialogs' greys, but no dialog in
+2. **The panel's own CSS** against Stash's theme: the greys are the dialogs' greys, but no dialog in
    this repo sits inline on a page the way this does.
+3. **That a sibling set is ever found at all** — the query is right by construction now, and nobody
+   has seen it return two scenes.
+
+**Confirmed, and worth not re-deriving:** `stash_ids_endpoint` exists, is spelled that way and takes
+a list (the live rejection came from inside its handler, so everything before the modifier parsed);
+`EQUALS` is the modifier and over a list it ORs the ids; and omitting `endpoint` leaves it out of the
+join condition rather than matching nothing, so one query does cover a set spanning two providers.
+
+**`INCLUDES` was the wrong guess and it was a reasonable one**, which is why it is written down
+rather than quietly fixed. Every other list criterion in Stash takes `INCLUDES` / `EXCLUDES`, so the
+stash IDs criterion reads like its neighbours and is not: it accepts exactly `IS_NULL`, `NOT_NULL`,
+`EQUALS` and `NOT_EQUALS`, and `f.setError`s on anything else. A filter field that parses is not a
+filter field that runs, and the four-modifier whitelist is invisible from the schema.
 
 **A failed sibling query is reported on the console whatever `b1LogToConsole` says**, and that is
 the one place this plugin is deliberately noisy. Every other way of showing nothing — no stash-id,

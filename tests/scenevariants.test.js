@@ -120,6 +120,15 @@ const roleOf = (row) => {
     h.check('the head counts the siblings and says what matched them on',
       p.childNodes[0].textContent === '3 other scenes are the same work — matched on 1 stash-id',
       p.childNodes[0].textContent);
+    // The one thing in the query that is neither a guess nor a preference. The stash IDs
+    // criterion accepts four modifiers and rejects the rest outright, INCLUDES among
+    // them - which is the natural guess for a list criterion, is what every other list
+    // filter in Stash takes, and is what shipped and failed on a live server. EQUALS
+    // over a list ORs the ids, which is the "any of these" the panel needs.
+    const sibQuery = env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1)[0].query;
+    h.check('the sibling query asks with EQUALS, the modifier the server accepts',
+      sibQuery.indexOf('modifier: EQUALS') !== -1 && sibQuery.indexOf('INCLUDES') === -1,
+      sibQuery);
     h.check('each row links to its scene',
       rows(p).map((r) => r.childNodes[0].href).join(' ') === '/scenes/9 /scenes/55 /scenes/77',
       rows(p).map((r) => r.childNodes[0].href).join(' '));

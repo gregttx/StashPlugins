@@ -32,7 +32,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.0.1';
+  var PLUGIN_VERSION = '0.0.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -269,12 +269,21 @@
   // `stash_ids_endpoint` takes a *list*, so one call covers a scene carrying several
   // ids, and the endpoint is deliberately left out: a sibling set that spans two
   // metadata providers is still one work, and naming an endpoint would hide half of it.
+  // Omitting it leaves the endpoint out of the join condition entirely, which is what
+  // makes that work rather than matching nothing.
+  //
+  // **The modifier is EQUALS, and it is the one that means "any of these".** The stash
+  // IDs criterion accepts exactly four - IS_NULL, NOT_NULL, EQUALS, NOT_EQUALS - and
+  // rejects everything else outright, INCLUDES among them; EQUALS over a list ORs the
+  // ids, which is the semantics wanted here. INCLUDES is the natural guess for a list
+  // criterion and every other list filter in Stash takes it, so this is the one place
+  // reading like its neighbours is wrong.
   var SCENE_QUERY =
     'query SVRScene($id: ID!) { findScene(id: $id) { id title stash_ids { endpoint stash_id } } }';
 
   var SIBLINGS_QUERY =
     'query SVRSiblings($ids: [String!]) { findScenes(' +
-    'scene_filter: { stash_ids_endpoint: { stash_ids: $ids, modifier: INCLUDES } }, ' +
+    'scene_filter: { stash_ids_endpoint: { stash_ids: $ids, modifier: EQUALS } }, ' +
     'filter: { per_page: -1 }) { scenes { id title tags { id name } ' +
     'files { duration width height } } } }';
 

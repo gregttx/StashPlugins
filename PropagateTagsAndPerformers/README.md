@@ -72,6 +72,34 @@ wherever a path offers them and plain *On* everywhere else, since only the two g
 have the choice. Each of the three says what it does on hover, and so does every path's name — what
 it copies onto what, what its third mode means where it has one, and which path reverses it.
 
+**Visual view**, from the footer, puts the same thirteen buttons on a diagram of what they do: one
+box per entity type, with the tags and — where the type has them — the performers inside it, and one
+arrow per path leaving what it reads and entering what it writes. Green arrows carry tags, blue
+carry performers, and a dashed one reaches its source through the target's scenes, which is how a
+Group gets its scenes' performers and markers without having any of its own. A box is styled as one
+of Stash's own secondary buttons, so it looks like the rest of your theme, and its outline says what
+your configuration has it doing: **amber** for a box being written into, **teal** for one being read
+out of, **black** for neither. A box that is both — Scene and Gallery, once a few paths are on — is
+amber, since being written into is the half you are deciding about. It follows a toggle the moment
+you press it. The picture is sized to what is on it and centred in the dialog. Each toggle sits on its
+own arrow and is the same control the list shows, so a path set in one view is set in the other and
+is what Save writes. **List view** switches back, and the dialog opens on whichever of the two you last left it in.
+
+**Rearranging it.** The diagram ships with a layout, and you can move it. Open the browser console
+(F12) and run `__GTTx__.StashPluginCoop.layoutEdit = true`, then reopen the dialog: boxes and
+toggles become draggable, and an arrow follows the toggle you drag, since the curve is drawn through
+it. While editing, the picture sits against the left edge rather than centred - a canvas that grows as
+you drag a box towards its edge would otherwise slide everything else under your pointer. Positions
+snap to a small grid and are kept in that browser as you go, so the arrangement is
+there next time whether or not the flag still is. **Copy layout** puts the two tables on your
+clipboard exactly as the plugin's source spells them, for pasting into `PropagateTagsAndPerformers.js`
+if you want the arrangement to survive a reinstall or to be everyone's; **Reset layout** forgets
+yours and goes back to the shipped one. The flag is not remembered — a new tab opens the diagram
+read-only again, which is the point: a stray drag in the dialog you opened to set thirteen toggles
+would not be a feature. The dialog is wider while the diagram is up: the
+list is three columns of short labels and reads worse the wider it gets, and the diagram has nowhere
+to reflow to.
+
 **A path can already be happening without being on.** With *Tags: Studio → Groups* and
 *Tags: Groups → Scenes* both on, a studio's tags reach its groups and then those groups' scenes —
 so *Tags: Studio → Scenes* is running whether or not anyone enabled it. Such a path reads **On** in

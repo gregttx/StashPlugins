@@ -215,6 +215,11 @@ function makeEnv(opts) {
     body, head,
     documentElement: makeElement('html'),
     createElement: (tag) => makeElement(tag),
+    // SVG nodes are element nodes like any other here - there is no rendering, and
+    // the only thing that separates them in the plugins is which namespace they were
+    // asked for. `setAttribute` on the fake element already covers what an SVG node
+    // is written with.
+    createElementNS: (ns, tag) => makeElement(tag),
     getElementById: (id) => head.descendants().concat(body.descendants())
       .filter((n) => n.id === id)[0] || null,
     // A leading '.' is a class selector, matched the way `hasClass` does everywhere

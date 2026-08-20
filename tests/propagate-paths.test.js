@@ -268,6 +268,101 @@ h.check('and the two paths carrying a mode share the last column',
   laid.filter((id) => pathById(id).common).length === 2,
   PATH_COLUMNS[PATH_COLUMNS.length - 1].join(' '));
 
+// ── The diagram is the same table, drawn ──────────────────────────────────
+//
+// The second view of these thirteen paths: a box per entity type and an arrow per
+// path. Only the boxes are hand-placed - an arrow's ends are the chips it joins,
+// clipped to those boxes - so what can go wrong is a path with nowhere to start, a
+// box nothing reaches, or a coordinate edit that quietly parks two toggles on top of
+// each other. None of those is visible from the plugin's own tests of the table, and
+// none is visible in a browser either until somebody opens the dialog.
+
+const { DIAGRAM_NODES, diagramGeometry } = api;
+const geo = diagramGeometry();
+const nodeIds = DIAGRAM_NODES.map((n) => n.id);
+
+h.check('the diagram draws every path', geo.edges.length === PATHS.length,
+  geo.edges.length + ' arrows for ' + PATHS.length + ' paths');
+
+// The node id is the path id's own source segment, which is what gives `subgroup` a
+// box of its own: an arrow from Group to itself would be true and useless.
+const ends = PATHS.reduce((acc, p) => acc.concat(
+  [/^[a-z]+:([a-z_]+)>/.exec(p.id)[1], p.target]), []);
+h.check('every end of every path has a box',
+  ends.every((id) => nodeIds.indexOf(id) !== -1),
+  ends.filter((id) => nodeIds.indexOf(id) === -1).join(' ') || 'all placed');
+
+h.check('and every box is on a path',
+  nodeIds.every((id) => ends.indexOf(id) !== -1),
+  nodeIds.filter((id) => ends.indexOf(id) === -1).join(' ') || 'all reached');
+
+// A performers arrow leaves the Performers chip and enters one. A box without that
+// chip would have it drawn from Tags instead - an arrow saying it moves tags, with a
+// button that moves performers.
+const perfNodes = DIAGRAM_NODES.filter((n) => n.perf).map((n) => n.id);
+h.check('a box at either end of a performers path holds performers',
+  PATHS.filter((p) => p.kind === 'performers').every((p) =>
+    perfNodes.indexOf(/^[a-z]+:([a-z_]+)>/.exec(p.id)[1]) !== -1 &&
+    perfNodes.indexOf(p.target) !== -1),
+  perfNodes.join(' '));
+
+h.check('and nothing else claims to',
+  perfNodes.length === 3 && perfNodes.join(' ') === 'image gallery scene',
+  perfNodes.join(' '));
+
+// Generous boxes: the widest caption a toggle can wear is "Common tags only", held at
+// 9.5rem by `.ptp2re-toggle-wide`, and only the two paths carrying a mode ever wear
+// it. Rounding up means the check fails before the overlap is visible rather than
+// after.
+const btn = (e) => {
+  const w = pathById(e.id).common ? 160 : 64, hh = 30;
+  return { id: e.id, x: e.bx - w / 2, y: e.by - hh / 2, w, h: hh };
+};
+const overlaps = (a, b) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const btns = geo.edges.map(btn);
+const clashes = [];
+btns.forEach((a, i) => {
+  btns.slice(i + 1).forEach((b) => { if (overlaps(a, b)) clashes.push(a.id + ' / ' + b.id); });
+  geo.nodes.forEach((n) => { if (overlaps(a, n)) clashes.push(a.id + ' on ' + n.id); });
+});
+h.check('no two toggles collide, and none lands on a box',
+  clashes.length === 0, clashes.join(', ') || 'all clear');
+
+h.check('and every one of them is on the canvas',
+  btns.every((b) => b.x >= 0 && b.y >= 0 && b.x + b.w <= geo.w && b.y + b.h <= geo.h),
+  btns.filter((b) => b.x < 0 || b.y < 0 || b.x + b.w > geo.w || b.y + b.h > geo.h)
+    .map((b) => b.id).join(' ') || 'all inside');
+
+// The clip is what makes an arrow start at the box and not in the middle of it. A
+// zero-length one would mean two boxes overlapping, which no other check would see.
+const onEdge = (x, y, n) =>
+  Math.abs(x - n.x) < 0.01 || Math.abs(x - (n.x + n.w)) < 0.01 ||
+  Math.abs(y - n.y) < 0.01 || Math.abs(y - (n.y + n.h)) < 0.01;
+const box = (id) => geo.nodes.filter((n) => n.id === id)[0];
+h.check('every arrow starts and ends on the border of its own box',
+  geo.edges.every((e) =>
+    onEdge(e.x1, e.y1, box(e.from)) && onEdge(e.x2, e.y2, box(e.to))),
+  geo.edges.filter((e) => !(onEdge(e.x1, e.y1, box(e.from)) && onEdge(e.x2, e.y2, box(e.to))))
+    .map((e) => e.id).join(' ') || 'all clipped');
+
+// A reverse pair drawn with opposite bows lands on the same side of the line, not
+// opposite sides - the perpendicular is taken from each arrow's own direction, which
+// is already reversed. This is the mistake, and it is invisible: the two curves are
+// simply drawn on top of each other.
+const bowed = PATHS.filter((p) => p.pair && pathById(p.pair));
+h.check('a reverse pair bows to opposite sides of its line',
+  bowed.every((p) => {
+    const a = geo.edges.filter((e) => e.id === p.id)[0];
+    const b = geo.edges.filter((e) => e.id === p.pair)[0];
+    // Their chords are the same line reversed, so the two mid-to-button offsets
+    // point opposite ways when the curves are on opposite sides.
+    const oa = { x: a.bx - (a.x1 + a.x2) / 2, y: a.by - (a.y1 + a.y2) / 2 };
+    const ob = { x: b.bx - (b.x1 + b.x2) / 2, y: b.by - (b.y1 + b.y2) / 2 };
+    return oa.x * ob.x + oa.y * ob.y < 0;
+  }),
+  bowed.map((p) => p.id + ' / ' + p.pair).join(', '));
+
 // ── Order is the pipeline ─────────────────────────────────────────────────
 
 const stages = PATHS.map((p) => p.stage);

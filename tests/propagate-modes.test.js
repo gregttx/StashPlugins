@@ -36,7 +36,9 @@ function responder(opts) {
 
 function boot(opts) {
   opts = opts || {};
-  const env = h.makeEnv({ quiet: true, respond: responder(opts) });
+  const env = h.makeEnv({
+    quiet: true, respond: responder(opts), localStorage: opts.localStorage,
+    clipboard: { writeText: (t) => { env.copied = t; return Promise.resolve(); } } });
   h.run(env.ctx, SRC);
   return env;
 }
@@ -426,6 +428,279 @@ Promise.resolve()
         JSON.stringify(saved(env).map((c) => c.variables.input)));
       h.check('and the dialog closes', !d(env).open);
     });
+  })
+
+  // ── The two views ─────────────────────────────────────────────────────────
+  //
+  // The list is a column of names; the diagram is the graph those names describe. The
+  // thing worth pinning is that they are one dialog and not two: the same thirteen
+  // buttons move between the views, so a mode set in one is set in the other and
+  // there is no second state to fall behind.
+
+  .then(() => open({ settings: { b1Paths: '' } }))
+  .then((env) => {
+    const slots = () => env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-slot'));
+    const inSlots = () => slots().filter((s) => s.childNodes.length).length;
+    const modal = () => env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-modal'))[0];
+    const shown = (cls) => {
+      const n = env.ctx.document.body.descendants().filter((x) => h.hasClass(x, cls))[0];
+      return !!n && !h.hasClass(n, PREFIX + '-hidden');
+    };
+
+    h.check('the diagram is drawn with one box per entity type and one arrow per path',
+      env.ctx.document.body.descendants()
+        .filter((n) => h.hasClass(n, PREFIX + '-dia-box')).length === 8 &&
+      slots().length === 13,
+      env.ctx.document.body.descendants()
+        .filter((n) => h.hasClass(n, PREFIX + '-dia-box')).length + ' boxes, ' +
+      slots().length + ' arrows');
+
+    // Tags in every box, performers in the three types that have them - which is also
+    // where the two performer paths run between.
+    const chips = (kind) => env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-' + kind));
+    h.check('each box says what it holds', chips('tags').length === 8 &&
+      chips('performers').length === 3,
+      chips('tags').length + ' tags, ' + chips('performers').length + ' performers');
+
+    // Stash's own secondary button, worn by the box rather than repainted here, so a
+    // themed instance themes the diagram with it.
+    const boxes = () => env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-box'));
+    h.check('a box is one of Stash’s own buttons, not a colour of ours',
+      boxes().every((b) => h.hasClass(b, 'btn') && h.hasClass(b, 'btn-secondary')),
+      boxes()[0].className);
+
+    // The arrangement is the user's, so the canvas is the size of what is on it and
+    // starts at the padding - which is what lets `margin:0 auto` centre it.
+    const canvasEl = env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-canvas'))[0];
+    const lefts = boxes().map((b) => parseFloat(b.style.left));
+    const tops = boxes().map((b) => parseFloat(b.style.top));
+    h.check('the picture is centred: it starts at the padding, on a canvas its own size',
+      Math.min.apply(null, lefts) === 20 && Math.min.apply(null, tops) === 20 &&
+      parseFloat(canvasEl.style.width) >=
+        Math.max.apply(null, lefts) + 160 + 20 - 0.01,
+      canvasEl.style.width + ' for ' + Math.min.apply(null, lefts) + '..' +
+        Math.max.apply(null, lefts));
+
+    // The one thing the diagram says that the list cannot: which entities this
+    // configuration is currently writing into.
+    const box = (label) => boxes().filter((b) => b.textContent === label)[0];
+    const state = (label) => ['live', 'gives', 'idle']
+      .filter((k) => h.hasClass(box(label), PREFIX + '-dia-' + k)).join('+') || 'none';
+    const scene = () => box('Scene');
+    h.check('no path on, so every box is doing neither',
+      boxes().every((b) => h.hasClass(b, PREFIX + '-dia-idle')),
+      boxes().map((b) => b.className).join(' | '));
+    setMode(env, 'Tags: Studio → Scenes', 'On');
+    h.check('switching a path on ambers the box it writes into and teals the one it reads',
+      state('Scene') === 'live' && state('Studio') === 'gives' &&
+      state('Group') === 'idle' && state('Marker') === 'idle',
+      ['Scene', 'Studio', 'Group', 'Marker'].map((l) => l + ':' + state(l)).join(' '));
+    // Scene is now read as well as written, which is most of them once a few paths are
+    // on. Being written into is the half a user is deciding about, so it wins.
+    setMode(env, 'Tags: Scenes → Groups', 'All tags');
+    h.check('and a box doing both stays amber',
+      state('Scene') === 'live' && state('Group') === 'live' &&
+      state('Studio') === 'gives',
+      ['Scene', 'Group', 'Studio'].map((l) => l + ':' + state(l)).join(' '));
+    setMode(env, 'Tags: Studio → Scenes', 'Off');
+    setMode(env, 'Tags: Scenes → Groups', 'Off');
+    h.check('and switching them off again takes every box back',
+      boxes().every((b) => h.hasClass(b, PREFIX + '-dia-idle')), scene().className);
+
+    h.check('the footer offers the other view, in teal - it writes nothing',
+      !!d(env).button('Visual view') &&
+      h.hasClass(d(env).button('Visual view'), 'btn-info'),
+      (d(env).button('Visual view') || {}).className);
+
+    h.check('and the list is what it opens on',
+      shown(PREFIX + '-paths') && !shown(PREFIX + '-dia') && inSlots() === 0,
+      h.hasClass(modal(), PREFIX + '-narrow') ? 'narrow' : 'wide');
+
+    d(env).button('Visual view').click();
+    h.check('pressing it moves every toggle onto its arrow',
+      inSlots() === 13 && toggles(env).length === 13,
+      inSlots() + ' placed of ' + toggles(env).length);
+    h.check('and shows the diagram in a modal wide enough for it',
+      shown(PREFIX + '-dia') && !shown(PREFIX + '-paths') &&
+      !h.hasClass(modal(), PREFIX + '-narrow'), modal().className);
+
+    // Thirteen toggles on the page and thirteen of them in slots is the same thirteen:
+    // a second set built for the diagram would show as twenty-six.
+    h.check('every toggle in the diagram is one of the list’s own, not a copy',
+      toggles(env).filter((b) => h.hasClass(b.parentNode, PREFIX + '-dia-slot')).length === 13,
+      String(toggles(env).length) + ' toggles in all');
+
+    d(env).button('List view').click();
+    h.check('and going back puts them into their rows, beside their names',
+      inSlots() === 0 && toggles(env).length === 13 &&
+      rowName(toggleFor(env, 'Tags: Studio → Scenes')) === 'Tags: Studio → Scenes' &&
+      h.hasClass(modal(), PREFIX + '-narrow'),
+      toggles(env).map(rowName).join(' | '));
+
+    // Set in one view, saved from the other. This is the whole reason the buttons
+    // move rather than being built twice.
+    setMode(env, 'Tags: Studio → Scenes', 'On');
+    d(env).button('Visual view').click();
+    // The choice is one browser's, not the library's, so it goes to localStorage
+    // rather than into the setting this dialog exists to write.
+    h.check('and the view it was left in is remembered',
+      env.storage.items['__GTTx__.ptp2rePathsView'] === 'visual' &&
+      saved(env).length === 0,
+      JSON.stringify(env.storage.items));
+    d(env).button('Save').click();
+    return h.flush().then(() => {
+      h.check('a mode set in the list is what the diagram saves',
+        saved(env).length === 1 &&
+        saved(env)[0].variables.input.b1Paths === 'tags:studio>scene=ON',
+        JSON.stringify(saved(env).map((c) => c.variables.input)));
+    });
+  })
+
+  .then(() => open({ localStorage: { '__GTTx__.ptp2rePathsView': 'visual' } }))
+  .then((env) => {
+    const inSlots = () => env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-slot') && n.childNodes.length).length;
+    h.check('a later open comes back to the diagram',
+      inSlots() === 13 && !!d(env).button('List view'),
+      inSlots() + ' toggles on arrows');
+  })
+
+  // Anything else is the list, so a truncated or hand-edited value cannot leave the
+  // dialog in a state nothing here writes.
+  .then(() => open({ localStorage: { '__GTTx__.ptp2rePathsView': 'diagram' } }))
+  .then((env) => {
+    const inSlots = () => env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-slot') && n.childNodes.length).length;
+    h.check('and a value it does not recognise opens the list',
+      inSlots() === 0 && !!d(env).button('Visual view'),
+      inSlots() + ' toggles on arrows');
+  })
+
+  // ── Rearranging the diagram ───────────────────────────────────────────────
+  //
+  // Off unless `__GTTx__.StashPluginCoop.layoutEdit` is set, which is what keeps a
+  // stray drag out of the dialog everyone else opens to set thirteen toggles. What
+  // a drag produces is a layout in localStorage, merged into the shipped tables by
+  // id - so a release that adds a box keeps its own placement for it rather than
+  // the whole arrangement being thrown away.
+
+  .then(() => open({}))
+  .then((env) => {
+    const canvas = () => env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-canvas'))[0];
+    h.check('the diagram is not draggable until the flag is set',
+      !h.hasClass(canvas(), PREFIX + '-dia-editing') &&
+      !canvas().childNodes.some((n) => (n.handlers.pointerdown || []).length) &&
+      !d(env).button('Copy layout'),
+      canvas().className);
+  })
+
+  .then(() => {
+    const env = boot({});
+    env.ctx.__GTTx__.StashPluginCoop.layoutEdit = true;
+    return h.startTask(env.ctx, TASK_PATHS, NAME).then(() => h.flush()).then(() => env);
+  })
+  .then((env) => {
+    const byClass = (c) => env.ctx.document.body.descendants().filter((n) => h.hasClass(n, c));
+    const canvas = byClass(PREFIX + '-dia-canvas')[0];
+    const box = (i) => byClass(PREFIX + '-dia-box')[i];
+    const at = (n) => n.style.left + ',' + n.style.top;
+    // A real drag, through the handlers the plugin registered: down, two moves, up.
+    const drag = (node, dx, dy) => {
+      const ev = (x, y) => ({ clientX: x, clientY: y, button: 0, pointerId: 1,
+        preventDefault() {} });
+      node.handlers.pointerdown[0](ev(0, 0));
+      (node.handlers.pointermove || []).forEach((f) => f(ev(dx, dy)));
+      (node.handlers.pointerup || []).forEach((f) => f(ev(dx, dy)));
+    };
+
+    h.check('with the flag set, the canvas says so and every box takes a pointer',
+      h.hasClass(canvas, PREFIX + '-dia-editing') &&
+      byClass(PREFIX + '-dia-box').every((n) => (n.handlers.pointerdown || []).length === 1),
+      canvas.className);
+
+    const before = at(box(0));
+    const arrow = byClass(PREFIX + '-dia-slot')[4];   // tags:studio>scene, one of the box's own
+    const arrowBefore = at(arrow);
+    drag(box(0), 40, 25);
+    // The picture is centred when the dialog is built, so a box's coordinate is not
+    // the one in the table - it is that one, shifted so the whole arrangement starts
+    // at the padding. What a drag does to it is the same either way.
+    h.check('dragging a box moves it, snapped to the grid',
+      at(box(0)) === '60px,45px' && before === '20px,20px',
+      before + ' -> ' + at(box(0)));
+    // The arrows are drawn from the boxes, so moving one re-routes everything it
+    // touches - which is the whole reason a drag redraws rather than nudging a node.
+    h.check('and re-routes the arrows that start or end there',
+      at(arrow) !== arrowBefore, arrowBefore + ' -> ' + at(arrow));
+
+    h.check('the arrangement is kept in this browser, not in the setting',
+      !!env.storage.items['__GTTx__.ptp2reDiagramLayout'] &&
+      JSON.parse(env.storage.items['__GTTx__.ptp2reDiagramLayout']).nodes.studio.x === 60 &&
+      saved(env).length === 0,
+      env.storage.items['__GTTx__.ptp2reDiagramLayout']);
+
+    // The curve is defined to pass through its toggle, so one drag sets both and the
+    // button lands where it was released rather than near it.
+    const slot = byClass(PREFIX + '-dia-slot')[3];   // tags:performer>scene
+    const slotBefore = at(slot);
+    drag(slot, -30, 20);
+    const moved = at(slot).split(',').map((v) => parseFloat(v));
+    const was = slotBefore.split(',').map((v) => parseFloat(v));
+    const snap = (v) => Math.round(v / 5) * 5;
+    h.check('dragging a toggle takes its arrow with it, landing where it was dropped',
+      Math.abs(moved[0] - snap(was[0] - 30)) < 0.01 &&
+      Math.abs(moved[1] - snap(was[1] + 20)) < 0.01,
+      slotBefore + ' -> ' + at(slot));
+
+    d(env).button('Copy layout').click();
+    return h.flush().then(() => {
+      h.check('Copy layout hands back both tables, as the source spells them',
+        /\{ id: 'studio', label: 'Studio', x: 60, y: 45 \}/.test(env.copied) &&
+        /var DIAGRAM_CURVE = \{/.test(env.copied) &&
+        /'tags:image>gallery': \{ along: [-0-9.]+, off: [-0-9]+ \}/.test(env.copied),
+        env.copied);
+
+      d(env).button('Reset layout').click();
+      h.check('Reset puts the shipped layout back, centred again, and forgets the stored one',
+        at(byClass(PREFIX + '-dia-box')[0]) === '20px,20px' &&
+        !env.storage.items['__GTTx__.ptp2reDiagramLayout'],
+        at(byClass(PREFIX + '-dia-box')[0]));
+    });
+  })
+
+  // A layout is merged by id and one entry at a time: a box it has never heard of
+  // keeps the place this release gives it, and a name that has gone is ignored.
+  .then(() => open({ localStorage: { '__GTTx__.ptp2reDiagramLayout': JSON.stringify({
+    nodes: { scene: { x: 700, y: 400 }, atlantis: { x: 0, y: 0 } } }) } }))
+  .then((env) => {
+    const boxes = env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-box'));
+    const at = (label) => boxes.filter((b) => b.textContent === label)
+      .map((b) => ({ x: parseFloat(b.style.left), y: parseFloat(b.style.top) }))[0];
+    // Read as a distance rather than as two coordinates: centring moves the whole
+    // picture, so what the stored entry decides is where Scene sits *relative to*
+    // a box the layout says nothing about.
+    const A = api(env).DIAGRAM_NODES.filter((n) => n.id === 'group')[0];
+    h.check('a stored layout is drawn, and an id it names that no longer exists is ignored',
+      boxes.length === 8 &&
+      Math.round(at('Scene').x - at('Group').x) === 700 - A.x &&
+      Math.round(at('Scene').y - at('Group').y) === 400 - A.y,
+      boxes.map((b) => b.textContent + ' ' + b.style.left + ',' + b.style.top).join(' '));
+  })
+
+  .then(() => open({ localStorage: { '__GTTx__.ptp2reDiagramLayout': 'not json at all' } }))
+  .then((env) => {
+    const boxes = env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, PREFIX + '-dia-box'));
+    h.check('and a value it cannot read draws the shipped layout rather than nothing',
+      boxes.length === 8 && boxes[0].style.left === '20px',
+      boxes.map((b) => b.style.left).join(' '));
   })
 
   // ── A path other enabled paths already carry end to end ───────────────────

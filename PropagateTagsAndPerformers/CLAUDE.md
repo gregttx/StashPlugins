@@ -5,10 +5,156 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.6.2.** Every step in the table below has landed, so the version left the
+**Status: released, 3.10.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.10.0 gives a box three outlines rather than two: amber written into, teal read out of, black
+neither.** The two colours are the repo's own - the one that means "this plugin writes" and the one
+that means it only reads - used here for exactly what they mean on a button. Amber wins where a box
+is both, which Scene and Gallery are the moment more than a couple of paths are on: being written
+into is the consequential half and the half a user is deciding about. Black rather than
+`btn-secondary`'s own border for the third state, so "doing nothing" is a statement rather than the
+absence of one.
+
+The giving side is keyed on the path id's source segment, the same string the node table uses, which
+is what makes `tags:subgroup>group` light Sub-group rather than Group - the one path whose two ends
+are the same entity type.
+
+**3.9.0 takes the user's own arrangement as the shipped one, centres the picture, and says on the
+boxes what is being written into.**
+
+**The shipped tables are what came back out of Copy layout**, which is the feature working as
+designed: a layout was dragged in a live Stash and pasted into the source. Two of the numbers were
+changed on the way in - the three arrows between Image and Gallery had their toggles within about
+23px of each other, which `propagate-paths`' overlap check refuses and a real row of buttons would
+have shown as three captions on top of each other. That check earning its keep on the first
+real-world layout is the argument for having written it.
+
+**The table is stored already centred**, so `centreLayout` is a no-op on a fresh install and the
+coordinates in the file are the ones on the screen. Normalising the table was a one-off script
+around the plugin's own exported geometry - the same trick as the SVG preview, and the reason both
+are possible is that `diagramGeometry` touches no DOM.
+
+**Centring happens at build and on Reset, never on a redraw.** The canvas is the size of its
+contents (`minX`/`minY` and the far corner, with a nominal button allowed around each toggle point,
+since the geometry has only its centre), and `margin:0 auto` does the rest. Recentring on every
+redraw would mean dragging the leftmost box further left shifted everything else right by the same
+amount - the box would sit under the pointer and never appear to move. For the same reason the
+canvas is *not* centred while editing: it grows as a box approaches its edge, and a centred canvas
+that grows moves everything on it by half the growth.
+
+**A box wears `btn btn-secondary`, not colours of ours.** It is the same pair of classes the
+dialog's own Cancel and Copy layout wear, so a themed Stash themes the diagram; only what a button
+does that a box must not (padding, centred text, the pointer) is overridden. This is the same rule
+as reading a row's margins off a button Stash put there rather than naming a number.
+
+**Amber where something is being written.** `paintDiagram` marks every box that is the target of a
+path that is not Off, and it is called from `repaint`, so it follows a click rather than being
+computed once - which is what makes the diagram answer "what is this configuration actually doing"
+at a glance, the one question the list of thirteen names cannot answer at all. Nothing new decides
+what counts as live: a path covered end to end by a chain is already accounted for, because the last
+link of that chain is itself an enabled path into the same box.
+
+**3.8.0 lets the diagram be rearranged by dragging it, and keeps what you arrange.**
+
+**One stored point per arrow, replacing two hand-tuned numbers.** `DIAGRAM_BOW` said how far a curve
+bulged and `DIAGRAM_AT` said where along it the toggle sat; `DIAGRAM_CURVE` now holds one `{along,
+off}` per path - the toggle's position in the chord's own axes - and the curve is bent so its
+*halfway point is exactly there* (`c = 2p - (s + e) / 2`). That is what makes a drag land where it
+was released rather than near it, and it is the whole reason the two tables could become one: the
+button's position and the curve's shape were never two facts.
+
+**Chord-relative, not canvas pixels.** A curve stored as an absolute point would be left behind the
+moment either of its boxes moved. `along` and `off` are measured against the line between the two
+chips, so moving a box carries every arrow's shape with it - which is what a drag needs, since every
+box has arrows at both ends.
+
+**`dragXY` knows nothing about this plugin** and is written to be copied into the next one that
+needs it, like `plural` and `coopObject`. Pointer events rather than mouse ones (a pen and a touch
+work, and `setPointerCapture` keeps the moves coming once the pointer leaves the element, which a
+drag by definition does), and it reports an *offset from where the pointer went down* - never an
+absolute position, which only the caller can interpret. The caller reads the pre-drag position on
+the first move, before it has applied anything, so the helper needs no third callback.
+
+**A drag redraws; it never rebuilds.** `redrawDiagram` writes into the nodes the build made, which
+is not an optimisation: rebuilding would destroy the element the pointer is captured on, and take
+the drag with it.
+
+**`pointer-events:none` on the toggle is what makes a draggable button safe.** The slot under it
+takes the drag, so nothing has to swallow the click a drag would otherwise end in - which is the
+usual bug in this shape, and a distinction (was that a click or a very small drag?) nobody gets
+right. A chip is `pointer-events:none` for the same reason: it is part of the box behind it.
+
+**Off unless `__GTTx__.StashPluginCoop.layoutEdit` is set**, and read at build time. Not a setting
+and not a permanent button, for the reasons `debugButtons` is a console flag: it is aimed at
+whoever is deliberately authoring a layout, its natural lifetime is that session, and a stray drag
+in the dialog everyone else opens to set thirteen toggles would be a bug. The *layout* it produces
+is not gated - once arranged, it is drawn whether the flag is still on or not.
+
+**Merged by id, one entry at a time.** A stored layout naming a box this release has dropped is
+ignored, and a box this release has added keeps the coordinate shipped for it, rather than the whole
+arrangement being discarded because one name moved - the same rule the settings parser follows for
+a path id it does not know.
+
+**Copy layout prints whole tables rather than a diff.** What is pasted back replaces what is there,
+and a patch nobody can apply without reading both sides is worse than eight lines of coordinates. A
+path with no curve entry is left out: an absent entry already means a straight line with its toggle
+halfway along.
+
+**3.7.1 opens the dialog on whichever view it was last left in.** One key in localStorage, for the
+reason `NormalizeParentTags` keeps its run selection there: a view is one browser's convenience, not
+a configuration every tab and every user of that Stash shares - and unlike every setting this plugin
+has, it changes nothing about what a run does, so putting it in `b1Paths`' neighbourhood would be a
+second kind of thing in the settings map. The read and the write are guarded separately, because a
+private window hands out a store that reads fine and throws on the first write, and a failed write
+must not take the click that switched the view with it. Anything but the one word it writes reads as
+the list.
+
+**3.7.0 draws the thirteen paths instead of listing them, as a second view of the same dialog.**
+
+**One geometry function, no DOM, and it is the thing the tests can hold.** `diagramGeometry()`
+returns the whole picture as numbers - a box and its chips per entity type, and per path a curve,
+its control point and the point its toggle sits on. Nothing about a browser is in it, which is what
+lets `propagate-paths` check for two toggles landing on top of each other, a toggle parked on a box,
+an arrow that does not start on its own box's border, and a reverse pair drawn on the same side of
+its line. Every one of those is invisible until somebody opens the dialog and looks, and three of
+them were real: the first draft had all three Image/Gallery arrows on top of each other and the
+Scene/Group pair's two buttons overlapping.
+
+**Only the boxes are hand-placed.** An arrow runs between the two *chips* it joins - the Tags chip
+or the Performers one - clipped to the two boxes, so a fourteenth path draws itself from `PATHS`
+alone and only a new *entity type* would need a coordinate. The chips are anchors as well as
+contents: a performers arrow visibly leaves the Performers chip, which is the same fact its colour
+carries, at both ends of the line rather than along it.
+
+**A reverse pair takes the same bow, not opposite ones.** The perpendicular is taken from each
+arrow's own direction, which is already reversed, so equal numbers put the two curves on opposite
+sides and opposite numbers put them on the same side. That is the mistake this got wrong first, and
+it is silent - the two curves are simply drawn over each other. `propagate-paths` pins it with a dot
+product rather than with the numbers, so the check is about the picture and not about the table.
+
+**The buttons are the list's own, moved between the views.** A second set would be a second thing to
+paint, to enable, and to keep in step with `modes` - for a dialog that only ever shows one view.
+`this.rows` and `this.slots` are the two homes; `showView` appends each toggle into whichever is
+showing, and a list row is `display:contents`, so a button re-appended to it lands back in its own
+grid cell beside its name. The suite pins the count both ways: thirteen toggles on the page and
+thirteen of them in slots is the same thirteen, where a copy would show as twenty-six.
+
+**The modal drops `ptp2re-narrow` for the diagram.** The narrow modifier exists because the list is
+three columns of short labels that only get further apart as the modal widens; the canvas is 1100px
+that has nowhere to reflow to. `.ptp2re-pathsbody` already scrolls, which is what a window too
+narrow for it gets - a graph is not a column and there is nothing to wrap.
+
+**Both views are built up front.** The diagram is static geometry, so building it once is cheaper
+than a flag saying whether it has been built - and building it on the first switch would leave the
+buttons with nowhere to go until then.
+
+**Verified by rendering it, not by reading it.** The layout was tuned by feeding `diagramGeometry()`
+into a standalone SVG and looking at the result, which is the only way to see that a diagram is
+legible. That script is not in the repo - it is thirty lines around the plugin's own exported
+geometry, and the invariants worth keeping are in `propagate-paths` instead.
 
 **3.6.2 explains the bare number in the progress counters.** A segment reads `Groups 4: 120 / 900`,
 and the stage number is the only thing telling two passes over the same entity type apart - the word

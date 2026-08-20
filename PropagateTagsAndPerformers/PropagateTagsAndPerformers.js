@@ -46,7 +46,7 @@
   // major digit is what says "ready to use", and this one has no planner and no
   // buttons yet. Each implementation step is a feature, so it takes the minor digit
   // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.6.2';
+  var PLUGIN_VERSION = '3.10.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -441,6 +441,192 @@
       col.forEach(function (id) { var p = id && pathById(id); if (p) out.push(p); });
     });
     return out;
+  }
+
+  // ── The same thirteen paths, as a diagram ─────────────────────────────────
+  //
+  // The list is a column of names; this is the graph those names describe - one box
+  // per entity type, the tags and (where the type has them) the performers inside
+  // it, and one arrow per path leaving what it reads and entering what it writes.
+  //
+  // **Hand-placed boxes, everything else derived.** An arrow runs between the two
+  // chips it joins, clipped to the boxes, and its toggle sits on that curve. So a
+  // fourteenth path draws itself from `PATHS` alone, and only a
+  // new *entity type* would need a coordinate - which is why `propagate-paths` pins
+  // the node table against the paths in both directions, the way it already pins
+  // `PATH_COLUMNS`.
+  //
+  // Left to right: the types that only ever give (Studio, Performer, Marker, and the
+  // Image/Gallery pair), then Scene, then Group and its sub-groups. That is roughly
+  // pipeline order, because the stages walk towards Group.
+  //
+  // The node id is the path id's own source segment, which is what makes `subgroup`
+  // a box of its own: the schema says Group, the path says sub-group, and a diagram
+  // that drew `tags:subgroup>group` as an arrow from Group to itself would be true
+  // and useless.
+  // The canvas is the size of what is on it plus `pad` all round - there is no fixed
+  // width here, because the arrangement is the user's and a fixed one would be either
+  // too small for theirs or full of empty space. A toggle is a point in the geometry,
+  // so `btnW`/`btnH` is the nominal button allowed around it when the extent is
+  // measured; it is deliberately wider than any real caption, since a shade too much
+  // padding beats a button clipped at the edge.
+  var DIA = { boxW: 160, boxH: 56, chipY: 30, chipH: 20, pad: 20, btnW: 160, btnH: 30 };
+  var DIAGRAM_NODES = [
+    { id: 'studio', label: 'Studio', x: 20, y: 20 },
+    { id: 'performer', label: 'Performer', x: 95, y: 95 },
+    { id: 'marker', label: 'Marker', x: 225, y: 160 },
+    { id: 'image', label: 'Image', x: 560, y: 395, perf: true },
+    { id: 'gallery', label: 'Gallery', x: 560, y: 270, perf: true },
+    { id: 'scene', label: 'Scene', x: 320, y: 270, perf: true },
+    { id: 'group', label: 'Group', x: 760, y: 20 },
+    { id: 'subgroup', label: 'Sub-group', x: 755, y: 155 },
+  ];
+
+  // Where a path's toggle sits, and with it the curve its arrow takes: `along` the
+  // straight line between the two chips as a fraction of it, and `off` at right angles
+  // to that line in pixels. The arrow is a quadratic bent so that its own halfway
+  // point is exactly there, which is what makes one dragged point set both - see
+  // `curveFrom`.
+  //
+  // The one thing here the geometry cannot work out for itself. Three arrows run
+  // between Image and Gallery and would otherwise be drawn on top of each other; the
+  // Scene/Group pair is close enough that a straight pair collides as well; and
+  // Group's left edge, where the three long arrows from Studio, Performer and Marker
+  // all arrive, is no place to park a button - one there reads as theirs.
+  //
+  // **A reverse pair takes the same `off`, not opposite ones.** The perpendicular is
+  // taken from each arrow's own direction, which is already reversed, so equal offsets
+  // put the two curves on opposite sides of the line - and opposite offsets put them
+  // on the same side, which is what the first draft of this did.
+  //
+  // Anything a layout stored in the browser says replaces the entry here; see
+  // `storedLayout`.
+  var DIAGRAM_CURVE = {
+    'tags:marker>scene': { along: 0.452, off: -2 },
+    'tags:performer>scene': { along: 0.313, off: 28 },
+    'tags:studio>scene': { along: 0.354, off: 86 },
+    'tags:image>gallery': { along: 0.507, off: -34 },
+    'tags:scene>group': { along: 0.476, off: 32 },
+    'tags:studio>group': { along: 0.362, off: 0 },
+    'tags:performer>group': { along: 0.436, off: -1 },
+    'tags:subgroup>group': { along: 0.49, off: 29 },
+    'tags:group>scene': { along: 0.634, off: 42 },
+    'tags:gallery>image': { along: 0.512, off: -34 },
+    'performers:image>gallery': { along: 0.5, off: 42 },
+  };
+
+  // Where a chip sits inside its box. Both are anchors, not just labels: an arrow
+  // carrying performers leaves the Performers chip, so which of the two a path moves
+  // is legible from where its arrow starts before any colour is read.
+  function diaChip(node, kind) {
+    var perf = kind === 'performers' && node.perf;
+    return {
+      kind: perf ? 'performers' : 'tags',
+      label: perf ? 'Performers' : 'Tags',
+      x: node.x + (perf ? 62 : 10),
+      y: node.y + DIA.chipY,
+      w: perf ? 88 : 46,
+      h: DIA.chipH,
+    };
+  }
+
+  // Where the ray from `p` towards `q` leaves `p`'s box. `p` is a chip centre, so it
+  // is inside the box by construction and the near side is whichever of the two
+  // slabs it reaches first.
+  function diaExit(p, q, box) {
+    var dx = q.x - p.x, dy = q.y - p.y, ts = [];
+    if (dx > 0) ts.push((box.x + box.w - p.x) / dx);
+    else if (dx < 0) ts.push((box.x - p.x) / dx);
+    if (dy > 0) ts.push((box.y + box.h - p.y) / dy);
+    else if (dy < 0) ts.push((box.y - p.y) / dy);
+    var t = ts.length ? Math.min.apply(Math, ts) : 0;
+    return { x: p.x + dx * t, y: p.y + dy * t };
+  }
+
+  // The chord's own axes: along it, and at right angles to it. Everything about a
+  // curve is stored in these rather than in canvas pixels, so moving a box carries
+  // its arrows' shapes with it instead of leaving them behind.
+  function diaAxes(s, e) {
+    var dx = e.x - s.x, dy = e.y - s.y, len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { len: len, ux: dx / len, uy: dy / len, nx: -dy / len, ny: dx / len };
+  }
+
+  // The toggle's point, and the control point of an arrow passing through it. A
+  // quadratic is at `(s + 2c + e) / 4` halfway along, so `c = 2p - (s + e) / 2` puts
+  // that halfway point exactly on `p` - which is why a dragged button lands where it
+  // was released rather than near it.
+  function curveFrom(s, e, curve) {
+    var a = diaAxes(s, e), along = curve ? curve.along : 0.5, off = curve ? curve.off : 0;
+    var p = {
+      x: s.x + a.ux * a.len * along + a.nx * off,
+      y: s.y + a.uy * a.len * along + a.ny * off,
+    };
+    return { p: p, c: { x: 2 * p.x - (s.x + e.x) / 2, y: 2 * p.y - (s.y + e.y) / 2 } };
+  }
+
+  // And back: a point on the canvas as a curve. What a drag produces.
+  function curveTo(s, e, x, y) {
+    var a = diaAxes(s, e), px = x - s.x, py = y - s.y;
+    return {
+      along: (px * a.ux + py * a.uy) / a.len,
+      off: px * a.nx + py * a.ny,
+    };
+  }
+
+  // The whole picture as numbers, with no DOM in sight - which is what lets the
+  // layout be checked, and drawn into a file, without a browser.
+  //
+  // `layout` is an arrangement to draw instead of the tables above: the dialog's own
+  // while a drag is in flight, whatever the browser has stored otherwise. Merged by
+  // id and one entry at a time, so a box this release has added and the stored layout
+  // has never heard of keeps its place here rather than the whole layout being
+  // discarded.
+  function diagramGeometry(layout) {
+    var moved = (layout && layout.nodes) || {};
+    var curves = (layout && layout.curves) || {};
+    var boxes = {}, nodes = [];
+    DIAGRAM_NODES.forEach(function (n) {
+      var at = moved[n.id] || {};
+      var x = typeof at.x === 'number' ? at.x : n.x;
+      var y = typeof at.y === 'number' ? at.y : n.y;
+      var box = { id: n.id, label: n.label, x: x, y: y, w: DIA.boxW, h: DIA.boxH,
+        perf: !!n.perf, chips: [] };
+      box.chips.push(diaChip(box, 'tags'));
+      if (n.perf) box.chips.push(diaChip(box, 'performers'));
+      boxes[n.id] = box;
+      nodes.push(box);
+    });
+    var edges = PATHS.map(function (p) {
+      var m = /^[a-z]+:([a-z_]+)>([a-z]+)$/.exec(p.id);
+      var a = boxes[m[1]], b = boxes[m[2]];
+      if (!a || !b) return null;
+      var ca = diaChip(a, p.kind), cb = diaChip(b, p.kind);
+      var pa = { x: ca.x + ca.w / 2, y: ca.y + ca.h / 2 };
+      var pb = { x: cb.x + cb.w / 2, y: cb.y + cb.h / 2 };
+      var s = diaExit(pa, pb, a), e = diaExit(pb, pa, b);
+      var bent = curveFrom(s, e, curves[p.id] || DIAGRAM_CURVE[p.id]);
+      return {
+        id: p.id, kind: p.kind, hops: p.hops, from: a.id, to: b.id,
+        x1: s.x, y1: s.y, x2: e.x, y2: e.y,
+        cx: bent.c.x, cy: bent.c.y, bx: bent.p.x, by: bent.p.y,
+      };
+    }).filter(Boolean);
+    // What the picture actually occupies. `minX`/`minY` are how `centreLayout` knows
+    // what to subtract; the canvas takes the far side plus the same padding.
+    var b = { minX: Infinity, minY: Infinity, maxX: 0, maxY: 0 };
+    function span(x1, y1, x2, y2) {
+      b.minX = Math.min(b.minX, x1); b.minY = Math.min(b.minY, y1);
+      b.maxX = Math.max(b.maxX, x2); b.maxY = Math.max(b.maxY, y2);
+    }
+    nodes.forEach(function (n) { span(n.x, n.y, n.x + n.w, n.y + n.h); });
+    edges.forEach(function (e) {
+      span(e.bx - DIA.btnW / 2, e.by - DIA.btnH / 2,
+        e.bx + DIA.btnW / 2, e.by + DIA.btnH / 2);
+    });
+    return {
+      w: b.maxX + DIA.pad, h: b.maxY + DIA.pad,
+      minX: b.minX, minY: b.minY, nodes: nodes, edges: edges,
+    };
   }
 
   // Which paths another path's tags already reach without it being switched on.
@@ -1206,6 +1392,66 @@
     // overriding `btn-secondary`'s own colour, which is what the button still is.
     '.ptp2re-toggle-auto{color:#ffb648 !important;}' +
     '.ptp2re-pathsbody{padding:.5rem 1rem;overflow:auto;}' +
+    // ── The diagram view ────────────────────────────────────────────────────
+    //
+    // Everything on the canvas is absolutely placed from `diagramGeometry`, in the
+    // canvas' own pixels: the boxes, the chips inside them and the slots the toggles
+    // sit in. So this rule set carries no positions of its own - only what the pieces
+    // look like - and a coordinate can never be half here and half there.
+    //
+    // The canvas does not reflow. It is a graph, not a column, and there is nothing
+    // for it to wrap into; `.ptp2re-pathsbody` already scrolls, which is what a window
+    // too narrow for it gets.
+    '.ptp2re-dia{margin:.5rem 0;}' +
+    '.ptp2re-dia-legend{color:#7d8f9c;font-size:.8rem;margin:0 0 .6rem;}' +
+    // Centred: the canvas is exactly as big as the picture on it, so `auto` margins
+    // put it in the middle of a dialog wider than that. Not while arranging - the
+    // canvas grows as a box is dragged towards its edge, and a centred canvas that
+    // grows moves everything on it by half of the growth, under the pointer.
+    '.ptp2re-dia-canvas{position:relative;margin:0 auto;}' +
+    '.ptp2re-dia-canvas.ptp2re-dia-editing{margin:0;}' +
+    // A box is styled as one of Stash's own secondary buttons, by wearing the same
+    // two classes rather than by naming colours here: the theme is the user's, and
+    // `btn-secondary` is what every neutral control in these dialogs already is. Only
+    // what a button does that a box must not is overridden.
+    '.ptp2re-dia-box{position:absolute;box-sizing:border-box;padding:0;' +
+    'text-align:left;cursor:default;pointer-events:none;}' +
+    // What the box is doing: amber written into, teal read out of, black neither. The
+    // repo's two colours - the one that means "this plugin writes" and the one that
+    // means it only reads - used for exactly what they mean elsewhere. `!important`
+    // because all three override `btn-secondary`'s own border, which is what the box
+    // still is.
+    '.ptp2re-dia-live{border-color:#ffb648 !important;}' +
+    '.ptp2re-dia-gives{border-color:#17a2b8 !important;}' +
+    '.ptp2re-dia-idle{border-color:#000 !important;}' +
+    '.ptp2re-dia-name{padding:.25rem .55rem;font-weight:600;font-size:.9rem;}' +
+    // The two chips are the arrows' anchors as well as the box's contents, so they
+    // carry the arrow colours: what a line moves is readable at both ends of it.
+    '.ptp2re-dia-chip{position:absolute;box-sizing:border-box;pointer-events:none;' +
+    'border:1px solid;' +
+    'border-radius:10px;background:#202b33;font-size:.75rem;line-height:18px;' +
+    'text-align:center;}' +
+    '.ptp2re-dia-tags{color:#84d68a;border-color:#84d68a;}' +
+    '.ptp2re-dia-performers{color:#7cc4ff;border-color:#7cc4ff;}' +
+    // The point the geometry returns is the middle of the button, not its corner:
+    // where a toggle sits on its curve is a fact about the curve, and its width is a
+    // fact about its caption.
+    '.ptp2re-dia-slot{position:absolute;transform:translate(-50%,-50%);' +
+    'white-space:nowrap;}' +
+    '.ptp2re-dia-slot button{margin:0;}' +
+    // Arranging mode, on only while the console flag is set. `touch-action:none` is
+    // what stops a drag on a touch screen scrolling the dialog instead of moving a
+    // box; `pointer-events:none` on the button is what lets the slot under it take
+    // the drag, and is why nothing has to swallow the click a drag would otherwise
+    // end in. A chip is part of the box behind it for the same reason.
+    '.ptp2re-dia-editing .ptp2re-dia-box,.ptp2re-dia-editing .ptp2re-dia-slot' +
+    '{cursor:move;touch-action:none;pointer-events:auto;}' +
+    '.ptp2re-dia-editing .ptp2re-dia-box{border-style:dashed;}' +
+    '.ptp2re-dia-editing .ptp2re-dia-slot>button{pointer-events:none;}' +
+    '.ptp2re-dia-edit{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;' +
+    'margin:0 0 .6rem;}' +
+    '.ptp2re-dia-edit button{margin-right:0;}' +
+    '.ptp2re-dia-edithint{color:#ffb648;font-size:.8rem;margin-right:.4rem;}' +
     // The enabled paths as the settings row shows them. Prose rather than the
     // sibling's monospace: what is rendered here is `pathLabel`, the same sentence
     // the log uses, not the tokens the setting stores.
@@ -3176,13 +3422,10 @@
     this.begin();
   };
 
-  Run.prototype.copy = function () {
-    var text = this.lines.join('\n');
-    var self = this;
-    function done(ok) {
-      self.copyBtn.textContent = ok ? 'Copied' : 'Copy failed';
-      setTimeout(function () { self.copyBtn.textContent = 'Copy log'; }, 2000);
-    }
+  // Two buttons copy to the system clipboard - the log here, and the diagram's layout
+  // in the paths dialog - so the awkward half is in one place. `done(ok)` is whatever
+  // the caller wants to say about it on the button.
+  function copyToClipboard(text, done) {
     var nav = window.navigator;
     if (nav && nav.clipboard && nav.clipboard.writeText) {
       nav.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallback()); });
@@ -3205,6 +3448,18 @@
         return false;
       }
     }
+  }
+
+  // Says what happened on the button that was pressed, and puts its caption back.
+  function copyFeedback(btn, label) {
+    return function (ok) {
+      btn.textContent = ok ? 'Copied' : 'Copy failed';
+      setTimeout(function () { btn.textContent = label; }, 2000);
+    };
+  }
+
+  Run.prototype.copy = function () {
+    copyToClipboard(this.lines.join('\n'), copyFeedback(this.copyBtn, 'Copy log'));
   };
 
   // ── Escape ────────────────────────────────────────────────────────────────
@@ -3274,6 +3529,117 @@
   // is nothing here for an Undo to reverse. What it does carry is what a path being
   // on actually means - the task covers it, the buttons appear for it, and the
   // automatic modes, if they are on, write along it with no dialog at all.
+  // Which of the two views the dialog opens on, kept across close and reopen. In
+  // localStorage rather than in the plugin settings, for the same reason
+  // `NormalizeParentTags` keeps its run selection there: it is one browser's
+  // convenience, not a configuration every tab and every user of that Stash shares -
+  // and unlike every setting this plugin has, it changes nothing about what a run
+  // does. Anything but the one word this writes reads as the list, so a hand-edited
+  // or truncated value can only ever fall back.
+  var VIEW_KEY = '__GTTx__.ptp2rePathsView';
+
+  function viewStore() {
+    try {
+      return window.localStorage || null;
+    } catch (e) {
+      return null;                         // storage disabled: it opens on the list
+    }
+  }
+
+  function storedVisual() {
+    try {
+      var store = viewStore();
+      return !!store && store.getItem(VIEW_KEY) === 'visual';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Separately guarded from the read: a private window can hand out a store that
+  // reads fine and throws on the first write, which would otherwise take the click
+  // that switched the view down with it.
+  function rememberView(visual) {
+    try {
+      var store = viewStore();
+      if (store) store.setItem(VIEW_KEY, visual ? 'visual' : 'list');
+    } catch (e) {
+      // Full, or refused. The view still switched; it just will not be remembered.
+    }
+  }
+
+  // ── Dragging, and the layout a drag produces ──────────────────────────────
+  //
+  // `dragXY` knows nothing about this plugin and is meant to be copied into the next
+  // one that needs it, like `plural` and `coopObject`: give it an element and a
+  // callback, and it reports how far the pointer has moved from where it went down.
+  //
+  // Pointer events rather than mouse ones - a pen and a touch work, and
+  // `setPointerCapture` keeps the moves coming when the pointer leaves the element,
+  // which a drag by definition does. `onMove` is called with the offset from the
+  // start, never with an absolute position: the caller knows what it was dragging
+  // from and this does not.
+  function dragXY(node, onMove, onDrop) {
+    node.addEventListener('pointerdown', function (ev) {
+      if (ev.button) return;                       // a right or middle click is not a drag
+      if (ev.preventDefault) ev.preventDefault();
+      var x0 = ev.clientX, y0 = ev.clientY, moved = false;
+      if (node.setPointerCapture && ev.pointerId != null) {
+        try { node.setPointerCapture(ev.pointerId); } catch (e) { /* not captured */ }
+      }
+      function move(e) {
+        moved = true;
+        onMove(e.clientX - x0, e.clientY - y0);
+      }
+      function up() {
+        node.removeEventListener('pointermove', move);
+        node.removeEventListener('pointerup', up);
+        node.removeEventListener('pointercancel', up);
+        if (moved && onDrop) onDrop();
+      }
+      node.addEventListener('pointermove', move);
+      node.addEventListener('pointerup', up);
+      node.addEventListener('pointercancel', up);
+    });
+  }
+
+  // A rearranged diagram, kept per browser like the view choice and for the same
+  // reason - it is one person's picture of their own library, not a configuration
+  // every tab shares. `{ nodes: { <id>: {x, y} }, curves: { <pathId>: {along, off} } }`,
+  // merged into the shipped tables by id, so a release that adds a box or a path
+  // keeps its own placement for it rather than the whole layout being thrown away.
+  var LAYOUT_KEY = '__GTTx__.ptp2reDiagramLayout';
+
+  function storedLayout() {
+    try {
+      var store = viewStore();
+      if (!store) return null;
+      var v = JSON.parse(store.getItem(LAYOUT_KEY) || 'null');
+      return v && typeof v === 'object' ? v : null;
+    } catch (e) {
+      return null;                         // absent, disabled, or not JSON at all
+    }
+  }
+
+  function saveLayout(layout) {
+    try {
+      var store = viewStore();
+      if (!store) return;
+      if (layout) store.setItem(LAYOUT_KEY, JSON.stringify(layout));
+      else store.removeItem(LAYOUT_KEY);
+    } catch (e) {
+      // Full, or refused. The drag still happened; it is this page's picture only.
+    }
+  }
+
+  // Whether the diagram can be rearranged, read at the moment the dialog is built.
+  // A console flag on the shared object rather than a setting or a permanent button,
+  // for the reasons `debugButtons` is one: it is aimed at whoever is deliberately
+  // authoring a layout, its natural lifetime is that session, and a stray drag on a
+  // dialog everyone else opens to set thirteen toggles would be a bug, not a feature.
+  function layoutEditing() {
+    return !!coop().layoutEdit;
+  }
+
   function PathsDialog(taskName) {
     this.taskName = taskName;
     this.modes = {};
@@ -3329,6 +3695,9 @@
     var cols = PATH_COLUMNS.map(function () { return el('div', 'ptp2re-paths-col'); });
     cols.forEach(function (c) { wrap.appendChild(c); });
     this.toggles = {};
+    // Where a button goes home to when the diagram gives it back. A row is
+    // `display:contents`, so re-appending puts the button back in its own grid cell.
+    this.rows = {};
     PATH_COLUMNS.forEach(function (ids, i) {
       ids.forEach(function (id) {
         if (!id) { cols[i].appendChild(el('div', 'ptp2re-path-gap')); return; }
@@ -3375,10 +3744,40 @@
         });
         row.appendChild(btn);
         cols[i].appendChild(row);
+        self.rows[p.id] = row;
         self.toggles[p.id] = { el: btn, paint: paint };
       });
     });
     return wrap;
+  };
+
+  // What each box is doing under the current configuration, in its outline: amber
+  // where something is being written into it, teal where something is being read out
+  // of it, black where neither. Painted from `repaint` rather than at build, so it
+  // follows a toggle the moment it is pressed - which is what makes the diagram answer
+  // "what is this configuration actually doing" at a glance, the one question a column
+  // of thirteen names cannot answer at all.
+  //
+  // **Amber wins where a box does both**, which Scene and Gallery both do the moment
+  // more than a couple of paths are on. Being written into is the consequential half -
+  // it is the repo's colour for "this plugin writes", and it is what a user is deciding
+  // about when they look at this dialog.
+  //
+  // The giving side is keyed on the path id's own source segment, the same string the
+  // node table uses, so `tags:subgroup>group` lights Sub-group rather than Group.
+  PathsDialog.prototype.paintDiagram = function () {
+    var self = this, live = {}, gives = {};
+    PATHS.forEach(function (p) {
+      if ((self.modes[p.id] || PATH_OFF) === PATH_OFF) return;
+      live[p.target] = true;
+      gives[/^[a-z]+:([a-z_]+)>/.exec(p.id)[1]] = true;
+    });
+    DIAGRAM_NODES.forEach(function (n) {
+      if (!self.diaBoxes[n.id]) return;
+      var state = live[n.id] ? ' ptp2re-dia-live'
+        : gives[n.id] ? ' ptp2re-dia-gives' : ' ptp2re-dia-idle';
+      self.diaBoxes[n.id].className = DIA_BOX_CLASS + state;
+    });
   };
 
   // One pass over the modes, then every button. The chains are computed once here
@@ -3389,6 +3788,284 @@
     var self = this;
     this.chains = pathChains(this.modes);
     PATHS.forEach(function (p) { self.toggles[p.id].paint(); });
+    if (this.diaBoxes) this.paintDiagram();
+  };
+
+  // ── The diagram view ──────────────────────────────────────────────────────
+  //
+  // The same thirteen toggles, on the graph rather than in a column. `diagramGeometry`
+  // has already decided where everything goes; this turns those numbers into nodes -
+  // one absolutely-positioned div per box and per chip, one SVG curve per path, and
+  // one slot per path for the button to sit in - and keeps a reference to each, so a
+  // drag can move them without rebuilding anything. A rebuild would be simpler and
+  // cannot be used: it would destroy the element the pointer is captured on.
+  //
+  // **The buttons are the list's own, moved here and back.** A second set would be a
+  // second thing to paint, to enable and to keep in step with the modes, for a dialog
+  // that only ever shows one view at a time.
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var DIA_COLOUR = { tags: '#84d68a', performers: '#7cc4ff' };
+  // What a drag rounds to. Small enough not to fight the pointer, large enough that
+  // two boxes nudged into line actually line up.
+  var DIA_SNAP = 5;
+  // A box borrows Stash's own secondary button, the same two classes the dialog's
+  // Cancel and Copy layout wear, so the diagram is themed by whatever the user's
+  // Stash is themed by rather than by four hex values here.
+  var DIA_BOX_CLASS = 'btn btn-secondary ptp2re-dia-box';
+
+  function svgEl(tag, attrs) {
+    var node = document.createElementNS(SVG_NS, tag);
+    for (var k in attrs) if (hasOwn(attrs, k)) node.setAttribute(k, attrs[k]);
+    return node;
+  }
+
+  function diaPlace(node, box) {
+    node.style.left = box.x + 'px';
+    node.style.top = box.y + 'px';
+    node.style.width = box.w + 'px';
+    node.style.height = box.h + 'px';
+  }
+
+  function diaSnap(v) {
+    return Math.round(v / DIA_SNAP) * DIA_SNAP;
+  }
+
+  PathsDialog.prototype.diagram = function () {
+    var self = this;
+    var editing = layoutEditing();
+    this.layout = storedLayout() || {};
+    if (!this.layout.nodes) this.layout.nodes = {};
+    if (!this.layout.curves) this.layout.curves = {};
+
+    this.centreLayout();
+
+    var wrap = el('div', 'ptp2re-dia');
+    wrap.appendChild(el('div', 'ptp2re-dia-legend',
+      'One box per entity type, with what it holds inside it, and one arrow per path ' +
+      'from what that path reads to what it writes. Green carries tags, blue carries ' +
+      'performers, and a dashed arrow reaches its source through the target’s ' +
+      'scenes - a Group has no performers or markers of its own. Every button is the ' +
+      'same toggle the list view shows, on the arrow it belongs to.'));
+    if (editing) wrap.appendChild(this.editBar());
+
+    var canvas = this.canvas = el('div', 'ptp2re-dia-canvas' +
+      (editing ? ' ptp2re-dia-editing' : ''));
+
+    // One arrowhead per kind. A single marker filled with `context-stroke` would take
+    // the line's own colour, and it is newer than the oldest browser someone might be
+    // running Stash in - two markers cost four lines and cannot be too new.
+    var svg = this.svg = svgEl('svg', {});
+    var defs = svgEl('defs');
+    ['tags', 'performers'].forEach(function (kind) {
+      var marker = svgEl('marker', { id: 'ptp2re-head-' + kind, viewBox: '0 0 8 8',
+        refX: 8, refY: 4, markerWidth: 7, markerHeight: 7, orient: 'auto' });
+      marker.appendChild(svgEl('path', { d: 'M0,0 L8,4 L0,8 z', fill: DIA_COLOUR[kind] }));
+      defs.appendChild(marker);
+    });
+    svg.appendChild(defs);
+    canvas.appendChild(svg);
+
+    this.diaBoxes = {};
+    this.diaChips = {};
+    this.diaLines = {};
+    this.slots = {};
+
+    diagramGeometry(this.layout).nodes.forEach(function (n) {
+      var box = el('div', DIA_BOX_CLASS);
+      box.appendChild(el('div', 'ptp2re-dia-name', n.label));
+      canvas.appendChild(box);
+      self.diaBoxes[n.id] = box;
+      // Chips are positioned on the canvas rather than inside the box, because they
+      // are also the arrows' anchors: one coordinate system for both is one place for
+      // them to disagree.
+      self.diaChips[n.id] = n.chips.map(function (c) {
+        var chip = el('div', 'ptp2re-dia-chip ptp2re-dia-' + c.kind, c.label);
+        canvas.appendChild(chip);
+        return chip;
+      });
+      if (editing) self.dragNode(box, n.id);
+    });
+
+    PATHS.forEach(function (p) {
+      var line = svgEl('path', { fill: 'none', stroke: DIA_COLOUR[p.kind],
+        'stroke-width': '2', 'marker-end': 'url(#ptp2re-head-' + p.kind + ')' });
+      // Two hops: the payload is on something the target does not have, and is reached
+      // through its scenes. The list view says so in the name's tooltip; here the line
+      // itself can.
+      if (p.hops === 2) line.setAttribute('stroke-dasharray', '6 4');
+      // An SVG <title> is the only tooltip a line can carry, and it is the same
+      // sentence the list view's name carries.
+      var tip = svgEl('title');
+      tip.textContent = pathLabel(p) + '. ' + pathTip(p);
+      line.appendChild(tip);
+      svg.appendChild(line);
+      self.diaLines[p.id] = line;
+
+      var slot = el('div', 'ptp2re-dia-slot');
+      canvas.appendChild(slot);
+      self.slots[p.id] = slot;
+      if (editing) self.dragCurve(slot, p.id);
+    });
+
+    wrap.appendChild(canvas);
+    this.redrawDiagram();
+    return wrap;
+  };
+
+  // The picture, moved so it starts at the padding - which, with a canvas sized to
+  // its contents and `margin:0 auto`, is what centres it in a dialog wider than it is.
+  //
+  // **Once, when the dialog is built, and never during a drag.** Recentring on every
+  // redraw would mean dragging the leftmost box further left moved everything else
+  // right by the same amount, so the box would sit under the pointer without ever
+  // appearing to move. The picture settles the next time the dialog is opened, which
+  // is also when the arrangement stops changing.
+  //
+  // It writes into `this.layout` rather than into the tables, and does not save: an
+  // arrangement nobody has dragged is not one to store, and the next drop stores the
+  // centred coordinates anyway.
+  PathsDialog.prototype.centreLayout = function () {
+    var self = this;
+    var g = diagramGeometry(this.layout);
+    var dx = DIA.pad - g.minX, dy = DIA.pad - g.minY;
+    if (!dx && !dy) return;
+    DIAGRAM_NODES.forEach(function (n) {
+      var at = self.layout.nodes[n.id] || n;
+      self.layout.nodes[n.id] = { x: at.x + dx, y: at.y + dy };
+    });
+  };
+
+  // Every coordinate the diagram has, applied. Called once at build and again on
+  // every pointer move, which is why it writes into existing nodes rather than
+  // making new ones.
+  PathsDialog.prototype.redrawDiagram = function () {
+    var self = this;
+    var g = diagramGeometry(this.layout);
+    this.geo = { nodes: {}, edges: {} };
+    this.canvas.style.width = g.w + 'px';
+    this.canvas.style.height = g.h + 'px';
+    this.svg.setAttribute('width', g.w);
+    this.svg.setAttribute('height', g.h);
+    this.svg.setAttribute('viewBox', '0 0 ' + g.w + ' ' + g.h);
+    g.nodes.forEach(function (n) {
+      self.geo.nodes[n.id] = n;
+      diaPlace(self.diaBoxes[n.id], n);
+      n.chips.forEach(function (c, i) { diaPlace(self.diaChips[n.id][i], c); });
+    });
+    g.edges.forEach(function (e) {
+      self.geo.edges[e.id] = e;
+      self.diaLines[e.id].setAttribute('d',
+        'M' + e.x1 + ',' + e.y1 + ' Q' + e.cx + ',' + e.cy + ' ' + e.x2 + ',' + e.y2);
+      self.slots[e.id].style.left = e.bx + 'px';
+      self.slots[e.id].style.top = e.by + 'px';
+    });
+  };
+
+  // A box, moved. The position at the start of the drag is read on the first move,
+  // before anything has been applied - `dragXY` reports an offset and deliberately
+  // does not know where the thing it is dragging was.
+  PathsDialog.prototype.dragNode = function (node, id) {
+    var self = this, from = null;
+    dragXY(node, function (dx, dy) {
+      if (!from) from = { x: self.geo.nodes[id].x, y: self.geo.nodes[id].y };
+      self.layout.nodes[id] = { x: diaSnap(from.x + dx), y: diaSnap(from.y + dy) };
+      self.redrawDiagram();
+    }, function () {
+      from = null;
+      saveLayout(self.layout);
+    });
+  };
+
+  // A toggle, moved - and its arrow with it, since the curve is defined to pass
+  // through the toggle. Stored in the chord's own axes rather than in canvas pixels,
+  // so moving either box afterwards carries the shape along instead of leaving it
+  // behind.
+  PathsDialog.prototype.dragCurve = function (node, id) {
+    var self = this, from = null;
+    dragXY(node, function (dx, dy) {
+      var e = self.geo.edges[id];
+      if (!from) from = { x: e.bx, y: e.by };
+      self.layout.curves[id] = curveTo({ x: e.x1, y: e.y1 }, { x: e.x2, y: e.y2 },
+        diaSnap(from.x + dx), diaSnap(from.y + dy));
+      self.redrawDiagram();
+    }, function () {
+      from = null;
+      saveLayout(self.layout);
+    });
+  };
+
+  // The bar that only exists while `__GTTx__.StashPluginCoop.layoutEdit` is set. Copy
+  // hands back the two tables as the source spells them, which is how a layout worth
+  // keeping stops being one browser's and becomes everyone's; Reset drops the stored
+  // one and goes back to those tables.
+  PathsDialog.prototype.editBar = function () {
+    var self = this;
+    var bar = el('div', 'ptp2re-dia-edit');
+    bar.appendChild(el('span', 'ptp2re-dia-edithint',
+      'Layout editing is on: drag a box or a toggle. Changes are kept in this browser ' +
+      'as you make them.'));
+    var copy = button('Copy layout', 'ptp2re-dia-copy');
+    copy.addEventListener('click', function () {
+      copyToClipboard(self.layoutText(), copyFeedback(copy, 'Copy layout'));
+    });
+    var reset = button('Reset layout', 'ptp2re-dia-reset');
+    reset.addEventListener('click', function () {
+      self.layout = { nodes: {}, curves: {} };
+      saveLayout(null);
+      // Re-centred here as well as at build: nothing is being dragged, so there is no
+      // pointer for a shift to surprise, and a Reset that left the picture hard against
+      // one edge would look like a second thing had gone wrong.
+      self.centreLayout();
+      self.redrawDiagram();
+    });
+    bar.appendChild(copy);
+    bar.appendChild(reset);
+    return bar;
+  };
+
+  // The layout as the source would spell it. Whole tables rather than the differences:
+  // what is pasted back replaces what is there, and a patch nobody can apply without
+  // reading both is worse than eight lines of coordinates.
+  PathsDialog.prototype.layoutText = function () {
+    var self = this;
+    var out = ['  var DIAGRAM_NODES = ['];
+    DIAGRAM_NODES.forEach(function (n) {
+      var at = self.layout.nodes[n.id] || n;
+      out.push("    { id: '" + n.id + "', label: '" + n.label + "', x: " + at.x +
+        ', y: ' + at.y + (n.perf ? ', perf: true' : '') + ' },');
+    });
+    out.push('  ];', '  var DIAGRAM_CURVE = {');
+    PATHS.forEach(function (p) {
+      var c = self.layout.curves[p.id] || DIAGRAM_CURVE[p.id];
+      // A path with no entry is a straight line with its toggle halfway along, which
+      // is what an absent entry already means - printing it would be thirteen lines
+      // saying nothing.
+      if (!c) return;
+      out.push("    '" + p.id + "': { along: " + Math.round(c.along * 1000) / 1000 +
+        ', off: ' + Math.round(c.off) + ' },');
+    });
+    out.push('  };');
+    return out.join('\n');
+  };
+
+  // Which view is showing. The modal drops `narrow` for the diagram: the list is three
+  // columns of short labels and reads worse the wider it gets, and the diagram is
+  // 1100px of canvas that has nowhere to reflow to.
+  PathsDialog.prototype.showView = function (visual) {
+    var self = this;
+    this.visual = !!visual;
+    PATHS.forEach(function (p) {
+      var home = self.visual ? self.slots[p.id] : self.rows[p.id];
+      if (home) home.appendChild(self.toggles[p.id].el);
+    });
+    this.listPanel.className = 'ptp2re-paths' + (this.visual ? ' ptp2re-hidden' : '');
+    this.diaPanel.className = 'ptp2re-dia' + (this.visual ? '' : ' ptp2re-hidden');
+    this.modal.className = 'ptp2re-modal' + (this.visual ? '' : ' ptp2re-narrow');
+    this.viewBtn.textContent = this.visual ? 'List view' : 'Visual view';
+    this.viewBtn.title = this.visual
+      ? 'Show the paths as a list of names, which is narrower and easier to read down.'
+      : 'Show the paths as a diagram: a box per entity type and an arrow per path.';
+    rememberView(this.visual);
   };
 
   // The three bulk buttons, in the footer opposite Save. Thirteen presses to turn everything on
@@ -3472,7 +4149,14 @@
     this.modal.appendChild(head);
 
     var body = el('div', 'ptp2re-pathsbody');
-    body.appendChild(this.panel());
+    // Both views are built up front and one is hidden. The diagram is a hundred-odd
+    // nodes of static geometry - cheaper to build once than to keep a flag saying
+    // whether it has been built, and building it on the first switch would leave the
+    // buttons homeless until then.
+    this.listPanel = this.panel();
+    this.diaPanel = this.diagram();
+    body.appendChild(this.listPanel);
+    body.appendChild(this.diaPanel);
     this.modal.appendChild(body);
 
     var foot = el('div', 'ptp2re-foot');
@@ -3480,10 +4164,15 @@
     this.saveBtn   = button('Save', 'ptp2re-proceed');
     this.saveBtn.className = this.saveBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
     this.cancelBtn = button('Cancel', 'ptp2re-cancel');
+    // Teal: it changes nothing but which of the two views is on screen. See "one
+    // colour for a plugin wrote this".
+    this.viewBtn = button('Visual view', 'ptp2re-view');
+    this.viewBtn.className = this.viewBtn.className.replace('btn-secondary', 'btn-info');
     this.saveBtn.disabled = true;
     this.saveBtn.addEventListener('click', function () { self.save(); });
     this.cancelBtn.addEventListener('click', function () { self.close(); });
-    [this.saveBtn, this.cancelBtn].forEach(function (b) { foot.appendChild(b); });
+    this.viewBtn.addEventListener('click', function () { self.showView(!self.visual); });
+    [this.saveBtn, this.cancelBtn, this.viewBtn].forEach(function (b) { foot.appendChild(b); });
     // The bulk buttons sit at the other end of the footer, pushed there by the row's
     // own `margin-left:auto` rather than by anything in the shared `.foot` rule, which
     // is pinned byte-identical across the plugins. They belong in a footer and not
@@ -3494,6 +4183,9 @@
     // settings land: `enable` reaches every control the dialog owns.
     this.enable(false);
     this.modal.appendChild(foot);
+    // Last, because it moves the toggles into whichever view is showing and reads the
+    // footer's own button back.
+    this.showView(storedVisual());
 
     wireEscape(this);
     document.body.appendChild(this.backdrop);
@@ -6421,6 +7113,8 @@
     SOURCES: SOURCES,
     PATHS: PATHS,
     PATH_COLUMNS: PATH_COLUMNS,
+    DIAGRAM_NODES: DIAGRAM_NODES,
+    diagramGeometry: diagramGeometry,
     DEFAULTS: DEFAULTS,
     pathSelection: pathSelection,
     targetSelection: targetSelection,

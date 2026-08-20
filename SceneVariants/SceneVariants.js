@@ -35,7 +35,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.1.1';
+  var PLUGIN_VERSION = '0.1.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -491,8 +491,9 @@
   //     callback is handed `(props, {}, result)`, and a signature reading the result out
   //     of the second position renders that `{}` as a child: React error #31, "Objects
   //     are not valid as a React child (found: object with keys {})". The result is last
-  //     by construction, so `patchResult` takes it off the end and cannot be wrong about
-  //     how many arguments came before it.
+  //     by construction, so `safeAppend` searches backwards for the first *element*
+  //     rather than indexing at all - being wrong here kills the whole scene page rather
+  //     than losing a tab, and neither props nor a context object is ever an element.
   //     The patch list is read when the component *renders*, not when it is defined, so
   //     registering at script load is early enough however late Scene.tsx is imported.
   //   * `props.scene` is a `SceneDataFragment`, which already carries `stash_ids`. That
@@ -507,10 +508,43 @@
   // have to reproduce tab activation, pane switching and every re-render React does for
   // free. A Stash too old gets one console line and no tab.
 
-  // The rendered result an `after` patch is chained onto. Always the last argument,
-  // whatever React put in front of it.
-  function patchResult(args) {
-    return args.length ? args[args.length - 1] : null;
+  // Appending to what a patched component rendered, without being able to break the page
+  // it is appending to.
+  //
+  // The result is the last argument by construction, whatever React put in front of it -
+  // but "by construction" is what the two arguments in front of it were also thought to
+  // be, and a wrong answer here does not degrade to a missing tab. It takes the whole
+  // scene view down with a React error, for a plugin that only reads. So: the result is
+  // checked for being an element before anything is appended to it, and building the
+  // addition is wrapped, and either way out returns Stash's own render untouched.
+  //
+  // Untouched is the *only* safe answer. There is nothing else to fall back to - the
+  // result is what the container component produced, so passing it through unchanged is
+  // exactly the page as it would have been without this plugin.
+  function safeAppend(React, args, build) {
+    var last = args.length ? args[args.length - 1] : null;
+    try {
+      // Backwards for the first *element*, rather than an index. The result is last
+      // today, and the two arguments in front of it were also "obviously" one argument
+      // until React's legacy-context object turned up between them. Neither props nor a
+      // context object is ever an element, so the search cannot pick the wrong one, and
+      // it survives anything else arriving on either side.
+      for (var i = args.length - 1; i >= 0; i--) {
+        if (React.isValidElement(args[i])) {
+          return React.createElement(React.Fragment, null, args[i], build());
+        }
+      }
+      // Nothing element-shaped at all. There is nothing to append to and nothing better
+      // to return than what we were handed, so the page is whatever it would have been.
+      gateLogOnce('shape', 'a patched component was called with ' +
+        plural(args.length, 'argument') + ' and none of them an element - ' +
+        'the Siblings tab is not being added.');
+      return last;
+    } catch (e) {
+      console.warn('[svr] the Siblings tab could not be built, so it is not being added: ' +
+        e.message);
+      return last;
+    }
   }
 
   function pluginApi() {
@@ -601,13 +635,13 @@
     }
     var Pane = SiblingsPane(React);
     api.patch.after('ScenePage.Tabs', function () {
-      return React.createElement(React.Fragment, null, patchResult(arguments),
-        TabLink(React, Nav));
+      return safeAppend(React, arguments, function () { return TabLink(React, Nav); });
     });
     api.patch.after('ScenePage.TabContent', function (props) {
-      return React.createElement(React.Fragment, null, patchResult(arguments),
-        React.createElement(Tab.Pane, { key: TAB_KEY, eventKey: TAB_KEY },
-          React.createElement(Pane, { scene: props.scene })));
+      return safeAppend(React, arguments, function () {
+        return React.createElement(Tab.Pane, { key: TAB_KEY, eventKey: TAB_KEY },
+          React.createElement(Pane, { scene: props.scene }));
+      });
     });
     _patched = true;
     gateLogOnce('patch', 'the Siblings tab is registered on the scene page');

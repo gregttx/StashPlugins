@@ -34,8 +34,12 @@ function makeReact() {
   const React = {
     Fragment,
     createElement(type, props, ...children) {
-      return { type, props: props || {}, children: children.reduce(flatten, []) };
+      return { type, props: props || {}, children: children.reduce(flatten, []), _el: true };
     },
+    // The plugin checks this before appending to anything, so the fake has to answer it.
+    // `_el` stands in for React's `$$typeof` symbol: the point is only that an element is
+    // distinguishable from a plain object, which is the distinction that was missed.
+    isValidElement: (v) => !!(v && typeof v === 'object' && v._el === true),
   };
 
   // One mounted component instance: its hook slots, its pending effects, and the last
@@ -107,6 +111,11 @@ const textOf = (n) => (n.children || []).map((k) =>
 // The legacy context object React hands a function component as its second argument.
 // One shared identity so a check can look for it by reference in a rendered tree.
 const REACT_LEGACY_CONTEXT = {};
+
+// What a container component rendered before our patch is chained onto it. `_el` is the
+// fake React's stand-in for `$$typeof`: the plugin refuses to append to anything that is
+// not an element, so a fixture that skipped this would be testing the refusal path.
+const stashRendered = (type) => ({ type, props: {}, children: [], _el: true });
 
 // ── The fixture ─────────────────────────────────────────────────────────────
 
@@ -199,7 +208,7 @@ function start(opts) {
 
 // Mounts the pane the TabContent patch produced, and returns the live instance.
 function mountPane(env, props) {
-  const content = env.render('ScenePage.TabContent', props, { type: 'stash-panes', props: {}, children: [] });
+  const content = env.render('ScenePage.TabContent', props, stashRendered('stash-panes'));
   const pane = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0];
   const inner = pane.children[0];
   return { pane, inst: env.React.mount(inner.type, inner.props) };
@@ -219,7 +228,7 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     // The strip. Stash's own children come through untouched and ours is appended after
     // them, so the tab lands at the end of the strip rather than in the middle of it.
     const env = start();
-    const own = { type: 'stash-tabs', props: {}, children: [] };
+    const own = stashRendered('stash-tabs');
     const strip = env.render('ScenePage.Tabs', { scene: sceneProp({}) }, own);
     const items = nodes(strip).filter((n) => n.type === Bootstrap.Nav.Item);
     const link = nodes(strip).filter((n) => n.type === Bootstrap.Nav.Link)[0];
@@ -239,13 +248,22 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
       h.check(name + " does not render React's legacy context object as a child",
         nodes(env.render(name, { scene: sceneProp({}) }, own))
           .indexOf(REACT_LEGACY_CONTEXT) === -1);
+      // And if the shape ever changes again, the page survives it. Being wrong about
+      // which argument is the result does not degrade to a missing tab — it takes the
+      // whole scene view down with a React error, for a plugin that only reads. So a
+      // call with nothing element-shaped in it adds nothing and returns what it was
+      // given, which is the page exactly as it would have been without this plugin.
+      const fn = env.patches[name][0];
+      const passthrough = fn.apply(null, [{ scene: sceneProp({}) }, REACT_LEGACY_CONTEXT]);
+      h.check(name + ' appends nothing when no argument is an element',
+        passthrough === REACT_LEGACY_CONTEXT, JSON.stringify(passthrough));
     });
   }
 
   {
     const env = start();
     const props = { scene: sceneProp({}) };
-    const own = { type: 'stash-panes', props: {}, children: [] };
+    const own = stashRendered('stash-panes');
     const content = env.render('ScenePage.TabContent', props, own);
     const pane = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0];
     h.check('a Tab.Pane is appended to the tab content', !!pane);
@@ -388,7 +406,7 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     // previous scene's siblings for as long as the tab stayed open.
     const env = start();
     const content = env.render('ScenePage.TabContent', { scene: sceneProp({}) },
-      { type: 'stash-panes', props: {}, children: [] });
+      stashRendered('stash-panes'));
     const inner = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0].children[0];
     const props = { scene: sceneProp({}) };
     const inst = env.React.mount(inner.type, props);

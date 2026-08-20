@@ -67,8 +67,19 @@ Four facts worth not re-deriving:
 
   **The suite confirmed the bug rather than catching it**, because its fixture called
   `fn(props, result)` — the same assumption the code was written from. That is the repo's own
-  standing warning about fixtures for someone else's markup, and it cost a release: check a fixture
-  against *their* source, not against the code under test.
+  standing warning about fixtures for someone else's markup, and it cost two releases: the fix was
+  right and the *next* report was the same error from a cached script, which no amount of reasoning
+  about the code could have separated from a second bug.
+
+  So there is now `tests/scenevariants-render.test.js`, which supplies neither half: Stash's
+  `PatchFunction` copied behaviour-for-behaviour, and the **real React 17** calling the patched
+  component, so React decides what the arguments are. It reproduces the exact live error against
+  the broken release and passes against the fixed one — which is how "the fix is right, the browser
+  is running the old file" became something demonstrable rather than something to assert.
+
+  **React 17 specifically**, because Stash's UI is on 17. Installed at 19 first, and there the same
+  broken code silently drops the children instead of throwing — a newer React would have made the
+  new suite agree with the bug as well.
 - **The patch list is read when the component renders**, not when it is defined, so registering at
   script load is early enough however late `Scene.tsx` is imported.
 - **`props.scene` is a `SceneDataFragment`** and carries `stash_ids` — see §1.
@@ -111,6 +122,12 @@ the strip moving again.
   is no correct winner to pick; the plan's §7 lists this as the first diagnosis and its L3 answer is
   "ask which", which needs a dialog this plugin does not have. Showing it is the whole of what L0
   can honestly do.
+- **A wrong guess must lose the tab, not the page.** `safeAppend` searches *backwards for an
+  element* rather than indexing, and wraps the build; either way out returns Stash's own render
+  untouched. This is not speculative hardening — it is the failure that actually happened, and its
+  blast radius was the entire scene view for a plugin that only reads. Indexing was wrong once
+  already, and "the result is the last argument" is exactly the kind of by-construction fact the
+  two arguments in front of it also were.
 - **The settings are awaited before the rows are classified.** `settingsReady()` sits in front of
   the query rather than the pane reading `settings()` synchronously, because the pane reads them
   exactly once — on mount — and nothing re-renders it afterwards. Classifying half a second early
@@ -175,7 +192,7 @@ What it *does* read is `coop().debugButtons`, on the same reasoning the name alr
 cover a list-view menu item: the flag answers "why is this control not there", and a tab is a
 control.
 
-## 7b. The suite had to grow a React
+## 7b. Two suites, and why neither is enough alone
 
 The plugin no longer touches the DOM on a scene page, so a suite reading `document` would be reading
 nothing. `tests/scenevariants.test.js` carries about forty lines of fake React — `createElement`
@@ -183,8 +200,14 @@ producing `{type, props, children}`, plus a `useState` and a `useEffect` over ho
 re-render on `setState`. That is the whole of what the pane uses, and building it was cheaper than
 the alternative on offer, which was to test nothing about the pane at all.
 
-It also drives the patch callbacks the way `PatchFunction` does — feed each registered `after` the
-props and the previous result — so what the checks read is the element tree Stash would render.
+It also drives the patch callbacks the way `PatchFunction` does, and its fake React answers
+`isValidElement`, because `safeAppend` refuses to append to anything that is not an element.
+
+**That suite can only ever check what this plugin decides**, which is why the render suite exists
+beside it. The division is worth keeping: the fake-React suite covers ordering, classification, the
+empty answers and the effect keying — dozens of checks that would be miserable to write against a
+real renderer — and the render suite covers the one thing a fake cannot be trusted on, which is what
+React actually does.
 
 ## 8. Where L1 goes when it arrives
 

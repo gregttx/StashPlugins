@@ -32,7 +32,7 @@ const env = h.makeEnv({ quiet: true, respond: () => ({ data: {} }) });
 env.ctx.console = { info() {}, log() {}, warn() {}, error() {} };
 h.run(env.ctx, SRC);
 
-const api = env.ctx.__ptp2re;
+const api = env.ctx.__GTTx__.ptp2re;
 h.check('the plugin exposes its tables', !!api && !!api.PATHS && !!api.TARGETS && !!api.DEFAULTS,
   api ? Object.keys(api).join(' ') : 'nothing exposed');
 

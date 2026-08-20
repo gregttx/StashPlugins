@@ -192,7 +192,7 @@ Set it back to `false` to stop.
 **A bundle I copied in another tab is not in the list.** The list is read when the dialog opens.
 Close it and open it again.
 
-## Checking which version is actually running
+### Checking which version is actually running
 
 Stash serves plugin scripts with caching on, so a browser can go on running the old file after an
 update. The plugin says which one it loaded, in the console, when the page loads:
@@ -209,3 +209,7 @@ warning in its head. Press **Ctrl+Shift+R** (⌘+Shift+R on a Mac).
 
 Copy the `TagBundleClipboard` folder into your Stash plugins directory (`<stash-config-dir>/plugins/`)
 and reload plugins in **Settings → Plugins**.
+
+## Licence
+
+Same terms as the rest of this repository.

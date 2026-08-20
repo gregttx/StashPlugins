@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.6.1.** Three live passes in, and most of the guesses held — §11 records
+**Status: partly verified. 0.7.0.** Three live passes in, and most of the guesses held — §11 records
 what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
 empty, and the major digit is the claim that the whole thing works.
 
@@ -22,10 +22,34 @@ empty, and the major digit is the claim that the whole thing works.
 | 9 | The mirrored rules deleted: Prune and Roll Up are computed by `NormalizeParentTags` through the API it publishes at its 3.2.0 | 0.5.0 |
 | 10 | The bound planner re-bound when the tab comes back, so a settings change reaches a dialog that is already open | 0.6.0 |
 | 11 | The two mode marks cut to one word each, for the room the column has | 0.6.1 |
+| 12 | The shared `domBus`, the heading fallback folded into `ownSettingGroup`, and two dead pieces removed | 0.7.0 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over
 this file needs.
+
+**Step 12 came from a full read of the repo rather than from a live pass, and the biggest item in it
+is a copy that dropped its guard.** `startObserver` was called at script bottom *and* from the
+`load` handler with no `_observing` flag — `CustomFieldsBulkEditor`, which this was copied from, has
+exactly that flag — so an ordinary page load registered **two** `MutationObserver`s on
+`#root {subtree:true}` for its whole life. It is now the shared `domBus` (repo-root CLAUDE.md),
+whose `subscribe` is idempotent, which fixes the duplicate and the four-observers-for-four-plugins
+problem in the same call.
+
+Three smaller things:
+
+- **`ownSettingGroup` carries its own heading fallback**, rather than `ensureReadmeLink` OR-ing one
+  in at the call site. It is the same shape the three siblings have — and deliberately *without*
+  their `hasOwnTaskButton` guard, because this plugin declares no `tasks:`, so Settings → Tasks
+  renders no group headed with our name for the heading match to find. Adding a task means adding
+  the guard; `tests/tagclip.test.js` pins the pair together, in the same spirit as §1's other
+  deliberate absences.
+- **`settingsReady` is gone.** Defined, never called, and its comment asserted a requirement step 9
+  removed — "the hierarchy query below needs the sibling's settings before it can decide what to ask
+  for" — while the comment forty lines below it says the opposite and is right. A dead function is
+  cheap; a dead function *arguing for a design that no longer exists* is a trap for the next reader.
+- **`dropBundle` returns nothing.** It re-read the list to hand back a value the one call site
+  discarded.
 
 ---
 

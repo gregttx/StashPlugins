@@ -2167,7 +2167,7 @@ function nodeListLikeContainer() {
   // ── The route matchers ────────────────────────────────────────────────────────
   {
     const { env } = start({ settings: {} });
-    const rt = env.ctx.window.__ptp2re.currentRouteTarget;
+    const rt = env.ctx.window.__GTTx__.ptp2re.currentRouteTarget;
     env.ctx.location.pathname = '/galleries/42';
     h.check('a gallery route is recognised', rt().target === 'gallery' && rt().id === '42');
     env.ctx.location.pathname = '/images/7/foo';
@@ -2178,7 +2178,7 @@ function nodeListLikeContainer() {
   }
   {
     const { env } = start({ settings: {} });
-    const rt = env.ctx.window.__ptp2re.currentSourceRouteTarget;
+    const rt = env.ctx.window.__GTTx__.ptp2re.currentSourceRouteTarget;
     env.ctx.location.pathname = '/performers/1';
     h.check('a performer route is recognised as a source', rt().sourceType === 'performer' && rt().id === '1');
     env.ctx.location.pathname = '/studios/9';

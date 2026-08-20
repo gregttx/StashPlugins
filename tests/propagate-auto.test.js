@@ -331,7 +331,7 @@ const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query |
   // ── The mutation matcher ────────────────────────────────────────────────
   {
     const env = start({ settings: ON });
-    const t = env.ctx.window.__ptp2re.targetOfMutation;
+    const t = env.ctx.window.__GTTx__.ptp2re.targetOfMutation;
     h.check('sceneUpdate is recognised as a single scene save',
       t('mutation X { sceneUpdate(input: $i) { id } }').target === 'scene');
     h.check('bulkSceneUpdate is recognised as a bulk save',
@@ -351,7 +351,7 @@ const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query |
   // ── The single-entity query ─────────────────────────────────────────────
   {
     const env = start({ settings: ON });
-    const api = env.ctx.window.__ptp2re;
+    const api = env.ctx.window.__GTTx__.ptp2re;
     const pass = api.buildPasses(api.PATHS.filter((p) => p.id === 'tags:performer>scene'))[0];
     const one = api.oneQuery(pass);
     h.check('the single-entity query asks for one entity by id', /findScene\(id: \$id\)/.test(one));

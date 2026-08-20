@@ -260,7 +260,7 @@ write and says so rather than overwriting what is there.
 newer release may keep things in there that an older one would drop. Load that version (or newer),
 or delete the tag's description by hand — which loses the descriptions in it.
 
-## Cooperating with the other ᝯㄝₓ plugins
+## Relationship to the other plugins in this repo
 
 While it writes, this plugin takes a **bulk-edit lease** on the shared object the ᝯㄝₓ plugins use,
 so `ᝯㄝₓ Merge Performer Tags To Scenes` and `ᝯㄝₓ Normalize Parent Tags` stand their automatic
@@ -306,6 +306,8 @@ copy it again whole. The two task buttons under **Settings → Tasks** go with i
 recognised by the same heading; the list-view menu item and its dialog are unaffected. Nothing in
 the console says any of this.
 
+### Checking which version is actually running
+
 **Your browser is running an older copy of the plugin.** Stash serves plugin scripts with caching
 on, so an update can leave the new version installed on the server while the page in front of you
 goes on running the old one. You do not have to go looking for this — the plugin says so in red, in
@@ -327,3 +329,7 @@ edited in place without a version bump looks current to this check.
 
 Copy the `CustomFieldsBulkEditor` folder into your Stash plugins directory
 (`<stash-config-dir>/plugins/`), then **Settings → Plugins → Reload Plugins**, and reload the page.
+
+## Licence
+
+Same terms as the rest of this repository.

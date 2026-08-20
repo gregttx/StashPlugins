@@ -9,6 +9,7 @@
 // notes, so every check here proves the plugin does the right thing with what it is
 // given, never that Stash still gives it that.
 'use strict';
+const fs = require('fs');
 const path = require('path');
 const h = require('./npt-harness');
 
@@ -379,6 +380,17 @@ const btn = (body, label) => body.descendants()
     h.check('it registers no lease, no respecter and no declaration',
       (coop.leases || []).length === 0 && !coop.respecters[PLUGIN_ID] &&
         !coop.declares[PLUGIN_ID]);
+    // A fourth absence, pinned as a *pair* since 0.7.0. `ownSettingGroup` falls back to
+    // the group headed with the plugin name, and the three siblings guard that fallback
+    // with `hasOwnTaskButton` so it cannot decorate Settings - Tasks, which heads its own
+    // group with the same name and whose task button is destroyed by being decorated.
+    // This plugin needs no guard *because* it declares no `tasks:`. Either both stay
+    // absent or both arrive; a plugin that grew a task and kept the unguarded fallback
+    // would break in a way nothing else here checks.
+    const yml = fs.readFileSync(
+      path.join(__dirname, '..', 'TagBundleClipboard', 'TagBundleClipboard.yml'), 'utf8');
+    h.check('it declares no tasks, which is why the heading fallback needs no task guard',
+      !/^tasks:/m.test(yml) && !/hasOwnTaskButton\s*\(/.test(fs.readFileSync(SRC, 'utf8')));
   }
 
   {
@@ -677,7 +689,7 @@ const btn = (body, label) => body.descendants()
     // fix. No layout engine here, so this is what can be checked: the class is on the
     // element, and the rule that releases the flex floor *and* allows a mid-word break
     // is in the sheet. Neither half works alone.
-    const css = require('fs').readFileSync(SRC, 'utf8');
+    const css = fs.readFileSync(SRC, 'utf8');
     h.check('a tag name can break mid-word rather than overrun its column',
       h.hasClass(hair.descendants().filter((n) => h.hasClass(n, 'tbc-tagname'))[0] ||
         { className: '' }, 'tbc-tagname') &&

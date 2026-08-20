@@ -413,22 +413,110 @@ Two things worth knowing about the tag-level filters:
 - Protecting a parent from removal never changes what happens to anything else — the child that
   made it redundant is unaffected either way.
 
-## Installation
+## How it works
 
-0. Check your Stash version is **0.31.0 or newer** (**Settings → System**, or the footer).
-1. Find your Stash plugins directory: the `plugins` folder next to your `config.yml` (the same
-   place as your Stash database, shown at the top of **Settings → System**). Create it if it does
-   not exist.
-2. Copy the whole `NormalizeParentTags` folder into it:
-   ```
-   <stash-config-dir>/plugins/NormalizeParentTags/NormalizeParentTags.yml
-   <stash-config-dir>/plugins/NormalizeParentTags/NormalizeParentTags.js
-   <stash-config-dir>/plugins/NormalizeParentTags/manifest
-   <stash-config-dir>/plugins/NormalizeParentTags/README.md
-   ```
-3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
-4. Refresh your browser (F5) so the plugin's JavaScript is loaded.
-5. Enable the entity types you want in **Settings → Plugins → ᝯㄝₓ Normalize Parent Tags**.
+Pure client-side JavaScript (`ui.javascript` in the manifest). It calls Stash's `/graphql`
+endpoint from your browser using your existing logged-in session — no server-side plugin runtime,
+no Python.
+
+The three tasks are declared in the manifest so that Stash lists them natively under **Plugin
+Tasks**, but they are handled entirely in the browser: the click is caught before it can queue a
+server-side job, which is why the dialog appears instead of a job in the queue.
+
+**Keep the tab open.** The run lives in the page. Navigating away or closing the tab stops it —
+mid-run, that means the changes already written stay written and the rest are never made.
+
+## Notes / limitations
+
+- **Read carefully:** [⚠ Back up your database before the first run](#-back-up-your-database-before-the-first-run)
+- **If your exclusion filters look reset, that is a bug this plugin used to have.** Stash's
+  `configurePlugin` replaces a plugin's whole settings block rather than merging into it, so
+  saving from the **Auto Mode Settings...** dialog used to take every other setting with it — and
+  so did the one-time migration of the older per-type settings. Nothing warned you and the
+  settings page kept showing the old values until it was reloaded, so the loss usually surfaced
+  much later. It is fixed: every setting this plugin writes now carries the rest of the block with
+  it. There is no way to recover what was cleared, so check the exclusion filters once after
+  updating.
+- A run always covers your whole library, for every type it is not set to Off. Filters and
+  selections in the scene, image or performer lists are not read.
+- Changes are written as add/remove deltas rather than as a wholesale rewrite of each entity's
+  tag list, so a tag added from another browser tab between the review and the apply is not
+  reverted. It may, however, mean the applied result differs slightly from the reviewed plan.
+- If a request fails, the entities in it are reported as errors and are not counted as changed;
+  the rest of the run continues.
+- Cycles in a tag hierarchy are impossible to create through Stash's UI or API, which rejects
+  them. If one is ever found anyway, the tags involved are reported as an error and skipped —
+  under the plain rule, every tag in a cycle implies every other one, so all of them would
+  otherwise be deleted.
+- Installing this plugin does not undo anything you have already tagged. Out of the box it only
+  ever acts when you run the task and press Proceed — every type is Off for automatic mode until
+  you say otherwise.
+- Settings are read at the start of each run, so a change takes effect on the next run without a
+  page reload. Automatic mode re-reads them at most every ten seconds, so a change there can take
+  a few seconds to bite.
+- Entities that need the same change are updated together in one request, so a run makes far
+  fewer requests than it lists changes.
+
+## Relationship to the other plugins in this repo
+
+### If you also use the Merge Performer Tags To Scenes plugin
+
+That plugin's two auto-merge settings react to *this* plugin's writes, because from its point of
+view they look like any other edit:
+
+- **Auto Merge On Scene Updates** — every scene this plugin touches gets its performers' tags
+  merged back in, parents included.
+- **Auto Merge On Performer Updates** — every performer this plugin touches has their tags pushed
+  out to *all* of their scenes.
+
+Neither plugin is misbehaving; they pull in opposite directions by design. So the two are built
+to cooperate: **while this plugin is applying changes, it asks Merge Performer Tags To Scenes to
+stand down, and it does.** Auto-merge resumes the moment the apply finishes — including if it
+fails, if you press Stop, or if you close the tab mid-run. Nothing is switched off in the
+settings, and other browser tabs are unaffected.
+
+That cooperation now runs both ways. This plugin's [automatic mode](#automatic-mode) stands down
+in turn while *that* plugin's library-wide task is writing, and it takes its own short-lived
+notice while it writes, so auto-merge does not chase each automatic prune. If you set scenes to
+**PRUNE** and run **Auto Merge On Scene Updates** you are still asking for two opposite things
+on every save — the tags a performer contributes will keep arriving, and Prune will keep removing
+the redundant ones — but they will not trade writes back and forth over the same scene.
+
+That plugin also has a library-wide task of its own, which rewrites scenes the same way this one
+does. If it is mid-run when you start a task here, the dialog says so and names what it is doing.
+It does not stop you — you pressed the button — but running both at once means each may undo part
+of the other, so it is usually worth letting the first one finish.
+
+If either auto-merge setting is on when you start a run, the dialog tells you which, and whether
+the installed version is new enough to stand down. If it is older than the cooperation protocol,
+you have two options: turn its auto-merge off for the duration of the run, or press **Rescan**
+afterwards and apply the second, much smaller plan. Performers are processed first either way, so
+that the wider scene-fanning merge happens before the scene and image passes rather than after
+them. If both auto-merge settings are off, there is no interaction at all.
+
+### If you also use the Tag Bundle Clipboard plugin
+
+Its paste dialog can prune the parent tags a paste makes redundant, or roll a paste up to its
+parents. Those are this plugin's two operations, and it asks this plugin to work out the answer —
+so your [exclusion filters](#exclusion-filters) apply there without that plugin knowing what they
+are, and both modes disappear from its dialog if this plugin is not running on the page. It needs
+this plugin at **3.2.0 or newer**; with an older copy it says so and offers neither. It asks a
+question rather than reading these settings, which is why 4.0.0 renaming every one of them cost
+that plugin no change at all.
+
+If the entity type being pasted onto is set to PRUNE or ROLLUP here, that dialog
+withdraws the choice and says why: pressing Stash's **Save** is what this plugin reacts to, so the
+decision is already being made on every save and choosing differently for one paste would not
+survive it.
+
+### Plugins outside this repo
+
+This only covers plugins running in your browser. A plugin with server-side **hooks** — the
+Python or executable kind that Stash runs on `Scene.Update.Post` and similar — runs inside Stash
+itself, cannot be asked to stand down from here, and will react to this plugin's changes like any
+other edit. If you have one that touches tags, disable it for the run.
+
+## Troubleshooting
 
 ### The README link in settings
 
@@ -490,104 +578,23 @@ blocked. The warning is worth reading anyway: the badges and the "what the tasks
 come from the rules in the script that is running, so a tab left open from before an update
 describes the old ones.
 
+## Installing
 
-## How it works
+0. Check your Stash version is **0.31.0 or newer** (**Settings → System**, or the footer).
+1. Find your Stash plugins directory: the `plugins` folder next to your `config.yml` (the same
+   place as your Stash database, shown at the top of **Settings → System**). Create it if it does
+   not exist.
+2. Copy the whole `NormalizeParentTags` folder into it:
+   ```
+   <stash-config-dir>/plugins/NormalizeParentTags/NormalizeParentTags.yml
+   <stash-config-dir>/plugins/NormalizeParentTags/NormalizeParentTags.js
+   <stash-config-dir>/plugins/NormalizeParentTags/manifest
+   <stash-config-dir>/plugins/NormalizeParentTags/README.md
+   ```
+3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
+4. Refresh your browser (F5) so the plugin's JavaScript is loaded.
+5. Enable the entity types you want in **Settings → Plugins → ᝯㄝₓ Normalize Parent Tags**.
 
-Pure client-side JavaScript (`ui.javascript` in the manifest). It calls Stash's `/graphql`
-endpoint from your browser using your existing logged-in session — no server-side plugin runtime,
-no Python.
+## Licence
 
-The three tasks are declared in the manifest so that Stash lists them natively under **Plugin
-Tasks**, but they are handled entirely in the browser: the click is caught before it can queue a
-server-side job, which is why the dialog appears instead of a job in the queue.
-
-**Keep the tab open.** The run lives in the page. Navigating away or closing the tab stops it —
-mid-run, that means the changes already written stay written and the rest are never made.
-
-## Notes / limitations
-
-- **Read carefully:** [⚠ Back up your database before the first run](#-back-up-your-database-before-the-first-run)
-- **If your exclusion filters look reset, that is a bug this plugin used to have.** Stash's
-  `configurePlugin` replaces a plugin's whole settings block rather than merging into it, so
-  saving from the **Auto Mode Settings...** dialog used to take every other setting with it — and
-  so did the one-time migration of the older per-type settings. Nothing warned you and the
-  settings page kept showing the old values until it was reloaded, so the loss usually surfaced
-  much later. It is fixed: every setting this plugin writes now carries the rest of the block with
-  it. There is no way to recover what was cleared, so check the exclusion filters once after
-  updating.
-- A run always covers your whole library, for every type it is not set to Off. Filters and
-  selections in the scene, image or performer lists are not read.
-- Changes are written as add/remove deltas rather than as a wholesale rewrite of each entity's
-  tag list, so a tag added from another browser tab between the review and the apply is not
-  reverted. It may, however, mean the applied result differs slightly from the reviewed plan.
-- If a request fails, the entities in it are reported as errors and are not counted as changed;
-  the rest of the run continues.
-- Cycles in a tag hierarchy are impossible to create through Stash's UI or API, which rejects
-  them. If one is ever found anyway, the tags involved are reported as an error and skipped —
-  under the plain rule, every tag in a cycle implies every other one, so all of them would
-  otherwise be deleted.
-- Installing this plugin does not undo anything you have already tagged. Out of the box it only
-  ever acts when you run the task and press Proceed — every type is Off for automatic mode until
-  you say otherwise.
-- Settings are read at the start of each run, so a change takes effect on the next run without a
-  page reload. Automatic mode re-reads them at most every ten seconds, so a change there can take
-  a few seconds to bite.
-- Entities that need the same change are updated together in one request, so a run makes far
-  fewer requests than it lists changes.
-
-## If you also use the Merge Performer Tags To Scenes plugin
-
-That plugin's two auto-merge settings react to *this* plugin's writes, because from its point of
-view they look like any other edit:
-
-- **Auto Merge On Scene Updates** — every scene this plugin touches gets its performers' tags
-  merged back in, parents included.
-- **Auto Merge On Performer Updates** — every performer this plugin touches has their tags pushed
-  out to *all* of their scenes.
-
-Neither plugin is misbehaving; they pull in opposite directions by design. So the two are built
-to cooperate: **while this plugin is applying changes, it asks Merge Performer Tags To Scenes to
-stand down, and it does.** Auto-merge resumes the moment the apply finishes — including if it
-fails, if you press Stop, or if you close the tab mid-run. Nothing is switched off in the
-settings, and other browser tabs are unaffected.
-
-That cooperation now runs both ways. This plugin's [automatic mode](#automatic-mode) stands down
-in turn while *that* plugin's library-wide task is writing, and it takes its own short-lived
-notice while it writes, so auto-merge does not chase each automatic prune. If you set scenes to
-**PRUNE** and run **Auto Merge On Scene Updates** you are still asking for two opposite things
-on every save — the tags a performer contributes will keep arriving, and Prune will keep removing
-the redundant ones — but they will not trade writes back and forth over the same scene.
-
-That plugin also has a library-wide task of its own, which rewrites scenes the same way this one
-does. If it is mid-run when you start a task here, the dialog says so and names what it is doing.
-It does not stop you — you pressed the button — but running both at once means each may undo part
-of the other, so it is usually worth letting the first one finish.
-
-If either auto-merge setting is on when you start a run, the dialog tells you which, and whether
-the installed version is new enough to stand down. If it is older than the cooperation protocol,
-you have two options: turn its auto-merge off for the duration of the run, or press **Rescan**
-afterwards and apply the second, much smaller plan. Performers are processed first either way, so
-that the wider scene-fanning merge happens before the scene and image passes rather than after
-them. If both auto-merge settings are off, there is no interaction at all.
-
-## If you also use the Tag Bundle Clipboard plugin
-
-Its paste dialog can prune the parent tags a paste makes redundant, or roll a paste up to its
-parents. Those are this plugin's two operations, and it asks this plugin to work out the answer —
-so your [exclusion filters](#exclusion-filters) apply there without that plugin knowing what they
-are, and both modes disappear from its dialog if this plugin is not running on the page. It needs
-this plugin at **3.2.0 or newer**; with an older copy it says so and offers neither. It asks a
-question rather than reading these settings, which is why 4.0.0 renaming every one of them cost
-that plugin no change at all.
-
-If the entity type being pasted onto is set to PRUNE or ROLLUP here, that dialog
-withdraws the choice and says why: pressing Stash's **Save** is what this plugin reacts to, so the
-decision is already being made on every save and choosing differently for one paste would not
-survive it.
-
-## Notes on other plugins
-
-This only covers plugins running in your browser. A plugin with server-side **hooks** — the
-Python or executable kind that Stash runs on `Scene.Update.Post` and similar — runs inside Stash
-itself, cannot be asked to stand down from here, and will react to this plugin's changes like any
-other edit. If you have one that touches tags, disable it for the run.
+Same terms as the rest of this repository.

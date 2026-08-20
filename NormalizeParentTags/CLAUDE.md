@@ -3,9 +3,26 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.6.2.** This file is both the design and the map of the code — the
+**Status: implemented at 4.6.3.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**4.6.3 is three findings from a full read of the repo, and one of them is 4.0.0's bill arriving
+again.** `ownSettingGroup` anchored on `settingElement('a1AutoModes')` — **one** named key, in the
+plugin that had just renamed all nine of its keys and watched its own stale-script banner go silent
+for exactly that reason. The heading fallback added afterwards made the failure survivable; it did
+not make a single named anchor right. It now tries every key in `DEFAULTS`, which is what two
+siblings already did and what this file's own §2 says the rule is. The other two are smaller:
+`setClass` was left behind by the `.npt-armed` bar deleted at 4.6.0 and is gone, and
+`Run.prototype.proceed` now states `this.stopped = false` beside the counters it already resets —
+unreachable today, since a stopped run lands in `done` and only a rescan returns it to `ready`, but
+an invariant held by state-machine reachability in two of three sibling copies and by the code in the
+third is one worth writing down rather than rediscovering.
+
+This plugin takes no part in the new shared `domBus` (repo-root CLAUDE.md): it registers no
+`MutationObserver` at all — its settings page is decoration, which the timer covers — so there is
+nothing to subscribe and no copy of the helper here. `tests/style.test.js` pins the four that *do*
+have one against each other and does not require a fifth.
 
 **4.0.0 is one mode per entity type.** Seven `aNEnable<Type>` booleans and the two global
 `a8AutoPruneOnUpdate` / `a9AutoRollUpOnUpdate` are one STRING setting, `a1AutoModes`, holding
@@ -1734,11 +1751,11 @@ no amount of refreshing helps and only the version line tells you so.
 **What it cannot catch:** an edit with no version bump. Both numbers stay equal and the check is
 blind, which is the practical argument for bumping the patch digit on every change.
 
-**The description is a link plus the text, in three files.** It leads with a README permalink
-pinned to a **commit SHA**, not `main`, so a user reading it in Stash gets the documentation for
-roughly the code they have rather than whatever `main` says today. A commit cannot contain its own
-hash, so the SHA is the revision where the README last changed — update it whenever the README does,
-not on every version bump. The same string lives in ``NormalizeParentTags.yml`` and in `manifest`'s
+**The description is text, in two files, and the link is not in it.** Both of those were once
+the other way round and this paragraph outlived the reversal: it went on describing a README
+permalink pinned to a **commit SHA** for as long as it took someone to read it against the two
+paragraphs below, which say the opposite and are right — the link is `/blob/main/`, and the
+description carries no URL at all. The same string lives in ``NormalizeParentTags.yml`` and in `manifest`'s
 `metadata.description`; they must match, and both must stay **double-quoted**, because the text
 contains `": "` and a plain YAML scalar cannot hold that (NormalizeParentTags's manifest was unparseable YAML
 until 2026-08-06 for exactly this reason).

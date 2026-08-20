@@ -263,9 +263,38 @@ win.fetch = function (url, o) {
   return Promise.resolve(makeResponse({ data: {} }));
 };
 
+// This suite used to spend 55 s of the tree's 164 s asleep, waiting on the plugin's own
+// `setInterval(tick, 1000)` in real time. Every other suite drives its ticks through a
+// harness and costs nothing; this one cannot, because it needs jsdom's real layout to
+// tell two containers apart. So run the plugin's clock fast instead: every timer it
+// registers is divided by SPEEDUP, and so is every `sleep` below.
+//
+// Scaling *both* kinds of timer, and the sleeps with them, is what keeps this honest -
+// the plugin's 1 s poll, its 100 ms observer debounce, its 300 ms click delay and its
+// 2 s caption flash all stay in the same proportion to each other and to what the test
+// waits for, so nothing about the ordering being exercised changes. Scaling only the
+// interval would have left a 300 ms `setTimeout` outlasting a sleep that used to cover
+// it, which is a different test rather than a faster one.
+//
+// The factor is deliberately not the largest that passes: fetch responses resolve as
+// already-settled promises, so the only real time consumed is Node's own timer
+// granularity, and a tick period well clear of that is what stops this going flaky on a
+// loaded machine.
+const SPEEDUP = 25;
+const realSetTimeout = win.setTimeout, realSetInterval = win.setInterval;
+const fast = (ms) => Math.max(1, Math.round((ms || 0) / SPEEDUP));
+win.setTimeout = function (fn, ms) {
+  return realSetTimeout.call(win, fn, fast(ms), ...Array.prototype.slice.call(arguments, 2));
+};
+win.setInterval = function (fn, ms) {
+  return realSetInterval.call(win, fn, fast(ms), ...Array.prototype.slice.call(arguments, 2));
+};
+
 vm.runInContext(fs.readFileSync(SRC, 'utf8'), dom.getInternalVMContext(), { filename: SRC });
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Written at the real durations the plugin works in, and divided here, so each call
+// still reads as "one tick" or "two ticks" against the plugin's own 1 s poll.
+const sleep = (ms) => new Promise((r) => setTimeout(r, fast(ms)));
 const root = () => win.document.getElementById('root');
 const btn = () => win.document.querySelector(BTN);
 

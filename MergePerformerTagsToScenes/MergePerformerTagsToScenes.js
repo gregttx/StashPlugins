@@ -25,7 +25,7 @@
   // 1.8.0 behaviour is the normal look of a stale script. This constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.4.0';
+  var PLUGIN_VERSION      = '3.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -151,6 +151,53 @@
     ns.StashPluginCoop = c;
     if (window.StashPluginCoop !== c) window.StashPluginCoop = c;
     return c;
+  }
+
+  // ── The shared DOM bus ────────────────────────────────────────────────────
+  //
+  // One MutationObserver on Stash's root for every plugin in this repo, rather than one
+  // each. The four that need one watch the same subtree for the same reason - a control
+  // has to land before the user reads the panel it is in - and with all of them installed
+  // that was four registrations firing on every DOM burst, which on a Scene page with
+  // video playing is continuous. It is the one place the "five copies of one design" rule
+  // compounds rather than merely repeats, which is why this is shared rather than copied.
+  //
+  // Whichever plugin loads first creates the observer; the rest subscribe to it. Each
+  // keeps its own debounce, because what a burst costs each of them differs.
+  //
+  // Advisory in exactly the way the lease is: a plugin too old to know about the bus makes
+  // its own observer and still works, and one subscriber throwing does not silence the
+  // rest. `subscribe` is idempotent and safe to call again - which is what the load-event
+  // retry does when there was no root to observe at script bottom - and answers whether
+  // anything is being observed yet, so a caller with a polling fallback can tell.
+  //
+  // Byte-identical in every plugin that has one, like `coopObject` above and for the same
+  // reason; `tests/style.test.js` fails on a drifted copy.
+  function domBus() {
+    var ns = window.__GTTx__;
+    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+    var bus = ns.domBus;
+    if (bus && typeof bus.subscribe === 'function') return bus;
+    bus = ns.domBus = { subs: [], observing: false };
+    bus.notify = function () {
+      for (var i = 0; i < bus.subs.length; i++) {
+        try { bus.subs[i](); } catch (e) { /* one subscriber must not silence the rest */ }
+      }
+    };
+    bus.subscribe = function (fn) {
+      if (bus.subs.indexOf(fn) === -1) bus.subs.push(fn);
+      if (bus.observing || typeof MutationObserver !== 'function') return bus.observing;
+      var root = document.getElementById('root') || document.body || document.documentElement;
+      if (!root) return false;
+      try {
+        new MutationObserver(bus.notify).observe(root, { childList: true, subtree: true });
+        bus.observing = true;
+      } catch (e) {
+        bus.observing = false;
+      }
+      return bus.observing;
+    };
+    return bus;
   }
 
   function coop() {
@@ -848,6 +895,30 @@
   // every installed plugin. Throttling keeps the prompt pickup while collapsing a
   // burst of navigation into a single request, and stops a slow response from
   // overlapping the next call.
+  // The manifest's setting keys, each mapped to the plugin's own name for it. One
+  // table rather than the three hand-kept lists this replaced - the unpacking below,
+  // the tooltip list, and the pair of keys `ownSettingGroup` anchored on - because a
+  // key missing from any one of them failed silently: no tooltip, or an anchor that a
+  // rename could quietly break. `tests/version.test.js` fails if the `.yml` declares a
+  // key this does not name.
+  //
+  // The a1/b2/d1 prefixes on the manifest keys are what orders the settings page:
+  // `settings:` is a YAML map, so Stash renders the keys sorted, and without them
+  // "Save Tags Immediately" lands five rows below the button toggle it modifies. This
+  // is the only place the wire names are read - the internal names on the right are
+  // the plugin's own and stay plain. A `false` default means a boolean, `''` a string.
+  var SETTING_MAP = {
+    a1ShowManualMergeButtons:      ['showManualMergeButtons', false],
+    a2SaveTagsImmediately:         ['saveTagsImmediately', false],
+    a3AutoMergeOnSceneUpdate:      ['autoMergeOnSceneUpdate', false],
+    a4AutoMergeOnPerformerUpdate:  ['autoMergeOnPerformerUpdate', false],
+    b1ExcludeSceneWithTagName:     ['excludeSceneWithTagName', ''],
+    b2ExcludeSceneOrganized:       ['excludeSceneOrganized', false],
+    c1ExcludeTagWithIgnoreAutoTag: ['excludeTagWithIgnoreAutoTag', false],
+    c2ExcludeTagWithCustomFieldName: ['excludeTagWithCustomFieldName', ''],
+    d1LogMergesToConsole:          ['logMergesToConsole', false],
+  };
+
   var LOAD_SETTINGS_MIN_INTERVAL_MS = 2000;
   var _settingsLoadedAt = 0;
   var _settingsInFlight = false;
@@ -864,20 +935,11 @@
     gqlRequest('{ configuration { plugins } }', null)
       .then(function (data) {
         var ps = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
-        // The a1/b2/d1 prefixes on the manifest keys are what orders the settings
-        // page: `settings:` is a YAML map, so Stash renders the keys sorted, and
-        // without them "Save Tags Immediately" lands five rows below the button
-        // toggle it modifies. This is the only place the wire names are read - the
-        // internal `settings.*` names below are the plugin's own and stay plain.
-        settings.showManualMergeButtons         = !!ps.a1ShowManualMergeButtons;
-        settings.saveTagsImmediately            = !!ps.a2SaveTagsImmediately;
-        settings.autoMergeOnSceneUpdate         = !!ps.a3AutoMergeOnSceneUpdate;
-        settings.autoMergeOnPerformerUpdate     = !!ps.a4AutoMergeOnPerformerUpdate;
-        settings.excludeSceneWithTagName        = ps.b1ExcludeSceneWithTagName || '';
-        settings.excludeSceneOrganized          = !!ps.b2ExcludeSceneOrganized;
-        settings.excludeTagWithIgnoreAutoTag    = !!ps.c1ExcludeTagWithIgnoreAutoTag;
-        settings.excludeTagWithCustomFieldName  = ps.c2ExcludeTagWithCustomFieldName || '';
-        settings.logMergesToConsole             = !!ps.d1LogMergesToConsole;
+        for (var key in SETTING_MAP) {
+          if (!hasOwn(SETTING_MAP, key)) continue;
+          var spec = SETTING_MAP[key];
+          settings[spec[0]] = typeof spec[1] === 'boolean' ? !!ps[key] : (ps[key] || '');
+        }
         // Every plugin's settings arrive in this one response - Stash cannot scope
         // it - so the sibling's are already paid for, and the task dialog uses them
         // to warn (see checkSibling). Kept as the raw object rather than unpacked
@@ -2010,6 +2072,9 @@
     this.scenesUpdated = 0;
     this.tagsAdded = 0;
     this.appliedTagCounts = {};
+    // Held by the state machine today - a stopped run lands in `done` and only a
+    // rescan returns it to `ready` - but stated here anyway, the way `undo` states it.
+    this.stopped = false;
     this.log('INFO', 'Applying ' + plural(this.plan.length, 'scene change') + ' - ' + new Date().toISOString());
 
     this.runUnits(this.plan.slice(), this.taskName,
@@ -2897,7 +2962,11 @@
   }
 
   function applyButtonSpacing(container, button) {
-    var parts = [];
+    // `align-self:flex-start` first, and the assignment unconditional, so this is the
+    // same three lines as the two sibling plugins: it opts the button out of a flex
+    // row's `align-items: stretch`, and a row that spaces its own children with
+    // `column-gap` still needs it even though it needs no margin from us.
+    var parts = ['align-self:flex-start'];
     var cs = computedStyleOf(container);
     if (!cs || !nonZeroLength(cs.columnGap)) {
       var m = stashButtonMargins(container);
@@ -2905,7 +2974,7 @@
       else if (!hasClass(button, SPACING_CLASS)) button.className += ' ' + SPACING_CLASS;
     }
     if (container._cpt2sBlockRow) parts.push('margin-bottom:' + ROW_GAP);
-    if (parts.length) button.style = parts.join(';') + ';';
+    button.style = parts.join(';') + ';';
   }
 
   // Deterministic ordering between plugins sharing this row (repo-root CLAUDE.md,
@@ -3290,13 +3359,17 @@
   // See §2 of NormalizeParentTags' CLAUDE.md: matching the heading instead shipped
   // broken twice over there.
   function ownSettingGroup() {
-    var node = document.getElementById('plugin-' + PLUGIN_ID + '-a1ShowManualMergeButtons') ||
-      document.getElementById('plugin-' + PLUGIN_ID + '-d1LogMergesToConsole'), d;
+    var node = null, d, key;
+    for (key in SETTING_MAP) {
+      if (!hasOwn(SETTING_MAP, key)) continue;
+      node = settingElement(key);
+      if (node) break;
+    }
     for (d = 0; node && d < 10; d++, node = node.parentElement) {
       if (hasClass(node, 'setting-group')) return node;
     }
     // Fallback: the group headed with our own name. The ids are still the anchor,
-    // but they are only ours *while they exist* - a release that renames both keys
+    // but they are only ours *while they exist* - a release that renames every key
     // leaves this code unable to find its own group, and the first casualty is the
     // stale-script banner, which is the one thing on this page that release needed to
     // show. NormalizeParentTags 4.0.0 renamed all nine of its keys and its own 3.2.0
@@ -3413,11 +3486,6 @@
   // focus as well as hover, so it is better reachable than a `title` was, but it
   // still does not exist on a touch device.
   var TIP_MARK = 'ⓘ';                       // circled Latin small letter i
-  var SETTING_KEYS = [
-    'a1ShowManualMergeButtons', 'a2SaveTagsImmediately', 'a3AutoMergeOnSceneUpdate',
-    'a4AutoMergeOnPerformerUpdate', 'b1ExcludeSceneWithTagName', 'b2ExcludeSceneOrganized',
-    'c1ExcludeTagWithIgnoreAutoTag', 'c2ExcludeTagWithCustomFieldName', 'd1LogMergesToConsole',
-  ];
 
   function settingElement(key) {
     return document.getElementById('plugin-' + PLUGIN_ID + '-' + key);
@@ -3501,7 +3569,7 @@
   }
 
   function tipSettings() {
-    for (var i = 0; i < SETTING_KEYS.length; i++) tipSetting(SETTING_KEYS[i]);
+    for (var key in SETTING_MAP) if (hasOwn(SETTING_MAP, key)) tipSetting(key);
   }
 
   // The group description is in the group *header*, which is outside the <Collapse>
@@ -3685,16 +3753,14 @@
     setTimeout(function () { _tickScheduled = false; tick(); }, 100);
   }
 
+  // The shared bus rather than an observer of our own - see `domBus`. No return value
+  // and no retry: there was a `if (!startObserver()) DOMContentLoaded` retry here and it
+  // was unreachable, since the only falsy answer needed `document.documentElement` to be
+  // missing and the catch deliberately reported success because the interval below covers
+  // it. A guard that reads as protection and provides none is worse than none.
+  // `subscribe` is idempotent, so this is safe from both the script bottom and `load`.
   function startObserver() {
-    var target = document.getElementById('root') || document.body || document.documentElement;
-    if (!target) return false;
-    try {
-      new MutationObserver(scheduleTick).observe(target, { childList: true, subtree: true });
-      return true;
-    } catch (e) {
-      console.warn('[cpt2s] could not observe the DOM; falling back to polling:', e);
-      return true; // don't retry: the interval below still drives tick()
-    }
+    domBus().subscribe(scheduleTick);
   }
 
   // Patches have to be registered before the components they target first render,
@@ -3704,7 +3770,7 @@
     window.addEventListener('load', function () { installTagSelectPatch(); });
   }
 
-  window.addEventListener('load', function () { loadSettings(); tick(); });
+  window.addEventListener('load', function () { loadSettings(); startObserver(); tick(); });
   document.addEventListener('click', function (event) {
     var target = event.target;
     var link = target && target.closest ? target.closest('a') : null;
@@ -3724,9 +3790,7 @@
   // picked up, so it must never be throttled away by a recent navigation.
   setInterval(function () { loadSettings(true); }, 10000);
 
-  if (!startObserver()) {
-    document.addEventListener('DOMContentLoaded', function () { startObserver(); });
-  }
+  startObserver();
 
   loadSettings();
   tick();

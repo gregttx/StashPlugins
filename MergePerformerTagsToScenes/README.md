@@ -30,7 +30,7 @@ A front-end-only Stash plugin that adds two tag-merging buttons:
 
 **A button whose caption ends in "..." opens a dialog first** — the same review the library-wide task uses, listing every change before any of it is written, with Proceed, Stop, Copy log, Rescan and Undo. The performer button always does; the scene button does when **Save Tags Immediately** is on, or on a Stash where staging into the form is unavailable. No button here writes anything without either staging it in the form or showing you the plan. The dialog's heading names what it is scoped to — *Add Tags to all Scenes - from Performer "Ann" (7)* — so a dialog opened from a button says which entity it is about, by the name you know it by.
 
-Buttons are hidden by default and can be enabled in **Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and — since 1.16.0 — the scene button needs the scene to be actually missing at least one of its performers' tags, rather than merely having a performer. Both re-check themselves when you save that scene or performer, so a button appears or disappears without a page reload. Tags are **added** (not replaced) — existing tags are always kept.
+Buttons are hidden by default and can be enabled in **Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes** via the **Show Manual Merge Buttons** toggle. When enabled, each button only appears when there is something to act on: the performer button needs the performer to have both tags and scenes, and the scene button needs the scene to be actually missing at least one of its performers' tags, rather than merely having a performer. Both re-check themselves when you save that scene or performer, so a button appears or disappears without a page reload. Tags are **added** (not replaced) — existing tags are always kept.
 
 There is also a **library-wide task**, in **Settings → Tasks → Plugin Tasks**:
 
@@ -177,20 +177,6 @@ Only tags that actually changed something are logged: a tag the scene already ca
 
 This setting is independent of everything else — it does not change what gets merged, only what is reported. The extra fields the log line needs (tag names, scene titles) are requested from Stash only while it is enabled.
 
-## Installation
-
-0. Check your Stash version is **0.31.0 or newer** (**Settings → System**, or the version in the footer). Older versions are not supported.
-1. Find your Stash plugins directory. This is the `plugins` folder inside the directory that holds your `config.yml` (the same place as your Stash database, typically shown at the top of **Settings → System**). If no `plugins` folder exists yet, create one.
-2. Copy the whole `MergePerformerTagsToScenes` folder into that `plugins` folder:
-   ```
-   <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.yml
-   <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.js
-   <stash-config-dir>/plugins/MergePerformerTagsToScenes/manifest
-   <stash-config-dir>/plugins/MergePerformerTagsToScenes/README.md
-   ```
-3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
-4. If using multiple browser instances, refresh your browser (F5) so the new plugin JavaScript is loaded in all of them.
-
 ## Usage
 
 The two buttons appear in different places, because each one sits where the content it acts on is visible.
@@ -210,51 +196,9 @@ else stays Stash's blue.
 
 **Performer page** — enable **Show Manual Merge Buttons** in settings, then open any performer's page. If they have at least one tag and at least one scene, a **"Add Tags to all Scenes..."** button appears in the button bar on the detail view, just before the Delete button. Clicking it opens the review dialog scoped to that performer: it lists every tag it would add to every one of their scenes, and writes nothing until you press **Proceed**. Scenes already having all the tags are skipped, and **Undo** takes the merge back while the dialog stays open.
 
-### Why is a button missing?
-
-A button hides itself whenever clicking it would add nothing, and most of the reasons
-are invisible from the page — the sources' tags, the target's own tags, the exclusion filters. To
-see the reasoning, open the browser console (F12), run:
-
-```js
-__GTTx__.StashPluginCoop.debugButtons = true
-```
-
-Each button reports whether it is shown or hidden and why, prefixed `[cpt2s gate]`, on the next tick —
-no reload, no navigation, no setting to change. It works on the page you are already looking at,
-which is the point: since 1.16.2 the answer is restated from what the plugin already knows rather
-than only when it next re-checks. One switch covers both this plugin and its sibling, since they
-draw buttons into the same rows. Set it to `false`, or reload the page, to turn it off again.
-
 **The scene list's filter does not narrow this.** The button asks the server for every scene featuring the performer, so searching, filtering or ticking scenes in the Scenes tab below has no effect on which scenes are updated — narrow the list to three scenes and all of them are still merged. Use the scene page's "Add all Tags from all Performers" button if you want to act on one scene at a time. The button is deliberately hidden while the performer's edit form is open, since the scene list is not on screen there.
 
-**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it is missing at least one tag that one of its performers carries, an **"Add all Tags from all Performers"** button appears in the button bar, just before the Save/Delete buttons of the edit form. Before 1.16.0 the button showed whenever the scene had any performer at all, so a scene already carrying every one of their tags offered a button that could only report "No changes"; it now asks the same question the click answers, including the Organized and exclusion-tag filters. Note that the check reads the server, while a staged click diffs against the open form — remove a tag from the form without saving and the button stays hidden until you press Save, which re-checks it at once. Click it to add all tags from all performers in that scene into the scene's tag box — or, where the caption ends in "...", to open the review dialog for that one scene.
-
-### The README link in settings
-
-**Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
-
-### Checking which version is actually running
-
-**Reload plugins cannot replace the script your browser is already running.** It re-reads the plugin folder on the server; the JavaScript in your open page was fetched and executed when the page loaded, and stays until the page reloads. An update always needs a page reload — but a plain **F5** is normally enough, since Stash serves plugin scripts so that a normal reload picks up a changed file. Keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for the case where it does not.
-
-The version beside the plugin's name in **Settings → Plugins** does not settle it — that comes from the manifest, which is current the instant you reload plugins even when the running script is older. New version in the heading with old behaviour on screen is exactly what a cached script looks like.
-
-**The plugin says so when it happens.** A stale script is called out in red, in two places, both naming the version you are running, the version installed, and the fix:
-
-- **Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes**, at the top of the group and above the description — so it shows even with the group collapsed. It disappears once the two agree.
-- **Every dialog the plugin opens**, in a box of its own under the title.
-
-It says which script is running in the browser console too (**F12** → Console), on every page load, whether or not merge logging is enabled:
-
-```
-[cpt2s] MergePerformerTagsToScenes.js <version> loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
-```
-
-If that is not the version you just installed, the page is running an old copy. In order: reload (F5); check the new `.js` really is in `<stash-config-dir>/plugins/`, since a file that was never copied cannot be refreshed into existence; then hard-refresh; then, if it still will not budge, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
-
-**The task also refuses to write.** Opening the library-wide task asks Stash which version is installed and compares it with the running script; on a mismatch **Proceed stays disabled** until you reload the page. The warning goes into the log as well as the head, so **Copy log** carries it. An unknown answer — an older Stash, a failed request — blocks nothing; only a definite mismatch does. It cannot catch an edit made without changing the version, since both numbers stay equal.
-
+**Scene page** — enable **Show Manual Merge Buttons** in settings, then open a scene and switch to the **Edit** tab. If it is missing at least one tag that one of its performers carries, an **"Add all Tags from all Performers"** button appears in the button bar, just before the Save/Delete buttons of the edit form. It asks the same question the click answers, including the Organized and exclusion-tag filters, so a scene already carrying every one of its performers' tags offers no button rather than one that could only report "No changes". Note that the check reads the server, while a staged click diffs against the open form — remove a tag from the form without saving and the button stays hidden until you press Save, which re-checks it at once. Click it to add all tags from all performers in that scene into the scene's tag box — or, where the caption ends in "...", to open the review dialog for that one scene.
 
 ## How it works
 
@@ -295,7 +239,9 @@ Three details that explain behaviour you might otherwise read as a bug:
   - All settings (including exclusion filters) are re-read every 10 seconds, and also shortly after you navigate, so a change takes effect without a page reload. The navigation refresh is rate limited to once every 2 seconds, so browsing quickly does not turn every click into a settings query.
   - A merge submits the scene's tags as a complete list, so a tag edit made in another tab at the same time can be overwritten — exactly as it would be if you saved the same scene from two Stash tabs at once. For the same reason nothing is kept fresh across tabs: reload the page if you have been editing the same scene or performer elsewhere.
 
-## If you also use the Normalize Parent Tags plugin
+## Relationship to the other plugins in this repo
+
+### If you also use the Normalize Parent Tags plugin
 
 That plugin's writes look like any other edit from in here, and this plugin's two auto-merge
 settings react to *any* scene or performer save they see:
@@ -350,7 +296,7 @@ Python or executable kind that Stash runs on `Scene.Update.Post` and similar —
 itself, cannot be asked to stand down from here, and will react to this plugin's changes like any
 other edit. If you have one that touches tags, disable it for the run.
 
-## If you also use Propagate Tags and Performers to Related Entities
+### If you also use Propagate Tags and Performers to Related Entities
 
 That plugin implements this same merge as one of its thirteen relationship paths, so both plugins
 can end up doing the same work. The library-wide task's dialog notices — if that
@@ -371,3 +317,63 @@ its buttons in an extra element that carries no spacing of its own, and leaves a
 others would go. A wrapped second row of buttons is spaced by whichever mechanism that row's layout
 actually honours, which is not the same one for both kinds of row Stash uses here.
 
+## Troubleshooting
+
+### Why is a button missing?
+
+A button hides itself whenever clicking it would add nothing, and most of the reasons
+are invisible from the page — the sources' tags, the target's own tags, the exclusion filters. To
+see the reasoning, open the browser console (F12), run:
+
+```js
+__GTTx__.StashPluginCoop.debugButtons = true
+```
+
+Each button reports whether it is shown or hidden and why, prefixed `[cpt2s gate]`, on the next tick —
+no reload, no navigation, no setting to change. It works on the page you are already looking at,
+which is the point: the answer is restated from what the plugin already knows rather
+than only when it next re-checks. One switch covers both this plugin and its sibling, since they
+draw buttons into the same rows. Set it to `false`, or reload the page, to turn it off again.
+
+### The README link in settings
+
+**Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes** carries a link to this file, in two forms: the chain icon Stash puts in the header row, and a labelled `MergePerformerTagsToScenes/README.md` link the plugin adds underneath the description, since the icon alone is easy to miss. Both open the same page.
+
+### Checking which version is actually running
+
+**Reload plugins cannot replace the script your browser is already running.** It re-reads the plugin folder on the server; the JavaScript in your open page was fetched and executed when the page loaded, and stays until the page reloads. An update always needs a page reload — but a plain **F5** is normally enough, since Stash serves plugin scripts so that a normal reload picks up a changed file. Keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for the case where it does not.
+
+The version beside the plugin's name in **Settings → Plugins** does not settle it — that comes from the manifest, which is current the instant you reload plugins even when the running script is older. New version in the heading with old behaviour on screen is exactly what a cached script looks like.
+
+**The plugin says so when it happens.** A stale script is called out in red, in two places, both naming the version you are running, the version installed, and the fix:
+
+- **Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes**, at the top of the group and above the description — so it shows even with the group collapsed. It disappears once the two agree.
+- **Every dialog the plugin opens**, in a box of its own under the title.
+
+It says which script is running in the browser console too (**F12** → Console), on every page load, whether or not merge logging is enabled:
+
+```
+[cpt2s] MergePerformerTagsToScenes.js <version> loaded. This is the running script's own version — the settings page reads the manifest instead, which can be newer than the script your browser has cached.
+```
+
+If that is not the version you just installed, the page is running an old copy. In order: reload (F5); check the new `.js` really is in `<stash-config-dir>/plugins/`, since a file that was never copied cannot be refreshed into existence; then hard-refresh; then, if it still will not budge, open DevTools → **Network**, tick **Disable cache**, and reload with DevTools open.
+
+**The task also refuses to write.** Opening the library-wide task asks Stash which version is installed and compares it with the running script; on a mismatch **Proceed stays disabled** until you reload the page. The warning goes into the log as well as the head, so **Copy log** carries it. An unknown answer — an older Stash, a failed request — blocks nothing; only a definite mismatch does. It cannot catch an edit made without changing the version, since both numbers stay equal.
+
+## Installing
+
+0. Check your Stash version is **0.31.0 or newer** (**Settings → System**, or the version in the footer). Older versions are not supported.
+1. Find your Stash plugins directory. This is the `plugins` folder inside the directory that holds your `config.yml` (the same place as your Stash database, typically shown at the top of **Settings → System**). If no `plugins` folder exists yet, create one.
+2. Copy the whole `MergePerformerTagsToScenes` folder into that `plugins` folder:
+   ```
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.yml
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/MergePerformerTagsToScenes.js
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/manifest
+   <stash-config-dir>/plugins/MergePerformerTagsToScenes/README.md
+   ```
+3. In Stash, go to **Settings → Plugins** and click **Reload plugins** (or restart Stash).
+4. If using multiple browser instances, refresh your browser (F5) so the new plugin JavaScript is loaded in all of them.
+
+## Licence
+
+Same terms as the rest of this repository.

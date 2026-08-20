@@ -14,6 +14,14 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.2.0 is two lines of housekeeping from a full repo read.** `window.__cfbeSelectFilter`, the
+"`fetch` is already wrapped" flag §23 needs to survive a second evaluation of the script, is
+`__GTTx__.cfbeSelectFilter` — the repo takes one global and this was the second. And the
+`MutationObserver` this plugin registers for the list-view menu item is now the shared `domBus`
+(repo-root CLAUDE.md): four plugins each watching `#root {subtree:true}` is four callbacks per DOM
+burst, and this plugin's `_observing` guard is the one the other three copied, so the bus's
+idempotent `subscribe` is that guard generalised rather than something new to trust.
+
 **2.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` at the foot of the listing, one cycle at 2Hz, while either
 dialog is loading, applying or undoing — a read of 155,012 entities is the case it was asked for.
 `spin(busy)` hangs off both `setState`s (`DescRun` borrows the method, like everything else it
@@ -97,7 +105,7 @@ second is not. The bump was asked for explicitly, so it is the user's claim abou
 instance rather than a conclusion drawn here. What that changes going forward: a patch per fix, a
 minor per delivered capability, and this paragraph goes when the list above does.
 
-**Status: 1.3.1 — §22–§23 are being used, and the first reports are in.** Everything those two
+**Status: 2.2.0 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box

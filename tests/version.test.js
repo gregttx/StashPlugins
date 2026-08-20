@@ -16,6 +16,18 @@ const h = require('./npt-harness');
 const PLUGINS = ['NormalizeParentTags', 'MergePerformerTagsToScenes',
   'PropagateTagsAndPerformers', 'CustomFieldsBulkEditor', 'TagBundleClipboard'];
 
+// The script-side table each plugin's settings are read through. Every plugin has
+// exactly one, and a key in the yml that is missing from it is a setting the plugin
+// never reads - or, in MergePerformerTagsToScenes' case before 3.5.0, one that
+// silently never got a tooltip.
+const SETTING_TABLE = {
+  NormalizeParentTags: 'var DEFAULTS = {',
+  MergePerformerTagsToScenes: 'var SETTING_MAP = {',
+  PropagateTagsAndPerformers: 'var DEFAULTS = {',
+  CustomFieldsBulkEditor: 'var DEFAULTS = {',
+  TagBundleClipboard: 'var DEFAULTS = {',
+};
+
 const read = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8');
 
 // `version: 1.2.3`, from a yml or from the manifest, which is yml too.
@@ -37,6 +49,32 @@ function load(name) {
   h.run(env.ctx, path.join(__dirname, '..', name, name + '.js'));
   return lines;
 }
+
+// The `settings:` block of a plugin yml, as { key: { displayName, description, type } }.
+// Hand-parsed rather than with a YAML dependency: the block is a fixed two-level shape
+// this repo writes by hand, and the suite has no install step.
+function settingsBlock(text) {
+  const out = {};
+  const lines = text.split('\n');
+  let inBlock = false, key = null;
+  lines.forEach((line) => {
+    if (/^settings:\s*$/.test(line)) { inBlock = true; return; }
+    if (!inBlock) return;
+    if (/^\S/.test(line)) { inBlock = false; return; }
+    const k = /^ {2}([A-Za-z0-9_]+):\s*$/.exec(line);
+    if (k) { key = k[1]; out[key] = {}; return; }
+    const f = /^ {4}([A-Za-z0-9_]+):\s*(.*)$/.exec(line);
+    if (f && key) out[key][f[1]] = f[2];
+  });
+  return out;
+}
+
+const quoted = (v) => (/^"(.*)"$/.exec(String(v || '').trim()) || [])[1];
+
+// A double-quoted YAML scalar ends at the first *unescaped* quote, and what Stash drops
+// when its yml will not parse is the whole plugin. Remove each backslash escape, and
+// any quote still standing is one that ends it.
+const unescapedQuote = (s) => (String(s || '').replace(/\\./g, '')).indexOf('"') !== -1;
 
 PLUGINS.forEach((name) => {
   const manifest = declared(read(name, 'manifest'));
@@ -76,7 +114,6 @@ PLUGINS.forEach((name) => {
   // 0.2.4 shipped with a bare pair around "is empty" and stopped loading; the greedy
   // capture above still matched both files identically, so every other check passed.
   // Remove each backslash escape, and any quote still standing is one that ends it.
-  const unescapedQuote = (s) => (String(s || '').replace(/\\./g, '')).indexOf('"') !== -1;
   h.check(name + ' escapes every quote inside its description',
     !unescapedQuote(declaredDescription(read(name, name + '.yml'))) &&
       !unescapedQuote(declaredDescription(read(name, 'manifest'))),
@@ -84,6 +121,50 @@ PLUGINS.forEach((name) => {
   h.check(name + ' keeps the raw URL out of its description',
     !/https?:\/\//.test(declaredDescription(read(name, name + '.yml')) || ''),
     (declaredDescription(read(name, name + '.yml')) || '').slice(0, 120));
+
+  // Per-*setting* descriptions, which nothing checked until 3.5.0 - which is how
+  // MergePerformerTagsToScenes' settings page went on describing its two buttons as
+  // "Copy ..." for two releases after the captions became "Add ...". A setting
+  // description is read while the user is looking at the thing it describes, so a
+  // stale caption there is worse than a stale one in the README.
+  const settings = settingsBlock(read(name, name + '.yml'));
+  const settingKeys = Object.keys(settings);
+  h.check(name + ' declares at least one setting', settingKeys.length > 0);
+
+  // The yml and the script's own table are the same list, in both directions.
+  const src = read(name, name + '.js');
+  const tableAt = src.indexOf(SETTING_TABLE[name]);
+  const tableEnd = tableAt === -1 ? -1 : src.indexOf('\n  };', tableAt);
+  const table = tableAt === -1 || tableEnd === -1 ? '' : src.slice(tableAt, tableEnd);
+  h.check(name + ' has a settings table in its script', !!table, SETTING_TABLE[name]);
+  const tableKeys = (table.match(/^\s{4}([A-Za-z0-9_]+):/gm) || [])
+    .map((m) => m.trim().replace(':', ''));
+  settingKeys.forEach((k) => h.check(name + ' reads its yml setting ' + k,
+    tableKeys.indexOf(k) !== -1, 'not in ' + SETTING_TABLE[name]));
+  tableKeys.forEach((k) => h.check(name + ' declares its script setting ' + k + ' in the yml',
+    settingKeys.indexOf(k) !== -1, 'not in ' + name + '.yml'));
+
+  settingKeys.forEach((key) => {
+    const set = settings[key];
+    h.check(name + '.' + key + ' has a displayName, a description and a type',
+      !!set.displayName && !!set.description && !!set.type,
+      Object.keys(set).join(','));
+    // A short one-line description is written as a bare YAML scalar; anything with a
+    // paragraph break or a quoted caption in it has to be a quoted one.
+    const desc = quoted(set.description) || String(set.description || '');
+    h.check(name + '.' + key + ' escapes every quote inside its description',
+      !unescapedQuote(desc), String(desc).slice(0, 120));
+    h.check(name + '.' + key + ' keeps the raw URL out of its description',
+      !/https?:\/\//.test(desc || ''), String(desc).slice(0, 120));
+    // A description quoting a caption is quoting one the user is looking at, so the
+    // string has to still be in the script. Multi-word only: a single quoted word is
+    // as likely to be a value or a mode name as a button.
+    const captions = (String(desc || '').match(/\\"[^"\\]{3,60}\\"/g) || [])
+      .map((c) => c.slice(2, -2))
+      .filter((c) => /^[A-Z]/.test(c) && /\s/.test(c));
+    captions.forEach((c) => h.check(name + '.' + key + ' quotes a caption the script has: "' + c + '"',
+      src.indexOf(c) !== -1));
+  });
 
   const banner = load(name).filter((l) => l.indexOf(name + '.js') !== -1);
   h.check(name + ' announces itself at load', banner.length === 1, banner.join(' | '));

@@ -456,7 +456,7 @@ Promise.resolve()
 
   // Read off the script rather than written down, so a version bump does not turn
   // this into a failing check that has to be edited before anyone looks at it.
-  .then(() => open({ installed: boot().ctx.__ptp2re.PLUGIN_VERSION,
+  .then(() => open({ installed: boot().ctx.__GTTx__.ptp2re.PLUGIN_VERSION,
     settings: { b1TagsPerformersToScenes: true } }))
     .then(({ d }) => {
       h.check('a matching version says nothing in the dialog', d.note === '', d.note);

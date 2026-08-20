@@ -50,7 +50,7 @@ function open(opts) {
     .then(() => env);
 }
 
-const api = (env) => env.ctx.window.__ptp2re;
+const api = (env) => env.ctx.window.__GTTx__.ptp2re;
 const d = (env) => h.dialog(env.ctx.document.body, PREFIX);
 // One button per path since 3.2.0, carrying its own state as its caption. A select
 // cost two clicks for every change - one to open, one to pick - and thirteen of them
@@ -256,7 +256,7 @@ Promise.resolve()
       // Our own configurePlugin drops the settings cache, so the next thing to want
       // settings reloads them - and a second load must not send the import again.
       // Driven through `settingsFrom` directly, which is the function that decides.
-      env.ctx.window.__ptp2re.settingsFrom({}, { c1ExcludeTagWithIgnoreAutoTag: true });
+      env.ctx.window.__GTTx__.ptp2re.settingsFrom({}, { c1ExcludeTagWithIgnoreAutoTag: true });
       return h.flush().then(() => {
         h.check('and it is written once, not once per settings load',
           saved(env).length === 1, String(saved(env).length));

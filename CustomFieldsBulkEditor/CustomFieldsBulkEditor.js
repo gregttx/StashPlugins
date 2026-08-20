@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.1.0';
+  var PLUGIN_VERSION = '2.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -238,6 +238,53 @@
     ns.StashPluginCoop = c;
     if (window.StashPluginCoop !== c) window.StashPluginCoop = c;
     return c;
+  }
+
+  // ── The shared DOM bus ────────────────────────────────────────────────────
+  //
+  // One MutationObserver on Stash's root for every plugin in this repo, rather than one
+  // each. The four that need one watch the same subtree for the same reason - a control
+  // has to land before the user reads the panel it is in - and with all of them installed
+  // that was four registrations firing on every DOM burst, which on a Scene page with
+  // video playing is continuous. It is the one place the "five copies of one design" rule
+  // compounds rather than merely repeats, which is why this is shared rather than copied.
+  //
+  // Whichever plugin loads first creates the observer; the rest subscribe to it. Each
+  // keeps its own debounce, because what a burst costs each of them differs.
+  //
+  // Advisory in exactly the way the lease is: a plugin too old to know about the bus makes
+  // its own observer and still works, and one subscriber throwing does not silence the
+  // rest. `subscribe` is idempotent and safe to call again - which is what the load-event
+  // retry does when there was no root to observe at script bottom - and answers whether
+  // anything is being observed yet, so a caller with a polling fallback can tell.
+  //
+  // Byte-identical in every plugin that has one, like `coopObject` above and for the same
+  // reason; `tests/style.test.js` fails on a drifted copy.
+  function domBus() {
+    var ns = window.__GTTx__;
+    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+    var bus = ns.domBus;
+    if (bus && typeof bus.subscribe === 'function') return bus;
+    bus = ns.domBus = { subs: [], observing: false };
+    bus.notify = function () {
+      for (var i = 0; i < bus.subs.length; i++) {
+        try { bus.subs[i](); } catch (e) { /* one subscriber must not silence the rest */ }
+      }
+    };
+    bus.subscribe = function (fn) {
+      if (bus.subs.indexOf(fn) === -1) bus.subs.push(fn);
+      if (bus.observing || typeof MutationObserver !== 'function') return bus.observing;
+      var root = document.getElementById('root') || document.body || document.documentElement;
+      if (!root) return false;
+      try {
+        new MutationObserver(bus.notify).observe(root, { childList: true, subtree: true });
+        bus.observing = true;
+      } catch (e) {
+        bus.observing = false;
+      }
+      return bus.observing;
+    };
+    return bus;
   }
 
   function coop() {
@@ -3970,8 +4017,13 @@
   // shows one entity too many is a nuisance, and one that shows nothing because a
   // filter threw is a broken editor.
   function installSelectFilter() {
-    if (!window.fetch || window.__cfbeSelectFilter) return;
-    window.__cfbeSelectFilter = true;
+    // The "wrapped already" flag has to outlive this IIFE - a second evaluation of the
+    // script would otherwise wrap `fetch` twice - so it goes on `__GTTx__`, the one
+    // global this repo takes. `coopObject()` is what creates that namespace.
+    coopObject();
+    var ns = window.__GTTx__;
+    if (!window.fetch || ns.cfbeSelectFilter) return;
+    ns.cfbeSelectFilter = true;
     var orig = window.fetch;
     window.fetch = function (url, init) {
       var out = orig.apply(this, arguments);
@@ -4006,14 +4058,10 @@
     }, OBSERVE_MS);
   }
 
-  var _observing = false;
+  // The shared bus rather than an observer of our own - see `domBus`. `subscribe` is
+  // idempotent, so this is safe from both the script bottom and `load`.
   function startObserver() {
-    if (_observing || typeof MutationObserver === 'undefined') return;
-    var root = document.getElementById('root') || document.body;
-    if (!root) return;
-    _observing = true;
-    var observer = new MutationObserver(scheduleTick);
-    observer.observe(root, { childList: true, subtree: true });
+    domBus().subscribe(scheduleTick);
   }
 
   // The settings page is not observed, only ticked: this is decoration in a panel,

@@ -30,7 +30,7 @@
   // contradiction. This constant travels inside the file, so the line below says
   // which script is actually running. Bump it with the manifest and the yml; the
   // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.6.2';
+  var PLUGIN_VERSION = '4.6.3';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2301,6 +2301,9 @@
     this.applied = 0;
     this.appliedTags = { ADD: {}, REMOVE: {} };
     this.failed = 0;
+    // Held by the state machine today - a stopped run lands in `done` and only a
+    // rescan returns it to `ready` - but stated here anyway, the way `undo` states it.
+    this.stopped = false;
     this.log('INFO', 'Applying ' + plural(this.plan.length, 'entity change') + ' - ' + new Date().toISOString());
 
     this.runBatches(buildBatches(this.plan), this.taskName,
@@ -3580,7 +3583,14 @@
   // would be invisible until the user expanded the very group it is telling them to
   // look at.
   function ownSettingGroup() {
-    var node = settingElement('a1AutoModes'), d;
+    // Every key rather than one named one: 4.0.0 renamed all nine at once, and a
+    // single named anchor is exactly what a rename of the one key it names breaks.
+    var node = null, d, key;
+    for (key in DEFAULTS) {
+      if (!hasOwn(DEFAULTS, key)) continue;
+      node = settingElement(key);
+      if (node) break;
+    }
     for (d = 0; node && d < 10; d++, node = node.parentElement) {
       if (hasClass(node, 'setting-group')) return node;
     }
@@ -4103,14 +4113,6 @@
   // accident: it returns on a button that already has the variant being applied, so
   // the strip never runs over our own colour.
   var BTN_VARIANTS = /\bbtn-(secondary|primary|success|info|light|dark|link)\b/g;
-
-  function setClass(node, name, on) {
-    if (!node || hasClass(node, name) === !!on) return;
-    node.className = on
-      ? ((node.className || '') + ' ' + name).replace(/^\s+/, '')
-      : String(node.className || '').split(/\s+/)
-          .filter(function (c) { return c && c !== name; }).join(' ');
-  }
 
   function paintButton(btn, variant) {
     if (hasClass(btn, variant)) return;                        // already ours

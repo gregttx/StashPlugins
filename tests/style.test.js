@@ -226,4 +226,35 @@ sources.forEach((s) => {
       .test(s.src));
 });
 
+// `coopObject` is the whole lease/order/declares protocol's one shared global, and
+// `domBus` is the one MutationObserver the plugins share. Both are copied into files with
+// no module between them, and both were the kind of thing that had to agree byte-for-byte
+// and was checked by nothing: the CSS gets a full comparison and `plural` gets a regex,
+// while the functions the other mechanisms are built on got neither.
+const fnSource = (src, name) => {
+  const at = src.indexOf('\n  function ' + name + '() {');
+  if (at === -1) return null;
+  const end = src.indexOf('\n  }\n', at);
+  return end === -1 ? null : src.slice(at, end + 4);
+};
+
+function pinShared(fn, required, why) {
+  const copies = sources.map((s) => ({ name: s.plugin.name, body: fnSource(s.src, fn) }));
+  if (required) copies.forEach((c) => h.check(c.name + ' defines ' + fn, !!c.body));
+  const defined = copies.filter((c) => c.body);
+  h.check('at least two plugins define ' + fn, defined.length > 1, String(defined.length));
+  defined.slice(1).forEach((c) => {
+    h.check(c.name + "'s " + fn + ' is byte-identical to ' + defined[0].name + "'s",
+      c.body === defined[0].body, why);
+  });
+}
+
+pinShared('coopObject', true,
+  'the shared object is what carries the leases; a drifted copy hands them to a different global');
+// Not required of every plugin: `NormalizeParentTags` registers no MutationObserver at
+// all - its settings page is decoration, which the timer covers - so it has no bus to
+// subscribe to and an absent copy is the rule being followed, not an omission.
+pinShared('domBus', false,
+  'a drifted copy would build a second observer on the same subtree, which is what this replaced');
+
 h.finish();

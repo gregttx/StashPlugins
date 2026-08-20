@@ -285,62 +285,6 @@ which is unbounded. So a source button can still report "No changes" on click.
 form instead — so if you remove a tag from the form without saving, the button that would put it
 back stays hidden until you press Save. Saving re-checks immediately; you never need to reload.
 
-### Why is a button missing?
-
-A button hides itself whenever clicking it would add nothing, and most of the reasons
-are invisible from the page — the sources' tags, the target's own tags, the exclusion filters. To
-see the reasoning, open the browser console (F12), run:
-
-```js
-__GTTx__.StashPluginCoop.debugButtons = true
-```
-
-Each button reports whether it is shown or hidden and why, prefixed `[ptp2re gate]`, on the next tick —
-no reload, no navigation, no setting to change. It works on the page you are already looking at,
-which is the point: the answer is restated from what the plugin already knows rather
-than only when it next re-checks. One switch covers every plugin in this repo that draws a control
-into Stash's own UI — two of them share these very rows, and "why is this missing" is rarely a
-question about only one. Set it to `false`, or reload the page, to turn it off again.
-
-**Each button copies its own path and nothing else.** With both the performer and studio
-paths enabled on a scene, "Add all Tags from all Performers" copies the performers' tags and
-leaves the studio's alone; the studio's button is what copies those — which is what the caption,
-the tooltip and the setting description each say it does.
-
-Clicking one does one of two things, depending on **Save Immediately**:
-
-- **Off (the default) — stages.** The tags or performers it would add are pushed straight into the
-  open edit form's own tag or performer box, exactly as if you had picked them from the dropdown
-  yourself. Nothing is saved until you press Stash's own **Save** button, so you can review or
-  remove any of them first. Clicking the same button again only adds what is still missing — tags
-  you have since removed by hand are not put back, and a click that finds nothing reports "No
-  changes" instead of restaging the same tags.
-- **On — reviews in a dialog.** The caption gains a trailing **"..."** to say so. The click opens
-  the same dialog the library-wide task uses, scoped to this one entity and this one path: it lists
-  every change, writes nothing until you press **Proceed**, and offers **Undo**, **Rescan** and
-  **Copy log** afterwards. **Rescan keeps the log** — it writes a `--- Rescan ---` line and carries
-  on below it, rather than clearing the view for the next pass. While the dialog is working —
-  scanning, applying or undoing — a cursor cycles under the last line: the counters say how far it
-  has got, the cursor says it is still going. Nothing in this plugin writes from a
-  click without either staging it or showing it to you first. The dialog's heading names what it is
-  scoped to — *Add Tags to all Scenes - from Performer "Jane" (100)* — so a dialog opened from a
-  button says which entity it is about, by the name you know it by.
-
-A button that cannot find the tag or performer box — the Edit tab was never opened, or a fresh
-Stash version has changed markup this plugin has not seen yet — reports the problem in an alert
-rather than silently doing nothing. On a Stash too old to let a plugin observe those boxes at all,
-staging is impossible rather than merely failing, so the buttons **review in the dialog** there
-instead, say so in their tooltip, and warn once in the browser console.
-
-**If `MergePerformerTagsToScenes` is also installed and showing its own button for the same path**
-("Add Tags to all Scenes" on the performer page, "Add all Tags from all Performers" on the scene
-page — today the only path the two plugins share), this plugin does not add a second one next to
-it, on the source side as well as the target side. Nothing else changes:
-click MPTTS's button and you get its behaviour; enable more paths here and you still get buttons
-for all of them, this one path aside. This needs `MergePerformerTagsToScenes` 1.12.1 or newer,
-which renamed its two buttons to match; an older copy's buttons will not be recognised and both
-plugins' buttons will show.
-
 ### Source-side buttons
 
 The buttons above pull tags or performers *in* to whatever page you are viewing. Eleven of the
@@ -451,45 +395,6 @@ Nowhere else. There are no buttons on list pages, on tag pages, or on scene mark
 no page of its own, which is why `tags:marker>scene` and `tags:marker>group` are the two paths with
 no source-side button. `NormalizeParentTags` adds no entity-page button at all.
 
-## Installing
-
-Copy the `PropagateTagsAndPerformers` folder into your Stash plugins directory (next to your
-`config.yml`, usually `~/.stash/plugins/`) so that you have:
-
-```
-plugins/PropagateTagsAndPerformers/PropagateTagsAndPerformers.yml
-plugins/PropagateTagsAndPerformers/PropagateTagsAndPerformers.js
-plugins/PropagateTagsAndPerformers/README.md
-```
-
-Then **Settings → Plugins → Reload plugins**, and reload the page in your browser.
-
-**Reload plugins cannot replace the script your browser is already running.** It re-reads the
-plugin folder on the server; the JavaScript in your open page was fetched when the page loaded and
-stays until the page reloads. The version beside the plugin's name in the settings list settles
-nothing either — it comes from the manifest, which goes current the instant you reload plugins even
-when the running script is older.
-
-The plugin says so when that happens, in red, in two places — both naming the version you are
-running, the version installed, and the fix:
-
-- **Settings → Plugins → ᝯㄝₓ Propagate Tags and Performers to Related Entities**, at the top of the
-  group and above the description, so it shows even with the group collapsed. It disappears once the
-  two agree.
-- **The dialog**, in a box of its own under the title. **Proceed stays disabled** while they
-  disagree, since the plan would otherwise be computed by the code you replaced, and the warning
-  goes into the log so **Copy log** carries it.
-
-Press **F5** first — Stash serves plugin scripts so that a normal reload picks up a changed file —
-and keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for when it does not. If neither works, check the new
-`.js` really is in your plugins folder: a file that was never copied cannot be refreshed into
-existence. The console prints the version it is actually running at every page load
-(`[ptp2re] PropagateTagsAndPerformers.js <version> loaded`), which is the one number a cached script
-cannot fake.
-
-None of this catches an edit made without changing the version: both numbers stay equal and there
-is nothing to compare.
-
 ## Settings
 
 All under **Settings → Plugins → ᝯㄝₓ Propagate Tags and Performers to Related Entities**. Each
@@ -564,6 +469,105 @@ Settings** and set your paths again, and check the four toggles at the top while
   reads or writes, and it puts its control in the list view's "..." menu rather than in an entity's
   action row. The one thing they share is the lease — this plugin's automatic modes stand down while
   that one is applying, and its dialog says so if you open it while a run here is writing.
+
+## Troubleshooting
+
+### Why is a button missing?
+
+A button hides itself whenever clicking it would add nothing, and most of the reasons
+are invisible from the page — the sources' tags, the target's own tags, the exclusion filters. To
+see the reasoning, open the browser console (F12), run:
+
+```js
+__GTTx__.StashPluginCoop.debugButtons = true
+```
+
+Each button reports whether it is shown or hidden and why, prefixed `[ptp2re gate]`, on the next tick —
+no reload, no navigation, no setting to change. It works on the page you are already looking at,
+which is the point: the answer is restated from what the plugin already knows rather
+than only when it next re-checks. One switch covers every plugin in this repo that draws a control
+into Stash's own UI — two of them share these very rows, and "why is this missing" is rarely a
+question about only one. Set it to `false`, or reload the page, to turn it off again.
+
+**Each button copies its own path and nothing else.** With both the performer and studio
+paths enabled on a scene, "Add all Tags from all Performers" copies the performers' tags and
+leaves the studio's alone; the studio's button is what copies those — which is what the caption,
+the tooltip and the setting description each say it does.
+
+Clicking one does one of two things, depending on **Save Immediately**:
+
+- **Off (the default) — stages.** The tags or performers it would add are pushed straight into the
+  open edit form's own tag or performer box, exactly as if you had picked them from the dropdown
+  yourself. Nothing is saved until you press Stash's own **Save** button, so you can review or
+  remove any of them first. Clicking the same button again only adds what is still missing — tags
+  you have since removed by hand are not put back, and a click that finds nothing reports "No
+  changes" instead of restaging the same tags.
+- **On — reviews in a dialog.** The caption gains a trailing **"..."** to say so. The click opens
+  the same dialog the library-wide task uses, scoped to this one entity and this one path: it lists
+  every change, writes nothing until you press **Proceed**, and offers **Undo**, **Rescan** and
+  **Copy log** afterwards. **Rescan keeps the log** — it writes a `--- Rescan ---` line and carries
+  on below it, rather than clearing the view for the next pass. While the dialog is working —
+  scanning, applying or undoing — a cursor cycles under the last line: the counters say how far it
+  has got, the cursor says it is still going. Nothing in this plugin writes from a
+  click without either staging it or showing it to you first. The dialog's heading names what it is
+  scoped to — *Add Tags to all Scenes - from Performer "Jane" (100)* — so a dialog opened from a
+  button says which entity it is about, by the name you know it by.
+
+A button that cannot find the tag or performer box — the Edit tab was never opened, or a fresh
+Stash version has changed markup this plugin has not seen yet — reports the problem in an alert
+rather than silently doing nothing. On a Stash too old to let a plugin observe those boxes at all,
+staging is impossible rather than merely failing, so the buttons **review in the dialog** there
+instead, say so in their tooltip, and warn once in the browser console.
+
+**If `MergePerformerTagsToScenes` is also installed and showing its own button for the same path**
+("Add Tags to all Scenes" on the performer page, "Add all Tags from all Performers" on the scene
+page — today the only path the two plugins share), this plugin does not add a second one next to
+it, on the source side as well as the target side. Nothing else changes:
+click MPTTS's button and you get its behaviour; enable more paths here and you still get buttons
+for all of them, this one path aside. This needs `MergePerformerTagsToScenes` 1.12.1 or newer,
+which renamed its two buttons to match; an older copy's buttons will not be recognised and both
+plugins' buttons will show.
+
+### Checking which version is actually running
+
+**Reload plugins cannot replace the script your browser is already running.** It re-reads the
+plugin folder on the server; the JavaScript in your open page was fetched when the page loaded and
+stays until the page reloads. The version beside the plugin's name in the settings list settles
+nothing either — it comes from the manifest, which goes current the instant you reload plugins even
+when the running script is older.
+
+The plugin says so when that happens, in red, in two places — both naming the version you are
+running, the version installed, and the fix:
+
+- **Settings → Plugins → ᝯㄝₓ Propagate Tags and Performers to Related Entities**, at the top of the
+  group and above the description, so it shows even with the group collapsed. It disappears once the
+  two agree.
+- **The dialog**, in a box of its own under the title. **Proceed stays disabled** while they
+  disagree, since the plan would otherwise be computed by the code you replaced, and the warning
+  goes into the log so **Copy log** carries it.
+
+Press **F5** first — Stash serves plugin scripts so that a normal reload picks up a changed file —
+and keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for when it does not. If neither works, check the new
+`.js` really is in your plugins folder: a file that was never copied cannot be refreshed into
+existence. The console prints the version it is actually running at every page load
+(`[ptp2re] PropagateTagsAndPerformers.js <version> loaded`), which is the one number a cached script
+cannot fake.
+
+None of this catches an edit made without changing the version: both numbers stay equal and there
+is nothing to compare.
+
+## Installing
+
+Copy the `PropagateTagsAndPerformers` folder into your Stash plugins directory (next to your
+`config.yml`, usually `~/.stash/plugins/`) so that you have:
+
+```
+plugins/PropagateTagsAndPerformers/PropagateTagsAndPerformers.yml
+plugins/PropagateTagsAndPerformers/PropagateTagsAndPerformers.js
+plugins/PropagateTagsAndPerformers/README.md
+```
+
+Then **Settings → Plugins → Reload plugins**, and reload the page in your browser.
 
 ## Licence
 

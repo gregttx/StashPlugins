@@ -18,7 +18,7 @@ Stash loads plugins declared under `ui.javascript` in the manifest into its Reac
 Because Stash is a SPA, plugins must handle route changes without a full page reload. The standard pattern used here is:
 
 1. A `tick()` function that checks the current URL and idempotently injects/removes UI elements.
-2. `tick()` is wired to `window load`, `popstate`, link-click delays (`setTimeout(tick, 300)`), and a `MutationObserver` on `#root` (plus a fallback `setInterval`).
+2. `tick()` is wired to `window load`, `popstate`, link-click delays (`setTimeout(tick, 300)`), and a `MutationObserver` on `#root` (plus a fallback `setInterval`). The observer is *shared* — see "Cross-plugin cooperation: one MutationObserver" — so a plugin subscribes rather than registering its own.
 
 ## Plugin examples
 
@@ -135,6 +135,20 @@ would hand someone else's object our leases. Nothing else here needs a global: e
 already prefixed (`npt-` / `cpt2s-` / `ptp2re-`), every element id is `plugin-<id>-<key>` or a
 plugin-prefixed one of ours, and per-plugin state stays inside the IIFE. A new shared object goes
 *beside* `StashPluginCoop` under `__GTTx__`, never on `window`.
+
+**And that includes the things that are barely shared at all.** Three entries beside
+`StashPluginCoop` are not protocols: `domBus` (below), `cfbeSelectFilter` — one plugin's "I have
+already wrapped `fetch`" flag, which has to outlive its own IIFE so a second evaluation of the
+script cannot wrap twice — and `ptp2re`, the table surface `PropagateTagsAndPerformers` exposes for
+its test suites. All three were `window.__cfbeSelectFilter` / `window.__ptp2re` style globals until
+`CustomFieldsBulkEditor` 2.2.0 / `PropagateTagsAndPerformers` 3.11.0, on the unstated reasoning that
+the rule was about *protocols*. It is not: it is about names in a namespace shared with every other
+plugin installed, and a test-only export is no more entitled to one than a lease registry is.
+
+**`coopObject` is pinned byte-identical by `tests/style.test.js`**, along with `domBus`. That the
+five copies agreed was, until then, a fact nobody had checked — the CSS got a full comparison and
+`plural` got a regex, while the function the leases, the ordering and the `declares` registry are
+all built on got neither.
 
 **`setting-group` is not ours and must not be renamed.** It is Stash's own class on the settings
 page, and these plugins only ever *read* it — `ownSettingGroup`, `ownTaskName`, `settingRow`. The
@@ -254,7 +268,7 @@ object — nothing reads an absent entry as anything other than "declares nothin
 
 ## Cross-plugin cooperation: one plugin computing another's operation
 
-The newest of the shared mechanisms and the only one that is a *call* rather than a flag.
+The only one of the shared mechanisms that is a *call* rather than a flag.
 `coop().api[<pluginId>]` holds whatever a plugin is willing to answer for another; today
 `NormalizeParentTags` publishes one entry (`prepare`, at its 3.2.0) and `TagBundleClipboard` is the
 one caller (at its 0.5.0).
@@ -383,6 +397,47 @@ it was before this existed.
 plugin by id; it reads whatever `coop().order` and `_coopOwner` say, the same generic shape as
 `declares`. A future third plugin needs only to pick an unused number and tag its own buttons — no
 edit to either existing plugin.
+
+## Cross-plugin cooperation: one MutationObserver
+
+The newest of the shared mechanisms, and the only one that exists purely to stop the "five copies
+of one design" rule from *compounding*. Four of the five plugins register a `MutationObserver` on
+`#root {subtree: true}`, for the same reason in each: a control has to land before the user reads
+the panel it is in, and a one-second poll would show the panel without it about half the time. With
+all four installed that was four registrations on one churning subtree, and on a Scene page with
+video playing they fire continuously. Nothing in the test suite can see that cost, which is exactly
+why it went unremarked for as long as it did.
+
+`__GTTx__.domBus` is one observer and a list of subscribers. Whichever plugin loads first creates
+it; the rest call `subscribe(fn)`. Five properties, each a decision worth repeating:
+
+- **Each subscriber keeps its own debounce.** What a burst costs each plugin differs
+  (`CustomFieldsBulkEditor` coalesces on `OBSERVE_MS`, the others on 100 ms), and the bus is about
+  the *registration*, not about what anyone does with the notification.
+- **`subscribe` is idempotent, and answers whether anything is observed yet.** Every plugin calls
+  its `startObserver` at script bottom *and* from the `load` handler — the first because a script
+  evaluated after `load` would otherwise never observe, the second because there may have been no
+  root to observe at script bottom. Idempotence is what makes both calls safe, and it is what
+  replaced four separate `_observing` flags, one of which (`TagBundleClipboard`'s) did not exist and
+  left that plugin registering two observers for the life of the page.
+- **One subscriber throwing does not silence the rest.** They are strangers to each other, and a
+  sibling's bug must not stop this plugin's buttons appearing.
+- **Advisory, exactly like the lease.** A plugin too old to know about the bus builds its own
+  observer and works unchanged; a page where `MutationObserver` is missing or `observe` throws falls
+  back to the one-second poll every plugin already had.
+- **A plugin with no observer subscribes to nothing and defines no copy.**
+  `NormalizeParentTags` is that plugin — its settings page is decoration, which the timer covers —
+  so an absent `domBus` there is the rule being followed, the way `TagBundleClipboard` registering
+  no lease is.
+
+**Deliberately not folded in: the timers and the `fetch` wrappers.** Eleven `setInterval`s across
+five plugins is a real number and not a real cost — a one-second timer that does nothing is free,
+and the periods differ per plugin anyway. The four chained `fetch` wrappers are the more interesting
+half: each `JSON.parse`s every GraphQL request body and three of them `resp.clone().json()` every
+mutation response. That is per *request* rather than per DOM mutation, so it is bounded by what the
+user does rather than by what React does, and sharing it would mean a bus that hands out both the
+parsed request and the response promise — a much larger contract than "something changed". If a
+plugin here ever wraps `fetch` for something hot, this is the seam to revisit.
 
 ## Cross-plugin cooperation: the shared debug switch
 

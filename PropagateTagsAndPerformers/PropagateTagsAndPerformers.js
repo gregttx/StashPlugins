@@ -41,12 +41,7 @@
   // over 0.1.0 behaviour is the normal look of a stale script, not a contradiction.
   // This constant travels inside the file. Bump it with the manifest and the yml;
   // the `version` suite fails if the three disagree.
-  //
-  // Below 1.0.0 deliberately, and it stays there until the plugin is finished: the
-  // major digit is what says "ready to use", and this one has no planner and no
-  // buttons yet. Each implementation step is a feature, so it takes the minor digit
-  // (0.1.0, 0.2.0, ...); fixes within a step take the patch.
-  var PLUGIN_VERSION = '3.10.0';
+  var PLUGIN_VERSION = '3.11.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1081,6 +1076,53 @@
     return c;
   }
 
+  // ── The shared DOM bus ────────────────────────────────────────────────────
+  //
+  // One MutationObserver on Stash's root for every plugin in this repo, rather than one
+  // each. The four that need one watch the same subtree for the same reason - a control
+  // has to land before the user reads the panel it is in - and with all of them installed
+  // that was four registrations firing on every DOM burst, which on a Scene page with
+  // video playing is continuous. It is the one place the "five copies of one design" rule
+  // compounds rather than merely repeats, which is why this is shared rather than copied.
+  //
+  // Whichever plugin loads first creates the observer; the rest subscribe to it. Each
+  // keeps its own debounce, because what a burst costs each of them differs.
+  //
+  // Advisory in exactly the way the lease is: a plugin too old to know about the bus makes
+  // its own observer and still works, and one subscriber throwing does not silence the
+  // rest. `subscribe` is idempotent and safe to call again - which is what the load-event
+  // retry does when there was no root to observe at script bottom - and answers whether
+  // anything is being observed yet, so a caller with a polling fallback can tell.
+  //
+  // Byte-identical in every plugin that has one, like `coopObject` above and for the same
+  // reason; `tests/style.test.js` fails on a drifted copy.
+  function domBus() {
+    var ns = window.__GTTx__;
+    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+    var bus = ns.domBus;
+    if (bus && typeof bus.subscribe === 'function') return bus;
+    bus = ns.domBus = { subs: [], observing: false };
+    bus.notify = function () {
+      for (var i = 0; i < bus.subs.length; i++) {
+        try { bus.subs[i](); } catch (e) { /* one subscriber must not silence the rest */ }
+      }
+    };
+    bus.subscribe = function (fn) {
+      if (bus.subs.indexOf(fn) === -1) bus.subs.push(fn);
+      if (bus.observing || typeof MutationObserver !== 'function') return bus.observing;
+      var root = document.getElementById('root') || document.body || document.documentElement;
+      if (!root) return false;
+      try {
+        new MutationObserver(bus.notify).observe(root, { childList: true, subtree: true });
+        bus.observing = true;
+      } catch (e) {
+        bus.observing = false;
+      }
+      return bus.observing;
+    };
+    return bus;
+  }
+
   function coop() {
     var c = coopObject();
     if (!c.leases) c.leases = [];
@@ -1350,8 +1392,6 @@
     'font-size:.8rem;line-height:1.35;min-height:14rem;}' +
     '.ptp2re-line{white-space:pre-wrap;word-break:break-word;}' +
     '.ptp2re-spin{color:#a7b6c2;}' +
-    // The log's own line kinds, which the siblings do not share: this plugin adds
-    // both tags and performers, so ADD alone would not say which.
     // The path toggles: the whole body of the settings dialog, in three columns of
     // label-and-button. Each column is a grid of its own rather than the whole panel
     // being one six-column grid, because a shared grid sizes every label column to
@@ -1474,19 +1514,14 @@
     '.ptp2re-stale{margin:.5rem 0;padding:.6rem .75rem;border-left:4px solid #ff7373;' +
     'background:rgba(255,115,115,.14);color:#ff7373;font-size:.95rem;line-height:1.45;' +
     'font-weight:600;}' +
+    // The log's own line kinds, which the siblings do not share: this plugin adds
+    // both tags and performers, so ADD alone would not say which.
     '.ptp2re-ERROR{color:#ff7373;} .ptp2re-WARN{color:#ffb648;} .ptp2re-TAG{color:#84d68a;}' +
     '.ptp2re-PERF{color:#7cc4ff;} .ptp2re-INFO{color:#a7b6c2;}' +
     '.ptp2re-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
     'flex-wrap:wrap;align-items:center;}' +
     '.ptp2re-foot button{margin-right:.5rem;}' +
     '.ptp2re-hidden{display:none;}' +
-    // Stash's own .sub-heading is white-space: normal, so the newlines in this
-    // plugin's description would collapse into one paragraph. Scoped to the group we
-    // marked, never to .sub-heading at large: another plugin's description is not
-    // ours to reflow, and it may well have been written for the collapse.
-    // pre-wrap is the fallback for a description we have not split yet - a blank
-    // line renders as a blank line. Once split, the paragraphs are divs and the gap
-    // is this margin instead: roughly a third of a line, not a whole one.
     // Our own source-button row, under the tab strip on the pages that render no
     // detail action row (Scene, Gallery, and Image if it is the same). This is the one
     // container in the plugin Stash puts nothing into, so there is no neighbour to
@@ -1496,6 +1531,13 @@
     // sits under; `flex-wrap` because Scene can offer several at once.
     '.ptp2re-src-row{display:flex;flex-wrap:wrap;column-gap:.5rem;row-gap:.25rem;' +
     'margin:.5rem 0;}' +
+    // Stash's own .sub-heading is white-space: normal, so the newlines in this
+    // plugin's description would collapse into one paragraph. Scoped to the group we
+    // marked, never to .sub-heading at large: another plugin's description is not
+    // ours to reflow, and it may well have been written for the collapse.
+    // pre-wrap is the fallback for a description we have not split yet - a blank
+    // line renders as a blank line. Once split, the paragraphs are divs and the gap
+    // is this margin instead: roughly a third of a line, not a whole one.
     '.ptp2re-own-group .sub-heading{white-space:pre-wrap;}' +
     '.ptp2re-own-group .sub-heading .ptp2re-p{margin:0 0 .35em;}' +
     '.ptp2re-own-group .sub-heading .ptp2re-p:last-child{margin-bottom:0;}' +
@@ -4270,8 +4312,6 @@
   };
 
 
-  // ── The settings page ─────────────────────────────────────────────────────
-
   // ── Auto mode ─────────────────────────────────────────────────────────────
   //
   // A reaction to a save Stash made, with no dialog and no undo. It shares the task's
@@ -6758,13 +6798,12 @@
       var orig = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Working...';
-      runManualSource(path, id, label).then(function (result) {
+      runManualSource(path, id, label).then(function () {
         btn.disabled = false;
         // Always the dialog on this side - there is no staging here - so the caption
         // goes straight back rather than flashing a count under a modal that covers it.
         // The re-probe is `Run.close`'s now, once whatever was approved has been written.
         btn.textContent = orig;
-        if (result.mode !== 'dialog' && result.count) invalidateButtonProbes();
       }, function (err) {
         btn.disabled = false;
         btn.textContent = orig;
@@ -6914,16 +6953,11 @@
     setTimeout(function () { _entityTickScheduled = false; manualButtonsTick(); manualSourceButtonsTick(); }, 100);
   }
 
+  // The shared bus rather than an observer of our own - see `domBus`. `subscribe` is
+  // idempotent, so this is safe from both the script bottom and `load`, and where there
+  // is nothing to observe yet the interval below still drives the tick.
   function startEntityObserver() {
-    var target = document.getElementById('root') || document.body || document.documentElement;
-    if (!target) return false;
-    try {
-      new MutationObserver(scheduleEntityTick).observe(target, { childList: true, subtree: true });
-      return true;
-    } catch (e) {
-      console.warn('[ptp2re] could not observe the DOM; falling back to polling:', e);
-      return true; // the interval below still drives the tick
-    }
+    domBus().subscribe(scheduleEntityTick);
   }
 
   function bothButtonTicks() { manualButtonsTick(); manualSourceButtonsTick(); }
@@ -6937,6 +6971,10 @@
   }
   document.addEventListener('click', function () { setTimeout(bothButtonTicks, 300); }, true);
   setInterval(bothButtonTicks, 1000);
+  // At script bottom as well as on `load`, guarded so the two cannot register twice:
+  // a script evaluated after `load` has already fired would otherwise be left with the
+  // one-second poll alone, which its own comment says is not enough.
+  startEntityObserver();
   bothButtonTicks();
 
   // Warm the probe's tag context now rather than making the first button wait for it.
@@ -7048,11 +7086,19 @@
       var q = req.query || '';
       var v = req.variables || {};
 
-      // Our own settings being saved. The settings page saves each plugin in its own
-      // mutation, so this is scoped to our plugin_id.
+      // Our own settings being saved. Auto mode caches them for AUTO_SETTINGS_TTL_MS,
+      // so without this, changing an exclusion filter and immediately saving an entity
+      // would be governed by the old settings for up to ten seconds. Two details:
+      // re-read only once the mutation has landed, or the old values come straight
+      // back and are cached for another ten seconds - and `pathFieldTick` would then
+      // canonicalise the stale `b1Paths` back over the save; and scope it to our own
+      // plugin_id, since the settings page saves each plugin in its own mutation.
       if (/\bconfigurePlugin\b/.test(q) && v.plugin_id === PLUGIN_ID) {
-        invalidateAutoSettings();
-        settingsTick();
+        mutationSucceeded(p).then(function (ok) {
+          if (!ok) return;
+          invalidateAutoSettings();
+          settingsTick();
+        });
       }
 
       // A save of whatever is on screen re-arms the button probes, whichever entity
@@ -7102,8 +7148,11 @@
   };
 
   // Exposed for the test suites, which need to read the tables and drive the dialog
-  // without a running Stash. Nothing in the plugin reads this back.
-  window.__ptp2re = {
+  // without a running Stash. Nothing in the plugin reads this back. Under `__GTTx__`
+  // rather than on `window` directly, because that is the only global this repo takes
+  // - a test-only surface is no more entitled to a name of its own than a shared one.
+  coopObject();   // whichever plugin loaded first, this is what created `__GTTx__`
+  window.__GTTx__.ptp2re = {
     PLUGIN_ID: PLUGIN_ID,
     PLUGIN_NAME: PLUGIN_NAME,
     PLUGIN_VERSION: PLUGIN_VERSION,

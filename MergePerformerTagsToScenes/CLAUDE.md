@@ -5,8 +5,41 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.1.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.5.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.5.0 folds four hand-kept lists into one, and joins the shared observer.** The repo read that
+produced it found this plugin holding its nine manifest keys in three places — the nine `ps.*` reads
+in `loadSettings`, the `SETTING_KEYS` array the tooltips walk, and the *two* named ids
+`ownSettingGroup` anchored on — with nothing checking any of them against the `.yml`. §6's own note
+said what that cost ("a key missing from that array is simply never given a tooltip, silently") and
+had said it since 1.11.0. `SETTING_MAP` is now the one table, wire key to internal name and default,
+and all three read it; `tests/version.test.js` fails if the `.yml` declares a key it does not name,
+in either direction. The internal names on the right are unchanged, so nothing outside those three
+places moved.
+
+Four smaller things in the same release:
+
+- **`ownSettingGroup` tries every key**, not two named ones, for the reason §10 already gives about
+  a release that renames them all. `NormalizeParentTags` 4.6.3 made the same change from *one*.
+- **The observer is the shared `domBus`** (repo-root CLAUDE.md). Four plugins registering their own
+  on `#root {subtree:true}` is four callbacks per DOM burst on a page that bursts continuously.
+- **The `DOMContentLoaded` retry is gone because it was unreachable.** `startObserver` returned
+  false only if `document.documentElement` were missing, and its catch deliberately returned true;
+  `if (!startObserver())` was therefore dead. A guard that reads as protection and provides none is
+  worse than none, and the honest version is the interval that was covering it all along. The same
+  read added a `startObserver()` call at script bottom, so a script evaluated after `load` is
+  observed rather than left on the poll.
+- **`applyButtonSpacing` matches its two siblings byte-for-byte again.** Theirs seed
+  `['align-self:flex-start']` and always assign; this one seeded `[]` and assigned only when it had
+  something to say, so on a `column-gap` row our button kept the row's `align-items: stretch` while
+  the other two plugins' did not. A one-plugin difference in a design pinned everywhere else.
+
+**And the settings page stopped describing its own buttons by the wrong name.** The captions became
+"Add ..." at 3.2.0 and the README followed; `a1ShowManualMergeButtons` and `a2SaveTagsImmediately`
+went on quoting "Copy ..." for two releases, on the page where the user reads the description *while
+looking at the button*. `version.test.js` now checks every quoted multi-word caption in a setting
+description against the plugin's own source, which is the check whose absence let it through.
 
 **3.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` under the last log line, one cycle at 2Hz, for as long as
 the task dialog is reviewing, applying or undoing — the performer walk can spend seconds on one page
@@ -491,9 +524,9 @@ side:
   predictable place and this repo has shipped broken twice on a guess about that markup.
   `pointer-events:none` on the box is load-bearing: opened from the name it lands over the `<h3>`,
   and a box that took the pointer would flicker.
-- **`SETTING_KEYS` is new and has to be kept in step with the manifest.** Unlike the sibling, this
-  plugin had no table of its manifest keys — `loadSettings` reads its nine `ps.*` by hand (§6). A
-  key missing from that array is simply never given a tooltip, silently.
+- **The tooltips walk `SETTING_MAP`** (3.5.0). They walked a hand-kept `SETTING_KEYS` array until
+  then, and a key missing from it was simply never given a tooltip, silently — which is the hazard
+  §6 above now closes by having one table and a suite that compares it with the `.yml`.
 
 **`a2SaveTagsImmediately` is inverted on purpose.** Stash has no default value for a plugin setting
 and renders an unset `BOOLEAN` as unchecked, so the behaviour we want by default (staging) has to
@@ -961,11 +994,11 @@ no amount of refreshing helps and only the version line tells you so.
 **What it cannot catch:** an edit with no version bump. Both numbers stay equal and the check is
 blind, which is the practical argument for bumping the patch digit on every change.
 
-**The description is a link plus the text, in three files.** It leads with a README permalink
-pinned to a **commit SHA**, not `main`, so a user reading it in Stash gets the documentation for
-roughly the code they have rather than whatever `main` says today. A commit cannot contain its own
-hash, so the SHA is the revision where the README last changed — update it whenever the README does,
-not on every version bump. The same string lives in ``MergePerformerTagsToScenes.yml`` and in `manifest`'s
+**The description is text, in two files, and the link is not in it.** Both of those were once
+the other way round and this paragraph outlived the reversal: it went on describing a README
+permalink pinned to a **commit SHA** for as long as it took someone to read it against the two
+paragraphs below, which say the opposite and are right — the link is `/blob/main/`, and the
+description carries no URL at all. The same string lives in ``MergePerformerTagsToScenes.yml`` and in `manifest`'s
 `metadata.description`; they must match, and both must stay **double-quoted**, because the text
 contains `": "` and a plain YAML scalar cannot hold that (MergePerformerTagsToScenes's manifest was unparseable YAML
 until 2026-08-06 for exactly this reason).

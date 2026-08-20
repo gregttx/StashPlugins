@@ -5,10 +5,38 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.10.0.** Every step in the table below has landed, so the version left the
+**Status: released, 3.11.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.11.0 is a settings race, and four things a full read of the file found.** The race is the one
+that matters: the `fetch` wrapper's `configurePlugin` branch called `invalidateAutoSettings()` and
+`settingsTick()` *immediately*, while the mutation it was reacting to was still in flight — so the
+re-read raced the save, got the old values back, and cached them for another
+`AUTO_SETTINGS_TTL_MS`. Any setting changed on Stash's own settings page was ignored by the auto
+modes, the button probes and the settings row for up to ten seconds; and since `pathFieldTick` can
+canonicalise `b1Paths` and write it back, a hand-edited path string could be overwritten with the
+stale one. `NormalizeParentTags` has always wrapped the same branch in `mutationSucceeded(p)` and
+its comment states the hazard in as many words. This copy dropped it. The plugin's own dialog path
+(`savePaths`, which invalidates after the write resolves) was never affected.
+
+The other four:
+
+- **The observer is started at script bottom as well as from `load`**, and it is now the shared
+  `domBus` (repo-root CLAUDE.md). Nothing called `startEntityObserver()` outside the `load` handler,
+  so a script evaluated after `load` had already fired fell back to the one-second poll — which this
+  plugin's own comment says is not enough ("polling alone would leave it flickering in and out").
+- **`window.__ptp2re` is `window.__GTTx__.ptp2re`.** A test-only export surface is still a name in a
+  namespace shared with every other plugin installed, and the repo takes one global.
+- **A dead branch and a stale comment.** `if (result.mode !== 'dialog' && result.count)` could not
+  fire — `runManualSource` has returned `{ mode: 'dialog', count: 0 }` since 0.18.0 — and the note
+  above `PLUGIN_VERSION` still explained why the plugin was below 1.0.0, with "no planner and no
+  buttons yet", at 3.10.0 with a planner and twenty-four buttons.
+- **Three comments reattached to the rules they describe.** The CSS string had grown past them: the
+  log-line-kinds note sat above the path toggles, the `.sub-heading` note was separated from its own
+  rules by the source-row block, and a `── The settings page ──` header sat directly above
+  `── Auto mode ──` with the settings code a thousand lines further down.
 
 **3.10.0 gives a box three outlines rather than two: amber written into, teal read out of, black
 neither.** The two colours are the repo's own - the one that means "this plugin writes" and the one

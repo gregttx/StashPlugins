@@ -36,7 +36,7 @@
   // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
   // live Stash: the major digit is the claim that the thing works, and no test in this
   // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.6.1';
+  var PLUGIN_VERSION = '0.7.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -229,6 +229,53 @@
     return c;
   }
 
+  // ── The shared DOM bus ────────────────────────────────────────────────────
+  //
+  // One MutationObserver on Stash's root for every plugin in this repo, rather than one
+  // each. The four that need one watch the same subtree for the same reason - a control
+  // has to land before the user reads the panel it is in - and with all of them installed
+  // that was four registrations firing on every DOM burst, which on a Scene page with
+  // video playing is continuous. It is the one place the "five copies of one design" rule
+  // compounds rather than merely repeats, which is why this is shared rather than copied.
+  //
+  // Whichever plugin loads first creates the observer; the rest subscribe to it. Each
+  // keeps its own debounce, because what a burst costs each of them differs.
+  //
+  // Advisory in exactly the way the lease is: a plugin too old to know about the bus makes
+  // its own observer and still works, and one subscriber throwing does not silence the
+  // rest. `subscribe` is idempotent and safe to call again - which is what the load-event
+  // retry does when there was no root to observe at script bottom - and answers whether
+  // anything is being observed yet, so a caller with a polling fallback can tell.
+  //
+  // Byte-identical in every plugin that has one, like `coopObject` above and for the same
+  // reason; `tests/style.test.js` fails on a drifted copy.
+  function domBus() {
+    var ns = window.__GTTx__;
+    if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
+    var bus = ns.domBus;
+    if (bus && typeof bus.subscribe === 'function') return bus;
+    bus = ns.domBus = { subs: [], observing: false };
+    bus.notify = function () {
+      for (var i = 0; i < bus.subs.length; i++) {
+        try { bus.subs[i](); } catch (e) { /* one subscriber must not silence the rest */ }
+      }
+    };
+    bus.subscribe = function (fn) {
+      if (bus.subs.indexOf(fn) === -1) bus.subs.push(fn);
+      if (bus.observing || typeof MutationObserver !== 'function') return bus.observing;
+      var root = document.getElementById('root') || document.body || document.documentElement;
+      if (!root) return false;
+      try {
+        new MutationObserver(bus.notify).observe(root, { childList: true, subtree: true });
+        bus.observing = true;
+      } catch (e) {
+        bus.observing = false;
+      }
+      return bus.observing;
+    };
+    return bus;
+  }
+
   function coop() {
     var c = coopObject();
     if (!c.leases) c.leases = [];
@@ -330,14 +377,6 @@
     return _settings;
   }
 
-  // Resolves once the settings have been read at least once. `settings()` itself is
-  // synchronous by design - a click must not wait on a round trip - but the hierarchy
-  // query below needs the sibling's settings before it can decide what to ask for.
-  function settingsReady() {
-    settings();
-    return _settingsWait || Promise.resolve(_settings);
-  }
-
   function logToConsole(msg) {
     if (settings().b1LogToConsole) console.info('[tbc] ' + msg);
   }
@@ -411,7 +450,6 @@
     for (var i = 0; i < list.length; i++) {
       if (list[i].at === at) { list.splice(i, 1); saveBundles(list); break; }
     }
-    return loadBundles();
   }
 
   function ago(then) {
@@ -1685,18 +1723,31 @@
 
   // Walks up from any one of our settings to the group box that contains it. Trying
   // every key rather than a named one means removing or renaming a setting cannot
-  // quietly break the anchor.
+  // quietly break the anchor - but a release that renames them *all* can, and the
+  // first casualty of that is the stale-script banner, which is the one thing on this
+  // page such a release needed to show. So the group headed with our own name is the
+  // fallback, inside this function rather than OR'd in by each caller.
+  //
+  // The three sibling plugins guard that fallback with a `hasOwnTaskButton` check,
+  // because Settings - Tasks heads *its* group with the same name and decorating it
+  // would destroy the task button. This plugin declares no `tasks:`, so there is no
+  // such group for the heading match to find; adding one means adding the guard, and
+  // `tests/tagclip.test.js` pins the pair together.
   function ownSettingGroup() {
-    var node = null;
+    var node = null, d;
     for (var key in DEFAULTS) {
       if (!hasOwn(DEFAULTS, key)) continue;
       node = settingElement(key);
       if (node) break;
     }
-    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+    for (d = 0; node && d < 10; d++, node = node.parentElement) {
       if (hasClass(node, 'setting-group')) return node;
     }
-    return null;
+    var heading = ownSettingGroupHeading();
+    for (node = heading, d = 0; node && d < 10; d++, node = node.parentElement) {
+      if (hasClass(node, 'setting-group')) return node;
+    }
+    return heading ? heading.parentElement : null;
   }
 
   function settingRow(key) {
@@ -1718,6 +1769,15 @@
   //
   // Strip the suffix and compare exactly, rather than testing a prefix: a plugin whose
   // name merely starts with ours must not be mistaken for us.
+  // The h3 our group is headed with, for `ownSettingGroup`'s fallback.
+  function ownSettingGroupHeading() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('h3') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (headingIsOurs(nodes[i].textContent)) return nodes[i];
+    }
+    return null;
+  }
+
   function headingIsOurs(text) {
     var t = String(text == null ? '' : text).trim();
     if (t === PLUGIN_NAME) return true;
@@ -1931,21 +1991,8 @@
   // Re-added rather than tracked: React re-renders this panel whenever a setting
   // changes and drops anything we put in it, so the tick puts it back. Keyed on the id,
   // so a re-render that kept it does not produce a second one.
-  //
-  // The group is found by our own setting ids, with `headingIsOurs` behind it for a
-  // Stash that renders the ids differently - the fallback exists because two plugins
-  // here shipped broken on heading text alone.
-  function ownGroupByHeading() {
-    var groups = document.querySelectorAll ? document.querySelectorAll('.setting-group') : [];
-    for (var i = 0; i < groups.length; i++) {
-      var h3 = groups[i].querySelector ? groups[i].querySelector('h3') : null;
-      if (h3 && headingIsOurs(h3.textContent)) return groups[i];
-    }
-    return null;
-  }
-
   function ensureReadmeLink() {
-    var group = ownSettingGroup() || ownGroupByHeading();
+    var group = ownSettingGroup();
     if (!group) return;
     // All of these run on every tick, not just when the link is missing: React
     // re-renders this panel on any settings change, and the class is the only thing
@@ -2485,11 +2532,12 @@
     _tickTimer = setTimeout(function () { _tickTimer = null; tick(); }, 100);
   }
 
+  // The shared bus rather than an observer of our own - see `domBus`. This is called at
+  // script bottom *and* from the `load` handler, so that a script evaluated after `load`
+  // has already fired is still observed; `subscribe` is idempotent, which is what stops
+  // the ordinary case registering twice for the life of the page.
   function startObserver() {
-    if (typeof MutationObserver !== 'function') return;
-    var root = document.getElementById('root') || document.body;
-    if (!root) return;
-    new MutationObserver(scheduleTick).observe(root, { childList: true, subtree: true });
+    domBus().subscribe(scheduleTick);
   }
 
   // Patches have to be registered before the components they target first render, so

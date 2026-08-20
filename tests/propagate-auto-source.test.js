@@ -247,7 +247,7 @@ const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query |
   // ── The mutation matcher ─────────────────────────────────────────────────────
   {
     const env = start({ settings: { a4AutoOnSourceUpdate: true } });
-    const s = env.ctx.window.__ptp2re.sourceOfMutation;
+    const s = env.ctx.window.__GTTx__.ptp2re.sourceOfMutation;
     h.check('a performer save is recognised as a source',
       s('mutation X { performerUpdate(input: $i) { id } }').sourceType === 'performer');
     h.check('a bulk performer save is recognised as bulk',
@@ -265,7 +265,7 @@ const writes = (calls) => calls.filter((c) => /mutation PTP_bulk/.test(c.query |
   // ── Every path has a reverse lookup ───────────────────────────────────────
   {
     const env = start({ settings: { a4AutoOnSourceUpdate: true } });
-    const api = env.ctx.window.__ptp2re;
+    const api = env.ctx.window.__GTTx__.ptp2re;
     h.check('every path in PATHS has a SOURCE_REVERSE entry',
       api.PATHS.every((p) => !!api.SOURCE_REVERSE[p.id]));
   }

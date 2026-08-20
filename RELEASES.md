@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | MPTTS | NPT | PTP2RE | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-20 |  | 3.6.1 (`7d1ad93`) |  |  |  | MPTTS 3.6.1: the superseded notice moves to the heading line |
 | 2026-08-20 |  | 3.6.0 (`926a2a4`) |  |  |  | MPTTS 3.6.0: say on the settings page when PTP2RE has taken over |
 | 2026-08-20 | [2.2.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [3.5.3](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [4.6.6](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [3.11.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [0.7.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | One grammatical load banner, in all five |
 | 2026-08-19 | [2.2.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [3.5.2](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [4.6.5](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [3.11.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [0.7.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | Release history out of all five plugin sources |

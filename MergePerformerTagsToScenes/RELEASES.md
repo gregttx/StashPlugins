@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 3.6.1 (`7d1ad93`) | 2026-08-20 | MPTTS 3.6.1: the superseded notice moves to the heading line |
 | 3.6.0 (`926a2a4`) | 2026-08-20 | MPTTS 3.6.0: say on the settings page when PTP2RE has taken over |
 | [3.5.3](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | 2026-08-20 | One grammatical load banner, in all five |
 | [3.5.2](https://github.com/gregttx/StashPlugins/commit/fb346a7) | 2026-08-19 | Release history out of all five plugin sources |

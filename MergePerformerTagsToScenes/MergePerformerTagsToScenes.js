@@ -26,7 +26,7 @@
   // constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.5.2';
+  var PLUGIN_VERSION      = '3.5.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -49,7 +49,7 @@
   }
 
   cpt2s('[cpt2s] MergePerformerTagsToScenes.js ' + PLUGIN_VERSION + ' loaded. This is the ' +
-    'running script’s own version — the settings page reads the manifest instead, which can ' +
+    'running script\'s own version - the settings page reads the manifest instead, which can ' +
     'be newer than the script your browser has cached.');
   // The horizontal fallback both on-page buttons get when the row has no spacing of its
   // own to copy - see `applyButtonSpacing`. Deliberately not on the button at build

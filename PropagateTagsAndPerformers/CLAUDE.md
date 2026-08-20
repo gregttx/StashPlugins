@@ -5,10 +5,17 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.11.1.** Every step in the table below has landed, so the version left the
+**Status: released, 3.11.2.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.11.2 fixes the grammar of the load banner.** The line this plugin prints at load read "the
+running script own version": the pass that replaced its curly quotes and em dashes with ASCII
+took the `’s` with them, here and in three of the four siblings. `MergePerformerTagsToScenes`
+is the one it never touched, and that odd line out is what made the drift visible. All five now
+print `script\'s own version - ` from the same shape of string. Wording only; nothing executes
+differently.
 
 **3.11.1 takes the release history out of the source.** The repo rule against version notes
 in a README now covers a plugin's own comments too, so every "since 0.13.0" / "1.15.4 tried

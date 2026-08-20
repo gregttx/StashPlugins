@@ -3,9 +3,16 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.6.5.** This file is both the design and the map of the code — the
+**Status: implemented at 4.6.6.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**4.6.6 fixes the grammar of the load banner.** The line this plugin prints at load read "the
+running script own version": the pass that replaced its curly quotes and em dashes with ASCII
+took the `’s` with them, here and in three of the four siblings. `MergePerformerTagsToScenes`
+is the one it never touched, and that odd line out is what made the drift visible. All five now
+print `script\'s own version - ` from the same shape of string. Wording only; nothing executes
+differently.
 
 **4.6.5 takes the release history out of the source.** The repo rule against version notes
 in a README now covers a plugin's own comments too, so every "since 0.13.0" / "1.15.4 tried

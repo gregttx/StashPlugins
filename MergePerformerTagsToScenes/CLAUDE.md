@@ -5,8 +5,14 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.5.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.5.3.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.5.3 fixes the grammar of the load banner.** Four of the five plugins printed "the running
+script own version" at load: the pass that replaced their curly quotes and em dashes with ASCII
+took the `’s` with them. This is the plugin it never touched, and that odd line out is what
+made the drift visible. Its banner is ASCII now too, so all five print `script\'s own version -
+` from the same shape of string. Wording only; nothing executes differently.
 
 **3.5.2 takes the release history out of the source.** The repo rule against version notes
 in a README now covers a plugin's own comments too, so every "since 0.13.0" / "1.15.4 tried

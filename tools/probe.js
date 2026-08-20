@@ -160,7 +160,13 @@
       var lines = ['', '== graphql schema'];
       ['Scene', 'Image', 'Gallery', 'Performer', 'Studio', 'Group', 'Tag', 'SceneMarker'].forEach(function (n) {
         var t = byName[n] || {}, bulk = byName['Bulk' + n + 'UpdateInput'];
-        var has = function (o, f) { return ((o && (o.fields || o.inputFields)) || []).some(function (x) { return x.name === f; }); };
+        // Both lists, never `fields || inputFields`: gqlgen answers `fields` with an
+        // empty *array* for an input object rather than null, so the fallback never
+        // fires and every Bulk*UpdateInput reads as though it had no custom_fields.
+        var has = function (o, f) {
+          return (((o || {}).fields || []).concat(((o || {}).inputFields) || []))
+            .some(function (x) { return x.name === f; });
+        };
         lines.push('  ' + n + ' custom_fields=' + (has(t, 'custom_fields') ? 'yes' : 'NO') +
           '  Bulk' + n + 'UpdateInput=' + (bulk ? (has(bulk, 'custom_fields') ? 'custom_fields yes' : 'custom_fields NO') : 'absent'));
       });

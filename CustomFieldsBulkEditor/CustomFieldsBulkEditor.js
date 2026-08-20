@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.2.1';
+  var PLUGIN_VERSION = '2.2.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -43,7 +43,7 @@
   }
 
   cfbe('[cfbe] CustomFieldsBulkEditor.js ' + PLUGIN_VERSION + ' loaded. This is the ' +
-    'running script own version - the settings page reads the manifest instead, which can be ' +
+    'running script\'s own version - the settings page reads the manifest instead, which can be ' +
     'newer than the script your browser has cached.');
 
   var README_URL = 'https://github.com/gregttx/StashPlugins/blob/main/CustomFieldsBulkEditor/README.md';

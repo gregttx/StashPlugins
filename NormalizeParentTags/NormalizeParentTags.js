@@ -30,7 +30,7 @@
   // stale script, not a contradiction. This constant travels inside the file, so the
   // line below says which script is actually running. Bump it with the manifest and
   // the yml; the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.6.5';
+  var PLUGIN_VERSION = '4.6.6';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -45,7 +45,7 @@
   }
 
   npt('[npt] NormalizeParentTags.js ' + PLUGIN_VERSION + ' loaded. This is the running ' +
-    'script own version - the settings page reads the manifest instead, which can be newer ' +
+    'script\'s own version - the settings page reads the manifest instead, which can be newer ' +
     'than the script your browser has cached.');
 
   // One task does both directions. Prune and Roll Up were two tasks for as long as a

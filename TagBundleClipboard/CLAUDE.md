@@ -5,9 +5,16 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.7.1.** Three live passes in, and most of the guesses held — §11 records
+**Status: partly verified. 0.7.2.** Three live passes in, and most of the guesses held — §11 records
 what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
 empty, and the major digit is the claim that the whole thing works.
+
+**0.7.2 fixes the grammar of the load banner.** The line this plugin prints at load read "the
+running script own version": the pass that replaced its curly quotes and em dashes with ASCII
+took the `’s` with them, here and in three of the four siblings. `MergePerformerTagsToScenes`
+is the one it never touched, and that odd line out is what made the drift visible. All five now
+print `script\'s own version - ` from the same shape of string. Wording only; nothing executes
+differently.
 
 | Step | | Version |
 | --- | --- | --- |

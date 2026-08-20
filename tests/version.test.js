@@ -76,6 +76,11 @@ const quoted = (v) => (/^"(.*)"$/.exec(String(v || '').trim()) || [])[1];
 // any quote still standing is one that ends it.
 const unescapedQuote = (s) => (String(s || '').replace(/\\./g, '')).indexOf('"') !== -1;
 
+// One sentence, five copies. They drifted once, when a de-Unicode pass took the `'s`
+// out of four of them and left the fifth reading differently in the same console.
+const BANNER = "This is the running script's own version - the settings page reads the " +
+  'manifest instead, which can be newer than the script your browser has cached.';
+
 PLUGINS.forEach((name) => {
   const manifest = declared(read(name, 'manifest'));
   const yml = declared(read(name, name + '.yml'));
@@ -201,7 +206,6 @@ PLUGINS.forEach((name) => {
     h.check(name + ' keeps release history out of its ' + f[1], stray.length === 0,
       stray.join('  |  '));
   });
-
   const banner = load(name).filter((l) => l.indexOf(name + '.js') !== -1);
   h.check(name + ' announces itself at load', banner.length === 1, banner.join(' | '));
 
@@ -210,8 +214,10 @@ PLUGINS.forEach((name) => {
     line.indexOf(name + '.js ' + manifest + ' loaded') !== -1, line);
   // Without this the line is just one more version to disbelieve alongside the one
   // on the settings page - the value is in saying which of the two can be trusted.
-  h.check(name + ' says the number is the script own, not the manifest',
-    /manifest/.test(line), line);
+  // Pinned as the whole sentence, not just /manifest/: the five copies drifted once,
+  // when a de-Unicode pass took the `'s` out of four of them and left the fifth.
+  h.check(name + " says the number is the script's own, not the manifest",
+    line.indexOf(BANNER) !== -1, line);
 });
 
 h.finish();

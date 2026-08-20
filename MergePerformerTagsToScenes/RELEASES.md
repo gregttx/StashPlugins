@@ -8,9 +8,10 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 3.6.2 (`15dc942`) | 2026-08-20 | MPTTS 3.6.2: the superseded notice sits in the heading, after the name |
-| 3.6.1 (`7d1ad93`) | 2026-08-20 | MPTTS 3.6.1: the superseded notice moves to the heading line |
-| 3.6.0 (`926a2a4`) | 2026-08-20 | MPTTS 3.6.0: say on the settings page when PTP2RE has taken over |
+| 3.7.0 (`e8c5914`) | 2026-08-20 | MPTTS 3.7.0: the superseded notice reads PTP2RE's settings too |
+| [3.6.2](https://github.com/gregttx/StashPlugins/commit/15dc942) | 2026-08-20 | MPTTS 3.6.2: the superseded notice sits in the heading, after the name |
+| [3.6.1](https://github.com/gregttx/StashPlugins/commit/7d1ad93) | 2026-08-20 | MPTTS 3.6.1: the superseded notice moves to the heading line |
+| [3.6.0](https://github.com/gregttx/StashPlugins/commit/926a2a4) | 2026-08-20 | MPTTS 3.6.0: say on the settings page when PTP2RE has taken over |
 | [3.5.3](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | 2026-08-20 | One grammatical load banner, in all five |
 | [3.5.2](https://github.com/gregttx/StashPlugins/commit/fb346a7) | 2026-08-19 | Release history out of all five plugin sources |
 | [3.5.1](https://github.com/gregttx/StashPlugins/commit/256fe0f) | 2026-08-19 | No version history in a README or in shipped source |

@@ -144,6 +144,34 @@ omission. A hand-built tab would have to reproduce activation, pane switching an
 React does for free — a second implementation of the thing that was just deleted. An old Stash gets
 one console line, and the README states the requirement.
 
+## 2b. The tab is amber, and that is the colour rule reaching a new surface
+
+The repo's convention is that a control a plugin draws is **amber when it writes and teal when it
+only reads**. This plugin only reads, so the rule read literally says teal — and the tab is amber,
+at the user's call. Worth writing down rather than leaving as an apparent contradiction:
+
+- **The rule is written for buttons**, sitting in a row of Stash's own `btn-secondary` actions. Its
+  first job is *distinguishability* — "a plugin wrote this, and it does not do what the buttons
+  beside it do" — and the amber/teal split is a second distinction layered on top.
+- **In a tab strip only the first job has a member.** There is no other plugin tab to be told apart
+  from this one, so the read/write half of the split separates nothing; the Stash-versus-ours half
+  has nothing else to carry it, since a tab has no `btn-*` variant and no other cue.
+- **If a second plugin ever adds a tab that writes**, that is the point to reopen this — and the
+  answer then is probably teal for read-only tabs, not a retreat to grey.
+
+Mechanically it is a colour rather than a Bootstrap variant, because a `Nav.Link` has none to
+borrow — the position the settings toggles are already in. The selectors are scoped under
+`.nav-tabs` (Stash's own class, only ever read) so they outrank `.nav-tabs .nav-link`, which is where
+Bootstrap sets the colour being replaced; at equal specificity source order decides and this sheet is
+appended after Stash's, so no `!important` is needed. All four states are named — link, hover, focus
+and the active tab — because Bootstrap sets each separately, and one left unscoped is one state that
+reverts to grey.
+
+**That scoping is invisible to every suite here**, there being no layout engine and nothing else
+reading the stylesheet, and it is exactly the shape of the `!important` spacing-utility bug this repo
+has already paid for once. So `tests/scenevariants.test.js` reads the injected `<style>` back and
+pins that all four selectors carry the scope.
+
 ## 3. The tab is always there, and carries no count
 
 Two decisions that pull against each other, and both go the same way for the same reason: the strip

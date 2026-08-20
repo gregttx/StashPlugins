@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.2.2';
+  var PLUGIN_VERSION = '0.2.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -381,6 +381,25 @@
   // ── Style ─────────────────────────────────────────────────────────────────
 
   var CSS =
+    // ── The tab itself ──────────────────────────────────────────────────────
+    //
+    // Amber, so the one tab in the strip that Stash did not put there says so. This is the
+    // repo's "a plugin wrote this" colour reaching a surface it had not covered: the rule
+    // is written for *buttons*, where amber means the control writes and teal means it
+    // only reads, and this plugin only reads. The distinction the split exists to draw
+    // has no second member here - there is no other plugin tab to be told apart from this
+    // one - while the distinction it is standing in for, Stash's tabs against ours, has
+    // nothing else to carry it. See CLAUDE.md for why that is the reading rather than a
+    // contradiction of the rule.
+    //
+    // A colour, not a Bootstrap variant, because a `Nav.Link` has none to borrow - the
+    // same position the settings toggles are in. Scoped under `.nav-tabs` (Stash's own
+    // class, only ever read here) so it outranks `.nav-tabs .nav-link`, which is where
+    // Bootstrap sets the colour this replaces; equal specificity, and this sheet is
+    // appended after Stash's, so source order settles it without an `!important`. Hover,
+    // focus and the active tab are named because Bootstrap sets each of them separately.
+    '.nav-tabs .svr-tab-link,.nav-tabs .svr-tab-link:hover,' +
+    '.nav-tabs .svr-tab-link:focus,.nav-tabs .svr-tab-link.active{color:#ffb648;}' +
     // ── The tab's pane ──────────────────────────────────────────────────────
     //
     // Not the shared dialog chrome: this plugin puts up no dialog, so a backdrop, a log
@@ -656,7 +675,7 @@
   // line instead.
   function TabLink(React, Nav) {
     return React.createElement(Nav.Item, { key: TAB_KEY },
-      React.createElement(Nav.Link, { eventKey: TAB_KEY }, TAB_LABEL));
+      React.createElement(Nav.Link, { eventKey: TAB_KEY, className: 'svr-tab-link' }, TAB_LABEL));
   }
 
   // One row. `row.cls.label` is empty for an unclassified scene and the span is then not

@@ -293,6 +293,25 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
       tabKeys(strip).indexOf('scene-svr-variants-panel') ===
         tabKeys(strip).indexOf('scene-edit-panel') - 1, tabKeys(strip).join(' '));
     h.check('the tab is captioned Variants', !!link && textOf(link) === 'Variants', textOf(link));
+    // Amber, so the one tab Stash did not put in the strip says so. A class rather than a
+    // Bootstrap variant because a Nav.Link has none to borrow.
+    h.check('and carries the class that colours it amber',
+      !!link && link.props.className === 'svr-tab-link', link && link.props.className);
+    // **The class only wins if the selector outranks Bootstrap's.** `.nav-tabs .nav-link`
+    // is where the colour it replaces is set, so a bare `.svr-tab-link` loses the cascade
+    // and the tab stays Stash's grey — a failure no suite here can see, since there is no
+    // layout engine and nothing else reads this stylesheet. The repo has been bitten by
+    // exactly this before, with Bootstrap's `!important` spacing utilities, so the
+    // scoping is pinned rather than left to a live look.
+    const sheet = env.ctx.document.head.descendants()
+      .filter((n) => n.tagName === 'STYLE').map((n) => n.textContent).join('');
+    // Every occurrence, not just the first: the rule names four selectors, because
+    // Bootstrap sets the colour separately for the link, its hover, its focus and the
+    // active tab, and one of them left unscoped is one state that reverts.
+    const tabSelectors = sheet.split('.svr-tab-link').slice(0, -1);
+    h.check('and every selector colouring it outranks Bootstrap\'s own',
+      tabSelectors.length === 4 && tabSelectors.every((before) => /\.nav-tabs $/.test(before)),
+      tabSelectors.map((b2) => b2.slice(-14)).join(' | '));
     // The key sits in the namespace Stash's own nine tab keys use, and `activeTabKey` is
     // a plain useState with no whitelist - so a key of our own is selectable like theirs.
     h.check('the tab key is in the scene page\'s own key namespace',

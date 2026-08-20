@@ -60,8 +60,14 @@ function makePatch() {
 const Bootstrap = {
   Nav: {
     Item: ({ children }) => React.createElement('li', { className: 'nav-item' }, children),
-    Link: ({ eventKey, children }) =>
-      React.createElement('a', { className: 'nav-link', 'data-rb-event-key': eventKey }, children),
+    // Forwards `className` the way react-bootstrap does - the plugin colours its tab with
+    // one, and a stub that swallowed it would report the tab as unstyled or, worse, as
+    // styled when it is not.
+    Link: ({ eventKey, className, children }) =>
+      React.createElement('a', {
+        className: 'nav-link' + (className ? ' ' + className : ''),
+        'data-rb-event-key': eventKey,
+      }, children),
   },
   Tab: {
     Pane: ({ eventKey, children }) =>
@@ -148,6 +154,8 @@ function respond(req) {
   h.check('Stash’s own tabs survive the patch',
     !!stripHtml && stripHtml.indexOf('scene-details-panel') !== -1 &&
       stripHtml.indexOf('scene-edit-panel') !== -1, stripHtml);
+  h.check('the Variants tab carries the class that colours it amber',
+    !!stripHtml && /class="[^"]*\bsvr-tab-link\b/.test(stripHtml), stripHtml);
   h.check('and the Variants tab lands between Details and Edit',
     !!stripHtml &&
       stripHtml.indexOf('scene-details-panel') < stripHtml.indexOf('scene-svr-variants-panel') &&

@@ -19,7 +19,8 @@ Details   Queue   Markers   Filter   File Info   History   Variants   Edit
   └────────┘
 ```
 
-The tab sits just before **Edit**, which stays last.
+The tab sits just before **Edit**, which stays last, and is amber — the one tab in that strip Stash
+did not put there.
 
 Each cover and title is a link, and a cover plays the scene's preview loop while the pointer is over
 it — the same preview the scene cards use. Nothing is written to your library at any point: the tab

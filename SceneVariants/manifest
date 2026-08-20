@@ -2,8 +2,8 @@ id: SceneVariants
 name: ᝯㄝₓ Scene Variants
 metadata:
   description: "A scene is often in your library twice: the whole thing, and a cut out of it. Stash has no way to say the two are the same work, so this plugin works it out and gives the scene page a tab that shows you.\n\nOpen any scene and there is a Variants tab beside Details, File Info and Edit. It lists every other scene sharing this one's stash-id, with the cover image and the preview loop it plays on hover, its resolution and running time, longest first - and where there is nothing to list it says why. Nothing is written to your library at any point: the tab is one query and a list of links.\n\nName your full-length and partial-length tags below and each row says which it is, with the full-length ones sorted to the top - that is the question the tab exists to answer, and the tags are the cheap half of it. Rows read Full-length and Partial-length rather than echoing your tag names back; the tag that decided a row is on its hover text. Leave both names empty and the tab still lists the variants, just without saying which is which.\n\nThe stash-id is the only evidence used. A scene that never got one, or whose variants never got one, gets a tab that says so; matching on titles and on shared performers is not built yet, so about two scenes in three have nothing to list today. A scene carrying both tags at once is shown in red, because the two are meant to be exclusive.\n\nRequires Stash 0.28.0 or newer: the tab is added through the scene page's own plugin extension points, so there is no version of it that works without them."
-version: 0.2.2
-date: "2026-08-20 09:20:41"
+version: 0.2.3
+date: "2026-08-20 09:26:20"
 requires: []
 files:
 - SceneVariants.js

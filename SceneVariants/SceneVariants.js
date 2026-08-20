@@ -4,10 +4,15 @@
 // `ScenePage.TabContent` patch points are what this plugin is built on.
 //
 // A scene is often in the library twice: the whole thing, and a cut out of it. Stash
-// has no first-class relation for "these two files are the same work", so the Siblings
+// has no first-class relation for "these two files are the same work", so the Variants
 // tab this plugin adds to the scene page is that relation, derived rather than stored:
 // the scenes sharing this one's stash-id, with whichever of them is the full-length one
 // named as such.
+//
+// **One word for one idea: variant.** The plan this came from says "sibling set" for the
+// relation and "variant" for a member of it, which is a distinction that reads as one in
+// prose and as two synonyms in a UI. The plugin is called Scene Variants and the id is the
+// contract, so `variant` is the word that survives everywhere - tab, copy, log, CSS.
 //
 // **Nothing in this file writes to the library.** It reads one query and draws a list
 // of links. There is no mutation to undo, no lease to take and nothing to stand a
@@ -35,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.1.2';
+  var PLUGIN_VERSION = '0.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -59,8 +64,8 @@
   // `scene-edit-panel` and the rest. `svr` in the middle of it because the key is a
   // string in a space Stash owns and any plugin can write into: it is not a class we
   // prefix by convention, it is the value `activeTabKey` holds while our tab is open.
-  var TAB_KEY = 'scene-svr-siblings-panel';
-  var TAB_LABEL = 'Siblings';
+  var TAB_KEY = 'scene-svr-variants-panel';
+  var TAB_LABEL = 'Variants';
 
   var SETTINGS_TTL_MS = 10000;   // settings are re-read at most this often
 
@@ -87,7 +92,7 @@
   //
   // The two tag names are the user's, not this plugin's, and they are deliberately
   // empty by default. A library that has not adopted the convention still gets the
-  // panel - the siblings are found from the stash-id, which owes nothing to a tag -
+  // tab - the variants are found from the stash-id, which owes nothing to a tag -
   // and every row simply reads as unclassified. Inventing a default like "Full Length"
   // would name a tag most libraries do not have and then quietly classify nothing,
   // which looks exactly like a broken plugin.
@@ -222,7 +227,7 @@
   function logToConsole(msg) {
     if (settings().b1LogToConsole) console.info('[svr] ' + msg);
   }
-  // ── Finding the siblings ──────────────────────────────────────────────────
+  // ── Finding the variants ──────────────────────────────────────────────────
   //
   // One query, which is what the plan sketched and what a DOM-injected panel could not
   // have: the tab is handed `props.scene`, a `SceneDataFragment`, and that fragment
@@ -230,7 +235,7 @@
   // the whole saving - there is nothing to look up before the filter can be written.
   //
   // `stash_ids_endpoint` takes a *list*, so one call covers a scene carrying several
-  // ids, and the endpoint is deliberately left out: a sibling set that spans two
+  // ids, and the endpoint is deliberately left out: a variant set that spans two
   // metadata providers is still one work, and naming an endpoint would hide half of it.
   // Omitting it leaves the endpoint out of the join condition entirely, which is what
   // makes that work rather than matching nothing.
@@ -241,11 +246,11 @@
   // ids, which is the semantics wanted here. INCLUDES is the natural guess for a list
   // criterion and every other list filter in Stash takes it, so this is the one place
   // reading like its neighbours is wrong.
-  var SIBLINGS_QUERY =
-    'query SVRSiblings($ids: [String!]) { findScenes(' +
+  var VARIANTS_QUERY =
+    'query SVRVariants($ids: [String!]) { findScenes(' +
     'scene_filter: { stash_ids_endpoint: { stash_ids: $ids, modifier: EQUALS } }, ' +
     'filter: { per_page: -1 }) { scenes { id title tags { id name } ' +
-    'files { duration width height } } } }';
+    'paths { screenshot preview } files { duration width height } } } }';
 
   // Resolves once the first settings read has landed, so the rows are classified against
   // the user's tag names rather than against the empty defaults. The pane reads settings
@@ -264,7 +269,7 @@
   // and the sentence explaining what they were matched on. The three empty answers are
   // values rather than failures - a scene with no stash-id is the ordinary case here,
   // not an error - and only the fourth, a query the server refused, is loud.
-  function findSiblings(scene) {
+  function findVariants(scene) {
     var ids = ((scene && scene.stash_ids) || []).map(function (s) { return s.stash_id; })
       .filter(function (v) { return !!v; });
     if (!ids.length) {
@@ -272,10 +277,10 @@
         'the only evidence this plugin uses so far.' });
     }
     return settingsReady().then(function (s) {
-      return gqlRequest(SIBLINGS_QUERY, { ids: ids }).then(function (data) {
+      return gqlRequest(VARIANTS_QUERY, { ids: ids }).then(function (data) {
         var scenes = (((data || {}).findScenes) || {}).scenes || [];
         var others = scenes.filter(function (o) { return String(o.id) !== String(scene.id); });
-        logToConsole('scene ' + scene.id + ': ' + plural(others.length, 'sibling') +
+        logToConsole('scene ' + scene.id + ': ' + plural(others.length, 'variant') +
           ' from ' + plural(ids.length, 'stash-id'));
         return {
           rows: ordered(others, s),
@@ -286,13 +291,13 @@
       });
     }).then(null, function (err) {
       // Loud rather than silent: a pane that stays empty because a filter field is
-      // named differently on this Stash looks exactly like a scene with no siblings,
+      // named differently on this Stash looks exactly like a scene with no variants,
       // and only one of those is worth reporting.
-      console.warn('[svr] sibling lookup failed for scene ' + scene.id + ': ' + err.message);
-      return { rows: [], why: 'The sibling query failed: ' + err.message };
+      console.warn('[svr] variant lookup failed for scene ' + scene.id + ': ' + err.message);
+      return { rows: [], why: 'The variant query failed: ' + err.message };
     });
   }
-  // ── Classifying a sibling ─────────────────────────────────────────────────
+  // ── Classifying a variant ─────────────────────────────────────────────────
   //
   // The dimension is read off a tag, which is the whole of what makes it cheap: the
   // hard half of the problem is "which scenes are the same work", and it is already
@@ -301,6 +306,19 @@
   // A scene carrying *both* tags is a real error rather than a tie - the two values are
   // mutually exclusive by definition - so it is shown as one instead of being resolved
   // by whichever test ran first.
+  // **The label is the dimension's value, never the tag that carried it.** These shipped
+  // echoing the configured tag name back, which is noise twice over: every row in a value
+  // shows the same string, and the user picked it, so it says nothing they do not know. It
+  // is also whatever they typed - a taxonomy of Unicode-marked namespaces renders as
+  // `✨🎥Promo⚠∙` in a column meant to be scanned. The tag is *how* the value was read; the
+  // value is what the tab is about. The tag name goes on the row's hover text, where a
+  // reader who does want to confirm the match can find it and nobody else has to look at it.
+  var ROLES = {
+    fl: { label: 'Full-length' },
+    pl: { label: 'Partial-length' },
+    bad: { label: '⚠ both' },
+  };
+
   function classify(scene, s) {
     var full = tagKey(s.a1FullLengthTag), partial = tagKey(s.a2PartialLengthTag);
     var hasFull = false, hasPartial = false;
@@ -309,10 +327,13 @@
       if (full && k === full) hasFull = true;
       if (partial && k === partial) hasPartial = true;
     });
-    if (hasFull && hasPartial) return { role: 'bad', label: 'both tags' };
-    if (hasFull) return { role: 'fl', label: s.a1FullLengthTag };
-    if (hasPartial) return { role: 'pl', label: s.a2PartialLengthTag };
-    return { role: 'none', label: '' };
+    if (hasFull && hasPartial) {
+      return { role: 'bad', label: ROLES.bad.label,
+        tags: s.a1FullLengthTag + ' and ' + s.a2PartialLengthTag };
+    }
+    if (hasFull) return { role: 'fl', label: ROLES.fl.label, tags: s.a1FullLengthTag };
+    if (hasPartial) return { role: 'pl', label: ROLES.pl.label, tags: s.a2PartialLengthTag };
+    return { role: 'none', label: '', tags: '' };
   }
 
   function bestFile(scene) {
@@ -345,8 +366,8 @@
   // than one candidate at the top - which the user says is rare.
   var ROLE_RANK = { fl: 0, none: 1, bad: 1, pl: 2 };
 
-  function ordered(siblings, s) {
-    return siblings.map(function (scene) {
+  function ordered(variants, s) {
+    return variants.map(function (scene) {
       return { scene: scene, cls: classify(scene, s) };
     }).sort(function (a, b) {
       var ra = ROLE_RANK[a.cls.role], rb = ROLE_RANK[b.cls.role];
@@ -370,13 +391,22 @@
     // plugins share has to mean the same thing in both, and a *tab* pane is not that.
     '.svr-tabpane{padding:1rem;}' +
     '.svr-summary{color:#7d8f9c;margin-bottom:.5rem;}' +
-    '.svr-sib{display:flex;align-items:baseline;gap:.5rem;padding:.35rem .5rem;' +
-    'flex-wrap:wrap;border-radius:3px;}' +
-    '.svr-sib:hover{background:#3c4f5d;}' +
+    '.svr-variant{display:flex;align-items:center;gap:.75rem;padding:.35rem .5rem;' +
+    'border-radius:3px;}' +
+    '.svr-variant:hover{background:#3c4f5d;}' +
+    // A fixed 16:9 box, so a row is the same height whatever the cover's aspect is and the
+    // list does not step in and out as it scrolls. `object-fit:cover` is what fills it
+    // without distorting; a portrait scene is cropped rather than letterboxed, which is
+    // what Stash's own cards do with the same content.
+    '.svr-thumb-link{flex:0 0 auto;display:block;line-height:0;}' +
+    '.svr-thumb{width:10rem;aspect-ratio:16/9;object-fit:cover;background:#0d1317;' +
+    'border-radius:3px;display:block;}' +
+    '.svr-variant-body{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;' +
+    'gap:.5rem;flex-wrap:wrap;}' +
     // The floor a flex item keeps by default is the width of its longest word, which a
     // filename-shaped title blows straight through; releasing it is what lets the title
     // wrap instead of pushing the meta column off the row.
-    '.svr-sib-title{flex:1 1 20rem;min-width:0;overflow-wrap:anywhere;}' +
+    '.svr-variant-title{flex:1 1 12rem;min-width:0;overflow-wrap:anywhere;}' +
     '.svr-meta{color:#a7b6c2;font-size:.85rem;white-space:nowrap;}' +
     '.svr-role{font-size:.85rem;white-space:nowrap;}' +
     // Green for the full-length one, because it is the answer the tab exists to give.
@@ -538,10 +568,10 @@
       // to return than what we were handed, so the page is whatever it would have been.
       gateLogOnce('shape', 'a patched component was called with ' +
         plural(args.length, 'argument') + ' and none of them an element - ' +
-        'the Siblings tab is not being added.');
+        'the Variants tab is not being added.');
       return last;
     } catch (e) {
-      console.warn('[svr] the Siblings tab could not be built, so it is not being added: ' +
+      console.warn('[svr] the Variants tab could not be built, so it is not being added: ' +
         e.message);
       return last;
     }
@@ -553,7 +583,7 @@
   }
 
   // The tab is always present, even on the scenes - most of them, today - with no
-  // stash-id and so no possible sibling. A tab that came and went as a query landed
+  // stash-id and so no possible variant. A tab that came and went as a query landed
   // would move the strip under the pointer, and the empty cases are the ones worth
   // explaining: "this scene carries no stash-id" is a fact about the library the user
   // can act on, and a tab that hid itself would be the one place it could never appear.
@@ -569,26 +599,76 @@
   }
 
   // One row. `row.cls.label` is empty for an unclassified scene and the span is then not
-  // rendered at all, rather than rendered blank - an untagged sibling is listed as
+  // rendered at all, rather than rendered blank - an untagged variant is listed as
   // context, and a column of empty marks would read as something missing.
-  function SiblingRow(React, row) {
-    var kids = [React.createElement('a', {
-      key: 'title', className: 'svr-sib-title', href: '/scenes/' + row.scene.id,
+  // The cover, and the preview loop the scene cards play on hover.
+  //
+  // **A `<video poster>` rather than an image with a video over it.** Stash's own card
+  // stacks the two and slides the video in, because a card is a fixed frame it can
+  // position inside; one element that shows the cover until it is asked to play needs no
+  // stacking context, no transition and no second URL fetched up front - `preload="none"`
+  // is what keeps three previews on a page from being three downloads nobody asked for.
+  //
+  // **And not Stash's `SceneCard`, though `PluginApi.loadableComponents` offers it.** It
+  // would bring the cover, the preview, the scrubber and the whole card look for free, and
+  // it wants a `SlimSceneDataFragment` to do it - forty-odd fields across five nested
+  // fragments, hand-copied into a query here and silently wrong the day Stash's card reads
+  // one more. Two path fields against that is not a close call, and a row keeps the
+  // dimension column a card has nowhere to put.
+  function VariantThumb(React, scene) {
+    var paths = scene.paths || {};
+    if (!paths.screenshot && !paths.preview) return null;
+    if (!paths.preview) {
+      return React.createElement('img',
+        { key: 'thumb', className: 'svr-thumb', src: paths.screenshot, alt: '', loading: 'lazy' });
+    }
+    return React.createElement('video', {
+      key: 'thumb', className: 'svr-thumb', src: paths.preview, poster: paths.screenshot,
+      muted: true, loop: true, playsInline: true, preload: 'none', disableRemotePlayback: true,
+      // The promise is caught because a browser rejects `play()` when the pointer crosses
+      // a row before the page has been interacted with, and an uncaught rejection in a
+      // mouse handler is a console error on every hover.
+      onMouseEnter: function (e) {
+        var v = e.currentTarget, p = v.play();
+        if (p && p.catch) p.catch(function () {});
+      },
+      onMouseLeave: function (e) {
+        e.currentTarget.pause();
+        e.currentTarget.currentTime = 0;
+      },
+    });
+  }
+
+  function VariantRow(React, row) {
+    var line = [React.createElement('a', {
+      key: 'title', className: 'svr-variant-title', href: '/scenes/' + row.scene.id,
     }, row.scene.title || ('Scene ' + row.scene.id))];
     if (row.cls.label) {
-      kids.push(React.createElement('span',
-        { key: 'role', className: 'svr-role svr-role-' + row.cls.role }, row.cls.label));
+      line.push(React.createElement('span', {
+        key: 'role', className: 'svr-role svr-role-' + row.cls.role,
+        // The tag that decided it, for whoever wants to confirm the match.
+        title: row.cls.tags ? 'Tagged ' + row.cls.tags : null,
+      }, row.cls.label));
     }
     var meta = metaOf(row.scene);
-    if (meta) kids.push(React.createElement('span', { key: 'meta', className: 'svr-meta' }, meta));
-    return React.createElement('div', { key: row.scene.id, className: 'svr-sib' }, kids);
+    if (meta) line.push(React.createElement('span', { key: 'meta', className: 'svr-meta' }, meta));
+    var thumb = VariantThumb(React, row.scene);
+    var kids = [React.createElement('div', { key: 'body', className: 'svr-variant-body' }, line)];
+    if (thumb) {
+      // The cover links too, and it is its own anchor rather than the whole row being one:
+      // the title inside is already a link, and an anchor inside an anchor is invalid
+      // markup that browsers resolve by closing the outer one early.
+      kids.unshift(React.createElement('a',
+        { key: 'thumblink', className: 'svr-thumb-link', href: '/scenes/' + row.scene.id }, thumb));
+    }
+    return React.createElement('div', { key: row.scene.id, className: 'svr-variant' }, kids);
   }
 
   // `found` is null until the query lands, which is the loading state; after that it is
   // `{ rows, why }` and `why` is a whole sentence, because every one of the empty answers
   // needs one. The effect is keyed on the scene id so that walking the queue re-runs it,
   // and its cleanup drops the answer to a scene the user has already left.
-  function SiblingsPane(React) {
+  function VariantsPane(React) {
     return function (props) {
       var scene = (props && props.scene) || {};
       var state = React.useState(null);
@@ -597,20 +677,19 @@
       React.useEffect(function () {
         var live = true;
         setFound(null);
-        findSiblings(scene).then(function (result) { if (live) setFound(result); });
+        findVariants(scene).then(function (result) { if (live) setFound(result); });
         return function () { live = false; };
       }, [scene.id]);
 
       if (!found) {
         return React.createElement('div', { className: 'svr-tabpane' },
-          React.createElement('div', { className: 'svr-empty' }, 'Looking for siblings…'));
+          React.createElement('div', { className: 'svr-empty' }, 'Looking for variants…'));
       }
       var kids = [React.createElement('div', { key: 'why', className: 'svr-summary' },
         found.rows.length
-          ? plural(found.rows.length, 'other scene') + ' ' +
-            (found.rows.length === 1 ? 'is' : 'are') + ' the same work. ' + found.why
+          ? plural(found.rows.length, 'other variant') + ' of this scene. ' + found.why
           : found.why)];
-      found.rows.forEach(function (row) { kids.push(SiblingRow(React, row)); });
+      found.rows.forEach(function (row) { kids.push(VariantRow(React, row)); });
       return React.createElement('div', { className: 'svr-tabpane' }, kids);
     };
   }
@@ -621,7 +700,7 @@
     if (_patched) return true;
     var api = pluginApi();
     if (!api) {
-      gateLogOnce('patch', 'PluginApi component patching is unavailable - no Siblings tab. ' +
+      gateLogOnce('patch', 'PluginApi component patching is unavailable - no Variants tab. ' +
         'This plugin needs Stash 0.28.0 or newer.');
       return false;
     }
@@ -630,10 +709,10 @@
     var Nav = Bootstrap && Bootstrap.Nav, Tab = Bootstrap && Bootstrap.Tab;
     if (!React || !Nav || !Tab) {
       gateLogOnce('patch', 'PluginApi is present but React or react-bootstrap is not - ' +
-        'no Siblings tab.');
+        'no Variants tab.');
       return false;
     }
-    var Pane = SiblingsPane(React);
+    var Pane = VariantsPane(React);
     api.patch.after('ScenePage.Tabs', function () {
       return safeAppend(React, arguments, function () { return TabLink(React, Nav); });
     });
@@ -644,7 +723,7 @@
       });
     });
     _patched = true;
-    gateLogOnce('patch', 'the Siblings tab is registered on the scene page');
+    gateLogOnce('patch', 'the Variants tab is registered on the scene page');
     // The pane's own CSS has to be on the page before React first renders it, and there
     // is no tick watching the scene page any more to put it there.
     injectStyle();

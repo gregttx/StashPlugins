@@ -1,7 +1,7 @@
-// SceneVariants: the Siblings tab.
+// SceneVariants: the Variants tab.
 //
 // The plugin makes no mutation, so there is nothing to assert about writes. What is
-// worth pinning is the shape of the answer: which scenes it decides are siblings, what
+// worth pinning is the shape of the answer: which scenes it decides are variants, what
 // order it puts them in, what it calls each one, and the four cases where it correctly
 // lists nothing — three of which are ordinary answers and one of which is a failure.
 //
@@ -119,14 +119,17 @@ const stashRendered = (type) => ({ type, props: {}, children: [], _el: true });
 
 // ── The fixture ─────────────────────────────────────────────────────────────
 
-// Scene 42, one stash-id, three siblings sharing it: a full-length one, a partial and an
+// Scene 42, one stash-id, three variants sharing it: a full-length one, a partial and an
 // untagged one, deliberately returned in an order the tab has to change.
 const SIBLINGS = [
   { id: '42', title: 'Cool Shoot - Clip 2', tags: [{ id: '2', name: 'Partial Length' }],
     files: [{ duration: 243, width: 1920, height: 1080 }] },
+  // No preview generated for this one - a cover and nothing to play.
   { id: '77', title: 'Cool Shoot - Clip 1', tags: [{ id: '2', name: '  partial length  ' }],
+    paths: { screenshot: '/scene/77/screenshot' },
     files: [{ duration: 300, width: 1280, height: 720 }] },
   { id: '9', title: 'Cool Shoot', tags: [{ id: '1', name: 'Full Length' }],
+    paths: { screenshot: '/scene/9/screenshot', preview: '/scene/9/preview' },
     files: [{ duration: 2472, width: 1920, height: 1080 }] },
   // Longer than the full-length one on purpose: role has to outrank running time, or a
   // duration-only sort would pass this fixture by accident.
@@ -155,7 +158,7 @@ function responder(opts) {
         a2PartialLengthTag: 'Partial Length',
       }, opts.settings) } } } };
     }
-    if (q.indexOf('SVRSiblings') !== -1) {
+    if (q.indexOf('SVRVariants') !== -1) {
       if (opts.siblingsFail) return { errors: [{ message: 'invalid modifier' }] };
       return { data: { findScenes: { scenes: opts.siblings || SIBLINGS } } };
     }
@@ -214,13 +217,16 @@ function mountPane(env, props) {
   return { pane, inst: env.React.mount(inner.type, inner.props) };
 }
 
-const rows = (el) => byClass(el, 'svr-sib');
-const titles = (el) => rows(el).map((r) => textOf(r.children[0]));
+const rows = (el) => byClass(el, 'svr-variant').filter((n) =>
+  String(n.props.className).indexOf('svr-variant-') === -1);
+const inRow = (row, cls) => byClass(row, cls)[0] || null;
+const titles = (el) => rows(el).map((r) => textOf(inRow(r, 'svr-variant-title')));
+const linkOf = (row) => (inRow(row, 'svr-variant-title') || { props: {} }).props.href;
 const roleOf = (row) => {
-  const span = (row.children || []).filter((n) =>
-    String((n.props || {}).className || '').indexOf('svr-role') === 0)[0];
+  const span = inRow(row, 'svr-role');
   return span ? span.props.className.replace('svr-role svr-role-', '') + ':' + textOf(span) : null;
 };
+const thumbOf = (row) => inRow(row, 'svr-thumb');
 const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] });
 
 (async function () {
@@ -235,11 +241,11 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     h.check('a Nav.Item is appended to the tab strip', items.length === 1);
     h.check("and Stash's own children are kept, ahead of it",
       nodes(strip).indexOf(own) !== -1 && nodes(strip).indexOf(own) < nodes(strip).indexOf(items[0]));
-    h.check('the tab is captioned Siblings', !!link && textOf(link) === 'Siblings', textOf(link));
+    h.check('the tab is captioned Siblings', !!link && textOf(link) === 'Variants', textOf(link));
     // The key sits in the namespace Stash's own nine tab keys use, and `activeTabKey` is
     // a plain useState with no whitelist - so a key of our own is selectable like theirs.
     h.check('the tab key is in the scene page\'s own key namespace',
-      link.props.eventKey === 'scene-svr-siblings-panel', link.props.eventKey);
+      link.props.eventKey === 'scene-svr-variants-panel', link.props.eventKey);
     // The patch takes its result off the *end* of the arguments rather than by position,
     // so React's legacy-context second argument cannot end up rendered as a child. Both
     // patches are checked, because getting this right in one and wrong in the other is
@@ -268,7 +274,7 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     const pane = nodes(content).filter((n) => n.type === Bootstrap.Tab.Pane)[0];
     h.check('a Tab.Pane is appended to the tab content', !!pane);
     h.check('under the same key the strip named',
-      pane.props.eventKey === 'scene-svr-siblings-panel', pane.props.eventKey);
+      pane.props.eventKey === 'scene-svr-variants-panel', pane.props.eventKey);
     h.check("and Stash's own panes are kept", nodes(content).indexOf(own) !== -1);
   }
 
@@ -278,9 +284,9 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     // Before the query lands the pane says so rather than rendering an empty list, which
     // would read as "no siblings" for as long as the round trip takes.
     h.check('the pane says it is looking while the query is out',
-      textOf(inst.el).indexOf('Looking for siblings') !== -1, textOf(inst.el));
+      textOf(inst.el).indexOf('Looking for variants') !== -1, textOf(inst.el));
     await h.flush();
-    h.check('the viewed scene is not listed as its own sibling',
+    h.check('the viewed scene is not listed as its own variant',
       titles(inst.el).indexOf('Cool Shoot - Clip 2') === -1, titles(inst.el).join(' | '));
     // Full-length first even though the untagged rip is the longer file, then by running
     // time: the rip outranks the 5-minute partial.
@@ -289,18 +295,18 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
         JSON.stringify(['Cool Shoot', 'Cool Shoot (rip)', 'Cool Shoot - Clip 1']),
       titles(inst.el).join(' | '));
     h.check('the first line counts them and says what matched them',
-      summary(inst.el) === '3 other scenes are the same work. Matched on 1 stash-id.',
+      summary(inst.el) === '3 other variants of this scene. Matched on 1 stash-id.',
       summary(inst.el));
     h.check('each row links to its scene',
-      rows(inst.el).map((r) => r.children[0].props.href).join(' ') === '/scenes/9 /scenes/55 /scenes/77',
-      rows(inst.el).map((r) => r.children[0].props.href).join(' '));
+      rows(inst.el).map(linkOf).join(' ') === '/scenes/9 /scenes/55 /scenes/77',
+      rows(inst.el).map(linkOf).join(' '));
     // The one thing in the query that is neither a guess nor a preference. The stash IDs
     // criterion accepts four modifiers and rejects the rest outright, INCLUDES among
     // them - which is the natural guess for a list criterion, is what every other list
     // filter in Stash takes, and is what shipped and failed on a live server. EQUALS
     // over a list ORs the ids, which is the "any of these" the tab needs.
-    const sib = env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1)[0].query;
-    h.check('the sibling query asks with EQUALS, the modifier the server accepts',
+    const sib = env.calls.filter((c) => c.query.indexOf('SVRVariants') !== -1)[0].query;
+    h.check('the variant query asks with EQUALS, the modifier the server accepts',
       sib.indexOf('modifier: EQUALS') !== -1 && sib.indexOf('INCLUDES') === -1, sib);
     // The stash-ids come off the props Stash already handed us, so nothing looks the
     // scene up first. A second query here is the two-round-trip version coming back.
@@ -313,14 +319,73 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     const env = start();
     const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
-    h.check('a full-length sibling is named and marked',
-      roleOf(rows(inst.el)[0]) === 'fl:Full Length', roleOf(rows(inst.el)[0]));
-    h.check('an untagged sibling is listed with no role at all',
+    h.check('a full-length variant is named and marked',
+      roleOf(rows(inst.el)[0]) === 'fl:Full-length', roleOf(rows(inst.el)[0]));
+    h.check('an untagged variant is listed with no role at all',
       roleOf(rows(inst.el)[1]) === null, roleOf(rows(inst.el)[1]));
+    // The label is the dimension's *value*. It shipped echoing the configured tag name
+    // back, which is the same string on every row of a value and, in a taxonomy of
+    // Unicode-marked namespaces, unreadable in a column meant to be scanned.
+    h.check('the label names the value, not the tag that carried it',
+      rows(inst.el).every((r) => {
+        const role = roleOf(r);
+        return role === null || role.indexOf('Full Length') === -1;
+      }), rows(inst.el).map(roleOf).join(' | '));
+    h.check('and the tag that decided it is on the hover text',
+      inRow(rows(inst.el)[0], 'svr-role').props.title === 'Tagged Full Length',
+      inRow(rows(inst.el)[0], 'svr-role').props.title);
     // The stored tag name is padded and lower-cased; these are typed into a settings box
     // by hand, so a comparison that respected either would classify nothing.
     h.check('the tag match ignores case and surrounding space',
-      roleOf(rows(inst.el)[2]) === 'pl:Partial Length', roleOf(rows(inst.el)[2]));
+      roleOf(rows(inst.el)[2]) === 'pl:Partial-length', roleOf(rows(inst.el)[2]));
+  }
+
+  {
+    // The cover and the preview loop. One `<video poster>` rather than an image with a
+    // video stacked over it, so the cover is there before anything is fetched and
+    // `preload="none"` keeps three previews on a page from being three downloads nobody
+    // asked for.
+    const env = start();
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    const withPreview = rows(inst.el)[0];              // scene 9, cover and preview
+    const coverOnly = rows(inst.el)[2];                // scene 77, cover, no preview
+    const neither = rows(inst.el)[1];                  // scene 55, neither
+
+    const v = thumbOf(withPreview);
+    h.check('a variant with a preview gets a video', !!v && v.type === 'video', v && v.type);
+    h.check('showing its cover until it is played',
+      !!v && v.props.poster === '/scene/9/screenshot' && v.props.src === '/scene/9/preview',
+      v && JSON.stringify({ poster: v.props.poster, src: v.props.src }));
+    h.check('and fetching nothing until then',
+      !!v && v.props.preload === 'none' && v.props.muted === true && v.props.loop === true,
+      v && JSON.stringify({ preload: v.props.preload, muted: v.props.muted, loop: v.props.loop }));
+
+    // A pointer crossing a row before the page has been interacted with makes the browser
+    // reject `play()`, and an uncaught rejection in a mouse handler is a console error on
+    // every hover. The fake element hands back a rejected promise to prove it is caught.
+    let played = false, stopped = null;
+    const video = { play() { played = true; return Promise.reject(new Error('not allowed')); },
+      pause() { stopped = 'paused'; }, currentTime: 99 };
+    v.props.onMouseEnter({ currentTarget: video });
+    await h.flush(3);
+    h.check('hovering plays it, and a browser refusing to is not an error', played);
+    v.props.onMouseLeave({ currentTarget: video });
+    h.check('and leaving stops it and rewinds',
+      stopped === 'paused' && video.currentTime === 0, stopped + ' at ' + video.currentTime);
+
+    const img = thumbOf(coverOnly);
+    h.check('a variant with no preview generated gets a plain cover',
+      !!img && img.type === 'img' && img.props.src === '/scene/77/screenshot',
+      img && img.type);
+    h.check('and a variant with neither gets no thumbnail rather than a broken one',
+      thumbOf(neither) === null);
+    h.check('the cover links to the scene too',
+      byClass(withPreview, 'svr-thumb-link')[0].props.href === '/scenes/9');
+    // An anchor inside an anchor is invalid markup that browsers resolve by closing the
+    // outer one early, so the row itself must not be one.
+    h.check('and the row itself is not a second anchor around it',
+      withPreview.type === 'div', withPreview.type);
   }
 
   {
@@ -334,14 +399,14 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
     h.check('a scene carrying both tags is flagged rather than classified',
-      roleOf(rows(inst.el)[0]) === 'bad:both tags', roleOf(rows(inst.el)[0]));
+      roleOf(rows(inst.el)[0]) === 'bad:⚠ both', roleOf(rows(inst.el)[0]));
   }
 
   {
     const env = start({ settings: { a1FullLengthTag: '', a2PartialLengthTag: '' } });
     const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
-    h.check('with no tag names configured the pane still lists the siblings',
+    h.check('with no tag names configured the pane still lists the variants',
       titles(inst.el).length === 3, titles(inst.el).join(' | '));
     h.check('and classifies none of them', rows(inst.el).every((r) => roleOf(r) === null));
   }
@@ -355,11 +420,11 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
     const settingsAt = env.calls.findIndex((c) => c.query.indexOf('configuration') !== -1);
-    const siblingsAt = env.calls.findIndex((c) => c.query.indexOf('SVRSiblings') !== -1);
+    const siblingsAt = env.calls.findIndex((c) => c.query.indexOf('SVRVariants') !== -1);
     h.check('the settings are read before the rows are classified',
       settingsAt !== -1 && settingsAt < siblingsAt,
       'settings at ' + settingsAt + ', siblings at ' + siblingsAt);
-    h.check('so the classification uses them', roleOf(rows(inst.el)[0]) === 'fl:Full Length');
+    h.check('so the classification uses them', roleOf(rows(inst.el)[0]) === 'fl:Full-length');
   }
 
   {
@@ -371,8 +436,8 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     // is the ordinary case, not an error. It reads as a fact about the library.
     h.check('and the pane says which of the reasons applies',
       summary(inst.el).indexOf('carries no stash-id') !== -1, summary(inst.el));
-    h.check('and the sibling query is never sent',
-      env.calls.every((c) => c.query.indexOf('SVRSiblings') === -1),
+    h.check('and the variant query is never sent',
+      env.calls.every((c) => c.query.indexOf('SVRVariants') === -1),
       env.calls.map((c) => c.query.slice(0, 30)).join(' | '));
   }
 
@@ -387,23 +452,23 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
 
   {
     // A filter field named differently on this Stash looks exactly like a scene with no
-    // siblings, and only one of those is worth reporting - so the failure is loud
+    // variants, and only one of those is worth reporting - so the failure is loud
     // whatever the logging setting says, and the pane names it rather than going quiet.
     const env = start({ siblingsFail: true });
     const { inst } = mountPane(env, { scene: sceneProp({}) });
     await h.flush();
-    h.check('a failed sibling query lists nothing', rows(inst.el).length === 0);
+    h.check('a failed variant query lists nothing', rows(inst.el).length === 0);
     h.check('and says so on the console without being asked',
-      env.warnings.some((w) => w.indexOf('sibling lookup failed for scene 42') !== -1),
+      env.warnings.some((w) => w.indexOf('variant lookup failed for scene 42') !== -1),
       env.warnings.join(' | '));
     h.check('and says so in the pane too',
-      summary(inst.el).indexOf('The sibling query failed') !== -1, summary(inst.el));
+      summary(inst.el).indexOf('The variant query failed') !== -1, summary(inst.el));
   }
 
   {
     // Walking the queue changes the scene under a mounted pane. The effect is keyed on
     // the scene id, so it re-runs; a pane keyed on nothing would go on showing the
-    // previous scene's siblings for as long as the tab stayed open.
+    // previous scene's variants for as long as the tab stayed open.
     const env = start();
     const content = env.render('ScenePage.TabContent', { scene: sceneProp({}) },
       stashRendered('stash-panes'));
@@ -411,17 +476,17 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     const props = { scene: sceneProp({}) };
     const inst = env.React.mount(inner.type, props);
     await h.flush();
-    const before = env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1).length;
+    const before = env.calls.filter((c) => c.query.indexOf('SVRVariants') !== -1).length;
     inst.render();
     await h.flush();
     h.check('re-rendering the same scene asks the server nothing further',
-      env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1).length === before,
-      String(env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1).length));
+      env.calls.filter((c) => c.query.indexOf('SVRVariants') !== -1).length === before,
+      String(env.calls.filter((c) => c.query.indexOf('SVRVariants') !== -1).length));
     props.scene = { id: '99', stash_ids: [{ endpoint: 'e', stash_id: 'xyz' }] };
     inst.render();
     await h.flush();
     h.check('but moving to another scene re-runs the lookup',
-      env.calls.filter((c) => c.query.indexOf('SVRSiblings') !== -1).length === before + 1);
+      env.calls.filter((c) => c.query.indexOf('SVRVariants') !== -1).length === before + 1);
     h.check('and the new scene is the one excluded from its own list',
       titles(inst.el).indexOf('Cool Shoot - Clip 2') !== -1, titles(inst.el).join(' | '));
   }

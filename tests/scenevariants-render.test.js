@@ -69,10 +69,12 @@ const Bootstrap = {
   },
 };
 
-const SIBLINGS = [
+const VARIANTS = [
   { id: '9', title: 'Cool Shoot', tags: [{ id: '1', name: 'Full Length' }],
+    paths: { screenshot: '/scene/9/screenshot', preview: '/scene/9/preview' },
     files: [{ duration: 2472, width: 1920, height: 1080 }] },
   { id: '77', title: 'Cool Shoot - Clip 1', tags: [{ id: '2', name: 'Partial Length' }],
+    paths: { screenshot: '/scene/77/screenshot' },
     files: [{ duration: 300, width: 1280, height: 720 }] },
 ];
 
@@ -86,8 +88,8 @@ function respond(req) {
     return { data: { configuration: { plugins: { SceneVariants: {
       a1FullLengthTag: 'Full Length', a2PartialLengthTag: 'Partial Length' } } } } };
   }
-  if (req.query.indexOf('SVRSiblings') !== -1) {
-    return { data: { findScenes: { scenes: SIBLINGS } } };
+  if (req.query.indexOf('SVRVariants') !== -1) {
+    return { data: { findScenes: { scenes: VARIANTS } } };
   }
   return { data: {} };
 }
@@ -127,9 +129,9 @@ function respond(req) {
     !stripErr, stripErr && stripErr.message);
   h.check('Stash’s own tab survives the patch',
     !!stripHtml && stripHtml.indexOf('scene-details-panel') !== -1, stripHtml);
-  h.check('and the Siblings tab is appended after it',
-    !!stripHtml && stripHtml.indexOf('Siblings') !== -1 &&
-      stripHtml.indexOf('scene-details-panel') < stripHtml.indexOf('Siblings'), stripHtml);
+  h.check('and the Variants tab is appended after it',
+    !!stripHtml && stripHtml.indexOf('Variants') !== -1 &&
+      stripHtml.indexOf('scene-details-panel') < stripHtml.indexOf('Variants'), stripHtml);
 
   let contentHtml = null, contentErr = null;
   try { contentHtml = renderToStaticMarkup(React.createElement(Content)); }
@@ -138,12 +140,12 @@ function respond(req) {
     !contentErr, contentErr && contentErr.message);
   h.check('Stash’s own pane survives the patch',
     !!contentHtml && contentHtml.indexOf('the details pane') !== -1, contentHtml);
-  h.check('and the Siblings pane is appended after it',
-    !!contentHtml && contentHtml.indexOf('scene-svr-siblings-panel') !== -1, contentHtml);
+  h.check('and the Variants pane is appended after it',
+    !!contentHtml && contentHtml.indexOf('scene-svr-variants-panel') !== -1, contentHtml);
   // A static render never runs effects, so this is the pane's first paint - the state it
   // is in for as long as the query is out, and the one the user sees first.
-  h.check('the pane paints its looking-for-siblings line before the query lands',
-    !!contentHtml && contentHtml.indexOf('Looking for siblings') !== -1, contentHtml);
+  h.check('the pane paints its looking-for-variants line before the query lands',
+    !!contentHtml && contentHtml.indexOf('Looking for variants') !== -1, contentHtml);
 
   h.check('nothing was logged as an error', errors.length === 0, errors.join(' | '));
   h.finish();

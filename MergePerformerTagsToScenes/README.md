@@ -306,8 +306,10 @@ twice.
 
 **Settings → Plugins says so too, right after this plugin's name on its heading line**, in amber: that plugin
 is present and functionally supersedes this one — named short, with the full name on hover.
-The notice appears only while its performer-tags-onto-scenes path is actually enabled — installed with that path switched off, it
-replaces nothing and nothing is said. It also checks that this plugin's four exclusion filters are
+The notice appears only while its performer-tags-onto-scenes path is actually enabled: installed
+with that path switched off, it replaces nothing and nothing is said. **Disabled in Stash counts as
+configured, not as absent** — the notice still appears, and says the plugin is not running here,
+because a plugin that is switched off is one setting away from doing this again. It also checks that this plugin's four exclusion filters are
 set the same way over there, which that plugin adopts by itself wherever it has never had its own:
 where they match, the notice says this plugin is safe to uninstall; where they do not, it says to
 check them first.

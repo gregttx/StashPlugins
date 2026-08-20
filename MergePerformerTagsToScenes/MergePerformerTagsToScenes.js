@@ -35,7 +35,7 @@
   // constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.6.2';
+  var PLUGIN_VERSION      = '3.7.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -3750,8 +3750,37 @@
     excludeTagWithCustomFieldName: 'f4ExcludeTagWithCustomFieldName',
   };
 
-  function supersederCovers() {
+  function supersederRegistered() {
     return (coop().declares[SUPERSEDER_ID] || []).indexOf(SUPERSEDED_PATH) !== -1;
+  }
+
+  // Two ways this is true, and the second is why `declares` alone is not the test.
+  // That registry is a *live* one: an entry says the path is enabled **and** that
+  // plugin's script is running on this page. A copy disabled in Stash registers
+  // nothing while the configuration that makes this notice worth showing is still
+  // sitting in the config map - which arrives here in the same response as our own
+  // settings. Same reasoning as `checkSibling`, which reads the hierarchy sibling's
+  // settings rather than asking it: what is being reported is a configuration, and a
+  // disabled plugin has one of those and no running code.
+  function supersederCovers() {
+    return supersederRegistered() || supersederPathEnabled(_supersederSettings);
+  }
+
+  // That plugin keeps its thirteen paths in one string of `<id>=<MODE>` pairs, a path
+  // named twice taking its last mention. Anything that is not OFF is on - a mode this
+  // reader has never heard of is one that plugin has and this copy does not know
+  // about, which is still a path it walks.
+  var SUPERSEDER_PATH_RE = /tags:performer>scene\s*=\s*([A-Za-z]+)/gi;
+
+  function supersederPathEnabled(raw) {
+    if (!raw) return false;
+    var text = String(raw.b1Paths || ''), word = null, m;
+    SUPERSEDER_PATH_RE.lastIndex = 0;
+    while ((m = SUPERSEDER_PATH_RE.exec(text)) !== null) word = m[1].toUpperCase();
+    if (word) return word !== 'OFF';
+    // An install predating that string still has the boolean it replaced, and a
+    // plugin that is disabled never runs the migration that would move it across.
+    return !text.replace(/^\s+|\s+$/g, '') && !!raw.b1TagsPerformersToScenes;
   }
 
   function exclusionsMigrated(theirs) {
@@ -3810,10 +3839,16 @@
       if (node && node.parentNode) node.parentNode.removeChild(node);
       return;
     }
+    // Three tails, because they are three different truths and the last two are a
+    // claim about what happens if this plugin is removed. Nothing registered means
+    // the sibling is configured to do this and is not running: disabled in Stash, or
+    // a copy older than the registry. Either way "uninstall safe" would be false.
     var text = '\u26a0 ' + SUPERSEDER_SHORT + ' is present and functionally supersedes ' +
-      'this plugin. ' + (exclusionsMigrated(_supersederSettings)
-        ? 'Settings migrated. Uninstall safe \u2705'
-        : 'Its exclusion filters do not match these - check them before uninstalling.');
+      'this plugin. ' + (!supersederRegistered()
+        ? 'It is not running here, though - disabled in Stash, or an older copy.'
+        : (exclusionsMigrated(_supersederSettings)
+          ? 'Settings migrated. Uninstall safe \u2705'
+          : 'Its exclusion filters do not match these - check them before uninstalling.'));
     // Rewritten rather than replaced: either half can change while the page is open -
     // a path toggled there, a filter edited here - and this tick is what notices.
     if (node && node.parentNode) {

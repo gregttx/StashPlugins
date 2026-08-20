@@ -5,8 +5,20 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.6.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.7.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.7.0 reads the sibling's settings, not only its registration.** `coop().declares` is a
+*live* registry: an entry says the path is enabled **and** that plugin's script is running on
+this page, so a copy disabled in Stash registers nothing while the configuration that makes the
+notice worth showing sits untouched in the config map - which arrives in the same response as
+this plugin's own settings and costs nothing to read. That is `checkSibling`'s reasoning
+applied to a second sibling: what is being reported is a configuration, and a disabled plugin
+has one of those and no running code. `supersederPathEnabled` parses its paths string for
+`tags:performer>scene`, last mention winning and anything but OFF counting as on, falling back
+to the boolean that string replaced for an install that predates it and is disabled, so the
+migration has never run. The notice grows a third tail for that state: configured, not running,
+and no claim that uninstalling is safe - because it would not be.
 
 **3.6.2 moves it into the heading itself, after the name.** An `<h3>` is a block, so a sibling
 of it lands on the next line however the notice is displayed - being *on* the title's line

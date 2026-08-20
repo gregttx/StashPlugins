@@ -985,7 +985,58 @@ Promise.resolve()
   })
 
   .then(() => {
-    // Nothing declared at all: the plugin is not installed, or is disabled in Stash.
+    // Configured to do it, and not running: nothing in `declares`, but its stored
+    // paths string says the path is on. The notice still appears - the reason to show
+    // it is a configuration - and drops the claim that uninstalling is safe.
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({
+      supersederSettings: { b1Paths: 'tags:studio>group=ON, tags:performer>scene=ON' },
+    }) });
+    h.run(env.ctx, SRC);
+    settingsGroup(env.ctx, { label: 'Disable' });
+    env.tick();
+    return h.flush(20).then(() => {
+      env.tick();
+      const note = env.ctx.document.getElementById('cpt2s-superseded-notice');
+      h.check('a sibling configured for the path but not running still warns', !!note &&
+        /not running here/.test(note.textContent) && !/Uninstall safe/.test(note.textContent),
+        note && note.textContent);
+    });
+  })
+
+  .then(() => {
+    // The same, off the boolean that string replaced: a disabled plugin never runs
+    // the migration that would move it across.
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({
+      supersederSettings: { b1TagsPerformersToScenes: true },
+    }) });
+    h.run(env.ctx, SRC);
+    settingsGroup(env.ctx, { label: 'Disable' });
+    env.tick();
+    return h.flush(20).then(() => {
+      env.tick();
+      h.check('and off the pre-string boolean it still has',
+        !!env.ctx.document.getElementById('cpt2s-superseded-notice'));
+    });
+  })
+
+  .then(() => {
+    // Set and then switched off over there: the last mention wins, and OFF is off.
+    const env = h.makeEnv({ quiet: true, respond: makeResponder({
+      supersederSettings: { b1Paths: 'tags:performer>scene=ON, tags:performer>scene=OFF' },
+    }) });
+    h.run(env.ctx, SRC);
+    settingsGroup(env.ctx, { label: 'Disable' });
+    env.tick();
+    return h.flush(20).then(() => {
+      env.tick();
+      h.check('a path its own string switches off is not superseding anything',
+        !env.ctx.document.getElementById('cpt2s-superseded-notice'));
+    });
+  })
+
+  .then(() => {
+    // Nothing declared and nothing configured: not installed, or installed with the
+    // path off.
     const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });
     h.run(env.ctx, SRC);
     const { actions } = settingsGroup(env.ctx, { label: 'Disable' });

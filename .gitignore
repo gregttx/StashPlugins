@@ -7,4 +7,9 @@ package-lock.json
 # whose parent directory is itself excluded.
 .plans/*
 !.plans/propagate-tags-and-performers.md
-.claude/
+# `.claude/` holds two different things: the Stop hooks, which are project policy
+# and belong to anyone who clones this, and `settings.local.json`, which is this
+# machine's. Written as `.claude/*` for the same reason `.plans/*` is - git cannot
+# re-include a path whose parent directory is itself excluded.
+.claude/*
+!.claude/hooks/

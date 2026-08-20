@@ -166,6 +166,35 @@ PLUGINS.forEach((name) => {
       src.indexOf(c) !== -1));
   });
 
+  // A README describes the plugin, not its history (root `CLAUDE.md`), and the rule
+  // was lost once by being followed loosely: the trigger for a release-note block
+  // was written as "a major version - a rename, a settings reset", which is a fact
+  // about the *diff*, and the block that earned it said in effect "everything about
+  // your settings changed, and you need do nothing about it". The trigger is now a
+  // fact about the *user* - a breaking change with no trivial migration - and that
+  // is not something a test can read.
+  //
+  // What a test can read is the residue, which is what every violation of the rule
+  // leaves behind: a version number in the prose. So every `X.Y.Z` in a README has
+  // to be one of the two shapes that are facts about today rather than about a
+  // release - a requirement ("... or newer"), or the plugin's own current version.
+  // A release-note block fails here on its own heading.
+  //
+  // Deliberately not extended to the plugin sources, which carry several hundred
+  // version references in comments from before the rule covered them. That is a
+  // cleanup, and a test that fails on arrival guards nothing.
+  const readme = read(name, 'README.md');
+  const strayVersions = [];
+  readme.replace(/\d+\.\d+\.\d+/g, (v, at) => {
+    const after = readme.slice(at + v.length, at + v.length + 12);
+    if (/^\*{0,2}\s+or newer/.test(after) || v === manifest) return v;
+    const line = readme.slice(0, at).split('\n').length;
+    strayVersions.push(line + ': ' + readme.slice(at - 30 < 0 ? 0 : at - 30, at + 30).replace(/\n/g, ' '));
+    return v;
+  });
+  h.check(name + ' keeps release history out of its README', strayVersions.length === 0,
+    strayVersions.join('  |  '));
+
   const banner = load(name).filter((l) => l.indexOf(name + '.js') !== -1);
   h.check(name + ' announces itself at load', banner.length === 1, banner.join(' | '));
 

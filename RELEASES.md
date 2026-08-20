@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-20 |  |  |  |  | 0.0.2 (`1349356`) |  | SceneVariants 0.0.2: the sibling query asks with EQUALS |
 | 2026-08-20 |  |  |  |  | 0.0.1 (`5a37e41`) |  | SceneVariants 0.0.1: L0 of the scene-variants plan, as a Siblings panel |
 | 2026-08-20 |  | [3.7.0](https://github.com/gregttx/StashPlugins/commit/e8c5914) |  |  |  |  | MPTTS 3.7.0: the superseded notice reads PTP2RE's settings too |
 | 2026-08-20 |  | [3.6.2](https://github.com/gregttx/StashPlugins/commit/15dc942) |  |  |  |  | MPTTS 3.6.2: the superseded notice sits in the heading, after the name |

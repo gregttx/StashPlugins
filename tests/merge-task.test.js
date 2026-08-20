@@ -152,7 +152,7 @@ function openAfterSettings(opts, respecter) {
 // already loaded and published what it does.
 // The settings-page group, as SettingsPluginsPanel builds it, with the Enable/Disable
 // button Stash puts in the header. `label` is what that button says.
-function settingsGroup(ctx, label) {
+function settingsGroup(ctx, label, noLink) {
   const group = h.makeElement('div');
   group.className = 'setting-group collapsible';
   const header = h.makeElement('div');
@@ -169,8 +169,13 @@ function settingsGroup(ctx, label) {
   headBox.appendChild(sub);
   header.appendChild(headBox);
   const actions = h.makeElement('div');
+  // Stash's own unlabelled link for the manifest's `url:`, which is what the notice
+  // anchors on - a plugin without one falls back to the button beside it.
+  const urlLink = h.makeElement('a');
+  urlLink.href = 'https://example.invalid/readme';
   const disable = h.makeElement('button');
   disable.textContent = label;
+  if (!noLink) actions.appendChild(urlLink);
   actions.appendChild(disable);
   header.appendChild(actions);
   group.appendChild(header);
@@ -178,7 +183,7 @@ function settingsGroup(ctx, label) {
   input.id = 'plugin-MergePerformerTagsToScenes-a1ShowManualMergeButtons';
   group.appendChild(input);
   ctx.document.body.appendChild(group);
-  return { group, actions, disable };
+  return { group, actions, disable, urlLink };
 }
 
 function openWithDeclares(opts, declares) {
@@ -918,23 +923,24 @@ Promise.resolve()
     h.run(env.ctx, SRC);
     env.ctx.window.StashPluginCoop.declares.PropagateTagsAndPerformers =
       ['tags:performer>scene', 'tags:studio>group'];
-    const { actions, disable } = settingsGroup(env.ctx, 'Disable');
+    const { actions, urlLink } = settingsGroup(env.ctx, 'Disable');
     env.tick();
     return h.flush(20).then(() => {
       env.tick();
       const note = env.ctx.document.getElementById('cpt2s-superseded-notice');
       h.check('a superseding sibling is named on the settings page', !!note,
         note && note.textContent);
-      h.check('by the name the user sees, not the plugin id', !!note &&
-        note.textContent.indexOf('ᝯㄝₓ Propagate Tags and Performers') !== -1,
-        note && note.textContent);
       h.check('and the settings it carried over are called safe to leave behind',
         !!note && /Settings migrated\. Uninstall safe/.test(note.textContent),
         note && note.textContent);
-      h.check('left of the button that acts on it', !!note &&
+      h.check('left of Stash\'s own link icon, on the heading line', !!note &&
         note.parentNode === actions &&
-        actions.childNodes.indexOf(note) < actions.childNodes.indexOf(disable),
+        actions.childNodes.indexOf(note) === actions.childNodes.indexOf(urlLink) - 1,
         note && String(actions.childNodes.indexOf(note)));
+      h.check('named short enough for that line, with the full name on hover', !!note &&
+        note.textContent.indexOf('Propagate Tags and Performers... is present') !== -1 &&
+        note.title === 'ᝯㄝₓ Propagate Tags and Performers to Related Entities',
+        note && note.textContent + ' | ' + note.title);
 
       // The path can be switched off over there while this page is open, and this
       // tick is what notices - a notice that outlived its reason would be a claim
@@ -955,11 +961,16 @@ Promise.resolve()
     }) });
     h.run(env.ctx, SRC);
     env.ctx.window.StashPluginCoop.declares.PropagateTagsAndPerformers = ['tags:performer>scene'];
-    settingsGroup(env.ctx, 'Disable');
+    // No `url:` on this one, so there is no link icon to anchor on.
+    const { actions, disable } = settingsGroup(env.ctx, 'Disable', true);
     env.tick();
     return h.flush(20).then(() => {
       env.tick();
       const note = env.ctx.document.getElementById('cpt2s-superseded-notice');
+      h.check('with no link icon it falls back to the button beside it', !!note &&
+        note.parentNode === actions &&
+        actions.childNodes.indexOf(note) === actions.childNodes.indexOf(disable) - 1,
+        note && String(actions.childNodes.indexOf(note)));
       h.check('exclusion filters that did not carry over say so instead', !!note &&
         /do not match these/.test(note.textContent) &&
         !/Uninstall safe/.test(note.textContent), note && note.textContent);
@@ -976,7 +987,7 @@ Promise.resolve()
       env.tick();
       h.check('with nothing superseding this plugin, the header is left alone',
         !env.ctx.document.getElementById('cpt2s-superseded-notice') &&
-        actions.childNodes.length === 1, String(actions.childNodes.length));
+        actions.childNodes.length === 2, String(actions.childNodes.length));
     });
   })
 

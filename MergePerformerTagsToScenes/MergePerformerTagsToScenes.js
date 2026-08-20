@@ -22,7 +22,11 @@
   // `SIBLING_*` is the hierarchy plugin, which collides with a merge; this one
   // *replaces* it - see `ensureSupersededNotice`.
   var SUPERSEDER_ID       = 'PropagateTagsAndPerformers';
-  var SUPERSEDER_NAME     = 'ᝯㄝₓ Propagate Tags and Performers to Related Entities';
+  var SUPERSEDER_NAME      = 'ᝯㄝₓ Propagate Tags and Performers to Related Entities';
+  // The notice sits inline on the heading line, where the full name would be most of
+  // the row. Elided rather than abbreviated, and the full name is on the element's
+  // title, so what the user hovers is what they will look for in the plugin list.
+  var SUPERSEDER_SHORT     = 'Propagate Tags and Performers...';
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and updates as soon as plugins are reloaded, while the browser can still
@@ -31,7 +35,7 @@
   // constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.6.0';
+  var PLUGIN_VERSION      = '3.6.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -1004,9 +1008,9 @@
     // Amber, not the stale banner's red: nothing is broken and nothing needs doing
     // today. It is the repo's "a plugin wrote this" colour, used here for the one
     // thing on this page that is about a plugin rather than about a setting.
-    '.cpt2s-super{display:inline-block;max-width:24rem;margin:.35rem .75rem .35rem 0;' +
-    'padding:.35rem .6rem;border-left:4px solid #ffb648;background:rgba(255,182,72,.14);' +
-    'color:#ffb648;font-size:.85rem;line-height:1.35;font-weight:600;}' +
+    '.cpt2s-super{display:inline-block;max-width:22rem;margin:0 .5rem;vertical-align:middle;' +
+    'padding:.2rem .45rem;border-left:4px solid #ffb648;background:rgba(255,182,72,.14);' +
+    'color:#ffb648;font-size:.75rem;line-height:1.3;font-weight:600;}' +
     '.cpt2s-ERROR{color:#ff7373;} .cpt2s-WARN{color:#ffb648;} .cpt2s-MERGE{color:#84d68a;}' +
     '.cpt2s-INFO{color:#a7b6c2;}' +
     '.cpt2s-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
@@ -3742,11 +3746,31 @@
     return true;
   }
 
-  // Beside the button that acts on it. Stash gives that button no class of ours to
-  // match, so it is found by its caption the way a row's Delete is - and where it is
-  // not found at all the notice falls back to the stale banner's slot, above the
-  // description, rather than not appearing.
+  // Stash's own link for the manifest's `url:` - the unlabelled chain icon on the
+  // heading line - found as the first anchor in the group that is not the labelled
+  // one this plugin injects under the description. Excluded by id rather than by
+  // position: ours is added later in this same tick on the first pass and is already
+  // there on every one after, so document order says nothing about which is which.
+  function stashUrlLink(group) {
+    var found = null;
+    (function walk(n) {
+      var kids = n.childNodes || [];
+      for (var i = 0; i < kids.length && !found; i++) {
+        var k = kids[i];
+        if (k.tagName === 'A' && k.id !== README_LINK_ID) { found = k; return; }
+        walk(k);
+      }
+    })(group);
+    return found;
+  }
+
+  // Left of that icon, on the heading line. Two fallbacks, because neither anchor is
+  // ours and a plugin with no `url:` has no icon at all: the Enable/Disable button,
+  // found by its caption the way a row's Delete is, and then the stale banner's slot
+  // above the description. The notice appears either way.
   function supersededSlot(group) {
+    var link = stashUrlLink(group);
+    if (link && link.parentNode) return { parent: link.parentNode, before: link };
     var btn = findActionByLabel(group, 'Disable') || findActionByLabel(group, 'Enable');
     if (btn && btn.parentNode) return { parent: btn.parentNode, before: btn };
     return staleSlot(group);
@@ -3758,7 +3782,7 @@
       if (node && node.parentNode) node.parentNode.removeChild(node);
       return;
     }
-    var text = '\u26a0 ' + SUPERSEDER_NAME + ' is present and functionally supersedes ' +
+    var text = '\u26a0 ' + SUPERSEDER_SHORT + ' is present and functionally supersedes ' +
       'this plugin. ' + (exclusionsMigrated(_supersederSettings)
         ? 'Settings migrated. Uninstall safe \u2705'
         : 'Its exclusion filters do not match these - check them before uninstalling.');
@@ -3770,6 +3794,7 @@
     }
     var box = taskEl('div', 'cpt2s-super', text);
     box.id = SUPERSEDED_ID;
+    box.title = SUPERSEDER_NAME;
     var slot = supersededSlot(group);
     slot.parent.insertBefore(box, slot.before);
   }

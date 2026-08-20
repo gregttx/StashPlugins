@@ -304,9 +304,9 @@ both plugins only ever add tags, so running both is redundant work and doubled l
 wrong data. Nothing is suppressed and nothing blocks; disable one if you would rather not see it
 twice.
 
-**Settings → Plugins says so too, beside this plugin's own Disable button**, in amber: that plugin
-is present and functionally supersedes this one. The notice appears only while its
-performer-tags-onto-scenes path is actually enabled — installed with that path switched off, it
+**Settings → Plugins says so too, on this plugin's heading line**, in amber, left of Stash's own link icon: that plugin
+is present and functionally supersedes this one — named short, with the full name on hover.
+The notice appears only while its performer-tags-onto-scenes path is actually enabled — installed with that path switched off, it
 replaces nothing and nothing is said. It also checks that this plugin's four exclusion filters are
 set the same way over there, which that plugin adopts by itself wherever it has never had its own:
 where they match, the notice says this plugin is safe to uninstall; where they do not, it says to

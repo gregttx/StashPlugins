@@ -5,8 +5,17 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.6.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.6.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.6.1 puts that notice on the heading line.** Live, beside the Disable button was not where
+it wanted to be: it anchors on Stash's own `url:` link icon instead - the first anchor in the
+group that is not the labelled README link this plugin injects, excluded by id because ours is
+added later in the same tick on the first pass and earlier on every one after, so document
+order says nothing. The button stays as the fallback for a plugin with no `url:`, and the stale
+banner's slot behind that. The name is elided to `Propagate Tags and Performers...` with the
+full one on the element's title, since inline on that line the manifest name would be most of
+the row.
 
 **3.6.0 says on the settings page when this plugin has been superseded.**
 `PropagateTagsAndPerformers` performs this plugin's whole job as one of its thirteen paths and

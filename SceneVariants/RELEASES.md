@@ -8,7 +8,8 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 0.2.0 (`c0dd2a6`) | 2026-08-20 | SceneVariants 0.2.0: covers and previews, and one word for one idea |
+| 0.2.1 (`34e613c`) | 2026-08-20 | SceneVariants 0.2.1: partial-length is amber, and sized with the metadata |
+| [0.2.0](https://github.com/gregttx/StashPlugins/commit/c0dd2a6) | 2026-08-20 | SceneVariants 0.2.0: covers and previews, and one word for one idea |
 | [0.1.2](https://github.com/gregttx/StashPlugins/commit/b4cec90) | 2026-08-20 | SceneVariants 0.1.2: prove the patch shape against the real React |
 | [0.1.1](https://github.com/gregttx/StashPlugins/commit/f997b2d) | 2026-08-20 | SceneVariants 0.1.1: the after-patch reads its result off the end |
 | [0.1.0](https://github.com/gregttx/StashPlugins/commit/6f8240f) | 2026-08-20 | SceneVariants 0.1.0: a real Siblings tab on the scene page |

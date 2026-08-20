@@ -5,8 +5,15 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.5.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.5.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.5.2 takes the release history out of the source.** The repo rule against version notes
+in a README now covers a plugin's own comments too, so every "since 0.13.0" / "1.15.4 tried
+..." clause here states its reason without the number. What survives is the reasoning; what
+goes is the changelog, which is what this file is for. `version.test.js` pins both files -
+every `X.Y.Z` in a README or a source has to be a requirement, the plugin's own version, or
+a quoted literal. Comments only; nothing executes differently.
 
 **3.5.1 drops a version reference from the README's prose**, under the widened repo rule: neither a
 README nor a source file says which release changed what, and only a breaking change with no

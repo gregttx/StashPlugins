@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.2.0';
+  var PLUGIN_VERSION = '2.2.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -99,8 +99,8 @@
     b1DescriptionTagName: DEFAULT_STORE_TAG,
     c1ExcludeFromAddListField: 'ᱜ╦╦🞮_exclude_from_add_list',
   };
-  // What that default was until 2.0.1: a name in a namespace with no owner, so a
-  // setting still reading it is moved onto the prefixed one wherever it is read.
+  // The default this replaced: a name in a namespace with no owner, so a setting
+  // still reading it is moved onto the prefixed one wherever it is read.
   var LEGACY_HIDE_FIELD = 'Exclude_from_add_list';
   var SKIP_IMAGES_NAME = 'Skip Images in the Whole-Library Task';
 
@@ -399,7 +399,7 @@
       input[k] = DEFAULTS[k];
       missing++;
     }
-    // And the one upgrade: a hide field still named the pre-2.0.1 default is written
+    // And the one upgrade: a hide field still named the unprefixed default is written
     // back under the prefixed one, so the box says what `effective` is already using.
     if (input.c1ExcludeFromAddListField === LEGACY_HIDE_FIELD) {
       input.c1ExcludeFromAddListField = DEFAULTS.c1ExcludeFromAddListField;
@@ -503,7 +503,7 @@
       .then(function (data) { return ((data && data.findTags) || {}).tags || []; });
   }
 
-  // A tag wearing one of the pre-2.0.1 names is moved onto the current one where it is
+  // A tag wearing one of the unprefixed names is moved onto the current one where it is
   // found, in one update per tag, and nothing about it is reported: the store is the
   // same store, and neither name was something a user chose. Used for the marker, and
   // for the mark the store tag wears to hide itself.
@@ -540,8 +540,8 @@
             return (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0);
           })[0];
         }
-        // The store tag hides itself with the hide field, so that field's own rename at
-        // 2.0.1 has to reach this one mark - nothing else can, since every scan leaves
+        // The store tag hides itself with the hide field, so that field's own rename
+        // has to reach this one mark - nothing else can, since every scan leaves
         // the store tag out. The entities the *user* marked are left where they are:
         // that is a bulk write, and Migrate in the descriptions dialog is where it
         // belongs.
@@ -630,12 +630,12 @@
     // window jumping to a new size while you are reading it. A modifier rather than an
     // edit to the shared rule, for the reason `.cfbe-listwrap` is one.
     '.cfbe-modal.cfbe-tall{height:88vh;}' +
-    // Three labelled boxes with a mode each (0.12.0) no longer fit one line on a narrow
-    // window, and the shared `.cfbe-search` is pinned across the four plugins - so the
+    // Three labelled boxes with a mode each do not fit one line on a narrow window,
+    // and the shared `.cfbe-search` is pinned across the four plugins - so the
     // wrap is a modifier here, the same escape hatch `.cfbe-tall` above is. `gap` is
     // already both axes, so the wrapped line spaces itself.
     '.cfbe-search-wrap{flex-wrap:wrap;}' +
-    // The list was a <textarea> until 0.2.0, which is what made it selectable and
+    // The list was a <textarea> once, which is what made it selectable and
     // copyable with nothing to press and kept a selection of several thousand
     // entities down to one node. Pills need real elements, so the node count is back
     // and `LIST_RENDER_CAP` is what keeps it bounded - the same trade the siblings
@@ -740,7 +740,7 @@
     //
     // The three rules below are the description half of the shared design, and the
     // four after them the per-setting half - byte-identical with the siblings' copies,
-    // and required of this plugin from 0.7.0, which is when it got its first setting.
+    // and required of this plugin, which has a setting of its own to tip.
     '.cfbe-own-group .sub-heading{white-space:pre-wrap;}' +
     '.cfbe-own-group .sub-heading .cfbe-p{margin:0 0 .35em;}' +
     '.cfbe-own-group .sub-heading .cfbe-p:last-child{margin-bottom:0;}' +
@@ -918,8 +918,8 @@
   // `/tags/9/images` all end in the list they show, and a detail page (`/scenes/12`)
   // or the marker list (`/scenes/markers`) ends in something that is not a key here.
   //
-  // Four list views are exceptions, and 0.1.1 is the release that stopped missing
-  // them - the reported symptom was a gallery's own image list drawing no menu item.
+  // Four list views are exceptions, and missing them showed up as a gallery's own
+  // image list drawing no menu item.
   // A detail page's tabs go through `useTabKey`, which puts the tab in the URL as
   // `<base>/<tabKey>`, and three tab keys are not the plural of what they list; a
   // gallery is worse still, since `Gallery.tsx` routes its right-hand tabs by hand to
@@ -1002,9 +1002,10 @@
   // is the whole table - so it resolves to every id on the page, and taking that as a
   // selection would silently widen a write to the entire list.
   //
-  // **Inside a row, more than one id means a relative of the same type**, which is why
-  // 0.1.2 exists: a tag card links to its parent tag and a studio card to its parent
-  // studio, so every tag and studio with a parent was being dropped from the selection.
+  // **Inside a row, more than one id means a relative of the same type**, which is what
+  // this counts for: a tag card links to its parent tag and a studio card to its
+  // parent studio, so a tag or studio with a parent is otherwise dropped from the
+  // selection.
   // The row's own link is the one it renders *twice* - `GridCard` links both the
   // thumbnail and the title at it, and both list tables do the same - while a relative
   // gets exactly one. So the id with strictly the most links wins, and a tie is still a
@@ -1179,7 +1180,7 @@
   // our name - another plugin may declare a task called the same thing. Answered from
   // the button's own group and stopped there: climbing past it reaches the panel
   // holding every plugin's group, where `querySelector('h3')` answers with whichever
-  // plugin is listed first (§ownTaskName in MergePerformerTagsToScenes, 1.17.0).
+  // plugin is listed first (§ownTaskName in MergePerformerTagsToScenes).
   //
   // Returns *which* of our tasks it is, because two of them now share this path and the
   // click has to open the right dialog.
@@ -1923,7 +1924,7 @@
   // `[['a', 12], ['b', 3]]` over whatever `key` names, sorted. One function for every
   // summary line: the read counts field names, an Apply counts Added/Replaced/Deleted,
   // a skipped Add counts the values it left alone. Pairs rather than the joined string
-  // it returned until 0.6.0, because a name in a summary is worth a copy pill and a
+  // it used to return, because a name in a summary is worth a copy pill and a
   // string cannot carry one - `tallyText` is the same line where plain text will do.
   function tally(items, key) {
     var counts = {};
@@ -2286,7 +2287,7 @@
 
     // Three reasons an entity in scope gets no change, all of them worth a line: they
     // are the difference between "it worked" and "it did nothing to half of these",
-    // and the dialog said the same thing either way until 0.6.0. The order matters -
+    // and a dialog that said the same thing either way would hide it. The order matters -
     // an "Add" over a key that already holds the asked-for value is *unchanged*, not
     // *refused*, so the equal-value test runs first for every mode that writes one.
     var changes = [];
@@ -2668,7 +2669,7 @@
       //
       // `changes` is kept, so Undo stays offered until the dialog closes. Pressing it
       // again re-asserts the same before-values, which is idempotent - it was cleared
-      // here until 0.4.0, which left an undone run with Close as its only option.
+      // here once, which left an undone run with Close as its only option.
       self.setState('applied');
       self.renderProgress();
     });
@@ -3739,7 +3740,7 @@
   // SettingsPluginsPanel.tsx gives every plugin setting an id built from the plugin id
   // and the setting key - `plugin-CustomFieldsBulkEditor-a1SkipImagesInTask`. That is
   // ours by construction: no version suffix, no localisation, nothing formatted for
-  // display. From 0.7.0 this plugin finally has one of those to anchor on; `ownParts`
+  // display. This plugin has one of those to anchor on; `ownParts`
   // still goes in by the heading, because it needs the description beside it.
   function settingElement(key) {
     return document.getElementById('plugin-' + PLUGIN_ID + '-' + key);

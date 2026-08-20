@@ -28,15 +28,16 @@
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and goes current the moment plugins are reloaded, while the browser can
-  // still be running a script it cached before the edit - so a heading reading 0.1.0
-  // over 0.0.1 behaviour is the normal look of a stale script, not a contradiction.
+  // still be running a script it cached before the edit - so a heading reading one
+  // version over the previous one's behaviour is the normal look of a stale script,
+  // not a contradiction.
   // This constant travels inside the file. Bump it with the manifest and the yml;
   // the `version` suite fails if the three disagree.
   //
-  // Below 1.0.0 deliberately, and it stays there until the plugin has been used in a
-  // live Stash: the major digit is the claim that the thing works, and no test in this
-  // repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.7.0';
+  // The major digit is deliberately still zero, and stays there until the plugin has
+  // been used in a live Stash: it is the claim that the thing works, and no test in
+  // this repo can check a guess about Stash's markup.
+  var PLUGIN_VERSION = '0.7.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -669,7 +670,7 @@
     // A fixed `height` rather than the shared `max-height` alone: ticking a checkbox
     // changes the Add button's caption and the counters, and a content-sized modal
     // would resize under the pointer between two ticks. This is the modifier pattern
-    // CustomFieldsBulkEditor 0.10.0 established - a class beside the pinned rule,
+    // CustomFieldsBulkEditor established - a class beside the pinned rule,
     // never an edit to what four other plugins share - and the same 88vh, because two
     // plugins defining `.tall` differently is exactly the drift `style` exists to stop.
     '.tbc-modal.tbc-tall{height:88vh;}' +
@@ -1680,11 +1681,11 @@
   // ── Is this script the one Stash has installed? ───────────────────────────
   //
   // "Reload plugins" re-reads the plugin folder on the server; it cannot replace a
-  // script this page already fetched and executed. So the manifest can say 0.2.0 while
-  // the browser is still running 0.1.0, and every surface Stash renders - the version
-  // beside the plugin name included - shows the new number, because they all come from
-  // the manifest over GraphQL. Comparing the two is the only way the script can notice
-  // it is the stale one.
+  // script this page already fetched and executed. So the manifest can say one version
+  // while the browser is still running the one before it, and every surface Stash
+  // renders - the version beside the plugin name included - shows the new number,
+  // because they all come from the manifest over GraphQL. Comparing the two is the
+  // only way the script can notice it is the stale one.
   //
   // Resolves to null wherever the answer is unknown: a Stash too old for the field, a
   // plugin it cannot see, a failed request. Unknown is not a mismatch.
@@ -1764,7 +1765,7 @@
   //
   //   heading: `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`
   //
-  // so the h3 there reads "... (0.0.1)" - and, because that template interpolates the
+  // so the h3 there reads "... (<version>)" - and, because that template interpolates the
   // literal when there is no version at all, sometimes "... undefined".
   //
   // Strip the suffix and compare exactly, rather than testing a prefix: a plugin whose

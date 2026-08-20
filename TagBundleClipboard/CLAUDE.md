@@ -5,7 +5,7 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.7.0.** Three live passes in, and most of the guesses held — §11 records
+**Status: partly verified. 0.7.1.** Three live passes in, and most of the guesses held — §11 records
 what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
 empty, and the major digit is the claim that the whole thing works.
 
@@ -23,6 +23,7 @@ empty, and the major digit is the claim that the whole thing works.
 | 10 | The bound planner re-bound when the tab comes back, so a settings change reaches a dialog that is already open | 0.6.0 |
 | 11 | The two mode marks cut to one word each, for the room the column has | 0.6.1 |
 | 12 | The shared `domBus`, the heading fallback folded into `ownSettingGroup`, and two dead pieces removed | 0.7.0 |
+| 13 | The release history out of the source comments, pinned by `version.test.js` | 0.7.1 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over

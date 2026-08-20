@@ -26,11 +26,11 @@
   // The one version that proves anything. Everything the settings page shows is read
   // from the manifest over GraphQL and updates the moment plugins are reloaded, while
   // the browser can go on running a script it cached before the edit - so a heading
-  // reading 1.4.4 over 1.4.0 behaviour is the normal look of a stale script, not a
-  // contradiction. This constant travels inside the file, so the line below says
-  // which script is actually running. Bump it with the manifest and the yml; the
-  // `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.6.4';
+  // reading one version over the previous one's behaviour is the normal look of a
+  // stale script, not a contradiction. This constant travels inside the file, so the
+  // line below says which script is actually running. Bump it with the manifest and
+  // the yml; the `version` suite fails if the three disagree.
+  var PLUGIN_VERSION = '4.6.5';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -246,7 +246,7 @@
   //
   //   - **`autoMode` is a question, not a setting.** A caller asks what will happen
   //     automatically when Stash saves an entity of a given type, and gets 'prune',
-  //     'rollup' or null. That day came at 4.0.0: two global booleans scoped by seven
+  //     'rollup' or null. That day came: two global booleans scoped by seven
   //     "Include ..." toggles became one mode per type, every setting key this plugin
   //     had was renamed, and no caller changed a line. A caller reading the settings
   //     itself would have broken - while sounding confident - which was the argument
@@ -300,8 +300,8 @@
         version: API_VERSION,
         entityType: type ? type.key : null,
         includesType: includes,
-        // Null where nothing happens on its own to this type - which since 4.0.0 is
-        // one question rather than two, since a type carries its own mode.
+        // Null where nothing happens on its own to this type - one question rather
+        // than two, since a type carries its own mode.
         autoMode: includes ? mode : null,
         plan: function (req) {
           var r = req || {};
@@ -486,7 +486,7 @@
 
   // ── Migrating the nine booleans this setting replaced ─────────────────────
   //
-  // Up to 3.2.0 the same configuration was `a1EnablePerformers`...`a7EnableMarkers`
+  // The same configuration used to be `a1EnablePerformers`...`a7EnableMarkers`
   // saying which types a run covered, and `a8AutoPruneOnUpdate`/`a9AutoRollUpOnUpdate`
   // saying what happened automatically to all of them. The mapping is exact: an
   // enabled type takes whichever single auto mode was on, and everything else is OFF.
@@ -530,11 +530,11 @@
   // not, so the difference is deliberate on both sides and there is nothing to fix
   // upstream. A mutation naming only the key it changes therefore **deletes every
   // other setting this plugin has** - all eight exclusion filters, every time this one
-  // is saved, and once more for anybody the 4.0.0 migration ran for.
+  // is saved, and once more for anybody the migration above ran for.
   //
   // Found in `PropagateTagsAndPerformers` after a user lost their settings twice to
-  // the same shape, copied from here. `CustomFieldsBulkEditor` had known it since its
-  // 2.0.1 and said so beside `followHideRename`; the knowledge stayed in one plugin
+  // the same shape, copied from here. `CustomFieldsBulkEditor` had known it all along
+  // and said so beside `followHideRename`; the knowledge stayed in one plugin
   // while two others copied the broken shape, which is why the rule is now in the
   // repo-root CLAUDE.md rather than in a comment.
   //
@@ -577,7 +577,7 @@
   function migrateLegacy(text) {
     if (_migrated) return;
     _migrated = true;
-    npt('[npt] migrating the pre-4.0.0 entity and auto-mode settings to "' + text + '".');
+    npt('[npt] migrating the legacy entity and auto-mode settings to "' + text + '".');
     saveAutoModes(text).then(null, function (e) {
       npt('[npt] the migrated auto-mode setting could not be saved (' +
         (e && e.message ? e.message : e) + '). It is being used for this page all the same; ' +
@@ -1432,8 +1432,8 @@
     // This plugin has no console-logging setting, so it has no teal twin of the
     // rule the two siblings carry - only the read-only task button below is teal.
     //
-    // The auto-mode setting is a text field rather than a switch, and 4.0.1 tried to
-    // mark it amber with a `border-color` on the input. That was wrong on a live page:
+    // The auto-mode setting is a text field rather than a switch, and marking it amber
+    // with a `border-color` on the input was wrong on a live page:
     // the field's border *is* the line the user reads as the divider between that
     // setting row and the next, so the mark did not read as "this one writes on its
     // own", it read as a broken separator. The two switch shapes stay - they cost
@@ -1444,7 +1444,7 @@
     '#plugin-NormalizeParentTags-a1AutoModes:checked~.custom-control-label::before' +
     '{background-color:#ffc107;border-color:#ffc107;}' +
 
-    // A third attempt, an inset amber bar (4.1.0), went the same way at 4.6.0: on the
+    // A third attempt, an inset amber bar, went the same way: on the
     // settings row it drew a heavy rule down the left of a row whose value line was
     // already amber where it mattered, and on the teal task button a 3px sliver read
     // as a rendering artifact rather than as a state. **The value itself is the mark
@@ -1584,11 +1584,11 @@
   // ── Is this script the one Stash has installed? ───────────────────────────
   //
   // "Reload plugins" re-reads the plugin folder on the server; it cannot replace a
-  // script this page already fetched and executed. So the manifest can say 1.4.5
-  // while the browser is still running 1.4.4, and every surface Stash renders - the
-  // version beside the plugin name included - will show the new number, because they
-  // all come from the manifest over GraphQL. Comparing the two is the only way the
-  // script can notice it is the stale one.
+  // script this page already fetched and executed. So the manifest can say one version
+  // while the browser is still running the one before it, and every surface Stash
+  // renders - the version beside the plugin name included - will show the new number,
+  // because they all come from the manifest over GraphQL. Comparing the two is the
+  // only way the script can notice it is the stale one.
   //
   // Resolves to null wherever the answer is unknown: a Stash too old for the field, a
   // plugin it cannot see, a failed request. Unknown is not a mismatch, and a run must
@@ -1668,9 +1668,9 @@
   //
   // `modes` is the run's own copy, seeded from the auto-mode settings and editable in
   // the dialog. Images are the one type that does not inherit: the settings page has
-  // called them "usually the largest type and the slowest to scan" since 1.0.0, and a
-  // library-wide image pass is a decision worth taking per run rather than one to
-  // inherit from a setting about what happens when a single image is saved.
+  // called them "usually the largest type and the slowest to scan", and a library-wide
+  // image pass is a decision worth taking per run rather than one to inherit from a
+  // setting about what happens when a single image is saved.
   function defaultRunModes(settings) {
     var modes = {};
     TYPES.forEach(function (t) {
@@ -2028,7 +2028,7 @@
       var node = el('div', 'npt-line npt-' + p.kind, p.parts ? null : p.line);
       // The line looks exactly like every other one: the spans exist to hang a
       // title on, and carry no styling of their own. An underline and a help cursor
-      // were tried at 1.4.0 and read as decoration on a log that has none elsewhere.
+      // were tried and read as decoration on a log that has none elsewhere.
       if (p.parts) {
         node.appendChild(el('span', null, '[' + p.kind + '] '));
         p.parts.forEach(function (seg) {
@@ -2192,7 +2192,7 @@
     var on = [];
     // The sibling's own manifest keys, read straight off the shared settings
     // response - so they are its wire names, prefixes and all, not the internal
-    // names its source uses. They changed once, at its 1.1.1; both alternatives
+    // names its source uses. They changed once; both alternatives
     // are accepted here so this check still works against an older copy.
     if (siblingSettings.a3AutoMergeOnSceneUpdate || siblingSettings.autoMergeOnSceneUpdate) {
       on.push('Auto Merge On Scene Updates');
@@ -2630,8 +2630,8 @@
   // *mostly* a forest, so the tree is the honest shape - and the handful of tags
   // with several parents are marked rather than hidden. It shipped with Copy as DOT
   // and Copy as Mermaid beside that, for anyone who did want a drawn graph in a tool
-  // built for it; 2.2.0 removed them, because the graphs they produced were not
-  // legible either.
+  // built for it; they are gone, because the graphs they produced were not legible
+  // either.
 
   var TREE_ROW_CAP = 4000;   // rows rendered at once by a search; see renderSearch
 
@@ -3242,7 +3242,7 @@
     });
   };
 
-  // The graph exports (Copy as DOT / Copy as Mermaid) were removed at 2.2.0. They
+  // The graph exports (Copy as DOT / Copy as Mermaid) are gone. They
   // emitted valid Graphviz and Mermaid for the selection or the whole DAG, and the
   // drawn result was unreadable at real library size - which is the same reason this
   // dialog is a tree and not a node-link graph in the first place. Reintroducing them
@@ -3549,7 +3549,7 @@
 
   // ── The settings page ─────────────────────────────────────────────────────
   //
-  // Up to 3.2.0 this section carried a notice for the one configuration the old
+  // This section used to carry a notice for the one configuration the old
   // settings could express and the plugin could not honour - both auto modes ticked
   // at once, which ran neither. The tri-state string cannot say that, so the notice
   // is gone and what is left is the opposite job: keeping the string the user typed
@@ -3595,8 +3595,8 @@
       if (hasClass(node, 'setting-group')) return node;
     }
     // Fallback for a Stash that sets no setting ids: the group headed with our own
-    // name. It was the both-modes notice's fallback until 4.0.0 and it outlived that
-    // notice, because everything else this section puts on the page - the README
+    // name. It was the both-modes notice's fallback and it outlived that notice,
+    // because everything else this section puts on the page - the README
     // link, the description split, the stale banner - needs the same box.
     //
     // Settings - Tasks heads *its* group with the same name, and that group is not
@@ -3645,10 +3645,10 @@
   //
   //   heading: `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`
   //
-  // so the h3 there reads "Normalize Parent Tags (1.2.0)" - and, because that
+  // so the h3 there reads "Normalize Parent Tags (<version>)" - and, because that
   // template interpolates the literal when there is no version at all, sometimes
-  // "Normalize Parent Tags undefined". Matching the bare name found neither, which
-  // is why the notice never appeared at 1.2.0.
+  // "Normalize Parent Tags undefined". Matching the bare name finds neither, which
+  // is why anything anchored on it has to strip the suffix first.
   //
   // Strip the suffix and compare exactly, rather than testing a prefix: a plugin
   // called "ᝯㄝₓ Normalize Parent Tags Extra" must not be mistaken for ours.
@@ -3685,8 +3685,8 @@
   // through `ModalSetting` -> `ChangeButtonSetting`, which puts the id on the row
   // div; only a BOOLEAN puts it on a control (the `Form.Switch`). Everything here
   // that walks *up* from `settingElement` was right either way, which is why nothing
-  // noticed - but 4.4.0 read `.value` off it as though it were a text box, and
-  // `display:none` on it hid the whole row, heading and description with it. That is
+  // noticed - but reading `.value` off it as though it were a text box, and
+  // `display:none` on it, hid the whole row, heading and description with it. That is
   // exactly what the live screenshot showed.
   //
   // So this replaces the row's two Stash-rendered halves and leaves the rest of it
@@ -3750,9 +3750,8 @@
     // the second tick is the line the first tick appended, so `host.appendChild(line)`
     // appends a node into itself: a HierarchyRequestError thrown out of the interval
     // in a browser, and a silent unlink anywhere that is more forgiving. Unreachable
-    // while Stash renders a `.value` for a STRING setting, which is why it went four
-    // releases unseen; `PropagateTagsAndPerformers` 3.0.0 found it in a fixture that
-    // had none.
+    // while Stash renders a `.value` for a STRING setting, which is why it went unseen
+    // for so long; `PropagateTagsAndPerformers` found it in a fixture that had none.
     var slot = byClass(row, 'value');
     var host = slot ? slot.parentNode : row;
     if (line.parentNode !== host) {
@@ -3887,8 +3886,8 @@
   // 17 splits are authored by hand rather than cut at the first sentence. The box
   // opens on focus as well as hover, so it is better reachable than a `title` was,
   // but it still does not exist on a touch device. The auto-mode warnings in a8/a9
-  // were held in the visible half until 1.7.5 for that reason, and moved into the
-  // tooltip at the user's request; see §6.
+  // were held in the visible half for that reason, and moved into the tooltip at the
+  // user's request; see §6.
   var TIP_MARK = 'ⓘ';                       // circled Latin small letter i
 
   function setTipOpen(sub, on) {
@@ -4178,7 +4177,7 @@
     var label = (btn.textContent || '').trim();
     if (TASKS.indexOf(label) === -1) return null;
     // Answer from the button's *own* SettingGroup and stop there. Testing every
-    // ancestor for an h3 - which is what this did until 1.8.0 - climbs past the group
+    // ancestor for an h3 - which is what this used to do - climbs past the group
     // on a miss and into the panel holding every plugin's group, where
     // `querySelector('h3')` answers with whichever plugin is listed first. A plugin
     // declaring a task by the same name as ours was therefore hijacked whenever we

@@ -3,9 +3,16 @@
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 
-**Status: implemented at 4.6.4.** This file is both the design and the map of the code — the
+**Status: implemented at 4.6.5.** This file is both the design and the map of the code — the
 sections below match the order of `NormalizeParentTags.js`. Where the code and this file
 disagree, the code is what runs; fix the file.
+
+**4.6.5 takes the release history out of the source.** The repo rule against version notes
+in a README now covers a plugin's own comments too, so every "since 0.13.0" / "1.15.4 tried
+..." clause here states its reason without the number. What survives is the reasoning; what
+goes is the changelog, which is what this file is for. `version.test.js` pins both files -
+every `X.Y.Z` in a README or a source has to be a requirement, the plugin's own version, or
+a quoted literal. Comments only; nothing executes differently.
 
 **4.6.4 takes the version history back out of the README and the source.** The repo rule against
 release notes was written as being about a plugin's `README.md` "and nothing else", so the sources

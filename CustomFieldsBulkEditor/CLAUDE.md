@@ -105,7 +105,7 @@ second is not. The bump was asked for explicitly, so it is the user's claim abou
 instance rather than a conclusion drawn here. What that changes going forward: a patch per fix, a
 minor per delivered capability, and this paragraph goes when the list above does.
 
-**Status: 2.2.0 — §22–§23 are being used, and the first reports are in.** Everything those two
+**Status: 2.2.1 — §22–§23 are being used, and the first reports are in.** Everything those two
 sections describe was written in one branch (`cf-descriptions`) from a specification, against schema
 read off `stashapp/stash` `develop` on 2026-08-16. The dialog **opens, scans, writes and is being
 typed into** in a live Stash as of 2026-08-16, which is what 0.8.1 answers: Apply locked the box
@@ -114,6 +114,13 @@ unverified: Undo, Prune, Migrate, the version gate, and every one of the six dro
 The suite covers all of it — 84 checks in `tests/cfbe-desc.test.js`, each confirmed against a
 deliberately broken copy — but it reproduces Stash's answers from notes, which is exactly the limit
 stated at the end of §9.
+
+**2.2.1 takes the release history out of the source.** The repo rule against version notes
+in a README now covers a plugin's own comments too, so every "since 0.13.0" / "1.15.4 tried
+..." clause here states its reason without the number. What survives is the reasoning; what
+goes is the changelog, which is what this file is for. `version.test.js` pins both files -
+every `X.Y.Z` in a README or a source has to be a requirement, the plugin's own version, or
+a quoted literal. Comments only; nothing executes differently.
 
 **Status of everything before it: 0.7.3 — partly verified.** The user has it installed and has reported back, which is the
 first real evidence any of it works: the menu item, the dialog and the entity types it offers are

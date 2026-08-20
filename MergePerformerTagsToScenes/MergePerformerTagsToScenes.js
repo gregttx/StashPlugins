@@ -21,11 +21,12 @@
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and updates as soon as plugins are reloaded, while the browser can still
-  // be running a script it cached before the edit — a heading reading 1.8.3 over
-  // 1.8.0 behaviour is the normal look of a stale script. This constant travels
+  // be running a script it cached before the edit — a heading reading one version
+  // over the previous one's behaviour is the normal look of a stale script. This
+  // constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.5.1';
+  var PLUGIN_VERSION      = '3.5.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -474,7 +475,7 @@
   // error as "no exclusion configured" would merge tags into the very scenes the
   // user asked to protect, and tags are never removed again.
   //
-  // **A name that matches no tag rejects too** (1.16.3). It used to warn to the console
+  // **A name that matches no tag rejects too.** It used to warn to the console
   // and merge unfiltered, which is the same silent-failure shape the paragraph above
   // rejects, reached by a typo instead of by a network error: the user believes scenes
   // carrying that tag are protected, every one of them is merged into, and nothing here
@@ -582,8 +583,8 @@
     return guarded(function () { return runMergeTagsIntoScene(sceneId); });
   }
 
-  // Everything between "here is a scene" and "here is what it needs", extracted at
-  // 1.16.0 so the scene button's gate can ask the identical question the click answers.
+  // Everything between "here is a scene" and "here is what it needs", extracted so
+  // the scene button's gate can ask the identical question the click answers.
   // Same rule as `sceneMergePlan` itself (§3, "one filter, one implementation"): a gate
   // that re-derived this would be a second opinion free to drift from the first, and a
   // button that hides while a click would have merged is the drift nobody would notice.
@@ -1262,8 +1263,9 @@
 
   // What Stash has installed, as opposed to what this file says it is. "Reload
   // plugins" re-reads the plugin folder on the server but cannot replace a script
-  // this page already executed, so the manifest can say 1.8.4 while the browser runs
-  // 1.8.3 — and every version Stash renders comes from that manifest. Comparing the
+  // this page already executed, so the manifest can say one version while the browser
+  // runs the one before it — and every version Stash renders comes from that
+  // manifest. Comparing the
   // two is the only way the script can notice it is the stale one. The sibling has
   // the same check; see its §5 for the reasoning, and the repo-root CLAUDE.md for
   // why the two are separate implementations.
@@ -1583,7 +1585,7 @@
       var node = taskEl('div', 'cpt2s-line cpt2s-' + p.kind, p.parts ? null : p.line);
       // The line looks exactly like every other one: the spans exist to hang a
       // title on, and carry no styling of their own. An underline and a help cursor
-      // were tried at 1.8.0 and read as decoration on a log that has none elsewhere.
+      // were tried and read as decoration on a log that has none elsewhere.
       if (p.parts) {
         node.appendChild(taskEl('span', null, '[' + p.kind + '] '));
         p.parts.forEach(function (seg) {
@@ -1665,16 +1667,16 @@
   };
 
   // NormalizeParentTags' automatic modes, as its settings actually spell them.
-  // Since its 4.0.0 that is one string carrying a mode per entity type
-  // ("SCENES=PRUNE, IMAGES=ROLLUP"), so both directions can be on at once for
-  // different types; before it, two booleans covering every type it was enabled for,
-  // where both at once was that plugin's own documented no-op.
+  // Today that is one string carrying a mode per entity type ("SCENES=PRUNE,
+  // IMAGES=ROLLUP"), so both directions can be on at once for different types; the
+  // pair of booleans it replaced covered every type it was enabled for, where both at
+  // once was that plugin's own documented no-op.
   //
   // Read by name rather than through its `coop().api`, like the rest of this check:
   // the API answers for one entity type at a time and needs the plugin to be running
   // in this page, and what this warning is about is a setting that may be set while
-  // the plugin is disabled. Its 4.0.0 renamed every key it had, which is why the old
-  // pair is still read - an install that has not been touched since 3.2.0 still
+  // the plugin is disabled. It renamed every key it had at once, which is why the old
+  // pair is still read - an install that has not been touched since then still
   // carries them, and this check has to keep working against it.
   function siblingAutoModes(ps) {
     var modes = String((ps && ps.a1AutoModes) || '');
@@ -1690,8 +1692,8 @@
   }
 
   // The mirror of NormalizeParentTags' own check: it reads our auto-merge flags out
-  // of the shared settings response and says whether we will stand down, and since
-  // its 1.1.0 it has reactive modes worth the same treatment in reverse. Both of its
+  // of the shared settings response and says whether we will stand down, and it has
+  // reactive modes worth the same treatment in reverse. Both of its
   // directions collide with a merge - Prune strips the parent tags we add straight
   // back out, Roll Up piles more ancestors on top - so the warning names which.
   //
@@ -1707,8 +1709,8 @@
     if (!auto.prune && !auto.rollup) return;
 
     // Both, where its settings set one type to prune and another to roll up - a state
-    // its pre-4.0.0 pair of booleans could not express and this used to read as "no
-    // mode is running".
+    // the pair of booleans it used to keep could not express, and which this once read
+    // as "no mode is running".
     var mode = auto.prune && auto.rollup
       ? 'automatic Prune and Roll Up'
       : (auto.prune ? 'automatic Prune' : 'automatic Roll Up');
@@ -2401,7 +2403,7 @@
     var label = (btn.textContent || '').trim();
     if (TASKS.indexOf(label) === -1) return null;
     // Answer from the button's *own* SettingGroup and stop there. Testing every
-    // ancestor for an h3 - which is what this did until 1.17.0 - climbs past the group
+    // ancestor for an h3 - which is what this used to do - climbs past the group
     // on a miss and into the panel holding every plugin's group, where
     // `querySelector('h3')` answers with whichever plugin is listed first. A plugin
     // declaring a task by the same name as ours was therefore hijacked whenever we
@@ -2600,8 +2602,8 @@
         }
       }
 
-      // The same two branches for `sceneCheck`, added at 1.16.0 alongside the scene
-      // button's eligibility gate. Until then this cache had no invalidation at all,
+      // The same two branches for `sceneCheck`, which the scene button's eligibility
+      // gate needs. This cache had no invalidation at all before that,
       // which was survivable while it only asked "has this scene any performers" - the
       // one edit that could change that answer was rare. It is not survivable now that
       // the gate reads the scene's own tags: adding a performer in the Edit tab and
@@ -2700,14 +2702,14 @@
   // text - the same technique this file's dedup checks already rely on, and
   // deliberately not `querySelectorAll`, which the shared test harness's fake DOM
   // nodes do not implement (only `querySelector`). Text is the only reliable way to
-  // find Save, which carries no distinguishing class, and - since 1.15.1 - the only
-  // reliable way to find Delete either, on the rows where it carries no `.delete`.
+  // find Save, which carries no distinguishing class, and the only reliable way to
+  // find Delete either, on the rows where it carries no `.delete`.
   //
   // Matches `<a>` as well as `<button>`, and trims before comparing. Stash styles
   // some row actions as links rather than buttons, and neither the tag nor the
   // surrounding whitespace is something this plugin should have to be right about:
   // the cost of accepting both is nil, and the cost of guessing wrong is a button
-  // silently landing in the wrong place, which is exactly the bug 1.15.1 fixes.
+  // silently landing in the wrong place, which is exactly the bug the text search fixes.
   function findActionByLabel(root, label) {
     var kids = root.childNodes || [];
     for (var i = 0; i < kids.length; i++) {
@@ -2720,7 +2722,7 @@
     return null;
   }
 
-  // Shared by both this plugin's buttons since 1.14.0. The design rule, stated
+  // Shared by both this plugin's buttons. The design rule, stated
   // plainly: a new button is inserted before whichever of the row's buttons is
   // "important" - one that must stay the last thing in the row, because moving it
   // would be a bigger surprise than where our own button lands - and appended after
@@ -2732,8 +2734,8 @@
   // walk-up to the container's own direct child happens after the search, not baked
   // into any of them.
   //
-  // 1.15.1: the middle search is new, and it is the whole fix. Every version up to
-  // 1.15.0 looked for Delete *only* by `.delete`, on the strength of a note in the
+  // The middle search is the whole fix. This looked for Delete *only* by `.delete`,
+  // on the strength of a note in the
   // repo CLAUDE.md that said Stash gives Delete that class "throughout". It does
   // not. It carries it on the performer detail navbar - which is where the claim was
   // actually confirmed, and where this plugin's own container search still relies on
@@ -2741,8 +2743,8 @@
   // at all. On that row the class search found nothing, the Save fallback caught it,
   // and every button landed *before* Save instead of between Save and Delete.
   //
-  // That one over-generalisation is worth naming, because it cost four versions of
-  // anchor churn (1.12.0-1.15.0) that all moved the anchor between Save and Delete
+  // That one over-generalisation is worth naming, because it cost four rounds of
+  // anchor churn that all moved the anchor between Save and Delete
   // without ever fixing the reason Delete could not be found. A class confirmed on
   // one page is evidence about that page. Falling back to text costs one walk and
   // removes the need to be right about which pages style Delete which way.
@@ -2756,8 +2758,8 @@
     applyButtonSpacing(container, button);
   }
 
-  // 1.15.3, mirroring `PropagateTagsAndPerformers` 0.12.3 - the two carry no shared
-  // module, so this is a second copy of one design rather than one implementation.
+  // Mirrors `PropagateTagsAndPerformers`' own - the two carry no shared module, so
+  // this is a second copy of one design rather than one implementation.
   //
   // Measured on a live Stash rather than chosen: `.edit-buttons` computes to
   // `display: block`, and its own buttons to `margin: 0 10px 0 0` - a *right* margin
@@ -2771,7 +2773,7 @@
   // The bottom margin is the wrapped-row spacing, and only where `row-gap` cannot do
   // it: a block container has no flex line whose cross-size a margin could inflate,
   // which is what made vertical margin a regression in a flex row (see
-  // `PropagateTagsAndPerformers` 0.9.2 - this plugin's single buttons never hit it).
+  // `PropagateTagsAndPerformers` - this plugin's single buttons never hit it).
   var ROW_GAP = '.25rem';
 
   function computedStyleOf(node) {
@@ -2791,7 +2793,7 @@
   // worse.
   //
   // Byte-for-byte the same function as `PropagateTagsAndPerformers`' own, bar the
-  // marker property's prefix. Until 1.15.9 this plugin had no equivalent at all and
+  // marker property's prefix. This plugin had no equivalent at all for a while and
   // set only the block-row margin, so a flex row of its buttons wrapped flush while
   // the sibling's spaced correctly from identical-looking code.
   function ensureRowSpacing(container) {
@@ -2807,12 +2809,12 @@
     container.style.rowGap = flexish ? ROW_GAP : '';
   }
 
-  // 1.15.4, mirroring `PropagateTagsAndPerformers` 0.12.4 - and the release that made
-  // 1.15.3's measurement actually reach the page. **Bootstrap's spacing utilities are
-  // `!important`**, so the `mx-2` these buttons carried at build time beat the inline
-  // `margin-left`/`margin-right` copied from the row, and every horizontal gap stayed
-  // exactly what it had been - while `margin-bottom`, which no class sets, took effect
-  // and visibly fixed wrapped-row spacing in that same release. One `cssText`
+  // Mirrors `PropagateTagsAndPerformers`' own, and it is what makes the measurement
+  // above actually reach the page. **Bootstrap's spacing utilities are
+  // `!important`**, so an `mx-2` carried at build time beats the inline
+  // `margin-left`/`margin-right` copied from the row, and every horizontal gap stays
+  // exactly what it was - while `margin-bottom`, which no class sets, takes effect
+  // and visibly fixes wrapped-row spacing. One `cssText`
   // assignment working in one axis and not the other is the shape of a specificity
   // problem, not a wrong value.
   //
@@ -2835,19 +2837,19 @@
     return n > 0 ? n : 0;
   }
 
-  // 1.15.4 copied the donor's margins onto our button wholesale, which gave it
+  // Copying the donor's margins onto our button wholesale gives it
   // `margin-left: 0`. That is correct on a row where every button carries a right
   // margin - Scene's `.edit-buttons`, where it is also what keeps a wrapped second row
   // flush with the first - and wrong on a row where they do not. Stash's own detail
   // navbars are inconsistently spaced (`Auto tag...` and `Merge` touch each other on
   // Performer), so landing after one of the marginless ones left our button touching
-  // it, live-reported at 1.15.4.
+  // it, which is what live use reported.
   //
   // The gap between two inline siblings is the first's right margin plus the second's
-  // left margin, so 1.15.5 took the row's own step from the donor and filled whatever
-  // each *actual neighbour* was not already contributing. 1.15.6 measured that gap with
-  // `getBoundingClientRect` rather than deriving it, and 1.15.7 takes the measurement
-  // back out: a distance is a fact about one instant, and the row it was measured in is
+  // left margin, so the row's own step is taken from the donor and fills whatever each
+  // *actual neighbour* is not already contributing. Measuring that gap with
+  // `getBoundingClientRect` rather than deriving it was tried and taken back out:
+  // a distance is a fact about one instant, and the row it was measured in is
   // not the row that settles. Live, it put this plugin's button flush against Delete on
   // the performer navbar - a gap that existed at insertion time and had closed by the
   // time the page finished laying out.
@@ -2860,9 +2862,9 @@
   // resolves through the wrapper to the action facing us. No layout is consulted, so the
   // answer is the same whenever it is asked.
   //
-  // 1.15.8 takes the same idea one step further, because the same mistake has a second
+  // The same idea goes one step further, because the same mistake has a second
   // form: an element holding *no* action at all. Reading its (absent) margin as the whole
-  // gap is what left Group's detail row doubled for three releases after the wrapper fix
+  // gap is what left Group's detail row doubled long after the wrapper fix
   // sorted its edit row out. **A zero read off something this code cannot identify as an
   // action is not evidence of a zero gap** - so `neighbourGap` walks past it instead.
   //
@@ -2889,7 +2891,7 @@
   //
   // Skipped elements contribute both their margins and are assumed to have no width;
   // width is the one thing here that cannot be read without consulting a layout that has
-  // not settled yet, which is exactly what 1.15.6 got wrong.
+  // not settled yet, which is exactly what measuring the gap got wrong.
   function neighbourGap(container, button, forward) {
     var kids = container.childNodes || [], idx = -1, i;
     for (i = 0; i < kids.length; i++) { if (kids[i] === button) { idx = i; break; } }
@@ -2935,8 +2937,8 @@
 
   // The row's own spacing step, read off a button Stash put there - one carrying `btn`
   // with no `_coopOwner`, so neither plugin's buttons can be mistaken for Stash's, and
-  // `<a>` included since Stash styles some row actions as links (1.15.1 established
-  // that for Delete).
+  // `<a>` included since Stash styles some row actions as links (established for
+  // Delete by the anchor search above).
   //
   // The length test is *positive*, not `!== '0px'`: a style engine with no stylesheet
   // loaded reports the empty string rather than `0px`, which an inequality reads as a
@@ -3053,7 +3055,7 @@
     var button = document.createElement('button');
     button.type = 'button';
     button._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
-    // No spacing class here since 1.15.4 - `applyButtonSpacing` copies the row's own
+    // No spacing class here - `applyButtonSpacing` copies the row's own
     // margins inline and adds `mx-2` back itself when there is nothing to copy. A
     // Bootstrap `mx-*` is `!important` and would outrank the copied margins.
     button.className = 'btn ' + PLUGIN_BTN_VARIANT + ' ' + PERFORMER_BTN_CLASS;
@@ -3069,9 +3071,9 @@
     button.title = "Add this performer's tags to every scene featuring them. " +
       "Opens a dialog listing every change first; nothing is written until you press " +
       "Proceed. Filters and selections in the scene list are ignored.";
-    // Until 1.18.0 this merged straight into every scene the performer appears in - the
+    // This used to merge straight into every scene the performer appears in - the
     // widest unreviewed write in the plugin, and the only one with no staging and no
-    // plan. It now opens the task's own dialog scoped to this performer: same review,
+    // plan. It opens the task's own dialog scoped to this performer instead: same review,
     // same Proceed, same Undo, over one performer's scenes instead of the library.
     button.addEventListener('click', function (event) {
       event.preventDefault();
@@ -3091,7 +3093,7 @@
   var _sceneFlashToken = 0;
   var FLASH_MS = 1400;
 
-  // 1.16.0: eligibility, not existence. Until then this asked only whether the scene
+  // Eligibility, not existence. This used to ask only whether the scene
   // had any performers, so a scene already carrying every one of their tags showed a
   // button whose click could report nothing but "No changes" - which is what the
   // *performer* button had never done (`checkPerformerHasScenes` has always required
@@ -3159,7 +3161,7 @@
       checkSceneHasPerformers(sceneId);
       return;
     }
-    // 1.16.0: not eligible means *removed*, not merely "not added". The
+    // Not eligible means *removed*, not merely "not added". The
     // already-exists early return used to sit above this check, so once the button was
     // on the page nothing ever re-evaluated it - harmless while the gate asked only
     // whether the scene had performers and nothing invalidated the cache anyway, and
@@ -3188,9 +3190,9 @@
     var button = document.createElement('button');
     button.type = 'button';
     button._coopOwner = PLUGIN_ID; // read by `insertOrdered`'s cross-plugin priority scan
-    // No spacing class here since 1.15.4, same as the performer button - the fallback
-    // `mx-2` (which replaced a left-only `ml-2` at 1.15.2, once this button started
-    // landing *between* Save and Delete rather than at the row's end) is now applied by
+    // No spacing class here, same as the performer button - the fallback
+    // `mx-2` (a left-only `ml-2` would not do, once this button lands *between* Save
+    // and Delete rather than at the row's end) is applied by
     // `applyButtonSpacing` only when the row has no margins of its own to copy.
     button.className = 'btn ' + PLUGIN_BTN_VARIANT + ' ' + SCENE_BTN_CLASS;
     // "Add all Tags from all Performers", not the older "Add Perf Tags" - same
@@ -3254,7 +3256,7 @@
       }
 
       // No form to stage into, so the review happens in the dialog instead of not at
-      // all (1.18.0). It plans this one scene through the same pass the library-wide
+      // all. It plans this one scene through the same pass the library-wide
       // task uses and writes nothing until Proceed - which is what the "..." on the
       // caption promises. The button itself goes straight back to its label: the dialog
       // covers it, so a flash underneath would be a caption nobody can see.
@@ -3372,7 +3374,7 @@
     // but they are only ours *while they exist* - a release that renames every key
     // leaves this code unable to find its own group, and the first casualty is the
     // stale-script banner, which is the one thing on this page that release needed to
-    // show. NormalizeParentTags 4.0.0 renamed all nine of its keys and its own 3.2.0
+    // show. NormalizeParentTags renamed all nine of its keys at once and its own
     // banner went silent in every tab that had not been reloaded.
     //
     // Settings - Tasks heads *its* group with the same name, and that group is not
@@ -3394,7 +3396,7 @@
   //
   //   heading: `${plugin.name} ${plugin.version ? `(${plugin.version})` : undefined}`
   //
-  // so the h3 there reads "... (3.3.1)" - and, because that template interpolates the
+  // so the h3 there reads "... (<version>)" - and, because that template interpolates the
   // literal when there is no version at all, sometimes "... undefined".
   //
   // Strip the suffix and compare exactly, rather than testing a prefix: a plugin whose

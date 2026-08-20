@@ -5,8 +5,20 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: released, 3.6.1.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
+**Status: released, 3.6.2.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
+
+**3.6.2 moves it into the heading itself, after the name.** An `<h3>` is a block, so a sibling
+of it lands on the next line however the notice is displayed - being *on* the title's line
+means being inside that h3. Which sets the trap this release is really about: both readers of
+that heading are exact. `headingIsOurs` compares the whole string and `installedFromHeading`
+matches a parenthesised version anchored at its end, so an injected node makes the settings
+group unfindable by heading and blinds the stale-script banner - silently, and one release
+after the one that caused it. `headingText` is now the only way either reads it, and what it
+returns is the heading as it was before the notice went in, captured on the notice itself at
+that moment: a capture worth exactly as long as the node it rides on, since React drops both
+together on the next re-render. The link icon and the Enable/Disable button stay as the
+fallbacks for a group with no heading at all.
 
 **3.6.1 puts that notice on the heading line.** Live, beside the Disable button was not where
 it wanted to be: it anchors on Stash's own `url:` link icon instead - the first anchor in the

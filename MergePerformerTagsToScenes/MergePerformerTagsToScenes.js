@@ -35,7 +35,7 @@
   // constant travels
   // inside the file. Bump it with the manifest and the yml; the `version` suite
   // fails if the three disagree.
-  var PLUGIN_VERSION      = '3.6.1';
+  var PLUGIN_VERSION      = '3.6.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded: banner plus error means the new code is running
@@ -3421,6 +3421,28 @@
   //
   // Strip the suffix and compare exactly, rather than testing a prefix: a plugin whose
   // name merely starts with ours must not be mistaken for us.
+  // The group heading's own text, with anything this plugin has put *inside* the h3
+  // left out - today the superseded notice, which sits at the end of that line. Both
+  // readers of this heading are exact: `headingIsOurs` compares the whole string, and
+  // `installedFromHeading` matches a parenthesised version anchored at the end. An
+  // injected node breaks both silently - the settings group stops being findable by
+  // heading, and the stale-script banner stops finding the installed version - so
+  // nothing may read `h3.textContent` directly.
+  // The group heading's own text, with the superseded notice - which sits inside that
+  // h3, after the name - left out. Both readers of this heading are exact:
+  // `headingIsOurs` compares the whole string, and `installedFromHeading` matches a
+  // parenthesised version anchored at the end. An injected node breaks both silently:
+  // the settings group stops being findable by heading, and the stale-script banner
+  // stops finding the installed version. So nothing reads `h3.textContent` directly.
+  function headingText(h3) {
+    if (!h3) return '';
+    var mine = document.getElementById(SUPERSEDED_ID);
+    if (mine && mine.parentNode === h3 && typeof mine._cpt2sHeadingWas === 'string') {
+      return mine._cpt2sHeadingWas;
+    }
+    return h3.textContent == null ? '' : String(h3.textContent);
+  }
+
   function headingIsOurs(text) {
     var t = String(text == null ? '' : text).trim();
     if (t === PLUGIN_NAME) return true;
@@ -3431,7 +3453,7 @@
   function ownSettingGroupHeading() {
     var nodes = document.querySelectorAll ? document.querySelectorAll('h3') : [];
     for (var i = 0; i < nodes.length; i++) {
-      if (headingIsOurs(nodes[i].textContent)) return nodes[i];
+      if (headingIsOurs(headingText(nodes[i]))) return nodes[i];
     }
     return null;
   }
@@ -3662,7 +3684,7 @@
   // setting rows, each of which has an h3 too, and the group is already ours.
   function installedFromHeading(group) {
     var h3 = group && group.querySelector ? group.querySelector('h3') : null;
-    var t = h3 ? String(h3.textContent == null ? '' : h3.textContent).trim() : '';
+    var t = headingText(h3).replace(/^\s+|\s+$/g, '');
     var m = /\(([^()]+)\)$/.exec(t);
     return m ? m[1].replace(/^\s+|\s+$/g, '') : null;
   }
@@ -3764,11 +3786,17 @@
     return found;
   }
 
-  // Left of that icon, on the heading line. Two fallbacks, because neither anchor is
-  // ours and a plugin with no `url:` has no icon at all: the Enable/Disable button,
-  // found by its caption the way a row's Delete is, and then the stale banner's slot
-  // above the description. The notice appears either way.
+  // Inside the group's own h3, after the name: an <h3> is a block, so a sibling of it
+  // would land on the next line however the notice itself is displayed, and this has
+  // to be *on* the title's line. `headingText` is what keeps that from breaking the
+  // two things that read this heading.
+  //
+  // Three fallbacks, none of the anchors ours: Stash's `url:` link icon, then the
+  // Enable/Disable button found by its caption the way a row's Delete is, then the
+  // stale banner's slot above the description. The notice appears either way.
   function supersededSlot(group) {
+    var h3 = group.querySelector ? group.querySelector('h3') : null;
+    if (h3) return { parent: h3, before: null };
     var link = stashUrlLink(group);
     if (link && link.parentNode) return { parent: link.parentNode, before: link };
     var btn = findActionByLabel(group, 'Disable') || findActionByLabel(group, 'Enable');
@@ -3796,6 +3824,12 @@
     box.id = SUPERSEDED_ID;
     box.title = SUPERSEDER_NAME;
     var slot = supersededSlot(group);
+    // What the heading said before this went into it, carried on the notice itself:
+    // the capture is worth exactly as long as the node is in there, and React drops
+    // both together whenever it re-renders the panel.
+    if (String(slot.parent.tagName).toLowerCase() === 'h3') {
+      box._cpt2sHeadingWas = slot.parent.textContent == null ? '' : String(slot.parent.textContent);
+    }
     slot.parent.insertBefore(box, slot.before);
   }
 

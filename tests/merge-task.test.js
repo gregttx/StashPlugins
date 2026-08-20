@@ -152,20 +152,20 @@ function openAfterSettings(opts, respecter) {
 // already loaded and published what it does.
 // The settings-page group, as SettingsPluginsPanel builds it, with the Enable/Disable
 // button Stash puts in the header. `label` is what that button says.
-function settingsGroup(ctx, label, noLink) {
+function settingsGroup(ctx, opts) {
+  const label = opts.label;
   const group = h.makeElement('div');
   group.className = 'setting-group collapsible';
   const header = h.makeElement('div');
   header.className = 'setting';
   const headBox = h.makeElement('div');
   const heading = h.makeElement('h3');
-  // No parenthesised version: this fixture is about the superseded notice, and a
-  // version here would raise the stale banner into the same header.
-  heading.textContent = 'ᝯㄝₓ Merge Performer Tags To Scenes';
+  heading.textContent = 'ᝯㄝₓ Merge Performer Tags To Scenes' +
+    (opts.version ? ' (' + opts.version + ')' : '');
   const sub = h.makeElement('div');
   sub.className = 'sub-heading';
   sub.textContent = 'Copies each performer tags onto their scenes.';
-  headBox.appendChild(heading);
+  if (!opts.noHeading) headBox.appendChild(heading);
   headBox.appendChild(sub);
   header.appendChild(headBox);
   const actions = h.makeElement('div');
@@ -175,7 +175,7 @@ function settingsGroup(ctx, label, noLink) {
   urlLink.href = 'https://example.invalid/readme';
   const disable = h.makeElement('button');
   disable.textContent = label;
-  if (!noLink) actions.appendChild(urlLink);
+  if (!opts.noLink) actions.appendChild(urlLink);
   actions.appendChild(disable);
   header.appendChild(actions);
   group.appendChild(header);
@@ -183,7 +183,7 @@ function settingsGroup(ctx, label, noLink) {
   input.id = 'plugin-MergePerformerTagsToScenes-a1ShowManualMergeButtons';
   group.appendChild(input);
   ctx.document.body.appendChild(group);
-  return { group, actions, disable, urlLink };
+  return { group, actions, disable, urlLink, heading };
 }
 
 function openWithDeclares(opts, declares) {
@@ -923,7 +923,7 @@ Promise.resolve()
     h.run(env.ctx, SRC);
     env.ctx.window.StashPluginCoop.declares.PropagateTagsAndPerformers =
       ['tags:performer>scene', 'tags:studio>group'];
-    const { actions, urlLink } = settingsGroup(env.ctx, 'Disable');
+    const { heading } = settingsGroup(env.ctx, { label: 'Disable', version: '9.9.9' });
     env.tick();
     return h.flush(20).then(() => {
       env.tick();
@@ -933,10 +933,16 @@ Promise.resolve()
       h.check('and the settings it carried over are called safe to leave behind',
         !!note && /Settings migrated\. Uninstall safe/.test(note.textContent),
         note && note.textContent);
-      h.check('left of Stash\'s own link icon, on the heading line', !!note &&
-        note.parentNode === actions &&
-        actions.childNodes.indexOf(note) === actions.childNodes.indexOf(urlLink) - 1,
-        note && String(actions.childNodes.indexOf(note)));
+      h.check('on the title line, inside the heading and after the name', !!note &&
+        note.parentNode === heading &&
+        heading.childNodes[heading.childNodes.length - 1] === note,
+        note && String(heading.childNodes.indexOf(note)));
+      // The trap this arrangement sets: both readers of that h3 are exact - the
+      // group's own heading fallback compares the whole string, and the stale banner
+      // matches a parenthesised version anchored at its end.
+      const stale = env.ctx.document.getElementById('cpt2s-stale-notice');
+      h.check('and the stale banner still reads the version off that heading',
+        !!stale && /9\.9\.9/.test(stale.textContent), stale && stale.textContent);
       h.check('named short enough for that line, with the full name on hover', !!note &&
         note.textContent.indexOf('Propagate Tags and Performers... is present') !== -1 &&
         note.title === 'ᝯㄝₓ Propagate Tags and Performers to Related Entities',
@@ -961,13 +967,14 @@ Promise.resolve()
     }) });
     h.run(env.ctx, SRC);
     env.ctx.window.StashPluginCoop.declares.PropagateTagsAndPerformers = ['tags:performer>scene'];
-    // No `url:` on this one, so there is no link icon to anchor on.
-    const { actions, disable } = settingsGroup(env.ctx, 'Disable', true);
+    // No heading and no `url:` on this one, so the button is the last anchor left.
+    const { actions, disable } = settingsGroup(env.ctx,
+      { label: 'Disable', noLink: true, noHeading: true });
     env.tick();
     return h.flush(20).then(() => {
       env.tick();
       const note = env.ctx.document.getElementById('cpt2s-superseded-notice');
-      h.check('with no link icon it falls back to the button beside it', !!note &&
+      h.check('with no heading and no link icon, the button is the anchor', !!note &&
         note.parentNode === actions &&
         actions.childNodes.indexOf(note) === actions.childNodes.indexOf(disable) - 1,
         note && String(actions.childNodes.indexOf(note)));
@@ -981,7 +988,7 @@ Promise.resolve()
     // Nothing declared at all: the plugin is not installed, or is disabled in Stash.
     const env = h.makeEnv({ quiet: true, respond: makeResponder({}) });
     h.run(env.ctx, SRC);
-    const { actions } = settingsGroup(env.ctx, 'Disable');
+    const { actions } = settingsGroup(env.ctx, { label: 'Disable' });
     env.tick();
     return h.flush(20).then(() => {
       env.tick();

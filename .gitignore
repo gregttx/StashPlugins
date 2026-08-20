@@ -13,3 +13,5 @@ package-lock.json
 # re-include a path whose parent directory is itself excluded.
 .claude/*
 !.claude/hooks/
+# One person's noise threshold for docs-crosslinks.sh, not project policy.
+.claude/hooks/*.mute

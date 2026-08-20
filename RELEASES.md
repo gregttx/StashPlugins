@@ -6,224 +6,225 @@ One row per commit that shipped a version, newest first; a blank cell means that
 not move in that commit. A version links to its commit, or carries the short id where the
 commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEASES.md`.
 
-**CFBE** [CustomFieldsBulkEditor](CustomFieldsBulkEditor/RELEASES.md) · **MPTTS** [MergePerformerTagsToScenes](MergePerformerTagsToScenes/RELEASES.md) · **NPT** [NormalizeParentTags](NormalizeParentTags/RELEASES.md) · **PTP2RE** [PropagateTagsAndPerformers](PropagateTagsAndPerformers/RELEASES.md) · **TBC** [TagBundleClipboard](TagBundleClipboard/RELEASES.md)
+**CFBE** [CustomFieldsBulkEditor](CustomFieldsBulkEditor/RELEASES.md) · **MPTTS** [MergePerformerTagsToScenes](MergePerformerTagsToScenes/RELEASES.md) · **NPT** [NormalizeParentTags](NormalizeParentTags/RELEASES.md) · **PTP2RE** [PropagateTagsAndPerformers](PropagateTagsAndPerformers/RELEASES.md) · **SceneVariants** [SceneVariants](SceneVariants/RELEASES.md) · **TBC** [TagBundleClipboard](TagBundleClipboard/RELEASES.md)
 
-| Date | CFBE | MPTTS | NPT | PTP2RE | TBC | Change |
-| --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-20 |  | 3.7.0 (`e8c5914`) |  |  |  | MPTTS 3.7.0: the superseded notice reads PTP2RE's settings too |
-| 2026-08-20 |  | [3.6.2](https://github.com/gregttx/StashPlugins/commit/15dc942) |  |  |  | MPTTS 3.6.2: the superseded notice sits in the heading, after the name |
-| 2026-08-20 |  | [3.6.1](https://github.com/gregttx/StashPlugins/commit/7d1ad93) |  |  |  | MPTTS 3.6.1: the superseded notice moves to the heading line |
-| 2026-08-20 |  | [3.6.0](https://github.com/gregttx/StashPlugins/commit/926a2a4) |  |  |  | MPTTS 3.6.0: say on the settings page when PTP2RE has taken over |
-| 2026-08-20 | [2.2.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [3.5.3](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [4.6.6](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [3.11.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [0.7.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | One grammatical load banner, in all five |
-| 2026-08-19 | [2.2.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [3.5.2](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [4.6.5](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [3.11.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [0.7.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | Release history out of all five plugin sources |
-| 2026-08-19 |  | [3.5.1](https://github.com/gregttx/StashPlugins/commit/256fe0f) | [4.6.4](https://github.com/gregttx/StashPlugins/commit/256fe0f) |  |  | No version history in a README or in shipped source |
-| 2026-08-19 | [2.2.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | [3.5.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | [4.6.3](https://github.com/gregttx/StashPlugins/commit/c50338b) | [3.11.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | [0.7.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | Repo review 2026-08-19: all 27 findings fixed |
-| 2026-08-19 |  |  |  | [3.10.0](https://github.com/gregttx/StashPlugins/commit/b523556) |  | PTP2RE 3.10.0: the paths dialog draws the paths, and you can rearrange them |
-| 2026-08-19 |  |  |  | [3.6.2](https://github.com/gregttx/StashPlugins/commit/05be8bd) |  | PTP2RE 3.6.2: the progress counters say what their number is |
-| 2026-08-19 |  |  |  | [3.6.1](https://github.com/gregttx/StashPlugins/commit/12fce4a) |  | PTP2RE 3.6.1: Performers -> Groups above Performers -> Scenes |
-| 2026-08-19 |  |  |  | [3.6.0](https://github.com/gregttx/StashPlugins/commit/2085f8d) |  | PTP2RE 3.6.0: the layout revised, and a null in a column is a blank row |
-| 2026-08-19 |  |  |  | [3.5.0](https://github.com/gregttx/StashPlugins/commit/6bb9093) |  | PTP2RE 3.5.0: the layout is the user's, and a path already happening says so |
-| 2026-08-19 |  |  |  | [3.4.0](https://github.com/gregttx/StashPlugins/commit/5160f26) |  | PTP2RE 3.4.0: the bulk buttons move into the footer, and everything says what it does |
-| 2026-08-19 |  |  |  | [3.3.0](https://github.com/gregttx/StashPlugins/commit/595075a) |  | PTP2RE 3.3.0: the two moded paths get their own column, and three bulk buttons |
-| 2026-08-19 |  |  |  | [3.2.0](https://github.com/gregttx/StashPlugins/commit/0943e39) |  | PTP2RE 3.2.0: each path's control is a button carrying its own state |
-| 2026-08-19 |  |  | [4.6.2](https://github.com/gregttx/StashPlugins/commit/bcf7d0e) | [3.1.2](https://github.com/gregttx/StashPlugins/commit/bcf7d0e) |  | NPT 4.6.2 / PTP2RE 3.1.2: configurePlugin replaces, so send the whole map |
-| 2026-08-19 |  |  |  | [3.1.1](https://github.com/gregttx/StashPlugins/commit/992c0b7) |  | PTP2RE 3.1.1: the settings row stops deleting a value it could not read |
-| 2026-08-19 |  |  |  | [3.1.0](https://github.com/gregttx/StashPlugins/commit/e6c5c43) |  | PTP2RE 3.1.0: adopt MPTTS's four exclusion filters where we have none |
-| 2026-08-19 |  |  | [4.6.1](https://github.com/gregttx/StashPlugins/commit/01e394c) | [3.0.2](https://github.com/gregttx/StashPlugins/commit/01e394c) |  | NPT 4.6.1 / PTP2RE 3.0.2: a self-append fixed, and the row listing in columns |
-| 2026-08-19 |  |  |  | [3.0.1](https://github.com/gregttx/StashPlugins/commit/96daa34) |  | PTP2RE 3.0.1: the path dialog gets two columns and loses a false heading |
-| 2026-08-19 |  |  |  | [3.0.0](https://github.com/gregttx/StashPlugins/commit/706b0c5) |  | PTP2RE 3.0.0: fifteen path switches become one string and a dialog |
-| 2026-08-19 |  |  | [4.6.0](https://github.com/gregttx/StashPlugins/commit/b30adb3) |  |  | NPT 4.6.0: the value is the armed mark, so the bar goes |
-| 2026-08-18 |  |  | [4.5.0](https://github.com/gregttx/StashPlugins/commit/8dfab91) |  |  | NPT 4.5.0: the setting row is taken over, not hidden |
-| 2026-08-18 |  |  | [4.4.0](https://github.com/gregttx/StashPlugins/commit/86a1f2d) |  |  | NPT 4.4.0: the settings page shows the dialog, not the setting string |
-| 2026-08-18 |  | [3.4.0](https://github.com/gregttx/StashPlugins/commit/e06ff06) | [4.3.0](https://github.com/gregttx/StashPlugins/commit/e06ff06) | [2.4.0](https://github.com/gregttx/StashPlugins/commit/e06ff06) |  | NPT 4.3.0 / MPTTS 3.4.0 / PTP2RE 2.4.0: amber reaches inside the dialogs |
-| 2026-08-18 |  |  | [4.2.2](https://github.com/gregttx/StashPlugins/commit/febb075) |  |  | NPT 4.2.2: the slow-pass warning belongs to the dialog that runs one |
-| 2026-08-18 |  |  | [4.2.1](https://github.com/gregttx/StashPlugins/commit/1bff4ac) |  |  | NPT 4.2.1: the labels are right-aligned against the aligned selects |
-| 2026-08-18 |  |  | [4.2.0](https://github.com/gregttx/StashPlugins/commit/7c0e6f6) |  |  | NPT 4.2.0: the Images selector says a whole-library pass is slow |
-| 2026-08-18 |  |  | [4.1.1](https://github.com/gregttx/StashPlugins/commit/52ef597) |  |  | NPT 4.1.1: a mode selector sits beside its own label |
-| 2026-08-18 |  |  | [4.1.0](https://github.com/gregttx/StashPlugins/commit/11d356a) |  |  | NPT 4.1.0: an amber bar says a type is armed |
-| 2026-08-18 |  |  | [4.0.3](https://github.com/gregttx/StashPlugins/commit/d04bd23) |  |  | NPT 4.0.3: the auto-mode setting description shows a shape, not a value |
-| 2026-08-18 |  |  | [4.0.2](https://github.com/gregttx/StashPlugins/commit/b6298e0) |  |  | NPT 4.0.2: the auto-mode field's border is not ours to colour |
-| 2026-08-18 |  | [3.3.1](https://github.com/gregttx/StashPlugins/commit/8a004da) | [4.0.1](https://github.com/gregttx/StashPlugins/commit/8a004da) | [2.3.1](https://github.com/gregttx/StashPlugins/commit/8a004da) |  | NPT 4.0.1 / MPTTS 3.3.1 / PTP2RE 2.3.1: the stale banner survives a setting rename |
-| 2026-08-18 |  | [3.3.0](https://github.com/gregttx/StashPlugins/commit/cdacce0) | [4.0.0](https://github.com/gregttx/StashPlugins/commit/cdacce0) | [2.3.0](https://github.com/gregttx/StashPlugins/commit/cdacce0) |  | NPT 4.0.0: one mode per entity type, and one task that does both |
-| 2026-08-18 |  |  |  |  | [0.6.1](https://github.com/gregttx/StashPlugins/commit/04e2a8a) | TagBundleClipboard 0.6.1: one word per mode mark |
-| 2026-08-18 |  |  |  |  | [0.6.0](https://github.com/gregttx/StashPlugins/commit/d0bece8) | TagBundleClipboard 0.6.0: re-bind the planner when the tab comes back |
-| 2026-08-18 |  |  | [3.2.0](https://github.com/gregttx/StashPlugins/commit/8215c44) |  | [0.5.0](https://github.com/gregttx/StashPlugins/commit/8215c44) | NPT 3.2.0 / TBC 0.5.0: one plugin computes the other's operation |
-| 2026-08-18 |  |  |  |  | [0.4.0](https://github.com/gregttx/StashPlugins/commit/d10b349) | TagBundleClipboard 0.4.0: warn when NPT will rewrite the save |
-| 2026-08-18 |  |  |  |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/1480527) | TagBundleClipboard 0.3.0: named titles, amber where it acts, sibling drift |
-| 2026-08-18 |  |  |  |  | [0.2.0](https://github.com/gregttx/StashPlugins/commit/ff8b899) | TagBundleClipboard 0.2.0: dots back, columns fixed, modes gated on NPT |
-| 2026-08-18 |  | [3.2.0](https://github.com/gregttx/StashPlugins/commit/034b60a) |  | [2.2.0](https://github.com/gregttx/StashPlugins/commit/034b60a) | [0.1.0](https://github.com/gregttx/StashPlugins/commit/034b60a) | TagBundleClipboard 0.1.0: prune/roll-up, tag hovers, columns, Undo |
-| 2026-08-17 |  |  |  |  | [0.0.1](https://github.com/gregttx/StashPlugins/commit/b529b9e) | TagBundleClipboard 0.0.1: a tag clipboard between any two entities |
-| 2026-08-17 | [2.1.0](https://github.com/gregttx/StashPlugins/commit/21c9c2a) | [3.1.0](https://github.com/gregttx/StashPlugins/commit/21c9c2a) | [3.1.0](https://github.com/gregttx/StashPlugins/commit/21c9c2a) | [2.1.0](https://github.com/gregttx/StashPlugins/commit/21c9c2a) |  | All four: a busy cursor under the last log line |
-| 2026-08-16 | [2.0.3](https://github.com/gregttx/StashPlugins/commit/8c6ab97) |  |  |  |  | CFBE 2.0.3: Prune clears the rows, and greys itself out |
-| 2026-08-16 | [2.0.1](https://github.com/gregttx/StashPlugins/commit/8c8cd24) |  |  |  |  | CFBE 2.0.1: the marker field takes the prefix |
-| 2026-08-16 | [2.0.0](https://github.com/gregttx/StashPlugins/commit/ae1f4a8) | [3.0.0](https://github.com/gregttx/StashPlugins/commit/ae1f4a8) | [3.0.0](https://github.com/gregttx/StashPlugins/commit/ae1f4a8) | [2.0.0](https://github.com/gregttx/StashPlugins/commit/ae1f4a8) |  | All four: the ᝯㄝₓ prefix reaches the scripts |
-| 2026-08-16 | [1.3.1](https://github.com/gregttx/StashPlugins/commit/fb5105f) |  |  | [1.4.2](https://github.com/gregttx/StashPlugins/commit/fb5105f) |  | CFBE 1.3.1, PTP2RE 1.4.2: the last of the version references |
-| 2026-08-16 |  | [2.4.1](https://github.com/gregttx/StashPlugins/commit/b265818) | [2.6.1](https://github.com/gregttx/StashPlugins/commit/b265818) | [1.4.1](https://github.com/gregttx/StashPlugins/commit/b265818) |  | READMEs describe the plugin, not its history |
-| 2026-08-16 | [1.3.0](https://github.com/gregttx/StashPlugins/commit/eb0e690) | [2.4.0](https://github.com/gregttx/StashPlugins/commit/eb0e690) | [2.6.0](https://github.com/gregttx/StashPlugins/commit/eb0e690) | [1.4.0](https://github.com/gregttx/StashPlugins/commit/eb0e690) |  | The stale-script warning in the dialogs, and a README trim |
-| 2026-08-16 | [1.2.0](https://github.com/gregttx/StashPlugins/commit/361d826) | [2.3.0](https://github.com/gregttx/StashPlugins/commit/361d826) | [2.5.0](https://github.com/gregttx/StashPlugins/commit/361d826) | [1.3.0](https://github.com/gregttx/StashPlugins/commit/361d826) |  | All four: a stale script says so on the settings page |
-| 2026-08-16 | [1.1.1](https://github.com/gregttx/StashPlugins/commit/01d2575) |  |  |  |  | CFBE 1.1.1: the store-tag row counts its carrier |
-| 2026-08-16 |  | [2.2.3](https://github.com/gregttx/StashPlugins/commit/a81564c) |  |  |  | MPTTS 2.2.3: the spacing paragraph in the present tense |
-| 2026-08-16 |  | [2.2.2](https://github.com/gregttx/StashPlugins/commit/20403e2) |  | [1.2.2](https://github.com/gregttx/StashPlugins/commit/20403e2) |  | MPTTS 2.2.2, PTP2RE 1.2.2: two leftovers from the README pass |
-| 2026-08-16 | [1.1.0](https://github.com/gregttx/StashPlugins/commit/12866ec) | [2.2.1](https://github.com/gregttx/StashPlugins/commit/12866ec) | [2.4.0](https://github.com/gregttx/StashPlugins/commit/12866ec) | [1.2.1](https://github.com/gregttx/StashPlugins/commit/12866ec) |  | CFBE 1.1.0, NPT 2.4.0, MPTTS 2.2.1, PTP2RE 1.2.1 |
-| 2026-08-16 | [1.0.0](https://github.com/gregttx/StashPlugins/commit/3d59ab5) |  |  |  |  | CFBE 1.0.0: the hide field is nobody's loose end |
-| 2026-08-16 | [0.12.1](https://github.com/gregttx/StashPlugins/commit/49a5f5d) |  |  |  |  | CFBE 0.12.1: a name pill's tooltip says it is the name |
-| 2026-08-16 | [0.12.0](https://github.com/gregttx/StashPlugins/commit/4473b63) |  |  |  |  | CFBE 0.12.0: omits, a filter for the entity, and what Overwrite leaves alone |
-| 2026-08-16 | [0.11.0](https://github.com/gregttx/StashPlugins/commit/5e68072) |  |  |  |  | CFBE 0.11.0: the descriptions dialog divides its own room |
-| 2026-08-16 | [0.10.0](https://github.com/gregttx/StashPlugins/commit/c86c1c7) |  |  |  |  | CFBE 0.10.0: Rename, a scope that follows the filters, and dialogs that hold still |
-| 2026-08-16 | [0.9.0](https://github.com/gregttx/StashPlugins/commit/dd01574) |  |  |  |  | CFBE 0.9.0: filter the listing by whether a value is true |
-| 2026-08-16 | [0.8.1](https://github.com/gregttx/StashPlugins/commit/8983894) |  |  |  |  | CFBE 0.8.1: the descriptions dialog keeps typing, and the settings arrive filled in |
-| 2026-08-15 | [0.8.0](https://github.com/gregttx/StashPlugins/commit/112528d) |  |  |  |  | CFBE 0.8.0: every custom field can say what it is for |
-| 2026-08-14 | [0.7.3](https://github.com/gregttx/StashPlugins/commit/1d1c414) |  |  |  |  | CFBE 0.7.3: the dropdowns get Stash's stacked marker |
-| 2026-08-14 | [0.7.2](https://github.com/gregttx/StashPlugins/commit/a601928) |  |  |  |  | CFBE 0.7.2: the log follows itself again |
-| 2026-08-14 | [0.7.1](https://github.com/gregttx/StashPlugins/commit/4999d8b) | [2.2.0](https://github.com/gregttx/StashPlugins/commit/4999d8b) | [2.3.0](https://github.com/gregttx/StashPlugins/commit/4999d8b) | [1.2.0](https://github.com/gregttx/StashPlugins/commit/4999d8b) |  | The log stays until you close the dialog, and the footers agree |
-| 2026-08-14 | [0.7.0](https://github.com/gregttx/StashPlugins/commit/823b766) | [2.1.4](https://github.com/gregttx/StashPlugins/commit/823b766) | [2.2.4](https://github.com/gregttx/StashPlugins/commit/823b766) | [1.1.4](https://github.com/gregttx/StashPlugins/commit/823b766) |  | Wider still, and CFBE gets a setting |
-| 2026-08-13 | [0.6.0](https://github.com/gregttx/StashPlugins/commit/2b41b16) | [2.1.3](https://github.com/gregttx/StashPlugins/commit/2b41b16) | [2.2.3](https://github.com/gregttx/StashPlugins/commit/2b41b16) | [1.1.3](https://github.com/gregttx/StashPlugins/commit/2b41b16) |  | Wider dialogs, and CFBE stops skipping quietly |
-| 2026-08-13 | [0.5.0](https://github.com/gregttx/StashPlugins/commit/bf1f7b8) |  |  |  |  | CFBE 0.5.0: one log, and it keeps what it said |
-| 2026-08-13 | [0.4.5](https://github.com/gregttx/StashPlugins/commit/91b664b) | [2.1.2](https://github.com/gregttx/StashPlugins/commit/91b664b) | [2.2.2](https://github.com/gregttx/StashPlugins/commit/91b664b) | [1.1.2](https://github.com/gregttx/StashPlugins/commit/91b664b) |  | Two words the plugins no longer say: "Stash id", and "(s)" |
-| 2026-08-13 | [0.4.4](https://github.com/gregttx/StashPlugins/commit/25b7597) |  |  |  |  | CFBE 0.4.4: the legend's ␀ is drawn by the list's own rule |
-| 2026-08-13 | [0.4.3](https://github.com/gregttx/StashPlugins/commit/d182176) | [2.1.1](https://github.com/gregttx/StashPlugins/commit/d182176) | [2.2.1](https://github.com/gregttx/StashPlugins/commit/d182176) | [1.1.1](https://github.com/gregttx/StashPlugins/commit/d182176) |  | Four dialog heads, one sentence |
-| 2026-08-13 | [0.4.0](https://github.com/gregttx/StashPlugins/commit/538cbbc) |  |  |  |  | CFBE 0.4.0: five things a whole library made the dialog want |
-| 2026-08-13 | [0.3.2](https://github.com/gregttx/StashPlugins/commit/8ba02e7) |  |  |  |  | CFBE 0.3.2: the settings decoration was landing on the Tasks panel |
-| 2026-08-13 | [0.3.1](https://github.com/gregttx/StashPlugins/commit/2567a45) |  |  |  |  | CFBE 0.3.1: the whole-library read is paged, so the counter moves |
-| 2026-08-13 | [0.3.0](https://github.com/gregttx/StashPlugins/commit/5407b5a) |  |  |  |  | CFBE 0.3.0: a task that opens the same dialog on the whole library |
-| 2026-08-13 | [0.2.5](https://github.com/gregttx/StashPlugins/commit/c46b4a4) |  |  |  |  | CFBE 0.2.5: an unescaped quote in the yml stopped the plugin loading |
-| 2026-08-13 | [0.2.4](https://github.com/gregttx/StashPlugins/commit/68b1d17) |  |  |  |  | CFBE 0.2.4: "is empty" is a mode beside the box, not a word in it |
-| 2026-08-13 | [0.2.3](https://github.com/gregttx/StashPlugins/commit/324a7b3) |  |  |  |  | CFBE 0.2.3: the listing is pills, and ␀ took three rounds |
-| 2026-08-13 | [0.1.2](https://github.com/gregttx/StashPlugins/commit/eca51be) |  |  |  |  | CFBE 0.1.2: a tag's parent link was eating its own selection |
-| 2026-08-12 | [0.1.1](https://github.com/gregttx/StashPlugins/commit/44c902e) |  | [2.2.0](https://github.com/gregttx/StashPlugins/commit/44c902e) |  |  | NPT 2.2.0 drops the graph exports; CFBE 0.1.1 finds the lists whose URL lies |
-| 2026-08-12 | [0.1.0](https://github.com/gregttx/StashPlugins/commit/4c11384) | [2.1.0](https://github.com/gregttx/StashPlugins/commit/4c11384) | [2.1.0](https://github.com/gregttx/StashPlugins/commit/4c11384) | [1.1.0](https://github.com/gregttx/StashPlugins/commit/4c11384) |  | Escape closes every dialog, and CFBE 0.1.0 gets the settings-page description |
-| 2026-08-12 | [0.0.1](https://github.com/gregttx/StashPlugins/commit/20bc7c3) | [2.0.1](https://github.com/gregttx/StashPlugins/commit/20bc7c3) | [2.0.1](https://github.com/gregttx/StashPlugins/commit/20bc7c3) | [1.0.1](https://github.com/gregttx/StashPlugins/commit/20bc7c3) |  | CustomFieldsBulkEditor 0.0.1: bulk custom fields, off the list view's "..." menu |
-| 2026-08-11 |  | [2.0.0](https://github.com/gregttx/StashPlugins/commit/47d06a6) | [2.0.0](https://github.com/gregttx/StashPlugins/commit/47d06a6) | [1.0.0](https://github.com/gregttx/StashPlugins/commit/47d06a6) |  | GTTx: NPT 2.0.0, MPT2S 2.0.0, PTP2RE 1.0.0 — one prefix, and a name in every dialog head |
-| 2026-08-11 |  | [1.17.0](https://github.com/gregttx/StashPlugins/commit/2aebce9) | [1.8.0](https://github.com/gregttx/StashPlugins/commit/2aebce9) | [0.17.0](https://github.com/gregttx/StashPlugins/commit/2aebce9) |  | Amber for "a plugin wrote this": NPT 1.8.0, MPT2S 1.17.0, PTP2RE 0.17.0 |
-| 2026-08-11 |  | [1.16.3](https://github.com/gregttx/StashPlugins/commit/2b1332c) |  | [0.16.0](https://github.com/gregttx/StashPlugins/commit/2b1332c) |  | PropagateTagsAndPerformers 0.16.0, MergePerformerTagsToScenes 1.16.3: parity was a claim nobody had checked |
-| 2026-08-11 |  |  |  | [0.15.0](https://github.com/gregttx/StashPlugins/commit/22aa4bb) |  | PropagateTagsAndPerformers 0.15.0: source buttons on their targets' tab, and say where the tags come from |
-| 2026-08-11 |  |  |  | [0.14.0](https://github.com/gregttx/StashPlugins/commit/6c5ed24) |  | PropagateTagsAndPerformers 0.14.0: a second anchor, for the pages with no action row |
-| 2026-08-11 |  |  |  | [0.13.3](https://github.com/gregttx/StashPlugins/commit/c76a624) |  | PropagateTagsAndPerformers 0.13.3: four pages have no source-button anchor, not one |
-| 2026-08-11 |  | [1.16.2](https://github.com/gregttx/StashPlugins/commit/eff36ee) |  | [0.13.2](https://github.com/gregttx/StashPlugins/commit/eff36ee) |  | PropagateTagsAndPerformers 0.13.2, MergePerformerTagsToScenes 1.16.2: a diagnostic that only speaks on a cache miss is silent when it is wanted |
-| 2026-08-11 |  | [1.16.1](https://github.com/gregttx/StashPlugins/commit/b0f2d47) |  | [0.13.1](https://github.com/gregttx/StashPlugins/commit/b0f2d47) |  | PropagateTagsAndPerformers 0.13.1, MergePerformerTagsToScenes 1.16.1: a switch to ask a button why it is hidden |
-| 2026-08-11 |  | [1.16.0](https://github.com/gregttx/StashPlugins/commit/c95d1a4) |  | [0.13.0](https://github.com/gregttx/StashPlugins/commit/c95d1a4) |  | PropagateTagsAndPerformers 0.13.0, MergePerformerTagsToScenes 1.16.0: hide a button that would add nothing |
-| 2026-08-11 |  |  |  | [0.12.14](https://github.com/gregttx/StashPlugins/commit/27806fa) |  | PropagateTagsAndPerformers 0.12.14: measure before you fix, not after |
-| 2026-08-10 |  |  | [1.7.8](https://github.com/gregttx/StashPlugins/commit/a2097ec) | [0.12.10](https://github.com/gregttx/StashPlugins/commit/a2097ec) |  | PropagateTagsAndPerformers 0.12.10, NormalizeParentTags 1.7.8: say where the buttons are |
-| 2026-08-10 |  | [1.15.9](https://github.com/gregttx/StashPlugins/commit/dee5079) | [1.7.7](https://github.com/gregttx/StashPlugins/commit/dee5079) | [0.12.9](https://github.com/gregttx/StashPlugins/commit/dee5079) |  | PropagateTagsAndPerformers 0.12.9, MergePerformerTagsToScenes 1.15.9, NormalizeParentTags 1.7.7: say it once |
-| 2026-08-10 |  | [1.15.8](https://github.com/gregttx/StashPlugins/commit/1ff1eb3) |  | [0.12.8](https://github.com/gregttx/StashPlugins/commit/1ff1eb3) |  | PropagateTagsAndPerformers 0.12.8, MergePerformerTagsToScenes 1.15.8: walk past what you cannot read |
-| 2026-08-10 |  | [1.15.7](https://github.com/gregttx/StashPlugins/commit/37293e3) |  | [0.12.7](https://github.com/gregttx/StashPlugins/commit/37293e3) |  | PropagateTagsAndPerformers 0.12.7, MergePerformerTagsToScenes 1.15.7: a margin is true whenever you ask |
-| 2026-08-10 |  | [1.15.6](https://github.com/gregttx/StashPlugins/commit/780a7d7) |  | [0.12.6](https://github.com/gregttx/StashPlugins/commit/780a7d7) |  | PropagateTagsAndPerformers 0.12.6, MergePerformerTagsToScenes 1.15.6: measure the gap, don't derive it |
-| 2026-08-10 |  | [1.15.5](https://github.com/gregttx/StashPlugins/commit/36b142d) |  | [0.12.5](https://github.com/gregttx/StashPlugins/commit/36b142d) |  | PropagateTagsAndPerformers 0.12.5, MergePerformerTagsToScenes 1.15.5: fill the gap the neighbour leaves |
-| 2026-08-10 |  | [1.15.4](https://github.com/gregttx/StashPlugins/commit/e7fd0d8) |  | [0.12.4](https://github.com/gregttx/StashPlugins/commit/e7fd0d8) |  | PropagateTagsAndPerformers 0.12.4, MergePerformerTagsToScenes 1.15.4: let the measured margins win the cascade |
-| 2026-08-10 |  | [1.15.3](https://github.com/gregttx/StashPlugins/commit/535cd0b) |  | [0.12.3](https://github.com/gregttx/StashPlugins/commit/535cd0b) |  | PropagateTagsAndPerformers 0.12.3, MergePerformerTagsToScenes 1.15.3: measure the row's spacing instead of choosing it |
-| 2026-08-10 |  | [1.15.2](https://github.com/gregttx/StashPlugins/commit/370d5fc) |  | [0.12.2](https://github.com/gregttx/StashPlugins/commit/370d5fc) |  | PropagateTagsAndPerformers 0.12.2, MergePerformerTagsToScenes 1.15.2: source button blink loop, and mx-2 on the scene button |
-| 2026-08-10 |  | [1.15.1](https://github.com/gregttx/StashPlugins/commit/e99ee5b) |  | [0.12.1](https://github.com/gregttx/StashPlugins/commit/e99ee5b) |  | PropagateTagsAndPerformers 0.12.1, MergePerformerTagsToScenes 1.15.1: find Delete by text, not only by class |
-| 2026-08-10 |  | [1.15.0](https://github.com/gregttx/StashPlugins/commit/bdf2ab2) |  | [0.12.0](https://github.com/gregttx/StashPlugins/commit/bdf2ab2) |  | PropagateTagsAndPerformers 0.12.0, MergePerformerTagsToScenes 1.15.0: important-action anchor |
-| 2026-08-08 |  | [1.14.0](https://github.com/gregttx/StashPlugins/commit/a026fd3) |  | [0.11.0](https://github.com/gregttx/StashPlugins/commit/a026fd3) |  | PropagateTagsAndPerformers 0.11.0, MergePerformerTagsToScenes 1.14.0: anchor manual buttons on Delete, not Save |
-| 2026-08-08 |  | [1.13.0](https://github.com/gregttx/StashPlugins/commit/d2a9dfe) |  | [0.10.0](https://github.com/gregttx/StashPlugins/commit/d2a9dfe) |  | PropagateTagsAndPerformers 0.9.0-0.10.0, MergePerformerTagsToScenes 1.13.0: button fixes and deterministic cross-plugin ordering |
-| 2026-08-07 |  |  |  | [0.8.3](https://github.com/gregttx/StashPlugins/commit/399082d) |  | PropagateTagsAndPerformers 0.8.3: fix button height, stop duplicating MPTTS's button |
-| 2026-08-07 |  |  |  | [0.8.2](https://github.com/gregttx/StashPlugins/commit/6f183c5) |  | PropagateTagsAndPerformers 0.8.2: fix manual buttons on the Group page |
-| 2026-08-07 |  |  |  | [0.8.1](https://github.com/gregttx/StashPlugins/commit/af185f4) |  | PropagateTagsAndPerformers 0.8.1: fix manual buttons never appearing |
-| 2026-08-07 |  |  |  | [0.8.0](https://github.com/gregttx/StashPlugins/commit/5eccbfb) |  | PropagateTagsAndPerformers 0.8.0: manual buttons and staging (step 8) |
-| 2026-08-07 |  | [1.12.0](https://github.com/gregttx/StashPlugins/commit/65a3cfc) | [1.7.6](https://github.com/gregttx/StashPlugins/commit/65a3cfc) | [0.7.0](https://github.com/gregttx/StashPlugins/commit/65a3cfc) |  | Cross-plugin cooperation: the declares registry (step 7) |
-| 2026-08-07 |  |  |  | [0.6.0](https://github.com/gregttx/StashPlugins/commit/fa58bf2) |  | PropagateTagsAndPerformers 0.6.0: auto mode, source side |
-| 2026-08-06 |  |  |  | [0.5.0](https://github.com/gregttx/StashPlugins/commit/80d7eba) |  | PropagateTagsAndPerformers 0.5.0: auto mode, target side |
-| 2026-08-06 |  |  |  | [0.4.0](https://github.com/gregttx/StashPlugins/commit/ebc270a) |  | PropagateTagsAndPerformers 0.4.0: a gallery's images |
-| 2026-08-06 |  |  |  | [0.3.1](https://github.com/gregttx/StashPlugins/commit/cf4bacc) |  | PropagateTagsAndPerformers 0.3.1: name the source entity in the log |
-| 2026-08-06 |  |  |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/3324483) |  | PropagateTagsAndPerformers 0.3.0: apply and Undo |
-| 2026-08-06 |  |  |  | [0.2.0](https://github.com/gregttx/StashPlugins/commit/a47e793) |  | PropagateTagsAndPerformers 0.2.0: the planner |
-| 2026-08-06 |  |  |  | [0.1.0](https://github.com/gregttx/StashPlugins/commit/3d44086) |  | PropagateTagsAndPerformers 0.1.0: the shared base |
-| 2026-08-06 |  |  |  | [0.0.1](https://github.com/gregttx/StashPlugins/commit/64662f0) |  | PropagateTagsAndPerformers 0.0.1: scaffold |
-| 2026-08-06 |  | [1.11.0](https://github.com/gregttx/StashPlugins/commit/f2883d1) |  |  |  | MergePerformerTagsToScenes 1.11.0: summary on the page, detail on hover |
-| 2026-08-06 |  |  | [1.7.5](https://github.com/gregttx/StashPlugins/commit/7433b56) |  |  | NormalizeParentTags 1.7.5: summary on the page, detail on hover |
-| 2026-08-05 |  | [1.10.5](https://github.com/gregttx/StashPlugins/commit/477fbb5) | [1.6.5](https://github.com/gregttx/StashPlugins/commit/477fbb5) |  |  | Give "Requires Stash 0.31.0 or newer" its own paragraph |
-| 2026-08-05 |  | [1.10.4](https://github.com/gregttx/StashPlugins/commit/e2a6d65) | [1.6.4](https://github.com/gregttx/StashPlugins/commit/e2a6d65) |  |  | Rebuild the description's paragraphs as divs, gap about a third of a line |
-| 2026-08-05 |  | [1.10.3](https://github.com/gregttx/StashPlugins/commit/dc5c518) | [1.6.3](https://github.com/gregttx/StashPlugins/commit/dc5c518) |  |  | Simplify both descriptions, and make their paragraphs render |
-| 2026-08-05 |  | [1.10.2](https://github.com/gregttx/StashPlugins/commit/998b7fd) | [1.6.2](https://github.com/gregttx/StashPlugins/commit/998b7fd) |  |  | Track main in the README links instead of a pinned SHA |
-| 2026-08-05 |  | [1.10.1](https://github.com/gregttx/StashPlugins/commit/901f09f) | [1.6.1](https://github.com/gregttx/StashPlugins/commit/901f09f) |  |  | Take the URL out of the descriptions, and pin one that exists |
-| 2026-08-05 |  | [1.10.0](https://github.com/gregttx/StashPlugins/commit/e81c380) | [1.6.0](https://github.com/gregttx/StashPlugins/commit/e81c380) |  |  | Inject a labelled README link into each plugin's settings group |
-| 2026-08-05 |  | [1.9.3](https://github.com/gregttx/StashPlugins/commit/1e435e8) | [1.5.4](https://github.com/gregttx/StashPlugins/commit/1e435e8) |  |  | Link the README through the manifest url field |
-| 2026-08-05 |  | [1.9.2](https://github.com/gregttx/StashPlugins/commit/60db1b2) | [1.5.3](https://github.com/gregttx/StashPlugins/commit/60db1b2) |  |  | Lead both descriptions with a README permalink |
-| 2026-08-05 |  | [1.9.1](https://github.com/gregttx/StashPlugins/commit/d6442c7) | [1.5.2](https://github.com/gregttx/StashPlugins/commit/d6442c7) |  |  | Lead with F5, keep the hard refresh as the fallback |
-| 2026-08-05 |  |  | [1.5.1](https://github.com/gregttx/StashPlugins/commit/f5b7100) |  |  | Warn in the hierarchy viewer when the script is stale |
-| 2026-08-05 |  | [1.9.0](https://github.com/gregttx/StashPlugins/commit/cfdd46e) | [1.5.0](https://github.com/gregttx/StashPlugins/commit/cfdd46e) |  |  | Refuse to write when the running script is not the installed one |
-| 2026-08-05 |  | [1.8.3](https://github.com/gregttx/StashPlugins/commit/c196394) | [1.4.4](https://github.com/gregttx/StashPlugins/commit/c196394) |  |  | Print the running script's own version at load |
-| 2026-08-05 |  | [1.8.2](https://github.com/gregttx/StashPlugins/commit/bc2b0f6) | [1.4.3](https://github.com/gregttx/StashPlugins/commit/bc2b0f6) |  |  | Settle both dialogs on the darker #202b33 modal |
-| 2026-08-05 |  |  | [1.4.2](https://github.com/gregttx/StashPlugins/commit/ffb3859) |  |  | Align the two dialogs' chrome, and pin it |
-| 2026-08-05 |  | [1.8.1](https://github.com/gregttx/StashPlugins/commit/ad0306f) | [1.4.1](https://github.com/gregttx/StashPlugins/commit/ad0306f) |  |  | Drop the recap tooltips' underline and help cursor |
-| 2026-08-05 |  |  | [1.4.0](https://github.com/gregttx/StashPlugins/commit/30c16f0) |  |  | Hover the run dialog's recap tags for aliases and description |
-| 2026-08-05 |  | [1.8.0](https://github.com/gregttx/StashPlugins/commit/ce9fca7) |  |  |  | Hover the merge recap's tags for aliases and description |
-| 2026-08-05 |  |  | [1.3.0](https://github.com/gregttx/StashPlugins/commit/4ea7cb3) |  |  | Put the tag's aliases and description in the row tooltip |
-| 2026-08-05 |  | [1.7.6](https://github.com/gregttx/StashPlugins/commit/9e3730f) | [1.2.7](https://github.com/gregttx/StashPlugins/commit/9e3730f) |  |  | Say that the number in brackets is a Stash id |
-| 2026-08-05 |  |  | [1.2.6](https://github.com/gregttx/StashPlugins/commit/0931d95) |  |  | Undo the detour 1.2.3 and 1.2.4 took |
-| 2026-08-05 |  |  | [1.2.5](https://github.com/gregttx/StashPlugins/commit/bfc5da9) |  |  | Drive the notice from the checkboxes, and put it next to them |
-| 2026-08-05 |  |  | [1.2.4](https://github.com/gregttx/StashPlugins/commit/18f08b9) |  |  | Keep the notice within a second of the checkbox |
-| 2026-08-05 |  |  | [1.2.3](https://github.com/gregttx/StashPlugins/commit/556b566) |  |  | Update the notice when the checkbox is clicked, not when the cache expires |
-| 2026-08-05 |  |  | [1.2.2](https://github.com/gregttx/StashPlugins/commit/7bb2bc5) |  |  | Anchor the notice on setting ids, not on a heading |
-| 2026-08-05 |  |  | [1.2.1](https://github.com/gregttx/StashPlugins/commit/537c947) |  |  | Fix the both-modes notice never appearing |
-| 2026-08-05 |  |  | [1.2.0](https://github.com/gregttx/StashPlugins/commit/890db9c) |  |  | Say on the settings page when both auto modes are on |
-| 2026-08-05 |  |  | [1.1.5](https://github.com/gregttx/StashPlugins/commit/d44d4a4) |  |  | Say that Roll Up reads a marker's primary tag too |
-| 2026-08-05 |  |  | [1.1.4](https://github.com/gregttx/StashPlugins/commit/f86d799) |  |  | Shorten the Images setting description |
-| 2026-08-05 |  | [1.7.5](https://github.com/gregttx/StashPlugins/commit/c5a83a4) | [1.1.3](https://github.com/gregttx/StashPlugins/commit/c5a83a4) |  |  | Nest the merge notes, and move a note that reassures rather than warns |
-| 2026-08-05 |  |  | [1.1.2](https://github.com/gregttx/StashPlugins/commit/3b9703c) |  |  | Point the notes list at the backup warning |
-| 2026-08-05 |  | [1.7.4](https://github.com/gregttx/StashPlugins/commit/365475f) |  |  |  | Make the merge README's notes list readable |
-| 2026-08-05 |  | [1.7.3](https://github.com/gregttx/StashPlugins/commit/846a4f3) | [1.1.1](https://github.com/gregttx/StashPlugins/commit/846a4f3) |  |  | Put the two READMEs in the same order |
-| 2026-08-05 |  | [1.7.2](https://github.com/gregttx/StashPlugins/commit/df6dcc3) |  |  |  | Carry over the maturity caveat too |
-| 2026-08-05 |  | [1.7.1](https://github.com/gregttx/StashPlugins/commit/7dbcbd9) |  |  |  | Give the merge README the warnings the other one has |
-| 2026-08-05 |  | [1.7.0](https://github.com/gregttx/StashPlugins/commit/8799b8b) |  |  |  | Report the sibling's auto modes in the task dialog |
-| 2026-08-05 |  | [1.6.1](https://github.com/gregttx/StashPlugins/commit/bf05dea) |  |  |  | Bump MergePerformerTagsToScenes to 1.6.1 |
-| 2026-08-05 |  |  | [1.1.0](https://github.com/gregttx/StashPlugins/commit/6ad1da2) |  |  | Keep entities normalized as Stash saves them |
-| 2026-08-03 |  |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/87fc9de) |  |  | Sync NormalizeParentTags manifest version to 1.0.0 |
-| 2026-08-03 |  | [1.6.0](https://github.com/gregttx/StashPlugins/commit/6eedb8d) | [0.12.0](https://github.com/gregttx/StashPlugins/commit/6eedb8d) |  |  | Let the task dialogs take their own writes back |
-| 2026-08-03 |  | [1.5.1](https://github.com/gregttx/StashPlugins/commit/b50dba6) | [0.11.2](https://github.com/gregttx/StashPlugins/commit/b50dba6) |  |  | Correct the documentation that fell behind the code |
-| 2026-08-03 |  |  | [0.11.1](https://github.com/gregttx/StashPlugins/commit/5224fdb) |  |  | Drop the parts of the run dialog that do nothing |
-| 2026-08-03 |  | [1.5.0](https://github.com/gregttx/StashPlugins/commit/63ca556) | [0.11.0](https://github.com/gregttx/StashPlugins/commit/63ca556) |  |  | Put both plugins on both sides of the bulk-edit lease |
-| 2026-08-03 |  | [1.4.3](https://github.com/gregttx/StashPlugins/commit/75e5fb7) | [0.10.2](https://github.com/gregttx/StashPlugins/commit/75e5fb7) |  |  | Reset a rerun the same way in both plugins |
-| 2026-08-03 |  | [1.4.2](https://github.com/gregttx/StashPlugins/commit/d8e33a3) |  |  |  | Point the finished merge task at Rescan |
-| 2026-08-03 |  | [1.4.1](https://github.com/gregttx/StashPlugins/commit/7891b5d) |  |  |  | Plan a single scene through sceneMergePlan too |
-| 2026-08-03 |  |  | [0.10.1](https://github.com/gregttx/StashPlugins/commit/78c707d) |  |  | Leave the hierarchy controls inert until the tags arrive |
-| 2026-08-03 |  |  | [0.10.0](https://github.com/gregttx/StashPlugins/commit/d2da390) |  |  | Drop the Clear log button from the run dialog |
-| 2026-08-03 |  |  | [0.9.0](https://github.com/gregttx/StashPlugins/commit/d9b0de5) |  |  | Follow a multi-parent tag to its other parents |
-| 2026-08-03 |  |  | [0.8.1](https://github.com/gregttx/StashPlugins/commit/2c23ab8) |  |  | Give the find box a clear icon too |
-| 2026-08-03 |  |  | [0.8.0](https://github.com/gregttx/StashPlugins/commit/8d82d7c) |  |  | Jump to a tag instead of reducing the tree to it |
-| 2026-08-03 |  |  | [0.7.2](https://github.com/gregttx/StashPlugins/commit/8958615) |  |  | Clear the hierarchy filter from inside the box |
-| 2026-08-03 |  |  | [0.7.1](https://github.com/gregttx/StashPlugins/commit/ac86556) |  |  | Find a tag without matching its case |
-| 2026-08-03 |  |  | [0.7.0](https://github.com/gregttx/StashPlugins/commit/fdbc0c1) |  |  | Browse the tag hierarchy without running anything |
-| 2026-08-03 |  | [1.4.0](https://github.com/gregttx/StashPlugins/commit/8a090c6) |  |  |  | Close each phase with the tags it moved |
-| 2026-08-03 |  | [1.3.0](https://github.com/gregttx/StashPlugins/commit/7803545) |  |  |  | Review the whole merge before writing any of it |
-| 2026-08-03 |  | [1.2.0](https://github.com/gregttx/StashPlugins/commit/0df0535) |  |  |  | Merge every performer's tags from a library-wide task |
-| 2026-08-03 |  |  | [0.6.1](https://github.com/gregttx/StashPlugins/commit/823908f) |  |  | Let a separator take the place of spaces in the name filters |
-| 2026-08-03 |  |  | [0.5.0](https://github.com/gregttx/StashPlugins/commit/0bd9e5e) |  |  | Take a list of substrings in the two name filters |
-| 2026-08-03 |  |  | [0.4.1](https://github.com/gregttx/StashPlugins/commit/5a3e0f0) |  |  | Count the log lines a rescan actually has |
-| 2026-08-03 |  |  | [0.4.0](https://github.com/gregttx/StashPlugins/commit/45dbe71) |  |  | Close each phase with the tags it touched |
-| 2026-08-02 |  |  | [0.3.1](https://github.com/gregttx/StashPlugins/commit/af72ade) |  |  | Name untitled galleries and images by their file |
-| 2026-08-02 |  |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/6c4cebf) |  |  | Add a Clear log button to the run dialog |
-| 2026-08-02 |  | [1.1.2](https://github.com/gregttx/StashPlugins/commit/461c64e) | [0.2.0](https://github.com/gregttx/StashPlugins/commit/461c64e) |  |  | Say why a tag changed, and put ids outside the quotes |
-| 2026-08-02 |  | [1.1.1](https://github.com/gregttx/StashPlugins/commit/6b5bfd1) | [0.1.2](https://github.com/gregttx/StashPlugins/commit/6b5bfd1) |  |  | Order the settings pages by prefixing the manifest keys |
-| 2026-08-02 |  | [1.1.0](https://github.com/gregttx/StashPlugins/commit/4517abb) | [0.1.0](https://github.com/gregttx/StashPlugins/commit/4517abb) |  |  | Add NormalizeParentTags 0.1.0, and the bulk-edit lease it needs (MPT2S 1.1.0) |
-| 2026-08-01 |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/6d949c0) |  |  |  | Release 1.0.0 |
-| 2026-08-01 |  | [0.9.5](https://github.com/gregttx/StashPlugins/commit/33e8556) |  |  |  | Bump to 0.9.5: carry the logging note into the README intro |
-| 2026-07-31 |  | [0.9.4](https://github.com/gregttx/StashPlugins/commit/c11481c) |  |  |  | Bump to 0.9.4: name the browser console in the Plugins page description too |
-| 2026-07-31 |  | [0.9.3](https://github.com/gregttx/StashPlugins/commit/04129dc) |  |  |  | Bump to 0.9.3: say plainly that merge logs go to the browser console |
-| 2026-07-31 |  | [0.9.2](https://github.com/gregttx/StashPlugins/commit/c258f4b) |  |  |  | Bump to 0.9.2: announce once when merge logging is enabled |
-| 2026-07-31 |  | [0.9.1](https://github.com/gregttx/StashPlugins/commit/fcf454c) |  |  |  | Bump to 0.9.1: fix the logMergesToConsole setting description |
-| 2026-07-31 |  | [0.9.0](https://github.com/gregttx/StashPlugins/commit/7013642) |  |  |  | Bump to 0.9.0: add optional console logging of tag merges |
-| 2026-07-31 |  | [0.8.9](https://github.com/gregttx/StashPlugins/commit/2330fe7) |  |  |  | Bump to 0.8.9: refresh the performer button's eligibility cache on save |
-| 2026-07-31 |  | [0.8.8](https://github.com/gregttx/StashPlugins/commit/1658edb) |  |  |  | Bump to 0.8.8: correct the installation refresh step |
-| 2026-07-31 |  | [0.8.7](https://github.com/gregttx/StashPlugins/commit/01c7726) |  |  |  | Bump to 0.8.7: hide the performer button when the performer has no tags |
-| 2026-07-31 |  | [0.8.6](https://github.com/gregttx/StashPlugins/commit/e695d1a) |  |  |  | Bump to 0.8.6: trim the Review before saving section |
-| 2026-07-31 |  | [0.8.5](https://github.com/gregttx/StashPlugins/commit/af695df) |  |  |  | Bump to 0.8.5: document the exclusion-tag lookup cache |
-| 2026-07-31 |  | [0.8.4](https://github.com/gregttx/StashPlugins/commit/471eb54) |  |  |  | Bump to 0.8.4: refresh the scene button tooltip on hover |
-| 2026-07-31 |  | [0.8.3](https://github.com/gregttx/StashPlugins/commit/4646c78) |  |  |  | Bump to 0.8.3: document the cross-tab staleness limitation |
-| 2026-07-31 |  | [0.8.2](https://github.com/gregttx/StashPlugins/commit/863b1f2) |  |  |  | Bump to 0.8.2: iterate over skipped scenes, throttle the settings query |
-| 2026-07-31 |  | [0.8.0](https://github.com/gregttx/StashPlugins/commit/91c4add) |  |  |  | Bump to 0.8.0: require Stash 0.31.0, exclude tags on custom field presence alone |
-| 2026-07-31 |  | [0.7.0](https://github.com/gregttx/StashPlugins/commit/34bd650) |  |  |  | Bump to 0.7.0: make tag staging the default, replacing stageTagsInEditForm with saveTagsImmediately |
-| 2026-07-31 |  | [0.6.4](https://github.com/gregttx/StashPlugins/commit/dc2eaa7) |  |  |  | Bump to 0.6.4: document the performer button's scene scope, retitle the staging flash |
-| 2026-07-31 |  | [0.6.2](https://github.com/gregttx/StashPlugins/commit/701a5bd) |  |  |  | Bump to 0.6.2: add Stage Tags In Edit Form mode for "Add Perf Tags" |
-| 2026-07-31 |  | [0.5.5](https://github.com/gregttx/StashPlugins/commit/54b18af) |  |  |  | Bump to 0.5.5: fix merge correctness bugs and performer button placement |
-| 2026-07-30 |  | [0.5.2](https://github.com/gregttx/StashPlugins/commit/42bcb9c) |  |  |  | Bump to 0.5.2: fix exclusion filter issues found in code review |
-| 2026-07-30 |  | [0.5.1](https://github.com/gregttx/StashPlugins/commit/bfc65b7) |  |  |  | Bump to 0.5.1: clarify custom field exclusion behavior in README |
-| 2026-07-30 |  | [0.5.0](https://github.com/gregttx/StashPlugins/commit/e565d34) |  |  |  | Bump to 0.5.0: add exclusion filters for organized scenes, tagged scenes, ignored tags, and custom fields |
-| 2026-07-30 |  | [0.4.4](https://github.com/gregttx/StashPlugins/commit/896e71b) |  |  |  | Bump to 0.4.4: fix button names in YML setting description |
-| 2026-07-30 |  | [0.4.3](https://github.com/gregttx/StashPlugins/commit/73cc990) |  |  |  | Bump to 0.4.3: handle bulk scene and performer updates |
-| 2026-07-30 |  | [0.4.1](https://github.com/gregttx/StashPlugins/commit/2b8e248) |  |  |  | Bump to 0.4.1: rename buttons and update docs |
-| 2026-07-30 |  | [0.3.9](https://github.com/gregttx/StashPlugins/commit/0832b26) |  |  |  | Bump to 0.3.9: refresh scene list after all performer merge paths |
-| 2026-07-30 |  | [0.3.6](https://github.com/gregttx/StashPlugins/commit/4cd8377) |  |  |  | Bump to 0.3.6: fix scene refresh, auto-merge, and tab retention |
-| 2026-07-29 |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/4dd8362) |  |  |  | Add auto-merge settings and bump to 0.3.0 |
-| 2026-07-29 |  | [0.2.0](https://github.com/gregttx/StashPlugins/commit/e10da90) |  |  |  | Bump version to 0.2.0 and update descriptions |
-| 2026-07-29 |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/a3e604d) |  |  |  | First commit |
+| Date | CFBE | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-20 |  |  |  |  | 0.0.1 (`5a37e41`) |  | SceneVariants 0.0.1: L0 of the scene-variants plan, as a Siblings panel |
+| 2026-08-20 |  | [3.7.0](https://github.com/gregttx/StashPlugins/commit/e8c5914) |  |  |  |  | MPTTS 3.7.0: the superseded notice reads PTP2RE's settings too |
+| 2026-08-20 |  | [3.6.2](https://github.com/gregttx/StashPlugins/commit/15dc942) |  |  |  |  | MPTTS 3.6.2: the superseded notice sits in the heading, after the name |
+| 2026-08-20 |  | [3.6.1](https://github.com/gregttx/StashPlugins/commit/7d1ad93) |  |  |  |  | MPTTS 3.6.1: the superseded notice moves to the heading line |
+| 2026-08-20 |  | [3.6.0](https://github.com/gregttx/StashPlugins/commit/926a2a4) |  |  |  |  | MPTTS 3.6.0: say on the settings page when PTP2RE has taken over |
+| 2026-08-20 | [2.2.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [3.5.3](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [4.6.6](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | [3.11.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) |  | [0.7.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | One grammatical load banner, in all five |
+| 2026-08-19 | [2.2.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [3.5.2](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [4.6.5](https://github.com/gregttx/StashPlugins/commit/fb346a7) | [3.11.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) |  | [0.7.1](https://github.com/gregttx/StashPlugins/commit/fb346a7) | Release history out of all five plugin sources |
+| 2026-08-19 |  | [3.5.1](https://github.com/gregttx/StashPlugins/commit/256fe0f) | [4.6.4](https://github.com/gregttx/StashPlugins/commit/256fe0f) |  |  |  | No version history in a README or in shipped source |
+| 2026-08-19 | [2.2.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | [3.5.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | [4.6.3](https://github.com/gregttx/StashPlugins/commit/c50338b) | [3.11.0](https://github.com/gregttx/StashPlugins/commit/c50338b) |  | [0.7.0](https://github.com/gregttx/StashPlugins/commit/c50338b) | Repo review 2026-08-19: all 27 findings fixed |
+| 2026-08-19 |  |  |  | [3.10.0](https://github.com/gregttx/StashPlugins/commit/b523556) |  |  | PTP2RE 3.10.0: the paths dialog draws the paths, and you can rearrange them |
+| 2026-08-19 |  |  |  | [3.6.2](https://github.com/gregttx/StashPlugins/commit/05be8bd) |  |  | PTP2RE 3.6.2: the progress counters say what their number is |
+| 2026-08-19 |  |  |  | [3.6.1](https://github.com/gregttx/StashPlugins/commit/12fce4a) |  |  | PTP2RE 3.6.1: Performers -> Groups above Performers -> Scenes |
+| 2026-08-19 |  |  |  | [3.6.0](https://github.com/gregttx/StashPlugins/commit/2085f8d) |  |  | PTP2RE 3.6.0: the layout revised, and a null in a column is a blank row |
+| 2026-08-19 |  |  |  | [3.5.0](https://github.com/gregttx/StashPlugins/commit/6bb9093) |  |  | PTP2RE 3.5.0: the layout is the user's, and a path already happening says so |
+| 2026-08-19 |  |  |  | [3.4.0](https://github.com/gregttx/StashPlugins/commit/5160f26) |  |  | PTP2RE 3.4.0: the bulk buttons move into the footer, and everything says what it does |
+| 2026-08-19 |  |  |  | [3.3.0](https://github.com/gregttx/StashPlugins/commit/595075a) |  |  | PTP2RE 3.3.0: the two moded paths get their own column, and three bulk buttons |
+| 2026-08-19 |  |  |  | [3.2.0](https://github.com/gregttx/StashPlugins/commit/0943e39) |  |  | PTP2RE 3.2.0: each path's control is a button carrying its own state |
+| 2026-08-19 |  |  | [4.6.2](https://github.com/gregttx/StashPlugins/commit/bcf7d0e) | [3.1.2](https://github.com/gregttx/StashPlugins/commit/bcf7d0e) |  |  | NPT 4.6.2 / PTP2RE 3.1.2: configurePlugin replaces, so send the whole map |
+| 2026-08-19 |  |  |  | [3.1.1](https://github.com/gregttx/StashPlugins/commit/992c0b7) |  |  | PTP2RE 3.1.1: the settings row stops deleting a value it could not read |
+| 2026-08-19 |  |  |  | [3.1.0](https://github.com/gregttx/StashPlugins/commit/e6c5c43) |  |  | PTP2RE 3.1.0: adopt MPTTS's four exclusion filters where we have none |
+| 2026-08-19 |  |  | [4.6.1](https://github.com/gregttx/StashPlugins/commit/01e394c) | [3.0.2](https://github.com/gregttx/StashPlugins/commit/01e394c) |  |  | NPT 4.6.1 / PTP2RE 3.0.2: a self-append fixed, and the row listing in columns |
+| 2026-08-19 |  |  |  | [3.0.1](https://github.com/gregttx/StashPlugins/commit/96daa34) |  |  | PTP2RE 3.0.1: the path dialog gets two columns and loses a false heading |
+| 2026-08-19 |  |  |  | [3.0.0](https://github.com/gregttx/StashPlugins/commit/706b0c5) |  |  | PTP2RE 3.0.0: fifteen path switches become one string and a dialog |
+| 2026-08-19 |  |  | [4.6.0](https://github.com/gregttx/StashPlugins/commit/b30adb3) |  |  |  | NPT 4.6.0: the value is the armed mark, so the bar goes |
+| 2026-08-18 |  |  | [4.5.0](https://github.com/gregttx/StashPlugins/commit/8dfab91) |  |  |  | NPT 4.5.0: the setting row is taken over, not hidden |
+| 2026-08-18 |  |  | [4.4.0](https://github.com/gregttx/StashPlugins/commit/86a1f2d) |  |  |  | NPT 4.4.0: the settings page shows the dialog, not the setting string |
+| 2026-08-18 |  | [3.4.0](https://github.com/gregttx/StashPlugins/commit/e06ff06) | [4.3.0](https://github.com/gregttx/StashPlugins/commit/e06ff06) | [2.4.0](https://github.com/gregttx/StashPlugins/commit/e06ff06) |  |  | NPT 4.3.0 / MPTTS 3.4.0 / PTP2RE 2.4.0: amber reaches inside the dialogs |
+| 2026-08-18 |  |  | [4.2.2](https://github.com/gregttx/StashPlugins/commit/febb075) |  |  |  | NPT 4.2.2: the slow-pass warning belongs to the dialog that runs one |
+| 2026-08-18 |  |  | [4.2.1](https://github.com/gregttx/StashPlugins/commit/1bff4ac) |  |  |  | NPT 4.2.1: the labels are right-aligned against the aligned selects |
+| 2026-08-18 |  |  | [4.2.0](https://github.com/gregttx/StashPlugins/commit/7c0e6f6) |  |  |  | NPT 4.2.0: the Images selector says a whole-library pass is slow |
+| 2026-08-18 |  |  | [4.1.1](https://github.com/gregttx/StashPlugins/commit/52ef597) |  |  |  | NPT 4.1.1: a mode selector sits beside its own label |
+| 2026-08-18 |  |  | [4.1.0](https://github.com/gregttx/StashPlugins/commit/11d356a) |  |  |  | NPT 4.1.0: an amber bar says a type is armed |
+| 2026-08-18 |  |  | [4.0.3](https://github.com/gregttx/StashPlugins/commit/d04bd23) |  |  |  | NPT 4.0.3: the auto-mode setting description shows a shape, not a value |
+| 2026-08-18 |  |  | [4.0.2](https://github.com/gregttx/StashPlugins/commit/b6298e0) |  |  |  | NPT 4.0.2: the auto-mode field's border is not ours to colour |
+| 2026-08-18 |  | [3.3.1](https://github.com/gregttx/StashPlugins/commit/8a004da) | [4.0.1](https://github.com/gregttx/StashPlugins/commit/8a004da) | [2.3.1](https://github.com/gregttx/StashPlugins/commit/8a004da) |  |  | NPT 4.0.1 / MPTTS 3.3.1 / PTP2RE 2.3.1: the stale banner survives a setting rename |
+| 2026-08-18 |  | [3.3.0](https://github.com/gregttx/StashPlugins/commit/cdacce0) | [4.0.0](https://github.com/gregttx/StashPlugins/commit/cdacce0) | [2.3.0](https://github.com/gregttx/StashPlugins/commit/cdacce0) |  |  | NPT 4.0.0: one mode per entity type, and one task that does both |
+| 2026-08-18 |  |  |  |  |  | [0.6.1](https://github.com/gregttx/StashPlugins/commit/04e2a8a) | TagBundleClipboard 0.6.1: one word per mode mark |
+| 2026-08-18 |  |  |  |  |  | [0.6.0](https://github.com/gregttx/StashPlugins/commit/d0bece8) | TagBundleClipboard 0.6.0: re-bind the planner when the tab comes back |
+| 2026-08-18 |  |  | [3.2.0](https://github.com/gregttx/StashPlugins/commit/8215c44) |  |  | [0.5.0](https://github.com/gregttx/StashPlugins/commit/8215c44) | NPT 3.2.0 / TBC 0.5.0: one plugin computes the other's operation |
+| 2026-08-18 |  |  |  |  |  | [0.4.0](https://github.com/gregttx/StashPlugins/commit/d10b349) | TagBundleClipboard 0.4.0: warn when NPT will rewrite the save |
+| 2026-08-18 |  |  |  |  |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/1480527) | TagBundleClipboard 0.3.0: named titles, amber where it acts, sibling drift |
+| 2026-08-18 |  |  |  |  |  | [0.2.0](https://github.com/gregttx/StashPlugins/commit/ff8b899) | TagBundleClipboard 0.2.0: dots back, columns fixed, modes gated on NPT |
+| 2026-08-18 |  | [3.2.0](https://github.com/gregttx/StashPlugins/commit/034b60a) |  | [2.2.0](https://github.com/gregttx/StashPlugins/commit/034b60a) |  | [0.1.0](https://github.com/gregttx/StashPlugins/commit/034b60a) | TagBundleClipboard 0.1.0: prune/roll-up, tag hovers, columns, Undo |
+| 2026-08-17 |  |  |  |  |  | [0.0.1](https://github.com/gregttx/StashPlugins/commit/b529b9e) | TagBundleClipboard 0.0.1: a tag clipboard between any two entities |
+| 2026-08-17 | [2.1.0](https://github.com/gregttx/StashPlugins/commit/21c9c2a) | [3.1.0](https://github.com/gregttx/StashPlugins/commit/21c9c2a) | [3.1.0](https://github.com/gregttx/StashPlugins/commit/21c9c2a) | [2.1.0](https://github.com/gregttx/StashPlugins/commit/21c9c2a) |  |  | All four: a busy cursor under the last log line |
+| 2026-08-16 | [2.0.3](https://github.com/gregttx/StashPlugins/commit/8c6ab97) |  |  |  |  |  | CFBE 2.0.3: Prune clears the rows, and greys itself out |
+| 2026-08-16 | [2.0.1](https://github.com/gregttx/StashPlugins/commit/8c8cd24) |  |  |  |  |  | CFBE 2.0.1: the marker field takes the prefix |
+| 2026-08-16 | [2.0.0](https://github.com/gregttx/StashPlugins/commit/ae1f4a8) | [3.0.0](https://github.com/gregttx/StashPlugins/commit/ae1f4a8) | [3.0.0](https://github.com/gregttx/StashPlugins/commit/ae1f4a8) | [2.0.0](https://github.com/gregttx/StashPlugins/commit/ae1f4a8) |  |  | All four: the ᝯㄝₓ prefix reaches the scripts |
+| 2026-08-16 | [1.3.1](https://github.com/gregttx/StashPlugins/commit/fb5105f) |  |  | [1.4.2](https://github.com/gregttx/StashPlugins/commit/fb5105f) |  |  | CFBE 1.3.1, PTP2RE 1.4.2: the last of the version references |
+| 2026-08-16 |  | [2.4.1](https://github.com/gregttx/StashPlugins/commit/b265818) | [2.6.1](https://github.com/gregttx/StashPlugins/commit/b265818) | [1.4.1](https://github.com/gregttx/StashPlugins/commit/b265818) |  |  | READMEs describe the plugin, not its history |
+| 2026-08-16 | [1.3.0](https://github.com/gregttx/StashPlugins/commit/eb0e690) | [2.4.0](https://github.com/gregttx/StashPlugins/commit/eb0e690) | [2.6.0](https://github.com/gregttx/StashPlugins/commit/eb0e690) | [1.4.0](https://github.com/gregttx/StashPlugins/commit/eb0e690) |  |  | The stale-script warning in the dialogs, and a README trim |
+| 2026-08-16 | [1.2.0](https://github.com/gregttx/StashPlugins/commit/361d826) | [2.3.0](https://github.com/gregttx/StashPlugins/commit/361d826) | [2.5.0](https://github.com/gregttx/StashPlugins/commit/361d826) | [1.3.0](https://github.com/gregttx/StashPlugins/commit/361d826) |  |  | All four: a stale script says so on the settings page |
+| 2026-08-16 | [1.1.1](https://github.com/gregttx/StashPlugins/commit/01d2575) |  |  |  |  |  | CFBE 1.1.1: the store-tag row counts its carrier |
+| 2026-08-16 |  | [2.2.3](https://github.com/gregttx/StashPlugins/commit/a81564c) |  |  |  |  | MPTTS 2.2.3: the spacing paragraph in the present tense |
+| 2026-08-16 |  | [2.2.2](https://github.com/gregttx/StashPlugins/commit/20403e2) |  | [1.2.2](https://github.com/gregttx/StashPlugins/commit/20403e2) |  |  | MPTTS 2.2.2, PTP2RE 1.2.2: two leftovers from the README pass |
+| 2026-08-16 | [1.1.0](https://github.com/gregttx/StashPlugins/commit/12866ec) | [2.2.1](https://github.com/gregttx/StashPlugins/commit/12866ec) | [2.4.0](https://github.com/gregttx/StashPlugins/commit/12866ec) | [1.2.1](https://github.com/gregttx/StashPlugins/commit/12866ec) |  |  | CFBE 1.1.0, NPT 2.4.0, MPTTS 2.2.1, PTP2RE 1.2.1 |
+| 2026-08-16 | [1.0.0](https://github.com/gregttx/StashPlugins/commit/3d59ab5) |  |  |  |  |  | CFBE 1.0.0: the hide field is nobody's loose end |
+| 2026-08-16 | [0.12.1](https://github.com/gregttx/StashPlugins/commit/49a5f5d) |  |  |  |  |  | CFBE 0.12.1: a name pill's tooltip says it is the name |
+| 2026-08-16 | [0.12.0](https://github.com/gregttx/StashPlugins/commit/4473b63) |  |  |  |  |  | CFBE 0.12.0: omits, a filter for the entity, and what Overwrite leaves alone |
+| 2026-08-16 | [0.11.0](https://github.com/gregttx/StashPlugins/commit/5e68072) |  |  |  |  |  | CFBE 0.11.0: the descriptions dialog divides its own room |
+| 2026-08-16 | [0.10.0](https://github.com/gregttx/StashPlugins/commit/c86c1c7) |  |  |  |  |  | CFBE 0.10.0: Rename, a scope that follows the filters, and dialogs that hold still |
+| 2026-08-16 | [0.9.0](https://github.com/gregttx/StashPlugins/commit/dd01574) |  |  |  |  |  | CFBE 0.9.0: filter the listing by whether a value is true |
+| 2026-08-16 | [0.8.1](https://github.com/gregttx/StashPlugins/commit/8983894) |  |  |  |  |  | CFBE 0.8.1: the descriptions dialog keeps typing, and the settings arrive filled in |
+| 2026-08-15 | [0.8.0](https://github.com/gregttx/StashPlugins/commit/112528d) |  |  |  |  |  | CFBE 0.8.0: every custom field can say what it is for |
+| 2026-08-14 | [0.7.3](https://github.com/gregttx/StashPlugins/commit/1d1c414) |  |  |  |  |  | CFBE 0.7.3: the dropdowns get Stash's stacked marker |
+| 2026-08-14 | [0.7.2](https://github.com/gregttx/StashPlugins/commit/a601928) |  |  |  |  |  | CFBE 0.7.2: the log follows itself again |
+| 2026-08-14 | [0.7.1](https://github.com/gregttx/StashPlugins/commit/4999d8b) | [2.2.0](https://github.com/gregttx/StashPlugins/commit/4999d8b) | [2.3.0](https://github.com/gregttx/StashPlugins/commit/4999d8b) | [1.2.0](https://github.com/gregttx/StashPlugins/commit/4999d8b) |  |  | The log stays until you close the dialog, and the footers agree |
+| 2026-08-14 | [0.7.0](https://github.com/gregttx/StashPlugins/commit/823b766) | [2.1.4](https://github.com/gregttx/StashPlugins/commit/823b766) | [2.2.4](https://github.com/gregttx/StashPlugins/commit/823b766) | [1.1.4](https://github.com/gregttx/StashPlugins/commit/823b766) |  |  | Wider still, and CFBE gets a setting |
+| 2026-08-13 | [0.6.0](https://github.com/gregttx/StashPlugins/commit/2b41b16) | [2.1.3](https://github.com/gregttx/StashPlugins/commit/2b41b16) | [2.2.3](https://github.com/gregttx/StashPlugins/commit/2b41b16) | [1.1.3](https://github.com/gregttx/StashPlugins/commit/2b41b16) |  |  | Wider dialogs, and CFBE stops skipping quietly |
+| 2026-08-13 | [0.5.0](https://github.com/gregttx/StashPlugins/commit/bf1f7b8) |  |  |  |  |  | CFBE 0.5.0: one log, and it keeps what it said |
+| 2026-08-13 | [0.4.5](https://github.com/gregttx/StashPlugins/commit/91b664b) | [2.1.2](https://github.com/gregttx/StashPlugins/commit/91b664b) | [2.2.2](https://github.com/gregttx/StashPlugins/commit/91b664b) | [1.1.2](https://github.com/gregttx/StashPlugins/commit/91b664b) |  |  | Two words the plugins no longer say: "Stash id", and "(s)" |
+| 2026-08-13 | [0.4.4](https://github.com/gregttx/StashPlugins/commit/25b7597) |  |  |  |  |  | CFBE 0.4.4: the legend's ␀ is drawn by the list's own rule |
+| 2026-08-13 | [0.4.3](https://github.com/gregttx/StashPlugins/commit/d182176) | [2.1.1](https://github.com/gregttx/StashPlugins/commit/d182176) | [2.2.1](https://github.com/gregttx/StashPlugins/commit/d182176) | [1.1.1](https://github.com/gregttx/StashPlugins/commit/d182176) |  |  | Four dialog heads, one sentence |
+| 2026-08-13 | [0.4.0](https://github.com/gregttx/StashPlugins/commit/538cbbc) |  |  |  |  |  | CFBE 0.4.0: five things a whole library made the dialog want |
+| 2026-08-13 | [0.3.2](https://github.com/gregttx/StashPlugins/commit/8ba02e7) |  |  |  |  |  | CFBE 0.3.2: the settings decoration was landing on the Tasks panel |
+| 2026-08-13 | [0.3.1](https://github.com/gregttx/StashPlugins/commit/2567a45) |  |  |  |  |  | CFBE 0.3.1: the whole-library read is paged, so the counter moves |
+| 2026-08-13 | [0.3.0](https://github.com/gregttx/StashPlugins/commit/5407b5a) |  |  |  |  |  | CFBE 0.3.0: a task that opens the same dialog on the whole library |
+| 2026-08-13 | [0.2.5](https://github.com/gregttx/StashPlugins/commit/c46b4a4) |  |  |  |  |  | CFBE 0.2.5: an unescaped quote in the yml stopped the plugin loading |
+| 2026-08-13 | [0.2.4](https://github.com/gregttx/StashPlugins/commit/68b1d17) |  |  |  |  |  | CFBE 0.2.4: "is empty" is a mode beside the box, not a word in it |
+| 2026-08-13 | [0.2.3](https://github.com/gregttx/StashPlugins/commit/324a7b3) |  |  |  |  |  | CFBE 0.2.3: the listing is pills, and ␀ took three rounds |
+| 2026-08-13 | [0.1.2](https://github.com/gregttx/StashPlugins/commit/eca51be) |  |  |  |  |  | CFBE 0.1.2: a tag's parent link was eating its own selection |
+| 2026-08-12 | [0.1.1](https://github.com/gregttx/StashPlugins/commit/44c902e) |  | [2.2.0](https://github.com/gregttx/StashPlugins/commit/44c902e) |  |  |  | NPT 2.2.0 drops the graph exports; CFBE 0.1.1 finds the lists whose URL lies |
+| 2026-08-12 | [0.1.0](https://github.com/gregttx/StashPlugins/commit/4c11384) | [2.1.0](https://github.com/gregttx/StashPlugins/commit/4c11384) | [2.1.0](https://github.com/gregttx/StashPlugins/commit/4c11384) | [1.1.0](https://github.com/gregttx/StashPlugins/commit/4c11384) |  |  | Escape closes every dialog, and CFBE 0.1.0 gets the settings-page description |
+| 2026-08-12 | [0.0.1](https://github.com/gregttx/StashPlugins/commit/20bc7c3) | [2.0.1](https://github.com/gregttx/StashPlugins/commit/20bc7c3) | [2.0.1](https://github.com/gregttx/StashPlugins/commit/20bc7c3) | [1.0.1](https://github.com/gregttx/StashPlugins/commit/20bc7c3) |  |  | CustomFieldsBulkEditor 0.0.1: bulk custom fields, off the list view's "..." menu |
+| 2026-08-11 |  | [2.0.0](https://github.com/gregttx/StashPlugins/commit/47d06a6) | [2.0.0](https://github.com/gregttx/StashPlugins/commit/47d06a6) | [1.0.0](https://github.com/gregttx/StashPlugins/commit/47d06a6) |  |  | GTTx: NPT 2.0.0, MPT2S 2.0.0, PTP2RE 1.0.0 — one prefix, and a name in every dialog head |
+| 2026-08-11 |  | [1.17.0](https://github.com/gregttx/StashPlugins/commit/2aebce9) | [1.8.0](https://github.com/gregttx/StashPlugins/commit/2aebce9) | [0.17.0](https://github.com/gregttx/StashPlugins/commit/2aebce9) |  |  | Amber for "a plugin wrote this": NPT 1.8.0, MPT2S 1.17.0, PTP2RE 0.17.0 |
+| 2026-08-11 |  | [1.16.3](https://github.com/gregttx/StashPlugins/commit/2b1332c) |  | [0.16.0](https://github.com/gregttx/StashPlugins/commit/2b1332c) |  |  | PropagateTagsAndPerformers 0.16.0, MergePerformerTagsToScenes 1.16.3: parity was a claim nobody had checked |
+| 2026-08-11 |  |  |  | [0.15.0](https://github.com/gregttx/StashPlugins/commit/22aa4bb) |  |  | PropagateTagsAndPerformers 0.15.0: source buttons on their targets' tab, and say where the tags come from |
+| 2026-08-11 |  |  |  | [0.14.0](https://github.com/gregttx/StashPlugins/commit/6c5ed24) |  |  | PropagateTagsAndPerformers 0.14.0: a second anchor, for the pages with no action row |
+| 2026-08-11 |  |  |  | [0.13.3](https://github.com/gregttx/StashPlugins/commit/c76a624) |  |  | PropagateTagsAndPerformers 0.13.3: four pages have no source-button anchor, not one |
+| 2026-08-11 |  | [1.16.2](https://github.com/gregttx/StashPlugins/commit/eff36ee) |  | [0.13.2](https://github.com/gregttx/StashPlugins/commit/eff36ee) |  |  | PropagateTagsAndPerformers 0.13.2, MergePerformerTagsToScenes 1.16.2: a diagnostic that only speaks on a cache miss is silent when it is wanted |
+| 2026-08-11 |  | [1.16.1](https://github.com/gregttx/StashPlugins/commit/b0f2d47) |  | [0.13.1](https://github.com/gregttx/StashPlugins/commit/b0f2d47) |  |  | PropagateTagsAndPerformers 0.13.1, MergePerformerTagsToScenes 1.16.1: a switch to ask a button why it is hidden |
+| 2026-08-11 |  | [1.16.0](https://github.com/gregttx/StashPlugins/commit/c95d1a4) |  | [0.13.0](https://github.com/gregttx/StashPlugins/commit/c95d1a4) |  |  | PropagateTagsAndPerformers 0.13.0, MergePerformerTagsToScenes 1.16.0: hide a button that would add nothing |
+| 2026-08-11 |  |  |  | [0.12.14](https://github.com/gregttx/StashPlugins/commit/27806fa) |  |  | PropagateTagsAndPerformers 0.12.14: measure before you fix, not after |
+| 2026-08-10 |  |  | [1.7.8](https://github.com/gregttx/StashPlugins/commit/a2097ec) | [0.12.10](https://github.com/gregttx/StashPlugins/commit/a2097ec) |  |  | PropagateTagsAndPerformers 0.12.10, NormalizeParentTags 1.7.8: say where the buttons are |
+| 2026-08-10 |  | [1.15.9](https://github.com/gregttx/StashPlugins/commit/dee5079) | [1.7.7](https://github.com/gregttx/StashPlugins/commit/dee5079) | [0.12.9](https://github.com/gregttx/StashPlugins/commit/dee5079) |  |  | PropagateTagsAndPerformers 0.12.9, MergePerformerTagsToScenes 1.15.9, NormalizeParentTags 1.7.7: say it once |
+| 2026-08-10 |  | [1.15.8](https://github.com/gregttx/StashPlugins/commit/1ff1eb3) |  | [0.12.8](https://github.com/gregttx/StashPlugins/commit/1ff1eb3) |  |  | PropagateTagsAndPerformers 0.12.8, MergePerformerTagsToScenes 1.15.8: walk past what you cannot read |
+| 2026-08-10 |  | [1.15.7](https://github.com/gregttx/StashPlugins/commit/37293e3) |  | [0.12.7](https://github.com/gregttx/StashPlugins/commit/37293e3) |  |  | PropagateTagsAndPerformers 0.12.7, MergePerformerTagsToScenes 1.15.7: a margin is true whenever you ask |
+| 2026-08-10 |  | [1.15.6](https://github.com/gregttx/StashPlugins/commit/780a7d7) |  | [0.12.6](https://github.com/gregttx/StashPlugins/commit/780a7d7) |  |  | PropagateTagsAndPerformers 0.12.6, MergePerformerTagsToScenes 1.15.6: measure the gap, don't derive it |
+| 2026-08-10 |  | [1.15.5](https://github.com/gregttx/StashPlugins/commit/36b142d) |  | [0.12.5](https://github.com/gregttx/StashPlugins/commit/36b142d) |  |  | PropagateTagsAndPerformers 0.12.5, MergePerformerTagsToScenes 1.15.5: fill the gap the neighbour leaves |
+| 2026-08-10 |  | [1.15.4](https://github.com/gregttx/StashPlugins/commit/e7fd0d8) |  | [0.12.4](https://github.com/gregttx/StashPlugins/commit/e7fd0d8) |  |  | PropagateTagsAndPerformers 0.12.4, MergePerformerTagsToScenes 1.15.4: let the measured margins win the cascade |
+| 2026-08-10 |  | [1.15.3](https://github.com/gregttx/StashPlugins/commit/535cd0b) |  | [0.12.3](https://github.com/gregttx/StashPlugins/commit/535cd0b) |  |  | PropagateTagsAndPerformers 0.12.3, MergePerformerTagsToScenes 1.15.3: measure the row's spacing instead of choosing it |
+| 2026-08-10 |  | [1.15.2](https://github.com/gregttx/StashPlugins/commit/370d5fc) |  | [0.12.2](https://github.com/gregttx/StashPlugins/commit/370d5fc) |  |  | PropagateTagsAndPerformers 0.12.2, MergePerformerTagsToScenes 1.15.2: source button blink loop, and mx-2 on the scene button |
+| 2026-08-10 |  | [1.15.1](https://github.com/gregttx/StashPlugins/commit/e99ee5b) |  | [0.12.1](https://github.com/gregttx/StashPlugins/commit/e99ee5b) |  |  | PropagateTagsAndPerformers 0.12.1, MergePerformerTagsToScenes 1.15.1: find Delete by text, not only by class |
+| 2026-08-10 |  | [1.15.0](https://github.com/gregttx/StashPlugins/commit/bdf2ab2) |  | [0.12.0](https://github.com/gregttx/StashPlugins/commit/bdf2ab2) |  |  | PropagateTagsAndPerformers 0.12.0, MergePerformerTagsToScenes 1.15.0: important-action anchor |
+| 2026-08-08 |  | [1.14.0](https://github.com/gregttx/StashPlugins/commit/a026fd3) |  | [0.11.0](https://github.com/gregttx/StashPlugins/commit/a026fd3) |  |  | PropagateTagsAndPerformers 0.11.0, MergePerformerTagsToScenes 1.14.0: anchor manual buttons on Delete, not Save |
+| 2026-08-08 |  | [1.13.0](https://github.com/gregttx/StashPlugins/commit/d2a9dfe) |  | [0.10.0](https://github.com/gregttx/StashPlugins/commit/d2a9dfe) |  |  | PropagateTagsAndPerformers 0.9.0-0.10.0, MergePerformerTagsToScenes 1.13.0: button fixes and deterministic cross-plugin ordering |
+| 2026-08-07 |  |  |  | [0.8.3](https://github.com/gregttx/StashPlugins/commit/399082d) |  |  | PropagateTagsAndPerformers 0.8.3: fix button height, stop duplicating MPTTS's button |
+| 2026-08-07 |  |  |  | [0.8.2](https://github.com/gregttx/StashPlugins/commit/6f183c5) |  |  | PropagateTagsAndPerformers 0.8.2: fix manual buttons on the Group page |
+| 2026-08-07 |  |  |  | [0.8.1](https://github.com/gregttx/StashPlugins/commit/af185f4) |  |  | PropagateTagsAndPerformers 0.8.1: fix manual buttons never appearing |
+| 2026-08-07 |  |  |  | [0.8.0](https://github.com/gregttx/StashPlugins/commit/5eccbfb) |  |  | PropagateTagsAndPerformers 0.8.0: manual buttons and staging (step 8) |
+| 2026-08-07 |  | [1.12.0](https://github.com/gregttx/StashPlugins/commit/65a3cfc) | [1.7.6](https://github.com/gregttx/StashPlugins/commit/65a3cfc) | [0.7.0](https://github.com/gregttx/StashPlugins/commit/65a3cfc) |  |  | Cross-plugin cooperation: the declares registry (step 7) |
+| 2026-08-07 |  |  |  | [0.6.0](https://github.com/gregttx/StashPlugins/commit/fa58bf2) |  |  | PropagateTagsAndPerformers 0.6.0: auto mode, source side |
+| 2026-08-06 |  |  |  | [0.5.0](https://github.com/gregttx/StashPlugins/commit/80d7eba) |  |  | PropagateTagsAndPerformers 0.5.0: auto mode, target side |
+| 2026-08-06 |  |  |  | [0.4.0](https://github.com/gregttx/StashPlugins/commit/ebc270a) |  |  | PropagateTagsAndPerformers 0.4.0: a gallery's images |
+| 2026-08-06 |  |  |  | [0.3.1](https://github.com/gregttx/StashPlugins/commit/cf4bacc) |  |  | PropagateTagsAndPerformers 0.3.1: name the source entity in the log |
+| 2026-08-06 |  |  |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/3324483) |  |  | PropagateTagsAndPerformers 0.3.0: apply and Undo |
+| 2026-08-06 |  |  |  | [0.2.0](https://github.com/gregttx/StashPlugins/commit/a47e793) |  |  | PropagateTagsAndPerformers 0.2.0: the planner |
+| 2026-08-06 |  |  |  | [0.1.0](https://github.com/gregttx/StashPlugins/commit/3d44086) |  |  | PropagateTagsAndPerformers 0.1.0: the shared base |
+| 2026-08-06 |  |  |  | [0.0.1](https://github.com/gregttx/StashPlugins/commit/64662f0) |  |  | PropagateTagsAndPerformers 0.0.1: scaffold |
+| 2026-08-06 |  | [1.11.0](https://github.com/gregttx/StashPlugins/commit/f2883d1) |  |  |  |  | MergePerformerTagsToScenes 1.11.0: summary on the page, detail on hover |
+| 2026-08-06 |  |  | [1.7.5](https://github.com/gregttx/StashPlugins/commit/7433b56) |  |  |  | NormalizeParentTags 1.7.5: summary on the page, detail on hover |
+| 2026-08-05 |  | [1.10.5](https://github.com/gregttx/StashPlugins/commit/477fbb5) | [1.6.5](https://github.com/gregttx/StashPlugins/commit/477fbb5) |  |  |  | Give "Requires Stash 0.31.0 or newer" its own paragraph |
+| 2026-08-05 |  | [1.10.4](https://github.com/gregttx/StashPlugins/commit/e2a6d65) | [1.6.4](https://github.com/gregttx/StashPlugins/commit/e2a6d65) |  |  |  | Rebuild the description's paragraphs as divs, gap about a third of a line |
+| 2026-08-05 |  | [1.10.3](https://github.com/gregttx/StashPlugins/commit/dc5c518) | [1.6.3](https://github.com/gregttx/StashPlugins/commit/dc5c518) |  |  |  | Simplify both descriptions, and make their paragraphs render |
+| 2026-08-05 |  | [1.10.2](https://github.com/gregttx/StashPlugins/commit/998b7fd) | [1.6.2](https://github.com/gregttx/StashPlugins/commit/998b7fd) |  |  |  | Track main in the README links instead of a pinned SHA |
+| 2026-08-05 |  | [1.10.1](https://github.com/gregttx/StashPlugins/commit/901f09f) | [1.6.1](https://github.com/gregttx/StashPlugins/commit/901f09f) |  |  |  | Take the URL out of the descriptions, and pin one that exists |
+| 2026-08-05 |  | [1.10.0](https://github.com/gregttx/StashPlugins/commit/e81c380) | [1.6.0](https://github.com/gregttx/StashPlugins/commit/e81c380) |  |  |  | Inject a labelled README link into each plugin's settings group |
+| 2026-08-05 |  | [1.9.3](https://github.com/gregttx/StashPlugins/commit/1e435e8) | [1.5.4](https://github.com/gregttx/StashPlugins/commit/1e435e8) |  |  |  | Link the README through the manifest url field |
+| 2026-08-05 |  | [1.9.2](https://github.com/gregttx/StashPlugins/commit/60db1b2) | [1.5.3](https://github.com/gregttx/StashPlugins/commit/60db1b2) |  |  |  | Lead both descriptions with a README permalink |
+| 2026-08-05 |  | [1.9.1](https://github.com/gregttx/StashPlugins/commit/d6442c7) | [1.5.2](https://github.com/gregttx/StashPlugins/commit/d6442c7) |  |  |  | Lead with F5, keep the hard refresh as the fallback |
+| 2026-08-05 |  |  | [1.5.1](https://github.com/gregttx/StashPlugins/commit/f5b7100) |  |  |  | Warn in the hierarchy viewer when the script is stale |
+| 2026-08-05 |  | [1.9.0](https://github.com/gregttx/StashPlugins/commit/cfdd46e) | [1.5.0](https://github.com/gregttx/StashPlugins/commit/cfdd46e) |  |  |  | Refuse to write when the running script is not the installed one |
+| 2026-08-05 |  | [1.8.3](https://github.com/gregttx/StashPlugins/commit/c196394) | [1.4.4](https://github.com/gregttx/StashPlugins/commit/c196394) |  |  |  | Print the running script's own version at load |
+| 2026-08-05 |  | [1.8.2](https://github.com/gregttx/StashPlugins/commit/bc2b0f6) | [1.4.3](https://github.com/gregttx/StashPlugins/commit/bc2b0f6) |  |  |  | Settle both dialogs on the darker #202b33 modal |
+| 2026-08-05 |  |  | [1.4.2](https://github.com/gregttx/StashPlugins/commit/ffb3859) |  |  |  | Align the two dialogs' chrome, and pin it |
+| 2026-08-05 |  | [1.8.1](https://github.com/gregttx/StashPlugins/commit/ad0306f) | [1.4.1](https://github.com/gregttx/StashPlugins/commit/ad0306f) |  |  |  | Drop the recap tooltips' underline and help cursor |
+| 2026-08-05 |  |  | [1.4.0](https://github.com/gregttx/StashPlugins/commit/30c16f0) |  |  |  | Hover the run dialog's recap tags for aliases and description |
+| 2026-08-05 |  | [1.8.0](https://github.com/gregttx/StashPlugins/commit/ce9fca7) |  |  |  |  | Hover the merge recap's tags for aliases and description |
+| 2026-08-05 |  |  | [1.3.0](https://github.com/gregttx/StashPlugins/commit/4ea7cb3) |  |  |  | Put the tag's aliases and description in the row tooltip |
+| 2026-08-05 |  | [1.7.6](https://github.com/gregttx/StashPlugins/commit/9e3730f) | [1.2.7](https://github.com/gregttx/StashPlugins/commit/9e3730f) |  |  |  | Say that the number in brackets is a Stash id |
+| 2026-08-05 |  |  | [1.2.6](https://github.com/gregttx/StashPlugins/commit/0931d95) |  |  |  | Undo the detour 1.2.3 and 1.2.4 took |
+| 2026-08-05 |  |  | [1.2.5](https://github.com/gregttx/StashPlugins/commit/bfc5da9) |  |  |  | Drive the notice from the checkboxes, and put it next to them |
+| 2026-08-05 |  |  | [1.2.4](https://github.com/gregttx/StashPlugins/commit/18f08b9) |  |  |  | Keep the notice within a second of the checkbox |
+| 2026-08-05 |  |  | [1.2.3](https://github.com/gregttx/StashPlugins/commit/556b566) |  |  |  | Update the notice when the checkbox is clicked, not when the cache expires |
+| 2026-08-05 |  |  | [1.2.2](https://github.com/gregttx/StashPlugins/commit/7bb2bc5) |  |  |  | Anchor the notice on setting ids, not on a heading |
+| 2026-08-05 |  |  | [1.2.1](https://github.com/gregttx/StashPlugins/commit/537c947) |  |  |  | Fix the both-modes notice never appearing |
+| 2026-08-05 |  |  | [1.2.0](https://github.com/gregttx/StashPlugins/commit/890db9c) |  |  |  | Say on the settings page when both auto modes are on |
+| 2026-08-05 |  |  | [1.1.5](https://github.com/gregttx/StashPlugins/commit/d44d4a4) |  |  |  | Say that Roll Up reads a marker's primary tag too |
+| 2026-08-05 |  |  | [1.1.4](https://github.com/gregttx/StashPlugins/commit/f86d799) |  |  |  | Shorten the Images setting description |
+| 2026-08-05 |  | [1.7.5](https://github.com/gregttx/StashPlugins/commit/c5a83a4) | [1.1.3](https://github.com/gregttx/StashPlugins/commit/c5a83a4) |  |  |  | Nest the merge notes, and move a note that reassures rather than warns |
+| 2026-08-05 |  |  | [1.1.2](https://github.com/gregttx/StashPlugins/commit/3b9703c) |  |  |  | Point the notes list at the backup warning |
+| 2026-08-05 |  | [1.7.4](https://github.com/gregttx/StashPlugins/commit/365475f) |  |  |  |  | Make the merge README's notes list readable |
+| 2026-08-05 |  | [1.7.3](https://github.com/gregttx/StashPlugins/commit/846a4f3) | [1.1.1](https://github.com/gregttx/StashPlugins/commit/846a4f3) |  |  |  | Put the two READMEs in the same order |
+| 2026-08-05 |  | [1.7.2](https://github.com/gregttx/StashPlugins/commit/df6dcc3) |  |  |  |  | Carry over the maturity caveat too |
+| 2026-08-05 |  | [1.7.1](https://github.com/gregttx/StashPlugins/commit/7dbcbd9) |  |  |  |  | Give the merge README the warnings the other one has |
+| 2026-08-05 |  | [1.7.0](https://github.com/gregttx/StashPlugins/commit/8799b8b) |  |  |  |  | Report the sibling's auto modes in the task dialog |
+| 2026-08-05 |  | [1.6.1](https://github.com/gregttx/StashPlugins/commit/bf05dea) |  |  |  |  | Bump MergePerformerTagsToScenes to 1.6.1 |
+| 2026-08-05 |  |  | [1.1.0](https://github.com/gregttx/StashPlugins/commit/6ad1da2) |  |  |  | Keep entities normalized as Stash saves them |
+| 2026-08-03 |  |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/87fc9de) |  |  |  | Sync NormalizeParentTags manifest version to 1.0.0 |
+| 2026-08-03 |  | [1.6.0](https://github.com/gregttx/StashPlugins/commit/6eedb8d) | [0.12.0](https://github.com/gregttx/StashPlugins/commit/6eedb8d) |  |  |  | Let the task dialogs take their own writes back |
+| 2026-08-03 |  | [1.5.1](https://github.com/gregttx/StashPlugins/commit/b50dba6) | [0.11.2](https://github.com/gregttx/StashPlugins/commit/b50dba6) |  |  |  | Correct the documentation that fell behind the code |
+| 2026-08-03 |  |  | [0.11.1](https://github.com/gregttx/StashPlugins/commit/5224fdb) |  |  |  | Drop the parts of the run dialog that do nothing |
+| 2026-08-03 |  | [1.5.0](https://github.com/gregttx/StashPlugins/commit/63ca556) | [0.11.0](https://github.com/gregttx/StashPlugins/commit/63ca556) |  |  |  | Put both plugins on both sides of the bulk-edit lease |
+| 2026-08-03 |  | [1.4.3](https://github.com/gregttx/StashPlugins/commit/75e5fb7) | [0.10.2](https://github.com/gregttx/StashPlugins/commit/75e5fb7) |  |  |  | Reset a rerun the same way in both plugins |
+| 2026-08-03 |  | [1.4.2](https://github.com/gregttx/StashPlugins/commit/d8e33a3) |  |  |  |  | Point the finished merge task at Rescan |
+| 2026-08-03 |  | [1.4.1](https://github.com/gregttx/StashPlugins/commit/7891b5d) |  |  |  |  | Plan a single scene through sceneMergePlan too |
+| 2026-08-03 |  |  | [0.10.1](https://github.com/gregttx/StashPlugins/commit/78c707d) |  |  |  | Leave the hierarchy controls inert until the tags arrive |
+| 2026-08-03 |  |  | [0.10.0](https://github.com/gregttx/StashPlugins/commit/d2da390) |  |  |  | Drop the Clear log button from the run dialog |
+| 2026-08-03 |  |  | [0.9.0](https://github.com/gregttx/StashPlugins/commit/d9b0de5) |  |  |  | Follow a multi-parent tag to its other parents |
+| 2026-08-03 |  |  | [0.8.1](https://github.com/gregttx/StashPlugins/commit/2c23ab8) |  |  |  | Give the find box a clear icon too |
+| 2026-08-03 |  |  | [0.8.0](https://github.com/gregttx/StashPlugins/commit/8d82d7c) |  |  |  | Jump to a tag instead of reducing the tree to it |
+| 2026-08-03 |  |  | [0.7.2](https://github.com/gregttx/StashPlugins/commit/8958615) |  |  |  | Clear the hierarchy filter from inside the box |
+| 2026-08-03 |  |  | [0.7.1](https://github.com/gregttx/StashPlugins/commit/ac86556) |  |  |  | Find a tag without matching its case |
+| 2026-08-03 |  |  | [0.7.0](https://github.com/gregttx/StashPlugins/commit/fdbc0c1) |  |  |  | Browse the tag hierarchy without running anything |
+| 2026-08-03 |  | [1.4.0](https://github.com/gregttx/StashPlugins/commit/8a090c6) |  |  |  |  | Close each phase with the tags it moved |
+| 2026-08-03 |  | [1.3.0](https://github.com/gregttx/StashPlugins/commit/7803545) |  |  |  |  | Review the whole merge before writing any of it |
+| 2026-08-03 |  | [1.2.0](https://github.com/gregttx/StashPlugins/commit/0df0535) |  |  |  |  | Merge every performer's tags from a library-wide task |
+| 2026-08-03 |  |  | [0.6.1](https://github.com/gregttx/StashPlugins/commit/823908f) |  |  |  | Let a separator take the place of spaces in the name filters |
+| 2026-08-03 |  |  | [0.5.0](https://github.com/gregttx/StashPlugins/commit/0bd9e5e) |  |  |  | Take a list of substrings in the two name filters |
+| 2026-08-03 |  |  | [0.4.1](https://github.com/gregttx/StashPlugins/commit/5a3e0f0) |  |  |  | Count the log lines a rescan actually has |
+| 2026-08-03 |  |  | [0.4.0](https://github.com/gregttx/StashPlugins/commit/45dbe71) |  |  |  | Close each phase with the tags it touched |
+| 2026-08-02 |  |  | [0.3.1](https://github.com/gregttx/StashPlugins/commit/af72ade) |  |  |  | Name untitled galleries and images by their file |
+| 2026-08-02 |  |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/6c4cebf) |  |  |  | Add a Clear log button to the run dialog |
+| 2026-08-02 |  | [1.1.2](https://github.com/gregttx/StashPlugins/commit/461c64e) | [0.2.0](https://github.com/gregttx/StashPlugins/commit/461c64e) |  |  |  | Say why a tag changed, and put ids outside the quotes |
+| 2026-08-02 |  | [1.1.1](https://github.com/gregttx/StashPlugins/commit/6b5bfd1) | [0.1.2](https://github.com/gregttx/StashPlugins/commit/6b5bfd1) |  |  |  | Order the settings pages by prefixing the manifest keys |
+| 2026-08-02 |  | [1.1.0](https://github.com/gregttx/StashPlugins/commit/4517abb) | [0.1.0](https://github.com/gregttx/StashPlugins/commit/4517abb) |  |  |  | Add NormalizeParentTags 0.1.0, and the bulk-edit lease it needs (MPT2S 1.1.0) |
+| 2026-08-01 |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/6d949c0) |  |  |  |  | Release 1.0.0 |
+| 2026-08-01 |  | [0.9.5](https://github.com/gregttx/StashPlugins/commit/33e8556) |  |  |  |  | Bump to 0.9.5: carry the logging note into the README intro |
+| 2026-07-31 |  | [0.9.4](https://github.com/gregttx/StashPlugins/commit/c11481c) |  |  |  |  | Bump to 0.9.4: name the browser console in the Plugins page description too |
+| 2026-07-31 |  | [0.9.3](https://github.com/gregttx/StashPlugins/commit/04129dc) |  |  |  |  | Bump to 0.9.3: say plainly that merge logs go to the browser console |
+| 2026-07-31 |  | [0.9.2](https://github.com/gregttx/StashPlugins/commit/c258f4b) |  |  |  |  | Bump to 0.9.2: announce once when merge logging is enabled |
+| 2026-07-31 |  | [0.9.1](https://github.com/gregttx/StashPlugins/commit/fcf454c) |  |  |  |  | Bump to 0.9.1: fix the logMergesToConsole setting description |
+| 2026-07-31 |  | [0.9.0](https://github.com/gregttx/StashPlugins/commit/7013642) |  |  |  |  | Bump to 0.9.0: add optional console logging of tag merges |
+| 2026-07-31 |  | [0.8.9](https://github.com/gregttx/StashPlugins/commit/2330fe7) |  |  |  |  | Bump to 0.8.9: refresh the performer button's eligibility cache on save |
+| 2026-07-31 |  | [0.8.8](https://github.com/gregttx/StashPlugins/commit/1658edb) |  |  |  |  | Bump to 0.8.8: correct the installation refresh step |
+| 2026-07-31 |  | [0.8.7](https://github.com/gregttx/StashPlugins/commit/01c7726) |  |  |  |  | Bump to 0.8.7: hide the performer button when the performer has no tags |
+| 2026-07-31 |  | [0.8.6](https://github.com/gregttx/StashPlugins/commit/e695d1a) |  |  |  |  | Bump to 0.8.6: trim the Review before saving section |
+| 2026-07-31 |  | [0.8.5](https://github.com/gregttx/StashPlugins/commit/af695df) |  |  |  |  | Bump to 0.8.5: document the exclusion-tag lookup cache |
+| 2026-07-31 |  | [0.8.4](https://github.com/gregttx/StashPlugins/commit/471eb54) |  |  |  |  | Bump to 0.8.4: refresh the scene button tooltip on hover |
+| 2026-07-31 |  | [0.8.3](https://github.com/gregttx/StashPlugins/commit/4646c78) |  |  |  |  | Bump to 0.8.3: document the cross-tab staleness limitation |
+| 2026-07-31 |  | [0.8.2](https://github.com/gregttx/StashPlugins/commit/863b1f2) |  |  |  |  | Bump to 0.8.2: iterate over skipped scenes, throttle the settings query |
+| 2026-07-31 |  | [0.8.0](https://github.com/gregttx/StashPlugins/commit/91c4add) |  |  |  |  | Bump to 0.8.0: require Stash 0.31.0, exclude tags on custom field presence alone |
+| 2026-07-31 |  | [0.7.0](https://github.com/gregttx/StashPlugins/commit/34bd650) |  |  |  |  | Bump to 0.7.0: make tag staging the default, replacing stageTagsInEditForm with saveTagsImmediately |
+| 2026-07-31 |  | [0.6.4](https://github.com/gregttx/StashPlugins/commit/dc2eaa7) |  |  |  |  | Bump to 0.6.4: document the performer button's scene scope, retitle the staging flash |
+| 2026-07-31 |  | [0.6.2](https://github.com/gregttx/StashPlugins/commit/701a5bd) |  |  |  |  | Bump to 0.6.2: add Stage Tags In Edit Form mode for "Add Perf Tags" |
+| 2026-07-31 |  | [0.5.5](https://github.com/gregttx/StashPlugins/commit/54b18af) |  |  |  |  | Bump to 0.5.5: fix merge correctness bugs and performer button placement |
+| 2026-07-30 |  | [0.5.2](https://github.com/gregttx/StashPlugins/commit/42bcb9c) |  |  |  |  | Bump to 0.5.2: fix exclusion filter issues found in code review |
+| 2026-07-30 |  | [0.5.1](https://github.com/gregttx/StashPlugins/commit/bfc65b7) |  |  |  |  | Bump to 0.5.1: clarify custom field exclusion behavior in README |
+| 2026-07-30 |  | [0.5.0](https://github.com/gregttx/StashPlugins/commit/e565d34) |  |  |  |  | Bump to 0.5.0: add exclusion filters for organized scenes, tagged scenes, ignored tags, and custom fields |
+| 2026-07-30 |  | [0.4.4](https://github.com/gregttx/StashPlugins/commit/896e71b) |  |  |  |  | Bump to 0.4.4: fix button names in YML setting description |
+| 2026-07-30 |  | [0.4.3](https://github.com/gregttx/StashPlugins/commit/73cc990) |  |  |  |  | Bump to 0.4.3: handle bulk scene and performer updates |
+| 2026-07-30 |  | [0.4.1](https://github.com/gregttx/StashPlugins/commit/2b8e248) |  |  |  |  | Bump to 0.4.1: rename buttons and update docs |
+| 2026-07-30 |  | [0.3.9](https://github.com/gregttx/StashPlugins/commit/0832b26) |  |  |  |  | Bump to 0.3.9: refresh scene list after all performer merge paths |
+| 2026-07-30 |  | [0.3.6](https://github.com/gregttx/StashPlugins/commit/4cd8377) |  |  |  |  | Bump to 0.3.6: fix scene refresh, auto-merge, and tab retention |
+| 2026-07-29 |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/4dd8362) |  |  |  |  | Add auto-merge settings and bump to 0.3.0 |
+| 2026-07-29 |  | [0.2.0](https://github.com/gregttx/StashPlugins/commit/e10da90) |  |  |  |  | Bump version to 0.2.0 and update descriptions |
+| 2026-07-29 |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/a3e604d) |  |  |  |  | First commit |

@@ -1094,7 +1094,21 @@ the rule deletes everywhere else.
 
 **The reasoning still gets written down — in the plugin's own `CLAUDE.md`,** which is where a
 per-version note has always belonged and which does not ship to users (`files:` carries the `js`,
-the `yml` and the `README.md`). That file is the changelog; the README and the source are not.
+the `yml` and the `README.md`). That file is where a release is *argued*; the README and the source are not.
+
+**And the list of releases is generated, never written.** `RELEASES.md` at the repo root is a
+matrix - one row per commit that shipped a version, a column per plugin, each cell linking to the
+commit - and each plugin has one of its own beside it. `node tools/gen-releases.js` builds all
+six from git history: a release *is* a commit that moved a `version:`, and the note *is* that
+commit's subject. Both were already written and already reviewed, so a hand-kept changelog beside
+them would be a third copy free to disagree with the two that are load-bearing. They are repo
+files and stay out of `files:`, so adding one is not itself a release.
+
+**A release row cannot be written by the commit it names** - adding the row would change the sha
+the row points at - so the files land in the *following* commit, and `docs-freshness.sh` is what
+asks for it. That check compares releases rather than bytes, because pushing turns a short id
+into a link without any release having changed, and a check that nagged after every push is a
+check that gets switched off.
 
 **How this rule was lost once, which is the reason it is written this widely now.** It shipped
 scoped to the README — the previous version of this section opened "This rule is about a plugin's

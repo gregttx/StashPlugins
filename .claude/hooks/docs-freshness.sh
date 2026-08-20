@@ -123,6 +123,25 @@ for js in */*.js; do
     stale+=("$d — the last commit changed $d.js and left the version at $now")
 done
 
+# The release notes are generated from git history (`tools/gen-releases.js`), so a
+# release row names the commit that bumped the version and cannot be written by that
+# commit - adding the row would change the sha the row points at. This rule is what
+# asks for the follow-up commit.
+#
+# HEAD only, like the version rule above and for the same reason: a dirty manifest is
+# a bump in progress, and there is nothing to generate from it yet.
+#
+# The check compares *releases*, not bytes, so pushing - which turns a short id into a
+# link - is not something it reports.
+if printf '%s\n' "$head_files" | grep -qE '^[A-Za-z0-9]+/(manifest|[A-Za-z0-9]+\.yml)$' &&
+   command -v node >/dev/null 2>&1 && [ -f tools/gen-releases.js ]; then
+  while IFS= read -r f; do
+    [ -n "$f" ] && stale+=("$f — a release in git history is missing from it; run \`node tools/gen-releases.js\`")
+  done <<EOF
+$(node tools/gen-releases.js --check 2>/dev/null)
+EOF
+fi
+
 # tests/README.md indexes the suites.
 if [ -f tests/README.md ] && ! in_list tests/README.md "$dirty"; then
   suites_dirty=$(printf '%s\n' "$dirty" | grep -c '^tests/.*\.js$' || true)

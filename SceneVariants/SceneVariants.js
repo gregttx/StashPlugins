@@ -35,7 +35,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.1.0';
+  var PLUGIN_VERSION = '0.1.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -483,8 +483,16 @@
   //
   // Three facts this is built on, read off `stashapp/stash` and worth not re-deriving:
   //
-  //   * The after-patch is invoked as `afterFn.apply(ctx, args.concat(result))`, so for
-  //     a component it receives `(props, result)` and must return the new result.
+  //   * The after-patch is invoked as `afterFn.apply(ctx, args.concat(result))` and must
+  //     return the new result. **`args` is what React passed the component, which is not
+  //     one argument.** React calls a function component as `Component(props, secondArg)`
+  //     where `secondArg` is the legacy context - `emptyContextObject`, `{}`, for any
+  //     component that declares no `contextTypes`, which is all of them here. So the
+  //     callback is handed `(props, {}, result)`, and a signature reading the result out
+  //     of the second position renders that `{}` as a child: React error #31, "Objects
+  //     are not valid as a React child (found: object with keys {})". The result is last
+  //     by construction, so `patchResult` takes it off the end and cannot be wrong about
+  //     how many arguments came before it.
   //     The patch list is read when the component *renders*, not when it is defined, so
   //     registering at script load is early enough however late Scene.tsx is imported.
   //   * `props.scene` is a `SceneDataFragment`, which already carries `stash_ids`. That
@@ -498,6 +506,12 @@
   // of duplicate this repo has already decided against paying for elsewhere: it would
   // have to reproduce tab activation, pane switching and every re-render React does for
   // free. A Stash too old gets one console line and no tab.
+
+  // The rendered result an `after` patch is chained onto. Always the last argument,
+  // whatever React put in front of it.
+  function patchResult(args) {
+    return args.length ? args[args.length - 1] : null;
+  }
 
   function pluginApi() {
     var api = window.PluginApi;
@@ -586,11 +600,12 @@
       return false;
     }
     var Pane = SiblingsPane(React);
-    api.patch.after('ScenePage.Tabs', function (props, result) {
-      return React.createElement(React.Fragment, null, result, TabLink(React, Nav));
+    api.patch.after('ScenePage.Tabs', function () {
+      return React.createElement(React.Fragment, null, patchResult(arguments),
+        TabLink(React, Nav));
     });
-    api.patch.after('ScenePage.TabContent', function (props, result) {
-      return React.createElement(React.Fragment, null, result,
+    api.patch.after('ScenePage.TabContent', function (props) {
+      return React.createElement(React.Fragment, null, patchResult(arguments),
         React.createElement(Tab.Pane, { key: TAB_KEY, eventKey: TAB_KEY },
           React.createElement(Pane, { scene: props.scene })));
     });

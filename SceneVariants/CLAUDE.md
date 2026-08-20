@@ -54,9 +54,21 @@ const ScenePageTabContent = PatchContainerComponent<IProps>("ScenePage.TabConten
 A `PatchContainerComponent` renders `props.children` and nothing else. It exists to be patched.
 Four facts worth not re-deriving:
 
-- **`after(component, fn)` is invoked as `afterFn.apply(ctx, args.concat(result))`**, so for a
-  component the callback is `(props, result)` and returns the new result. Appending is
-  `<>{result}<Ours/></>`.
+- **`after(component, fn)` is invoked as `afterFn.apply(ctx, args.concat(result))`**, and returns
+  the new result. **`args` is what React passed the component, which is not one argument.** React
+  calls a function component as `Component(props, secondArg)`, and `secondArg` is the legacy
+  context — `emptyContextObject`, `{}`, for anything declaring no `contextTypes`, which is
+  everything here. So the callback is handed `(props, {}, result)`.
+
+  This shipped as `function (props, result)` and threw on the first render:
+  *Minified React error #31 — Objects are not valid as a React child (found: object with keys {})*.
+  The `{}` was the context, rendered as a child. `patchResult(arguments)` takes the result off the
+  **end**, where it is by construction, so it cannot be wrong about how many arguments came first.
+
+  **The suite confirmed the bug rather than catching it**, because its fixture called
+  `fn(props, result)` — the same assumption the code was written from. That is the repo's own
+  standing warning about fixtures for someone else's markup, and it cost a release: check a fixture
+  against *their* source, not against the code under test.
 - **The patch list is read when the component renders**, not when it is defined, so registering at
   script load is early enough however late `Scene.tsx` is imported.
 - **`props.scene` is a `SceneDataFragment`** and carries `stash_ids` — see §1.
@@ -109,9 +121,10 @@ the strip moving again.
 
 Everything in it is a guess about Stash that no test here can check:
 
-1. **That the tab renders at all.** Everything in §2 is read off Stash's source and none of it has
-   been exercised. The most likely way this is wrong is not the patch names but the *shape* of what
-   an after-patch may return.
+1. **That the tab renders.** The patch points, the registration and the argument shape are all
+   confirmed live now — the second render got as far as React rejecting a child, which means both
+   patches were found, called and their results used. What has still not been seen is a tab on the
+   strip.
 2. **The pane's own CSS** against Stash's theme: the greys are the dialogs' greys, but no dialog in
    this repo sits inline in a tab pane the way this does, and the pane takes no background of its
    own.

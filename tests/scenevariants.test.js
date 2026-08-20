@@ -104,6 +104,10 @@ const byClass = (el, cls) => nodes(el).filter((n) =>
 const textOf = (n) => (n.children || []).map((k) =>
   (typeof k === 'object' ? textOf(k) : String(k))).join('');
 
+// The legacy context object React hands a function component as its second argument.
+// One shared identity so a check can look for it by reference in a rendered tree.
+const REACT_LEGACY_CONTEXT = {};
+
 // ── The fixture ─────────────────────────────────────────────────────────────
 
 // Scene 42, one stash-id, three siblings sharing it: a full-length one, a partial and an
@@ -172,10 +176,22 @@ function start(opts) {
   h.run(env.ctx, SRC);
 
   // Stash rendering the two container components: each renders its children, and the
-  // after-patches are applied to that result in turn, exactly as `PatchFunction` does.
+  // after-patches are applied to that result in turn, exactly as `PatchFunction` does —
+  // `afterFn.apply(ctx, args.concat(result))`, where `args` is **what React passed the
+  // component**, not just its props.
+  //
+  // That second argument is the whole point of this fixture. React invokes a function
+  // component as `Component(props, secondArg)`, and `secondArg` is the legacy context —
+  // `emptyContextObject`, `{}`, for anything with no `contextTypes`. So a patch is handed
+  // `(props, {}, result)`. This suite's first version passed `(props, result)`, which is
+  // the same assumption the plugin was written from, so it confirmed the bug instead of
+  // catching it: live, the `{}` was rendered as a child and React threw #31, "Objects are
+  // not valid as a React child (found: object with keys {})".
   env.render = (name, props, own) => {
     let result = own;
-    (env.patches[name] || []).forEach((fn) => { result = fn(props, result); });
+    (env.patches[name] || []).forEach((fn) => {
+      result = fn.apply(null, [props, REACT_LEGACY_CONTEXT, result]);
+    });
     return result;
   };
   return env;
@@ -215,6 +231,15 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     // a plain useState with no whitelist - so a key of our own is selectable like theirs.
     h.check('the tab key is in the scene page\'s own key namespace',
       link.props.eventKey === 'scene-svr-siblings-panel', link.props.eventKey);
+    // The patch takes its result off the *end* of the arguments rather than by position,
+    // so React's legacy-context second argument cannot end up rendered as a child. Both
+    // patches are checked, because getting this right in one and wrong in the other is
+    // exactly what a positional signature invites.
+    ['ScenePage.Tabs', 'ScenePage.TabContent'].forEach((name) => {
+      h.check(name + " does not render React's legacy context object as a child",
+        nodes(env.render(name, { scene: sceneProp({}) }, own))
+          .indexOf(REACT_LEGACY_CONTEXT) === -1);
+    });
   }
 
   {

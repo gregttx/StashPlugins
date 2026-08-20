@@ -1,0 +1,11 @@
+id: SceneVariants
+name: ᝯㄝₓ Scene Variants
+metadata:
+  description: "A scene is often in your library twice: the whole thing, and a cut out of it. Stash has no way to say the two are the same work, so this plugin works it out and shows you.\n\nOpen any scene and, when other scenes share its stash-id, a Siblings panel appears under the tabs listing them - each one a link, with its resolution and running time, longest first. Nothing else about the page changes, and nothing is written to your library at any point: the panel is two queries and a list of links.\n\nName your full-length and partial-length tags below and each row says which it is, with the full-length ones sorted to the top - that is the question the panel exists to answer, and the tags are the cheap half of it. Leave them empty and the panel still lists the siblings, just without saying which is which.\n\nThe stash-id is the only evidence used. A scene that never got one, or whose siblings never got one, shows no panel; matching on titles and on shared performers is not built yet, so about two scenes in three will show nothing today. A scene carrying both tags at once is shown in red, because the two are meant to be exclusive."
+version: 0.0.1
+date: "2026-08-20 06:20:32"
+requires: []
+files:
+- SceneVariants.js
+- SceneVariants.yml
+- README.md

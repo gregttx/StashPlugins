@@ -14,7 +14,8 @@ const path = require('path');
 const h = require('./npt-harness');
 
 const PLUGINS = ['NormalizeParentTags', 'MergePerformerTagsToScenes',
-  'PropagateTagsAndPerformers', 'CustomFieldsBulkEditor', 'TagBundleClipboard'];
+  'PropagateTagsAndPerformers', 'CustomFieldsBulkEditor', 'TagBundleClipboard',
+  'SceneVariants'];
 
 // The script-side table each plugin's settings are read through. Every plugin has
 // exactly one, and a key in the yml that is missing from it is a setting the plugin
@@ -26,6 +27,7 @@ const SETTING_TABLE = {
   PropagateTagsAndPerformers: 'var DEFAULTS = {',
   CustomFieldsBulkEditor: 'var DEFAULTS = {',
   TagBundleClipboard: 'var DEFAULTS = {',
+  SceneVariants: 'var DEFAULTS = {',
 };
 
 const read = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8');

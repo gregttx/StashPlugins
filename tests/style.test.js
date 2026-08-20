@@ -36,6 +36,14 @@ const PLUGINS = [
   // and the bundle limit keeps Stash's blue because it chooses what the clipboard holds
   // rather than starting anything.
   { name: 'TagBundleClipboard', prefix: 'tbc', decl: 'var CSS =', settings: true, toggles: true },
+  // `chrome: false` is the same kind of flag as `settings` above and records the same
+  // kind of absence: this plugin puts up no dialog at all - it draws a panel and links -
+  // so a backdrop, a log and a footer would be a stylesheet for markup it never builds.
+  // It has a settings page like everyone else, so both halves of the settings design are
+  // still required of it, and the inverse check below is what stops the flag excusing a
+  // drift instead of recording an absence.
+  { name: 'SceneVariants', prefix: 'svr', decl: 'var CSS =', settings: true, toggles: true,
+    chrome: false },
 ];
 
 // The CSS is a run of single-quoted fragments joined with +. Pull the block out,
@@ -98,9 +106,11 @@ const DESCRIPTION = ['.own-group .sub-heading',
 const SETTING_TIPS = ['.tipped', '.tip', '.tipbox', '.tipped.tip-open .tipbox'];
 
 parsed.forEach((p) => {
-  h.check(p.plugin.name + ' defines the shared dialog chrome',
-    CHROME.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
-    CHROME.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
+  if (p.plugin.chrome !== false) {
+    h.check(p.plugin.name + ' defines the shared dialog chrome',
+      CHROME.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
+      CHROME.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
+  }
   h.check(p.plugin.name + ' defines the shared description rules',
     DESCRIPTION.every((s) => Object.prototype.hasOwnProperty.call(p.rules, s)),
     DESCRIPTION.filter((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'all present');
@@ -121,6 +131,21 @@ parsed.filter((p) => !p.plugin.settings).forEach((p) => {
       !/\nsettings:/.test(fs.readFileSync(
         path.join(__dirname, '..', p.plugin.name, p.plugin.name + '.yml'), 'utf8')),
     SETTING_TIPS.filter((s) => Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') || 'yml has settings:');
+});
+
+// And a plugin flagged as having no dialog must not carry the chrome either, nor build
+// one: the flag is a claim about the plugin, so it is checked against the source rather
+// than taken on trust. A plugin that grows a dialog drops the flag and inherits every
+// rule above, which is the point - a stylesheet for a dialog nobody opens is exactly the
+// dead weight nothing else here would notice.
+parsed.filter((p) => p.plugin.chrome === false).forEach((p) => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', p.plugin.name, p.plugin.name + '.js'), 'utf8');
+  h.check(p.plugin.name + ' puts up no dialog and styles none',
+    CHROME.every((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)) &&
+      src.indexOf(p.plugin.prefix + '-backdrop') === -1,
+    CHROME.filter((s) => Object.prototype.hasOwnProperty.call(p.rules, s)).join(' ') ||
+      'the source mentions a backdrop');
 });
 
 // Any selector two or more of them define is shared by construction, and every one
@@ -147,7 +172,7 @@ Object.keys(seen).sort().forEach((selector) => {
 // both plausible Stash greys - so name the one that is right rather than leaving the
 // check to say only that they agree. #202b33 is what the dim greys in the log and
 // the tree were chosen against, and it is what all three dialogs settled on.
-parsed.forEach((p) => {
+parsed.filter((p) => p.plugin.chrome !== false).forEach((p) => {
   h.check(p.plugin.name + ' uses the grey the rest of the palette was picked against',
     /background:#202b33/.test(p.rules['.modal'] || '') && !/#30404d/.test(p.rules['.modal'] || ''),
     p.rules['.modal']);

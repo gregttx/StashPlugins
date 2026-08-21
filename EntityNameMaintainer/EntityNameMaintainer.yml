@@ -1,0 +1,24 @@
+name: ᝯㄝₓ Entity Name Maintainer
+description: "Rename a performer, a studio, a tag or a scene, and every other place in your library that mentioned the old name goes on mentioning it. Stash moves one string; this plugin notices and offers to bring the rest along.\n\nIt watches for a rename in the tab you are working in. The moment one lands it reads the name the entity had a second earlier, then walks every text field of every Scene, Image, Gallery, Performer, Studio, Group and Tag looking for it - titles, details, descriptions, synopses, aliases, URLs, directors, photographers, and the names and values of custom fields - and puts up a dialog listing what it found.\n\nOne line per occurrence: the entity it is in with its id, the attribute it is in, and the text around it with the match marked. Each line has a tick of its own, on by default. Click the entity to open it in a new tab. Filters across the top turn whole entity types and whole attribute names off - which hides those lines and leaves them alone, without disturbing any tick you have already made - and the amber All On and All Off pair sets every filter at once.\n\nNothing is written until you press Proceed, and Undo puts back exactly what this dialog changed while it stays open. Every field is re-read immediately before it is written, so text that has moved since the scan is skipped rather than overwritten. Custom fields are changed key by key and value by value rather than as text, so a machine-written block cannot come out malformed - and an entity carrying another plugin's store is left out whole.\n\nThe scan is a read of your whole library, because no server-side filter can answer whether any text field of any type contains a given string. Two limits in the settings below keep that honest: over the first, the dialog warns; over the second, it refuses, because a name short enough to match thousands of times is not one you want replaced wholesale. Images can be left out of the scan entirely, since they are usually the most numerous type by a wide margin.\n\nIt stands down while another of these plugins is running a bulk task, so a library-wide rename does not put up one dialog per entity, and it takes a lease of its own while it writes.\n\nScene markers are not covered: a marker carries a title but no page of its own to be renamed from.\n\nRequires Stash 0.31.0 or newer."
+url: "https://github.com/gregttx/StashPlugins/blob/main/EntityNameMaintainer/README.md"
+version: 0.0.1
+ui:
+  javascript:
+    - EntityNameMaintainer.js
+settings:
+  a1SkipImages:
+    displayName: Skip Images in the Scan
+    description: "Leave Images out of the scan, so it covers the other six types only.\n\nImages are usually the most numerous type in a library by a wide margin, and reading them can be most of the wait after every rename. Off by default, so the scan covers all seven types. An occurrence in an image title, code, details, photographer, URL or custom field is then neither listed nor replaced, and the dialog says so in its log."
+    type: BOOLEAN
+  b1WarnAbove:
+    displayName: Warn Above This Many Matches
+    description: "How many occurrences are enough to be worth a second look before replacing.\n\nLeave it empty for the default of 200. Over this number the dialog puts a Proceed with caution note in its head and in its log, and otherwise behaves exactly as it always does - everything is still listed, still ticked, and still yours to replace. The number exists because a short name matches inside longer words, and a list that long is one nobody reads line by line."
+    type: STRING
+  c1StopAbove:
+    displayName: Refuse Above This Many Matches
+    description: "How many occurrences are too many to act on at all.\n\nLeave it empty for the default of 2000. The scan stops the moment it goes past this number, the dialog says why, and Proceed stays disabled - a name that common in your library is very unlikely to be one you meant to replace everywhere. Raise it if you disagree; the listing and Copy log still work, so you can read what it found either way. It is counted in occurrences, not in entities: one long description can hold several."
+    type: STRING
+  d1LogToConsole:
+    displayName: Log to the Browser Console
+    description: "Print every message the dialog shows to the browser console as well.\n\nOff by default. The lines are the same ones the dialog logs, under the [enm] prefix, so a session can be read back after the dialog has been closed. It is separate from Copy log, which hands over the counters, the whole listing and the messages as text."
+    type: BOOLEAN

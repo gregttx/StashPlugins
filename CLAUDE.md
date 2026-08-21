@@ -202,6 +202,15 @@ Rules that make this safe:
   followed, not an omission** — its own suite pins all three together so a later edit cannot quietly
   add one, and that is worth copying for the next plugin in this shape.
 
+- **A plugin can be both halves at once, and `EntityNameMaintainer` is the first that is
+  both by design rather than by having two modes.** It reacts - it watches `window.fetch`
+  for a rename and puts up a dialog - and it writes in bulk once that dialog is agreed to.
+  So it registers as a respecter *and* takes a lease, and the respecter half is doing real
+  work: a sibling rewriting the library renames many things at once, and a dialog per rename
+  is the worst possible answer to that. It declares nothing (a text replacement is not a
+  relationship copy) and registers no `order` priority (the rename is the trigger; there is
+  no button). Those two absences are the rule being followed, and its suite pins them.
+
 - **A bulk-only plugin takes leases and registers no `respecters` entry.**
   `CustomFieldsBulkEditor` is the first of those: it never reacts to a save, so it has nothing to
   stand down. Registering anyway would be a claim a sibling's dialog repeats to the user ("it will
@@ -1135,6 +1144,33 @@ Most of it needs no install. The `placement` suite needs `jsdom` and skips itsel
 Tests cover the plugin's own logic and its assumptions about Stash's markup and component props. They cannot confirm those assumptions still hold after a Stash upgrade, so a change that touches Stash's DOM or components still needs exercising in a live Stash instance.
 
 When fixing a bug, check the new test fails against the unfixed plugin before trusting it: `SRC=/path/to/old.js node tests/<suite>.test.js`.
+
+## Ask the schema rather than guessing a field name
+
+Every "Reference:" section above exists because a plugin here guessed something about
+Stash and was wrong. `EntityNameMaintainer` is the first that does not have to guess: its
+table of text fields per entity type is a list of **candidates**, and one aliased
+`__type(name: ...)` query per scan turns it into what the running server actually has, and
+what shape each field is - `String`, `[String!]!`, or the `Map` custom fields live in.
+
+**Reach for this where a wrong guess fails the whole query rather than one field.** A search
+tool is the worst case available: a bad field name makes the request error, the scan reports
+nothing, and *your Stash calls it something else* is indistinguishable from *nothing in your
+library says that*. Dropping a field the server does not have is at least a smaller answer to
+the right question. Where a wrong name merely means one absent value - a display field, an
+optional read - a plain table is still simpler and still right.
+
+It also removes the *shape* guessing, which is the half a table gets wrong quietly:
+`Studio.aliases` is a list, `Performer` spells the same idea `alias_list`, and `Group`'s may
+be a scalar. None of that has to be correct in the table, because none of it is read from the
+table.
+
+**The unwrap goes four levels.** `[String!]!` is NON_NULL, LIST, NON_NULL, SCALAR, so an
+introspection query asking for three levels of `ofType` silently drops every list field and
+reports nothing missing. Build the fixture at the full depth - `tests/enm.test.js` does -
+so a shortened query fails in the suite rather than in a library.
+
+Cache the answer for the page: a schema cannot change without a restart.
 
 ## Two words this repo does not say: "Stash id", and "(s)"
 

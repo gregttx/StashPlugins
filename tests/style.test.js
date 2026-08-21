@@ -44,6 +44,10 @@ const PLUGINS = [
   // drift instead of recording an absence.
   { name: 'SceneVariants', prefix: 'svr', decl: 'var CSS =', settings: true, toggles: true,
     chrome: false },
+  // Four settings, one of them coloured: the console toggle is teal like every sibling's.
+  // The image switch and the two match limits keep Stash's blue - they choose what a scan
+  // *covers*, not what anything does on its own.
+  { name: 'EntityNameMaintainer', prefix: 'enm', decl: 'var CSS =', settings: true, toggles: true },
 ];
 
 // The CSS is a run of single-quoted fragments joined with +. Pull the block out,

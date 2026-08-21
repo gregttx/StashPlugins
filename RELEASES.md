@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-21 |  |  | 0.0.6 (`edab204`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.6: search works again - childNodes is not an Array |
 | 2026-08-21 |  |  | 0.0.5 (`7056bd7`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.5: the same attribute filter row EntityNameMaintainer has |
 | 2026-08-21 |  | 0.0.4 (`79a0941`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.4: it asks the server whether the rename landed, not the response |
 | 2026-08-21 |  | 0.0.3 (`16ee35d`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.3: it can be asked what it did, and Reload plugins takes effect |

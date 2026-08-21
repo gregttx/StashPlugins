@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '0.0.2';
+  var PLUGIN_VERSION = '0.0.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -568,6 +568,27 @@
     };
   }
 
+  // How many entities the chosen types hold, in one query before the first page. The
+  // scan already receives a `count` with every page, and accumulating those was the
+  // cheaper option and the wrong one: a denominator that grows as each new type is reached
+  // reads as the target moving - "500 of 500", then "500 of 1700". One round trip buys a
+  // number that means the same thing from the first page to the last.
+  //
+  // `per_page: 1` rather than 0, which is not a size any of these queries promises to
+  // honour; one row per type is not worth avoiding.
+  function countOf(types) {
+    if (!types.length) return Promise.resolve(0);
+    var parts = types.map(function (k) {
+      return k + ': ' + ENTITIES[k].find + '(filter: { per_page: 1 }) { count }';
+    });
+    return gqlRequest('query FETC_Counts { ' + parts.join(' ') + ' }', null)
+      .then(function (data) {
+        var n = 0;
+        types.forEach(function (k) { n += ((data[k] || {}).count) || 0; });
+        return n;
+      });
+  }
+
   function pageQuery(spec, shapes) {
     var sel = ['id'];
     shapes.forEach(function (f) { sel.push(f.name); });
@@ -711,6 +732,11 @@
     this.rendered = 0;
     this.scanned = 0;
     this.matched = 0;
+    // How many entities the chosen types hold, read once before the first page. Null
+    // until it lands, and stays null if that one query fails - the counters then say how
+    // far it has got without saying how far there is to go, which is what they said
+    // before this existed.
+    this.total = null;
     this.needle = '';
     this.loadingWhat = '';
     this.stale = false;
@@ -823,8 +849,10 @@
     // Search when there is nothing running, Pause while there is, Resume after a pause by
     // hand, and Continue after the list filled itself and stopped.
     this.goBtn = button('Search', 'fetc-go');
-    this.refreshBtn = button('Refresh', 'fetc-refresh');
-    this.refreshBtn.title = 'Throw the results away and search again from the beginning.';
+    this.refreshBtn = button('Refresh', 'fetc-refresh fetc-hidden');
+    this.refreshBtn.title = 'Throw away what this search has found and start it again from ' +
+      'the beginning, with whatever the box now says. Search carries the current one on; ' +
+      'this one replaces it.';
     this.cancelBtn = button('Cancel', 'fetc-cancel');
     this.copyBtn = button('Copy log', 'fetc-copy');
     this.copyBtn.title = 'Copy the counters, the messages and every result as plain text - ' +
@@ -963,7 +991,14 @@
       : caption === 'Continue' ? 'Clear the list on screen and carry on from where it stopped.'
         : caption === 'Resume' ? 'Carry on from where it stopped.'
           : 'Read every ' + plural(types, 'chosen type') + ' looking for this text.');
-    this.refreshBtn.disabled = this.state === 'running' || !text || !types;
+    // **Refresh is hidden wherever the button beside it already says Search**, which is
+    // every state where the two would do the same thing - idle, and finished. It is for
+    // the states where the primary button has become Pause, Resume or Continue and there
+    // is no other way to say *start over*. It works mid-run: `start` moves the epoch, so
+    // the page in flight is discarded rather than raced.
+    var second = caption === 'Search';
+    this.show(this.refreshBtn, !second);
+    this.refreshBtn.disabled = !text || !types;
     this.textInput.disabled = this.state === 'running';
     this.historyInput.disabled = this.state === 'running';
     this.allOnBtn.disabled = this.state === 'running';
@@ -1017,7 +1052,11 @@
   Run.prototype.progress = function () {
     this.progressEl.textContent = this.state === 'idle' && !this.scanned
       ? 'Type something to look for, turn on a type, and press Search.'
-      : 'Scanned ' + plural(this.scanned, 'entity', 'entities') +
+      // The noun agrees with the total where there is one, since that is the number it
+      // is counting toward.
+      : 'Scanned ' + (this.total == null
+        ? plural(this.scanned, 'entity', 'entities')
+        : this.scanned + ' of ' + plural(this.total, 'entity', 'entities')) +
         (this.loadingWhat && this.state === 'running' ? ' (' + this.loadingWhat + ')' : '') +
         '  ·  ' + plural(this.matched, 'match', 'matches') +
         '  ·  ' + this.rendered + ' on screen' +
@@ -1062,7 +1101,6 @@
   };
 
   Run.prototype.refresh = function () {
-    if (this.state === 'running') return;
     this.msg('INFO', 'Searching again from the beginning.');
     this.start();
   };
@@ -1071,12 +1109,12 @@
     var self = this;
     var text = trim(this.textInput.value);
     if (!text) return;                       // an empty box does nothing, as asked
-    this.epoch++;
+    var epoch = ++this.epoch;
     this.needle = text;
     this.results = [];
     this.scanned = 0;
     this.matched = 0;
-    this.clearRows();
+    this.total = null;
     this.remember(text);
     this.titleEl.textContent = PLUGIN_SHORT_NAME + ' - "' + text + '"';
     this.queue = this.chosen().slice();
@@ -1085,9 +1123,21 @@
     this.syncFooter();
     this.msg('INFO', 'Looking for "' + text + '" in ' +
       this.queue.map(function (k) { return ENTITIES[k].plural; }).join(', ') + '.');
+    this.clearRows();                        // after the message, so it reads in order
+    var types = this.queue.slice();
     describeFields().then(function (shapes) {
       self.shapes = shapes;
-      return self.step(self.epoch);
+      // The count is the one failure here that is survivable, so it is the only one
+      // caught - and it is caught *inside* the chain rather than beside it, or a failed
+      // introspection would land in the same handler and the scan would run with no
+      // field shapes at all.
+      return countOf(types).then(function (total) {
+        if (self.epoch !== epoch) return;
+        self.total = total;
+        self.progress();
+      }, function () { /* no denominator is not a reason not to search */ });
+    }).then(function () {
+      return self.step(epoch);
     }).then(null, function (e) {
       if (self.state !== 'running') return;
       self.msg('ERROR', 'The search failed: ' + (e && e.message ? e.message : String(e)));
@@ -1171,10 +1221,19 @@
 
   // ── The listing ───────────────────────────────────────────────────────────
 
+  // **Appended, not inserted at the top.** The listing and the messages share one box and
+  // one scrollbar, so the box has to read in the order things happened: the line saying
+  // what is being looked for, then the results under it, then whatever the run had to say
+  // afterwards. Putting the list first pushed every message below it, so the first thing
+  // written ended up last on the page - which is what a reader takes for the newest.
+  //
+  // A fresh block each time rather than emptying the old one, so a Continue or a Refresh
+  // starts its results *after* the message that explains why they start again.
   Run.prototype.clearRows = function () {
     if (this.listEl && this.listEl.parentNode) this.listEl.parentNode.removeChild(this.listEl);
     this.listEl = el('div', 'fetc-results');
-    this.logEl.insertBefore(this.listEl, this.logEl.firstChild);
+    this.logEl.appendChild(this.listEl);
+    if (this.spinEl) this.logEl.appendChild(this.spinEl);   // the cursor stays last
     this.rendered = 0;
   };
 

@@ -109,6 +109,16 @@ function makeEnv(opts) {
       if (/FETC_Shapes/.test(q)) {
         return opts.failShapes ? { errors: [{ message: 'no introspection' }] } : introspection();
       }
+      // The denominator, asked for once before the first page.
+      if (/FETC_Counts/.test(q)) {
+        if (opts.failCounts) return { errors: [{ message: 'no counts' }] };
+        const out = {};
+        (q.match(/(\w+): find\w+/g) || []).forEach((m) => {
+          const k = m.split(':')[0];
+          out[k] = { count: (lib[k] || []).length };
+        });
+        return { data: out };
+      }
       const scan = /FETC_Scan.*\{ (find\w+)\(/.exec(q);
       if (scan) {
         if (opts.failFind === scan[1]) return { errors: [{ message: 'boom' }] };
@@ -267,9 +277,11 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
       const d = dlg(env);
       h.check('a type the server has none of these fields on is skipped and said so',
         d.lines.some((l) => /none of the text fields.*Groups/.test(l)), d.lines.join(' | '));
-      h.check('the counters say what was read and what matched',
-        /Scanned 4 entities/.test(d.progress) && /3 matches/.test(d.progress) &&
+      h.check('the counters say what was read, out of how many, and what matched',
+        /Scanned 4 of 4 entities/.test(d.progress) && /3 matches/.test(d.progress) &&
           /3 on screen/.test(d.progress), d.progress);
+      h.check('the denominator covers only the types that were turned on',
+        !/of 5 entities/.test(d.progress), d.progress);
       h.check('and that it finished', /finished/.test(d.progress), d.progress);
       h.check('the log says so too',
         d.lines.some((l) => /^\[INFO\] Finished: 3 entities mention "beach"/.test(l)),
@@ -331,9 +343,11 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
   }).then(() => {
     h.check('Resume carries on from where it stopped rather than starting again',
       run(env).scanned === 1200, String(run(env).scanned));
-    h.check('and reads each page exactly once',
-      env.calls.filter((c) => /findScenes/.test(c.query || '')).length === 3,
-      String(env.calls.filter((c) => /findScenes/.test(c.query || '')).length));
+    const pages = env.calls.filter((c) => /FETC_Scan.*findScenes/.test(c.query || '')).length;
+    h.check('and reads each page exactly once', pages === 3, String(pages));
+    h.check('the denominator was read once, before the first page',
+      env.calls.filter((c) => /FETC_Counts/.test(c.query || '')).length === 1,
+      String(env.calls.filter((c) => /FETC_Counts/.test(c.query || '')).length));
     h.check('finishing when the queue is empty', /finished/.test(dlg(env).progress),
       dlg(env).progress);
   });
@@ -377,19 +391,46 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
 // ── Refresh ─────────────────────────────────────────────────────────────────
 
 (function refresh() {
-  const env = makeEnv();
-  open(env, 'beach', ['Scenes']).then(() => search(env)).then(() => {
-    const first = env.calls.filter((c) => /findScenes/.test(c.query || '')).length;
-    run(env).textInput.value = 'sandy';
+  const lib = library();
+  lib.scenes = [];
+  for (let i = 1; i <= 1200; i++) {
+    lib.scenes.push({ id: String(i), title: (i % 500 === 3 ? 'beach ' : 'scene ') + i,
+      code: null, details: '', urls: [], custom_fields: {} });
+  }
+  let pausedOnce = false;
+  const env = makeEnv({ library: lib, onPage(find, page) {
+    if (find !== 'findScenes' || page !== 2 || pausedOnce) return;
+    pausedOnce = true;
+    run(env).go();
+  } });
+  open(env, 'beach', ['Scenes']).then(() => {
+    // Idle: the button beside it already says Search and would do the same thing.
+    h.check('Refresh is not offered while the other button says Search',
+      !dlg(env).visible('Refresh'));
+    dlg(env).button('Search').click();
+    return h.flush(80);
+  }).then(() => {
+    h.check('Refresh appears once the other button has become Resume',
+      dlg(env).visible('Refresh') && !!dlg(env).button('Resume'));
+    // A needle that is rare enough to finish rather than fill the list, so the state
+    // after it is `done` and Refresh can be checked for going away again.
+    run(env).textInput.value = 'beach 503';
     h.fire(run(env).textInput, 'input');
     dlg(env).button('Refresh').click();
-    return h.flush(200).then(() => first);
-  }).then((first) => {
-    h.check('Refresh reads the type again',
-      env.calls.filter((c) => /findScenes/.test(c.query || '')).length > first);
-    h.check('with the box as it now reads', run(env).needle === 'sandy', run(env).needle);
-    h.check('and throws the previous results away', results(env).length === 0,
-      String(results(env).length));
+    return h.flush(400);
+  }).then(() => {
+    const firstPages = env.calls
+      .filter((c) => /FETC_Scan.*findScenes/.test(c.query || '') && c.variables.f.page === 1);
+    h.check('Refresh starts the search over rather than carrying it on',
+      firstPages.length === 2, String(firstPages.length));
+    h.check('and reads the whole library this time', run(env).scanned === 1200,
+      String(run(env).scanned));
+    h.check('with the box as it now reads', run(env).needle === 'beach 503', run(env).needle);
+    h.check('and says so in the log',
+      dlg(env).lines.some((l) => /Searching again from the beginning/.test(l)),
+      dlg(env).lines.join(' | '));
+    h.check('and is gone again once the search is over',
+      !dlg(env).visible('Refresh'), dlg(env).button('Refresh').className);
   });
 }());
 
@@ -454,6 +495,30 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
     run(env).recentEl.value = 'sand';
     h.fire(run(env).recentEl, 'change');
     h.check('choosing one fills the search box', run(env).textInput.value === 'sand');
+  });
+}());
+
+// ── The order the log reads in ──────────────────────────────────────────────
+
+(function order() {
+  const env = makeEnv();
+  open(env, 'beach', ['Scenes', 'Groups']).then(() => search(env)).then(() => {
+    // The listing and the messages share one box and one scrollbar, so the box has to
+    // read in the order things happened. It shipped the other way round - the list
+    // inserted at the top, pushing every message below it - so the first line written
+    // ended up last on the page, where a reader takes it for the newest.
+    const rows = env.body.descendants()
+      .filter((n) => h.hasClass(n, 'fetc-line') || h.hasClass(n, 'fetc-results'));
+    const first = rows[0];
+    h.check('the line saying what is being looked for comes first',
+      h.hasClass(first, 'fetc-line') && /Looking for "beach"/.test(first.textContent),
+      first ? first.textContent.slice(0, 60) : '(nothing)');
+    const listAt = rows.findIndex((n) => h.hasClass(n, 'fetc-results'));
+    h.check('then the results',
+      listAt > 0 && results(env).length > 0, String(listAt));
+    h.check('and the messages the run had afterwards come after them',
+      rows.slice(listAt + 1).some((n) => /Finished:/.test(n.textContent)),
+      rows.map((n) => n.textContent.slice(0, 25)).join(' | '));
   });
 }());
 

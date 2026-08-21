@@ -45,8 +45,19 @@ Sandy (7)          Performer · Details                                   Likes 
 Outdoors (3)       Tag · Aliases, Custom field name                      beachy
 ```
 
-Click one to open it in a new tab. Counters and a cycling cursor across the top say how far
-it has read and that it is still going.
+Click one to open it in a new tab. The results and the messages share one box and read in
+the order things happened — the line saying what is being looked for, then the results, then
+whatever the run had to say afterwards.
+
+Counters and a cycling cursor across the top say how far it has read, out of how many, and
+that it is still going:
+
+```
+Scanned 4200 of 18300 entities (Images)  ·  37 matches  ·  37 on screen
+```
+
+The total is read once before the first page and covers only the types you turned on, so it
+means the same thing from the first page to the last.
 
 ## Pausing, and the list on screen
 
@@ -57,7 +68,11 @@ it has read and that it is still going.
   which clears the screen and carries on.
 - **Copy log** hands over the counters, the messages and **every** result as plain text —
   including the ones the screen no longer shows.
-- **Refresh** throws the results away and searches again with whatever the box now says.
+- **Refresh** throws away what this search has found and starts it again from the
+  beginning, with whatever the box now says. It only appears while the other button has
+  become Pause, Resume or Continue — those are the states where **Search** carries the
+  current search *on* and there is no other way to say *start over*. When that button
+  already says Search, Refresh would do the same thing, so it is not offered.
 - **Cancel**, or the Escape key, closes it.
 
 ## Remembering

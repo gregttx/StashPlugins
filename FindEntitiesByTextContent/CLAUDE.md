@@ -86,7 +86,49 @@ on-screen count can be exactly the cap.
 Continue clears the rendered rows and resumes. That is the one thing here that throws
 something away, and the log line says where it went.
 
-## 7. `epoch`, which is what makes Refresh and Cancel safe
+## 7. Search and Refresh, and the state where they are not the same button
+
+They were, and that was the bug: both called `start()`, so with the primary button reading
+**Search** the two were a duplicate pair sitting side by side. Refresh has a real job in
+exactly one place - the states where the primary button has become **Pause**, **Resume** or
+**Continue**, and there is no other way to say *start over* without first resuming a search
+you are done with.
+
+So Refresh is **hidden wherever the primary button already says Search**. One line in
+`syncFooter`, keyed off the caption that button just computed rather than off the state
+again, so the two can never disagree about which case this is.
+
+It works mid-run, and that costs nothing: `start()` moves the epoch, so the page in flight
+is discarded rather than raced. Forcing a Pause first would have been a rule to explain.
+
+## 8. The counters count toward something
+
+"Scanned 4200 entities" answers *how far* and leaves *out of how many* unanswered, which on
+a library-wide read is most of what the line is for.
+
+The number is one query - `per_page: 1` per chosen type, aliased - before the first page.
+**Accumulating the `count` the scan already receives with every page was the cheaper option
+and the wrong one**: the denominator would grow as each new type is reached, so the line
+would read "500 of 500", then "500 of 1700", and a target that moves is worse than no target.
+
+It covers only the types that are turned on, and it is `null` until it lands - and stays
+null if that one query fails, which leaves the counters saying exactly what they said before
+this existed. **The failure is caught inside the chain rather than beside it**, or a failed
+introspection would land in the same handler and the scan would run with no field shapes at
+all.
+
+## 9. The log reads in the order things happened
+
+The listing and the messages share one box and one scrollbar. The list block was being
+*inserted at the top*, which pushed every message below it - so the first line written, the
+one saying what is being looked for, ended up last on the page, where a reader takes it for
+the newest.
+
+It is appended now, and `start()` writes its message *before* creating the block. A Continue
+or a Refresh gets a fresh block rather than an emptied one, for the same reason: the results
+start again after the message that says why.
+
+## 10. `epoch`, which is what makes Refresh and Cancel safe
 
 A page can be in flight when the user presses Refresh or closes the dialog. Every `step`
 carries the epoch it started under and returns immediately if it has moved. Without it, a
@@ -95,7 +137,7 @@ longer on the page.
 
 `close()` bumps it too, for exactly that second case.
 
-## 8. What is remembered lives in `localStorage`, not in the plugin configuration
+## 11. What is remembered lives in `localStorage`, not in the plugin configuration
 
 Two reasons, and the second is the one that matters. It belongs to the person at this browser
 rather than to the server — the same argument `TagBundleClipboard` makes for its clipboard.
@@ -111,7 +153,7 @@ site data, throws on the accessor itself.
 and is the one thing a number box can be asked to do that is not about the future. It is on
 the box's own tooltip, because nothing about a "0" says so.
 
-## 9. No settings at all, and what that costs
+## 12. No settings at all, and what that costs
 
 Every choice this plugin offers is made inside the dialog, where the user already is and
 where it is answered on the spot. The one setting it had was the console switch every
@@ -131,7 +173,7 @@ Two consequences, and both are load-bearing rather than incidental:
   anchor in the repo with nothing behind it. `CustomFieldsBulkEditor` was in this position
   before its 0.7.0 and its notes say the same thing.
 
-## 10. The settings anchor, and the guard that excluded the page it was written for
+## 13. The settings anchor, and the guard that excluded the page it was written for
 
 Worth writing down at length because it is the exact shape of mistake this repo keeps
 making, and this time it was caught by a user looking at the page rather than by anything
@@ -157,7 +199,7 @@ context: a structural test has to name the thing it means.** "Has a button" was 
 "is the Tasks page", and the proxy was false on the very page it was protecting. Where the
 real distinguishing feature is a string this plugin owns, use the string.
 
-## 11. The head does not tell anyone to back up
+## 14. The head does not tell anyone to back up
 
 Nothing here writes, so the standing sentence would be false. The head says where the results
 go instead — the `TagBundleClipboard` shape, and the shared rule is explicitly about dialogs
@@ -166,7 +208,7 @@ that *write*.
 The consequence is that the run's own warnings need a slot, and they take the amber `.warn`
 one the backup sentence would have occupied. Same swap `TagBundleClipboard` makes.
 
-## 12. Search is refused rather than silently doing nothing
+## 15. Search is refused rather than silently doing nothing
 
 An empty box "does nothing", per the brief — and a button that does nothing when pressed
 teaches nobody anything, so it is disabled with a title saying which half is missing. Same
@@ -188,6 +230,8 @@ this list is empty.
   a *missing* one — a text field this plugin never thought to look in — is invisible.
 - **How long a real search takes**, and therefore whether `RESULT_BUFFER` at 200 and
   `READ_PAGE` at 500 are the right numbers.
+- **`per_page: 1` being honoured** by all seven `find*` queries, which is what keeps the
+  denominator query cheap.
 - **The settings page decoration.** `tests/settings-page.test.js` now drives it against
   both group shapes for every plugin here, so the *logic* is covered; what stays unverified
   is whether those fixtures match the markup Stash actually renders. The Disable button in

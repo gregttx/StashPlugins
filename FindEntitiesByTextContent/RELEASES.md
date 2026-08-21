@@ -8,9 +8,10 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 0.0.6 (`edab204`) | 2026-08-21 | FindEntitiesByTextContent 0.0.6: search works again - childNodes is not an Array |
-| 0.0.5 (`7056bd7`) | 2026-08-21 | FindEntitiesByTextContent 0.0.5: the same attribute filter row EntityNameMaintainer has |
-| 0.0.4 (`76fc8c9`) | 2026-08-21 | EntityNameMaintainer 0.0.2 / FindEntitiesByTextContent 0.0.4: the rename hook fires whether or not a sibling reacted, and All On/All Off go dead with nothing to act on |
-| 0.0.3 (`c22f6dd`) | 2026-08-21 | FindEntitiesByTextContent 0.0.3: Refresh means something, the counters count toward something, and the log reads in order |
-| 0.0.2 (`b6f06bb`) | 2026-08-21 | FindEntitiesByTextContent 0.0.2: its settings group is found again, and it has no settings |
-| 0.0.1 (`d8440f7`) | 2026-08-21 | FindEntitiesByTextContent 0.0.1: one box that asks which entities mention this text |
+| 0.0.7 (`098d782`) | 2026-08-21 | EntityNameMaintainer 0.0.5 / FindEntitiesByTextContent 0.0.7: the counters say where the scan is, not only how far |
+| [0.0.6](https://github.com/gregttx/StashPlugins/commit/edab204) | 2026-08-21 | FindEntitiesByTextContent 0.0.6: search works again - childNodes is not an Array |
+| [0.0.5](https://github.com/gregttx/StashPlugins/commit/7056bd7) | 2026-08-21 | FindEntitiesByTextContent 0.0.5: the same attribute filter row EntityNameMaintainer has |
+| [0.0.4](https://github.com/gregttx/StashPlugins/commit/76fc8c9) | 2026-08-21 | EntityNameMaintainer 0.0.2 / FindEntitiesByTextContent 0.0.4: the rename hook fires whether or not a sibling reacted, and All On/All Off go dead with nothing to act on |
+| [0.0.3](https://github.com/gregttx/StashPlugins/commit/c22f6dd) | 2026-08-21 | FindEntitiesByTextContent 0.0.3: Refresh means something, the counters count toward something, and the log reads in order |
+| [0.0.2](https://github.com/gregttx/StashPlugins/commit/b6f06bb) | 2026-08-21 | FindEntitiesByTextContent 0.0.2: its settings group is found again, and it has no settings |
+| [0.0.1](https://github.com/gregttx/StashPlugins/commit/d8440f7) | 2026-08-21 | FindEntitiesByTextContent 0.0.1: one box that asks which entities mention this text |

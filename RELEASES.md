@@ -10,17 +10,18 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-21 |  |  | 0.0.6 (`edab204`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.6: search works again - childNodes is not an Array |
-| 2026-08-21 |  |  | 0.0.5 (`7056bd7`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.5: the same attribute filter row EntityNameMaintainer has |
-| 2026-08-21 |  | 0.0.4 (`79a0941`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.4: it asks the server whether the rename landed, not the response |
-| 2026-08-21 |  | 0.0.3 (`16ee35d`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.3: it can be asked what it did, and Reload plugins takes effect |
-| 2026-08-21 |  | 0.0.2 (`76fc8c9`) | 0.0.4 (`76fc8c9`) |  |  |  |  |  | EntityNameMaintainer 0.0.2 / FindEntitiesByTextContent 0.0.4: the rename hook fires whether or not a sibling reacted, and All On/All Off go dead with nothing to act on |
-| 2026-08-21 |  |  | 0.0.3 (`c22f6dd`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.3: Refresh means something, the counters count toward something, and the log reads in order |
-| 2026-08-21 |  |  | 0.0.2 (`b6f06bb`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.2: its settings group is found again, and it has no settings |
-| 2026-08-21 |  |  | 0.0.1 (`d8440f7`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.1: one box that asks which entities mention this text |
-| 2026-08-21 |  | 0.0.1 (`82878d1`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.1: a rename offers to fix every text that named the old name |
-| 2026-08-21 |  |  |  |  |  |  | 0.4.0 (`147f0d7`) |  | SceneVariants 0.4.0: a row's hover text says how that variant differs |
-| 2026-08-21 |  |  |  |  |  |  | 0.3.0 (`330502e`) |  | SceneVariants 0.3.0: aliases and descendants classify a variant, and the cover comes back |
+| 2026-08-21 |  | 0.0.5 (`098d782`) | 0.0.7 (`098d782`) |  |  |  |  |  | EntityNameMaintainer 0.0.5 / FindEntitiesByTextContent 0.0.7: the counters say where the scan is, not only how far |
+| 2026-08-21 |  |  | [0.0.6](https://github.com/gregttx/StashPlugins/commit/edab204) |  |  |  |  |  | FindEntitiesByTextContent 0.0.6: search works again - childNodes is not an Array |
+| 2026-08-21 |  |  | [0.0.5](https://github.com/gregttx/StashPlugins/commit/7056bd7) |  |  |  |  |  | FindEntitiesByTextContent 0.0.5: the same attribute filter row EntityNameMaintainer has |
+| 2026-08-21 |  | [0.0.4](https://github.com/gregttx/StashPlugins/commit/79a0941) |  |  |  |  |  |  | EntityNameMaintainer 0.0.4: it asks the server whether the rename landed, not the response |
+| 2026-08-21 |  | [0.0.3](https://github.com/gregttx/StashPlugins/commit/16ee35d) |  |  |  |  |  |  | EntityNameMaintainer 0.0.3: it can be asked what it did, and Reload plugins takes effect |
+| 2026-08-21 |  | [0.0.2](https://github.com/gregttx/StashPlugins/commit/76fc8c9) | [0.0.4](https://github.com/gregttx/StashPlugins/commit/76fc8c9) |  |  |  |  |  | EntityNameMaintainer 0.0.2 / FindEntitiesByTextContent 0.0.4: the rename hook fires whether or not a sibling reacted, and All On/All Off go dead with nothing to act on |
+| 2026-08-21 |  |  | [0.0.3](https://github.com/gregttx/StashPlugins/commit/c22f6dd) |  |  |  |  |  | FindEntitiesByTextContent 0.0.3: Refresh means something, the counters count toward something, and the log reads in order |
+| 2026-08-21 |  |  | [0.0.2](https://github.com/gregttx/StashPlugins/commit/b6f06bb) |  |  |  |  |  | FindEntitiesByTextContent 0.0.2: its settings group is found again, and it has no settings |
+| 2026-08-21 |  |  | [0.0.1](https://github.com/gregttx/StashPlugins/commit/d8440f7) |  |  |  |  |  | FindEntitiesByTextContent 0.0.1: one box that asks which entities mention this text |
+| 2026-08-21 |  | [0.0.1](https://github.com/gregttx/StashPlugins/commit/82878d1) |  |  |  |  |  |  | EntityNameMaintainer 0.0.1: a rename offers to fix every text that named the old name |
+| 2026-08-21 |  |  |  |  |  |  | [0.4.0](https://github.com/gregttx/StashPlugins/commit/147f0d7) |  | SceneVariants 0.4.0: a row's hover text says how that variant differs |
+| 2026-08-21 |  |  |  |  |  |  | [0.3.0](https://github.com/gregttx/StashPlugins/commit/330502e) |  | SceneVariants 0.3.0: aliases and descendants classify a variant, and the cover comes back |
 | 2026-08-20 |  |  |  |  |  |  | [0.2.3](https://github.com/gregttx/StashPlugins/commit/c061a84) |  | SceneVariants 0.2.3: the Variants tab is amber |
 | 2026-08-20 |  |  |  |  |  |  | [0.2.2](https://github.com/gregttx/StashPlugins/commit/d2d3cd2) |  | SceneVariants 0.2.2: the tab goes before Edit, the value leads its own line |
 | 2026-08-20 |  |  |  |  |  |  | [0.2.1](https://github.com/gregttx/StashPlugins/commit/34e613c) |  | SceneVariants 0.2.1: partial-length is amber, and sized with the metadata |

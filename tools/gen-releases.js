@@ -39,6 +39,8 @@ const SHORT = {
   PropagateTagsAndPerformers: 'PTP2RE',
   CustomFieldsBulkEditor: 'CFBE',
   TagBundleClipboard: 'TBC',
+  EntityNameMaintainer: 'ENM',
+  FindEntitiesByTextContent: 'FETC',
 };
 const short = (p) => SHORT[p] || p;
 

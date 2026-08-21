@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '0.0.5';
+  var PLUGIN_VERSION = '0.0.6';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1161,7 +1161,15 @@
     // The attribute filters belong to the search on screen: a new one has found nothing
     // yet, so it knows of no attributes.
     this.attrOn = {};
-    this.attrRow.childNodes.slice(1).forEach(function (b) { self.attrRow.removeChild(b); });
+    // A `while` over the live collection, never `childNodes.slice(1).forEach`. In a real
+    // browser `childNodes` is a **NodeList**, which has none of Array's methods - it looked
+    // right, and the fake DOM in `tests/` hands back a plain Array, so every suite passed
+    // while the search threw on the first click in a live Stash. `tests/style.test.js` now
+    // fails on any array method reached through `childNodes` or `children`.
+    // The label span is childNodes[0] and stays.
+    while (this.attrRow.childNodes.length > 1) {
+      this.attrRow.removeChild(this.attrRow.childNodes[this.attrRow.childNodes.length - 1]);
+    }
     this.show(this.attrRow, false);
     this.shownFrom = 0;
     this.remember(text);

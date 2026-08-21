@@ -58,6 +58,12 @@ function makeElement(tag) {
     clientHeight: 0,
     offsetHeight: 0,
     style: {},
+    // **A plain Array, where a browser gives a NodeList.** That is what makes the suites
+    // readable - `sub.childNodes.filter(...)` all over the place - and it is a lie the
+    // plugins must not believe: a NodeList has none of Array's methods.
+    // `tests/style.test.js` fails on any array method reached through `.childNodes` or
+    // `.children` in a plugin source, which is the half of this that cannot be faked here
+    // without rewriting every suite.
     childNodes: [],
     parentNode: null,
     handlers: {},

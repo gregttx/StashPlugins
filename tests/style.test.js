@@ -260,6 +260,32 @@ sources.forEach((s) => {
       .test(s.src));
 });
 
+// ── A live DOM collection is not an Array ───────────────────────────────────
+//
+// `childNodes` and `children` are a **NodeList** and an **HTMLCollection** in a browser.
+// Neither has `slice`, `filter`, `map`, `indexOf` or the rest; `NodeList` has picked up
+// `forEach` and `HTMLCollection` has not, which is a distinction not worth remembering.
+//
+// The fake DOM in `npt-harness.js` hands back a plain **Array**, because that is what the
+// suites are easiest to write against - so a plugin reaching for `childNodes.slice(1)`
+// passes every check here and throws on the first click in a live Stash.
+// `FindEntitiesByTextContent` shipped exactly that and its search stopped working.
+//
+// A static check rather than a harness change: making the fake collection array-less would
+// rewrite sixty assertions across a dozen suites to guard against a mistake that is visible
+// in the source. Index with a `for`, or copy with `Array.prototype.slice.call`.
+// The leading dot is load-bearing: `children` is also a perfectly good name for a local
+// array of tag names, which `TagBundleClipboard` has and which is none of this rule's
+// business. Comment lines go first, so a note *about* the rule does not trip it.
+const COLLECTION_METHODS = /\.(childNodes|children)\s*\.\s*(slice|filter|map|some|every|indexOf|lastIndexOf|reduce|find|findIndex|sort|concat|join|forEach|includes)\b/g;
+
+sources.forEach((s) => {
+  const code = s.src.split('\n').filter((l) => l.trim().indexOf('//') !== 0).join('\n');
+  const hits = (code.match(COLLECTION_METHODS) || []);
+  h.check(s.plugin.name + ' treats a live DOM collection as one, not as an Array',
+    hits.length === 0, hits.join(' | '));
+});
+
 // `coopObject` is the whole lease/order/declares protocol's one shared global, and
 // `domBus` is the one MutationObserver the plugins share. Both are copied into files with
 // no module between them, and both were the kind of thing that had to agree byte-for-byte

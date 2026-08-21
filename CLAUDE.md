@@ -1211,6 +1211,35 @@ It found a second thing on the way: the harness's fake element had no `querySele
 a plugin reaching for `node.querySelectorAll('.setting')` threw on every settings tick with
 every suite still green. A fixture is only worth what it is driven by.
 
+## The fake DOM is an Array where the real one is not
+
+`tests/npt-harness.js` gives every element a plain **Array** for `childNodes`, because that
+is what makes a suite readable - `sub.childNodes.filter(...)` appears in a dozen of them. A
+browser gives a **NodeList** for `childNodes` and an **HTMLCollection** for `children`, and
+neither has `slice`, `filter`, `map` or `indexOf`.
+
+So `this.attrRow.childNodes.slice(1)` passed every suite and threw on the first click in a
+live Stash. `FindEntitiesByTextContent` shipped it and its search stopped working outright -
+found in minutes because the user said "search stopped working now", and not findable by any
+test in this repo.
+
+**The fix is a static check, not a truer harness.** Making the fake collection array-less
+would rewrite sixty assertions across a dozen suites to guard against a mistake that is
+plainly visible in the source. `tests/style.test.js` fails on any array method reached
+through `.childNodes` or `.children` in a plugin file. Index with a `for`, or copy with
+`Array.prototype.slice.call`.
+
+Two details in that check are worth keeping: it requires the **leading dot**, because
+`children` is also a fine name for a local array of tag names and `TagBundleClipboard` has
+one; and it drops comment lines first, so a note explaining the rule does not trip it. Both
+were false positives on the first run.
+
+**The general shape - a fixture more generous than reality - is the one this repo keeps
+paying for**, and it is the same lesson as the `Inputs.tsx` reference note: *a fixture for
+someone else's markup is only worth what the reading behind it is worth.* Where the fixture
+is deliberately more forgiving, the guard belongs in a static check rather than in the
+fixture.
+
 ## A response body is shared; re-read from the server instead
 
 Four plugins here chain `window.fetch` wrappers, and three of them `resp.clone().json()`

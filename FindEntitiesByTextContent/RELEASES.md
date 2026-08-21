@@ -8,5 +8,6 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.0.3 (`c22f6dd`) | 2026-08-21 | FindEntitiesByTextContent 0.0.3: Refresh means something, the counters count toward something, and the log reads in order |
 | 0.0.2 (`b6f06bb`) | 2026-08-21 | FindEntitiesByTextContent 0.0.2: its settings group is found again, and it has no settings |
 | 0.0.1 (`d8440f7`) | 2026-08-21 | FindEntitiesByTextContent 0.0.1: one box that asks which entities mention this text |

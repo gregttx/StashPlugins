@@ -1211,6 +1211,41 @@ It found a second thing on the way: the harness's fake element had no `querySele
 a plugin reaching for `node.querySelectorAll('.setting')` threw on every settings tick with
 every suite still green. A fixture is only worth what it is driven by.
 
+## A diagnostic has to work backwards, and a wrapper flag must not latch
+
+Two lessons from one report - *"still not seeing the dialog, and the case that used to work
+does not any more"* - neither of which the diff could explain, because the diff had not caused
+it. That is not a signal to read harder: it is a signal that the plugin cannot be asked what
+it did.
+
+**Record the decisions, do not merely offer to print them.** `debugButtons` is a running
+commentary, and the repo already knows its flaw - stated about the button gates and true of
+every switch: *a diagnostic that only speaks when it was turned on beforehand is silent
+exactly when it is wanted.* Nobody flips a flag before the action that is going to fail. A
+bounded ring of the last decisions - a string per user action, twenty-five of them - costs
+nothing and answers about events that have already happened. `__GTTx__.enm.status()` is the
+first of these; a plugin whose behaviour is a chain of quiet early returns should have one.
+
+**And put the counters above the trace.** `requests seen: 0` says the hook is bypassed, which
+makes every other question irrelevant. It is the cheapest line in the report and the one that
+was missing.
+
+**A "have I already installed" flag on the shared object latches across a plugin reload.**
+Stash's Reload plugins re-injects a script into a page that is *not* reloading. The new
+evaluation prints its version banner, finds the flag set, installs nothing - and the
+**previous release's closure** goes on handling everything, while the console and the
+settings page both say the new version. **This is the one failure a version banner cannot
+warn about, because the banner is printed by the half that is not running**, and it is
+indistinguishable from a plugin that has simply stopped working.
+
+So install one wrapper ever and have it forward to a handler on the shared object that the
+newest evaluation overwrites (`__GTTx__.enmHandle`). Any plugin here that wraps `window.fetch`
+behind such a flag - `cfbeSelectFilter` is the other one - has this to fix.
+
+The consequence that ships with it: on a re-evaluated page the fetch a script captured at
+load *is* the wrapper, so its own requests come back through it. Mark them
+(`init.__enm`) rather than inferring; `fetch` ignores a property it does not know.
+
 ## Ask the schema rather than guessing a field name
 
 Every "Reference:" section above exists because a plugin here guessed something about

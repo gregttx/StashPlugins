@@ -118,17 +118,31 @@ made through the API, by a scraper, by an identify task or in another tab is not
 see. It also stands down when another ᝯㄝₓ plugin was already holding a bulk lease when you
 pressed Save.
 
-To find out which it is, open the browser console and type:
+**To find out which it is, open the browser console and type:**
 
 ```js
-__GTTx__.StashPluginCoop.debugButtons = true
+__GTTx__.enm.status()
 ```
 
-Then rename something. Every save that looks like a rename prints a `[enm gate]` line saying
-what was posted, what the old name was, and — if no dialog opened — exactly why: the name did
-not actually change, the save came back with errors, a dialog was already open, or a sibling
-plugin held a lease. It takes effect on the next save, with no reload and no setting to
-change; the same switch works in every ᝯㄝₓ plugin.
+It prints what happened, *including for renames you have already made* — there is nothing to
+switch on first. Read it top to bottom:
+
+- **`fetch hook:`** — whether the hook is installed at all. "another plugin has wrapped
+  since" is normal.
+- **`requests seen:`** — this is the first thing to check. If it is **0**, the plugin is not
+  seeing the page's network requests at all and nothing about which tag you renamed is
+  relevant. If `renames matched:` is 0 while `GraphQL:` is not, the save did not look like
+  one of the seven update mutations.
+- **`leases held now:`** — another ᝯㄝₓ plugin in the middle of a bulk run.
+- **the last few decisions** — one line per save that looked like a rename, saying what was
+  posted and, if no dialog opened, exactly why: the name did not actually change, the old
+  name could not be read, the save came back with errors, a dialog was already open, or a
+  sibling held a lease when you pressed Save.
+
+Paste that output into a bug report; it names no values from your library, only field names.
+
+For a running commentary instead of a summary, `__GTTx__.StashPluginCoop.debugButtons = true`
+prints the same lines to the console as they happen — the same switch every ᝯㄝₓ plugin uses.
 
 **A red banner says the page is running an older script.** Stash serves plugin JS with
 caching on, so the browser can still be running the file it fetched before the update. Press

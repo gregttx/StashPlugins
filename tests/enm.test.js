@@ -545,6 +545,71 @@ const filterBtns = (env) => env.body.descendants()
   });
 }());
 
+// ── Reading back what happened, after the fact ──────────────────────────────
+
+(function statusReport() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  const before = env.api().status();
+  h.check('status says the hook is installed before anything has happened',
+    /fetch hook: installed/.test(before), before.split('\n')[1]);
+  h.check('and that no save has looked like a rename yet',
+    /no save has looked like a rename yet/.test(before), before);
+
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    const after = env.api().status();
+    // The counters answer the question that comes before all the others: is this plugin
+    // seeing the page's requests at all. A zero there makes everything else irrelevant.
+    h.check('status counts the requests it has seen', /requests seen: [1-9]/.test(after),
+      after.split('\n')[2]);
+    h.check('and how many looked like a rename', /renames matched: 1/.test(after),
+      after.split('\n')[2]);
+    h.check('the trace records the decision, with no debug switch ever turned on',
+      /renamed "Jane Doe" to "Jane Doe Jr"; opening/.test(after), after);
+    h.check('and says a dialog is open', /dialog open: yes/.test(after), after);
+  });
+
+  // A save that is not a rename leaves a line saying which of the ways out it took - the
+  // thing a user actually needs when nothing happened.
+  const same = makeEnv({ library: library() });
+  rename(same, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('a save that moved no name says so in the trace',
+      /which is what it was already called/.test(same.api().status()), same.api().status());
+  });
+}());
+
+// ── A second evaluation of the script takes over ────────────────────────────
+
+(function reEvaluated() {
+  // Stash's Reload plugins re-injects the script into a page that is not reloading. The
+  // new evaluation must end up in charge; a flag that only says "already wrapped" leaves
+  // the previous release's closure handling every rename while the banner claims otherwise.
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  const firstFetch = env.ctx.window.fetch;
+  h.run(env.ctx, SRC);                       // the same script again, same page
+  h.check('the second evaluation installs no second wrapper',
+    env.ctx.window.fetch === firstFetch);
+  h.check('but it owns the handler',
+    /a DIFFERENT evaluation/.test(env.api().status()) === false, env.api().status());
+
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('and a rename still opens a dialog', dlg(env).open);
+    // Its own writes must not come back through the wrapper as renames - which they can
+    // only do on a re-evaluated page, where the fetch it captured at load *is* the wrapper.
+    const namesBefore = env.calls.filter((c) => /ENM_Name/.test(c.query || '')).length;
+    dlg(env).button('Proceed').click();
+    return h.flush(200).then(() => namesBefore);
+  }).then((namesBefore) => {
+    h.check('its own writes are not read as renames',
+      env.calls.filter((c) => /ENM_Name/.test(c.query || '')).length === namesBefore,
+      env.calls.filter((c) => /ENM_Name/.test(c.query || '')).length + ' / ' + namesBefore);
+    h.check('and the writes did land', env.writes.filter((w) => !w.undo).length > 0);
+  });
+}());
+
 // ── Escape ──────────────────────────────────────────────────────────────────
 
 (function escape() {

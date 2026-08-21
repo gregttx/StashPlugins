@@ -44,7 +44,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.2';
+  var PLUGIN_VERSION = '0.0.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -272,6 +272,29 @@
   // otherwise fire on every request the page makes.
   var _gateLast = {};
 
+  // **And a ring of the same lines, kept whether or not anything is switched on.**
+  //
+  // The switch above has the flaw this repo has already written down once, about the
+  // button diagnostics: a diagnostic that only speaks when it was turned on beforehand is
+  // silent exactly when it is wanted. Nobody switches on a debug flag *before* the rename
+  // that is going to fail - they switch it on afterwards, having noticed, and by then the
+  // event is gone.
+  //
+  // So every decision is recorded regardless, bounded, and read back after the fact with
+  // `__GTTx__.enm.status()`. It costs a string per save and answers the one question
+  // nothing else can: whether this plugin saw the request at all.
+  var TRACE_MAX = 25;
+  var _trace = [];
+  var _stats = { fetches: 0, readable: 0, graphql: 0, matched: 0 };
+
+  function trace(line) {
+    var t = new Date();
+    _trace.push(('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) +
+      ':' + ('0' + t.getSeconds()).slice(-2) + '  ' + line);
+    if (_trace.length > TRACE_MAX) _trace.shift();
+    gateLog(line);
+  }
+
   function gateLog(line) {
     if (!coop().debugButtons) { _gateLast = {}; return; }
     console.info('[enm gate] ' + line);
@@ -328,6 +351,9 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: query, variables: variables }),
+      // Ours. See `handle` - on a re-evaluated page the fetch captured at load *is* the
+      // wrapper, and this is what keeps our own writes from looking like a user's rename.
+      __enm: true,
     })
       .then(function (resp) { return resp.json(); })
       .then(function (json) {
@@ -1637,13 +1663,34 @@
   // The wrap is registered on the shared object rather than as a local flag: this file
   // can be evaluated twice - a reload of plugins in a tab that already had it - and a
   // second wrap would double every request.
-  function alreadyWrapped() {
+  // **One wrapper ever, delegating to the newest script that loaded.**
+  //
+  // A flag that simply says "already wrapped" latches: Stash's Reload plugins re-injects
+  // the script into a page that is not reloading, so the new evaluation announces its
+  // version in the console, finds the flag set, and installs nothing - leaving the
+  // *previous* release's closure in charge of every rename while the banner says otherwise.
+  // That is indistinguishable from a plugin that has stopped working, and it is the one
+  // failure mode a version banner cannot warn about, because the banner is printed by the
+  // half that is not running.
+  //
+  // So the handler lives on the shared object and the wrapper only forwards to it. The
+  // newest evaluation overwrites the handler; nothing installs a second wrapper.
+  function installRenameWatch() {
     var ns = window.__GTTx__;
     if (!ns || typeof ns !== 'object') ns = window.__GTTx__ = {};
-    if (ns.enmFetchWrap) return true;
+    ns.enmHandle = handle;
+    if (ns.enmFetchWrap || !ORIG_FETCH || !window.fetch) return;
     ns.enmFetchWrap = true;
-    return false;
+    var orig = window.fetch.bind(window);
+    _ourFetch = window.fetch = function (input, init) {
+      var fn = ns.enmHandle;
+      return fn ? fn(orig, input, init) : orig(input, init);
+    };
   }
+
+  // The wrapper this plugin put on the page, so `status()` can say whether it is still
+  // the outermost one - which is normal and harmless when a sibling has wrapped since.
+  var _ourFetch = null;
 
   // The operations in one request. A GraphQL POST is normally one object, but the
   // transport permits an **array** of them - a client that batches sends several
@@ -1651,6 +1698,7 @@
   // be doing would otherwise go unseen, which from the outside reads as "it works on some
   // of them and not others".
   function operations(init) {
+    _stats.fetches++;
     if (!init || typeof init.body !== 'string') {
       // Not an error: most requests a page makes are not this. Worth one line under the
       // debug switch, because `fetch(new Request(...))` carries its body on the request
@@ -1659,10 +1707,13 @@
         'not being noticed at all, this is why.');
       return [];
     }
+    _stats.readable++;
     var parsed;
     try { parsed = JSON.parse(init.body); } catch (e) { return []; }
     if (!parsed) return [];
-    return Object.prototype.toString.call(parsed) === '[object Array]' ? parsed : [parsed];
+    var ops = Object.prototype.toString.call(parsed) === '[object Array]' ? parsed : [parsed];
+    if (ops.length && typeof ops[0].query === 'string') _stats.graphql++;
+    return ops;
   }
 
   // The rename this request is about, or null. Deliberately narrow: one of the seven
@@ -1678,6 +1729,15 @@
     return null;
   }
 
+  // Names, never values. A diagnostic that printed what the user typed would be one they
+  // could not paste into a bug report.
+  function keysOf(obj) {
+    if (!obj || typeof obj !== 'object') return '';
+    var out = [];
+    for (var k in obj) if (hasOwn(obj, k)) out.push(k);
+    return out.join(', ');
+  }
+
   function renameOfOne(body) {
     if (!body || typeof body.query !== 'string') return null;
     for (var name in BY_MUTATION) {
@@ -1689,16 +1749,20 @@
       var spec = BY_MUTATION[name];
       var input = (body.variables || {}).input;
       if (!input || input.id == null) {
-        gateLog(spec.update + ' posted with no id in its input; not a rename this plugin ' +
-          'can follow.');
+        // The variable *names* only - never their values, which are the user's data. What
+        // this has to distinguish is a client that puts the entity in `variables.input`
+        // from one that names it something else or writes it into the query text.
+        trace(spec.update + ' posted with no id in variables.input. Variables carried: [' +
+          keysOf(body.variables) + '].');
         return null;
       }
       var to = input[spec.nameField];
       if (typeof to !== 'string') {
-        gateLog(spec.update + ' for ' + spec.label + ' ' + input.id + ' carries no ' +
-          spec.nameField + '; not a rename.');
+        trace(spec.update + ' for ' + spec.label + ' ' + input.id + ' carries no ' +
+          spec.nameField + '. Input carried: [' + keysOf(input) + '].');
         return null;
       }
+      _stats.matched++;
       return { spec: spec, id: String(input.id), to: to };
     }
     return null;
@@ -1733,18 +1797,18 @@
   //     all depends on the entity, which is why it read as a property of the tag.
   function onRename(spec, id, from, to, held) {
     if (_active) {
-      gateLog(spec.label + ' ' + id + ' renamed "' + from + '" to "' + to +
+      trace(spec.label + ' ' + id + ' renamed "' + from + '" to "' + to +
         '", but a dialog is already open; only one at a time.');
       return;
     }
     if (held) {
-      gateLog(spec.label + ' ' + id + ' was renamed while ' + held.owner +
+      trace(spec.label + ' ' + id + ' was renamed while ' + held.owner +
         ' already held a lease (' + held.label + '); standing down.');
       enm('[enm] ' + spec.label + ' ' + id + ' renamed while ' + held.owner +
         ' holds a lease (' + held.label + '); standing down.');
       return;
     }
-    gateLog(spec.label + ' ' + id + ' renamed "' + from + '" to "' + to + '"; opening.');
+    trace(spec.label + ' ' + id + ' renamed "' + from + '" to "' + to + '"; opening.');
     loadSettings().then(function (s) {
       openRun(spec, id, from, to, s);
     }, function () { openRun(spec, id, from, to, DEFAULTS); });
@@ -1761,51 +1825,56 @@
     return false;
   }
 
-  function installRenameWatch() {
-    if (!ORIG_FETCH || !window.fetch || alreadyWrapped()) return;
-    window.fetch = function (input, init) {
+  function handle(orig, input, init) {
+    // This plugin's own reads and writes, marked rather than inferred. On a page where the
+    // script has been re-evaluated, `ORIG_FETCH` is the delegating wrapper above, so an
+    // `ENM_Write` carrying a replaced title would otherwise come back through here and be
+    // read as a user's rename. A property on the init object; `fetch` ignores what it does
+    // not know.
+    if (init && init.__enm) return orig(input, init);
+    {
       var rename = renameOf(init);
-      if (!rename) return ORIG_FETCH(input, init);
+      if (!rename) return orig(input, init);
       // Sampled here, before the write goes out - see `onRename`.
       var held = foreignLease();
-      gateLog(rename.spec.update + ' for ' + rename.spec.label + ' ' + rename.id +
+      trace(rename.spec.update + ' for ' + rename.spec.label + ' ' + rename.id +
         ' posts ' + rename.spec.nameField + ' as "' + rename.to + '"' +
         (held ? '; ' + held.owner + ' already holds a lease (' + held.label + ')' : '') + '.');
       var before = null;
       return currentName(rename.spec, rename.id).then(function (was) {
         before = was;
-        return ORIG_FETCH(input, init);
+        return orig(input, init);
       }).then(function (resp) {
         // Only after the write is known to have landed, and only if the name actually
         // moved: Stash's edit form posts the name on every save, unchanged or not.
         if (!before) {
-          gateLog(rename.spec.label + ' ' + rename.id + ': its name could not be read ' +
+          trace(rename.spec.label + ' ' + rename.id + ': its name could not be read ' +
             'before the write, so there is no old name to look for.');
           return resp;
         }
         if (before === rename.to) {
-          gateLog(rename.spec.label + ' ' + rename.id + ': saved as "' + rename.to +
+          trace(rename.spec.label + ' ' + rename.id + ': saved as "' + rename.to +
             '", which is what it was already called. Not a rename.');
           return resp;
         }
         if (!resp || !resp.ok || !resp.clone) {
-          gateLog(rename.spec.label + ' ' + rename.id + ': the save did not come back as a ' +
+          trace(rename.spec.label + ' ' + rename.id + ': the save did not come back as a ' +
             'readable success (' + (resp ? 'status ' + resp.status : 'no response') + ').');
           return resp;
         }
         resp.clone().json().then(function (json) {
           if (anyErrors(json)) {
-            gateLog(rename.spec.label + ' ' + rename.id + ': the save came back with ' +
+            trace(rename.spec.label + ' ' + rename.id + ': the save came back with ' +
               'errors, so nothing was renamed.');
             return;
           }
           onRename(rename.spec, rename.id, before, rename.to, held);
         }, function () {
-          gateLog(rename.spec.label + ' ' + rename.id + ': the response was not JSON.');
+          trace(rename.spec.label + ' ' + rename.id + ': the response was not JSON.');
         });
         return resp;
       });
-    };
+    }
   }
 
   // ── The settings page ─────────────────────────────────────────────────────
@@ -2067,12 +2136,42 @@
   // The one thing this plugin exposes, for its own test suites: there is no page state
   // a test can drive it through, since the trigger is a mutation someone else posts.
   // Under `__GTTx__` rather than on `window`, like everything else shared here.
+  // Everything a "why did nothing happen" report needs, in one line the user can paste:
+  // `__GTTx__.enm.status()`. It reads back the trace kept above, so it answers about
+  // renames that have *already* been made rather than only about the next one - and the
+  // counters answer the question that comes before all the others, which is whether this
+  // plugin is seeing the page's requests at all. A zero there means the hook is bypassed
+  // and nothing about tags or names is relevant.
+  function status() {
+    var c = coop();
+    var lines = [PLUGIN_NAME + ' ' + PLUGIN_VERSION];
+    lines.push('fetch hook: ' + (window.__GTTx__.enmFetchWrap ? 'installed' : 'NOT INSTALLED') +
+      (_ourFetch && window.fetch !== _ourFetch
+        ? ', another plugin has wrapped since (normal - we are still in the chain)' : '') +
+      (window.__GTTx__.enmHandle === handle ? '' : ', but a DIFFERENT evaluation of this ' +
+        'script owns the handler'));
+    lines.push('requests seen: ' + _stats.fetches + '  ·  with a readable body: ' +
+      _stats.readable + '  ·  GraphQL: ' + _stats.graphql + '  ·  renames matched: ' +
+      _stats.matched);
+    lines.push('dialog open: ' + (_active ? 'yes' : 'no'));
+    lines.push('leases held now: ' + (c.leases.map(function (l) {
+      return l.owner + ' (' + l.label + ')';
+    }).join(', ') || 'none'));
+    lines.push(_trace.length ? 'last ' + plural(_trace.length, 'decision') + ', oldest first:'
+      : 'no save has looked like a rename yet.');
+    _trace.forEach(function (t) { lines.push('  ' + t); });
+    var text = lines.join('\n');
+    if (typeof console !== 'undefined' && console.log) console.log(text);
+    return text;
+  }
+
   window.__GTTx__.enm = {
     occurrences: occurrences,
     replaceAt: replaceAt,
     context: context,
     scanEntity: scanEntity,
     renameOf: renameOf,
+    status: status,
     dialog: function () { return _active; },
   };
 }());

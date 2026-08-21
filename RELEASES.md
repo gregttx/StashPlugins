@@ -10,7 +10,8 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-20 |  |  |  |  | 0.2.3 (`c061a84`) |  | SceneVariants 0.2.3: the Variants tab is amber |
+| 2026-08-21 |  |  |  |  | 0.3.0 (`330502e`) |  | SceneVariants 0.3.0: aliases and descendants classify a variant, and the cover comes back |
+| 2026-08-20 |  |  |  |  | [0.2.3](https://github.com/gregttx/StashPlugins/commit/c061a84) |  | SceneVariants 0.2.3: the Variants tab is amber |
 | 2026-08-20 |  |  |  |  | [0.2.2](https://github.com/gregttx/StashPlugins/commit/d2d3cd2) |  | SceneVariants 0.2.2: the tab goes before Edit, the value leads its own line |
 | 2026-08-20 |  |  |  |  | [0.2.1](https://github.com/gregttx/StashPlugins/commit/34e613c) |  | SceneVariants 0.2.1: partial-length is amber, and sized with the metadata |
 | 2026-08-20 |  |  |  |  | [0.2.0](https://github.com/gregttx/StashPlugins/commit/c0dd2a6) |  | SceneVariants 0.2.0: covers and previews, and one word for one idea |

@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.4.0 (`147f0d7`) | 2026-08-21 | SceneVariants 0.4.0: a row's hover text says how that variant differs |
 | 0.3.0 (`330502e`) | 2026-08-21 | SceneVariants 0.3.0: aliases and descendants classify a variant, and the cover comes back |
 | [0.2.3](https://github.com/gregttx/StashPlugins/commit/c061a84) | 2026-08-20 | SceneVariants 0.2.3: the Variants tab is amber |
 | [0.2.2](https://github.com/gregttx/StashPlugins/commit/d2d3cd2) | 2026-08-20 | SceneVariants 0.2.2: the tab goes before Edit, the value leads its own line |

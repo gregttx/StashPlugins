@@ -8,7 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 0.0.7 (`098d782`) | 2026-08-21 | EntityNameMaintainer 0.0.5 / FindEntitiesByTextContent 0.0.7: the counters say where the scan is, not only how far |
+| [0.0.7](https://github.com/gregttx/StashPlugins/commit/098d782) | 2026-08-21 | EntityNameMaintainer 0.0.5 / FindEntitiesByTextContent 0.0.7: the counters say where the scan is, not only how far |
 | [0.0.6](https://github.com/gregttx/StashPlugins/commit/edab204) | 2026-08-21 | FindEntitiesByTextContent 0.0.6: search works again - childNodes is not an Array |
 | [0.0.5](https://github.com/gregttx/StashPlugins/commit/7056bd7) | 2026-08-21 | FindEntitiesByTextContent 0.0.5: the same attribute filter row EntityNameMaintainer has |
 | [0.0.4](https://github.com/gregttx/StashPlugins/commit/76fc8c9) | 2026-08-21 | EntityNameMaintainer 0.0.2 / FindEntitiesByTextContent 0.0.4: the rename hook fires whether or not a sibling reacted, and All On/All Off go dead with nothing to act on |

@@ -613,6 +613,75 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
   }
 
   {
+    // The hover delta: what this variant carries that the viewed scene does not, what it
+    // is missing, and which attributes disagree. The tags by name, the attributes **by
+    // name only** - a title and a details block are paragraphs, and a tooltip quoting both
+    // sides would be a diff view nobody asked for.
+    const env = start({ siblings: [
+      // The viewed scene, as the query returns it. It is the same query that lists the
+      // variants, so both sides of every comparison are the same fields.
+      { id: '42', title: 'Cool Shoot - Clip 2', date: '2020-01-01', rating100: 80,
+        studio: { id: 's1', name: 'Acme' },
+        performers: [{ id: 'p1', name: 'Ada' }, { id: 'p2', name: 'Bea' }],
+        tags: [{ id: '2', name: 'Partial Length' }, { id: '5', name: 'Unrelated' }],
+        files: [{ duration: 243 }] },
+      { id: '9', title: 'Cool Shoot', date: '2020-01-01', rating100: 60,
+        studio: { id: 's1', name: 'Acme' },
+        // The same two performers in the other order: two scenes holding the same cast
+        // are not two scenes that disagree about it.
+        performers: [{ id: 'p2', name: 'Bea' }, { id: 'p1', name: 'Ada' }],
+        tags: [{ id: '1', name: 'Full Length' }],
+        files: [{ duration: 2472 }] },
+    ] });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    const lines = String(rows(inst.el)[0].props.title || '').split('\n');
+    h.check('a row names the tags the variant has and this scene does not',
+      lines[0] === 'Extra 1 tag: Full Length', lines[0]);
+    h.check('and the ones this scene has and it does not, sorted by name',
+      lines[1] === 'Missing 2 tags: Partial Length, Unrelated', lines[1]);
+    h.check('then the attributes that disagree, by name and in no particular hurry',
+      lines[2] === 'Attributes that differ: Title, Rating', lines[2]);
+    h.check('a list attribute in a different order is not a difference',
+      lines[2].indexOf('Performers') === -1 && lines[2].indexOf('Studio') === -1, lines[2]);
+    // The whole point of "name only": no value from either side appears anywhere in it.
+    h.check('and no value from either side is quoted',
+      ['Cool Shoot', '80', '60', 'Acme', '2020'].every((v) => lines[2].indexOf(v) === -1),
+      lines[2]);
+    h.check('the delta is on the row, so anywhere in it answers',
+      rows(inst.el)[0].type === 'div' && byClass(rows(inst.el)[0], 'svr-variant').length === 1);
+  }
+
+  {
+    // A row with nothing to report says so. An empty tooltip is indistinguishable from a
+    // tooltip that was never built, and "these two are the same in everything I can see"
+    // is an answer.
+    const env = start({ siblings: [
+      { id: '42', title: 'Same', tags: [{ id: '1', name: 'Full Length' }],
+        files: [{ duration: 60 }] },
+      { id: '9', title: 'Same', tags: [{ id: '1', name: 'Full Length' }],
+        files: [{ duration: 60 }] },
+    ] });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    h.check('an identical variant says it is identical',
+      rows(inst.el)[0].props.title === 'Same tags and attributes as this scene.',
+      rows(inst.el)[0].props.title);
+  }
+
+  {
+    // Nothing to compare against rather than something wrong to compare against: with the
+    // viewed scene missing from the answer, a row reports no difference at all.
+    const env = start({ siblings: [
+      { id: '9', title: 'Cool Shoot', tags: [], files: [{ duration: 60 }] },
+    ] });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    h.check('a variant set that does not include the viewed scene carries no delta',
+      !rows(inst.el)[0].props.title, rows(inst.el)[0].props.title);
+  }
+
+  {
     // Both tags on one scene is a contradiction rather than a tie: the two values are
     // mutually exclusive by definition, so it is reported rather than resolved by
     // whichever test ran first.

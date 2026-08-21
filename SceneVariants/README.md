@@ -53,6 +53,25 @@ Leave both empty and the tab still lists the variants — it just says nothing a
 The row's hover text names the tag the **scene** carries, which is how an alias or a child tag says
 which one it matched.
 
+## What the hover text tells you
+
+Hover anywhere on a row and it says how that variant differs from the scene you are looking at:
+
+```
+Extra 3 tags: Blonde, Outdoor, Solo
+Missing 1 tag: Anal
+Attributes that differ: Title, Date, Performers
+```
+
+**Extra** are the tags the variant carries and this scene does not; **missing** are the ones this
+scene carries and it does not. The last line names the attributes that disagree — title, date,
+studio, performers, groups, rating, studio code, director, details, URLs, organised — and **only
+their names**. Which fields differ is what sends you to the two pages; what each of them says is a
+question for those pages, and a tooltip quoting both sides would be a diff view rather than a hint.
+
+A list attribute in a different order is not a difference: the same three performers on both scenes
+agree, however each page happens to have them sorted. A variant that differs in nothing says so.
+
 Rows are ordered full-length first, then longest running time, because "which of these is the whole
 thing" is the question the tab exists to answer. The value starts the line under each title, so a
 short list reads as a column: full-length is green and partial-length amber; a scene with neither tag simply has no label. A scene carrying

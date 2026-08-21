@@ -313,6 +313,41 @@ The poster is only painted while the element has no frame at all, and `load()` i
 that state; with `preload="none"` it fetches nothing on the way. Its own suite pins it with a fixture
 whose `pause()` throws, so the old shape cannot come back quietly.
 
+## 4c. The hover delta: tags by name, attributes by name only
+
+A row's `title` answers one question — *how is this variant different from the scene I am looking
+at* — and answers its two halves differently on purpose:
+
+- **Tags by name.** A tag is a short string, and the names are the whole answer: `Extra 3 tags:
+  Blonde, Outdoor, Solo`. Compared by **id** and reported by name, the same split the classification
+  makes and for the same reason.
+- **Attributes by name only.** `Attributes that differ: Title, Date, Performers`, and never what
+  either side says. A title and a details block are paragraphs; a tooltip quoting both would be a
+  diff view nobody asked for, in a box with no scrollbar. Knowing *that* the dates disagree is what
+  sends the reader to the two pages, and which one is right is a question for those pages.
+
+**The comparison's other side comes out of the same query, not off `props.scene`.** `findScenes`
+returns every scene sharing the stash-id, this one included, so `self` is the viewed scene with the
+same fields selected the same way. Comparing against the props fragment instead would put Stash's
+`SceneDataFragment` — whose shape is Stash's to change — on one side of every comparison, and any
+field it happens not to carry would read as a difference on every row. It also means a `self` that
+is absent is a **no-delta** rather than a wrong one.
+
+**Sorted before comparing, wherever the value is a list.** Two scenes holding the same three
+performers in a different order do not disagree about their performers, and a delta that said they
+did would be noise on rows that are otherwise identical.
+
+**The eleven fields are the feature's real cost**, and they are in the same query the tab cannot do
+without: a field named wrongly there does not lose the delta, it loses the variant list. That is why
+they are ordinary `Scene` fields and why `groups { group { id name } }` is written the way a sibling
+plugin already runs it against a live server. `custom_fields` is deliberately not among them — it is
+a map with no fixed keys, so "which attributes differ" would have to name *keys* rather than fields,
+which is a second vocabulary for a question nobody has asked yet.
+
+**On the row, not on one thing in it**, so anywhere in the row answers. The value span keeps its own
+`title` naming the tag that classified it, which is a narrower answer about that span and correctly
+wins where the pointer is over it.
+
 ## 5. Unverified — what is left of it
 
 **Confirmed live 2026-08-20**: the tab renders and sits in the strip, the query returns a real
@@ -325,7 +360,10 @@ theme. What has still not been seen:
    `findTags` whose fields (`aliases`, `parents { id }`) are read off Stash's schema and have not yet
    been seen answering on a live server. A tag list that fails now costs every classification rather
    than none, which is why that failure is on the console.
-3. **Whether `preload="none"` makes the first hover feel slow.** Stash's own cards fetch earlier and
+3. **The hover delta**, and with it the eleven attribute fields the variant query now selects.
+   A wrong field name there costs the whole tab, not the tooltip - the one place in this plugin
+   where a new feature can take an old one down with it.
+4. **Whether `preload="none"` makes the first hover feel slow.** Stash's own cards fetch earlier and
    play from an `IntersectionObserver` — a different trade, and the one to copy if this feels laggy
    rather than cheap.
 

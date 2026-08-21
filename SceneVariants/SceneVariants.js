@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.3.0';
+  var PLUGIN_VERSION = '0.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -362,7 +362,14 @@
     'query SVRVariants($ids: [String!]) { findScenes(' +
     'scene_filter: { stash_ids_endpoint: { stash_ids: $ids, modifier: EQUALS } }, ' +
     'filter: { per_page: -1 }) { scenes { id title tags { id name } ' +
-    'paths { screenshot preview } files { duration width height } } } }';
+    'paths { screenshot preview } files { duration width height } ' +
+    // Everything the hover delta compares, and nothing else. The list is the price of
+    // that feature and is worth reading as one: a field named wrongly here does not lose
+    // the delta, it loses the whole query and with it the tab's only answer. All of them
+    // are ordinary `Scene` fields on the Stash this plugin already requires, and
+    // `groups { group { ... } }` is the shape a sibling plugin runs against a live server.
+    'code details director date rating100 organized urls ' +
+    'studio { id name } performers { id name } groups { group { id name } } } } }';
 
   // Resolves once the first settings read has landed, so the rows are classified against
   // the user's tag names rather than against the empty defaults. The pane reads settings
@@ -393,10 +400,15 @@
       return gqlRequest(VARIANTS_QUERY, { ids: ids }).then(function (data) {
         var scenes = (((data || {}).findScenes) || {}).scenes || [];
         var others = scenes.filter(function (o) { return String(o.id) !== String(scene.id); });
+        // The viewed scene as the query returned it - the same fields, selected the same
+        // way, which is what the delta compares against. A server that does not agree this
+        // scene carries the stash-id leaves it null, and every row then reports no
+        // difference rather than reporting a wrong one.
+        var self = scenes.filter(function (o) { return String(o.id) === String(scene.id); })[0];
         logToConsole('scene ' + scene.id + ': ' + plural(others.length, 'variant') +
           ' from ' + plural(ids.length, 'stash-id'));
         return {
-          rows: ordered(others, m),
+          rows: ordered(others, self, m),
           conflict: conflictNote(m),
           why: others.length
             ? 'Matched on ' + plural(ids.length, 'stash-id') + '.'
@@ -451,6 +463,92 @@
     return { role: 'none', label: '', tags: '' };
   }
 
+  // ── The delta against the scene being viewed ──────────────────────────────
+  //
+  // What the hover text on a row answers: *how is this one different from the scene I am
+  // looking at*. Two halves, and they are deliberately not symmetrical in what they show:
+  //
+  //   the tags, **by name** - a tag is a short string and the names are the answer;
+  //   the attributes, **by name only** - which fields disagree, never how. A title and a
+  //     details block are paragraphs, and a tooltip that quoted both sides would be a
+  //     diff view nobody asked for. Knowing *that* the dates differ is what sends the
+  //     reader to the two pages; which of them is right is a question for those pages.
+  //
+  // The scene being compared against comes out of the same `findScenes` answer rather than
+  // off `props.scene`: the query returns every scene sharing the stash-id, this one
+  // included, so both sides of every comparison are the same fields selected by the same
+  // query. Reading one side off the props fragment instead would compare Stash's
+  // `SceneDataFragment` - whose shape is Stash's to change - against ours, and any field
+  // that fragment happens not to carry would read as a difference on every row.
+  var ATTRS = [
+    { key: 'title', label: 'Title' },
+    { key: 'date', label: 'Date' },
+    { key: 'studio', label: 'Studio', of: function (v) { return v ? v.name : ''; } },
+    { key: 'performers', label: 'Performers', of: joinNames },
+    { key: 'groups', label: 'Groups', of: joinNames },
+    { key: 'rating100', label: 'Rating' },
+    { key: 'code', label: 'Studio code' },
+    { key: 'director', label: 'Director' },
+    { key: 'details', label: 'Details' },
+    { key: 'urls', label: 'URLs', of: joinNames },
+    { key: 'organized', label: 'Organized' },
+  ];
+
+  // One comparable string for a list of names, whatever the list holds: performers and
+  // studios carry a `name`, a scene's groups wrap theirs a level in, and urls are bare
+  // strings. **Sorted**, because two scenes holding the same three performers in a
+  // different order are not two scenes that disagree about their performers.
+  function joinNames(list) {
+    return (list || []).map(function (x) {
+      if (x && x.name) return String(x.name);
+      if (x && x.group && x.group.name) return String(x.group.name);
+      return String(x == null ? '' : x);
+    }).sort().join(' · ');
+  }
+
+  function attrValue(scene, a) {
+    var v = scene ? scene[a.key] : null;
+    if (a.of) return a.of(v);
+    return String(v == null ? '' : v);
+  }
+
+  function tagNames(tags) {
+    return (tags || []).map(function (t) { return t.name || ('tag ' + t.id); }).sort();
+  }
+
+  // Tags are compared by **id** and reported by name - the same split the classification
+  // makes, and for the same reason: an id is what identifies a tag and a name is what a
+  // reader can act on.
+  function tagDelta(self, other) {
+    var have = {}, theirs = {};
+    (self.tags || []).forEach(function (t) { have[t.id] = true; });
+    (other.tags || []).forEach(function (t) { theirs[t.id] = true; });
+    return {
+      extra: tagNames((other.tags || []).filter(function (t) { return !have[t.id]; })),
+      missing: tagNames((self.tags || []).filter(function (t) { return !theirs[t.id]; })),
+    };
+  }
+
+  // The hover text itself. "Same tags and attributes as this scene." rather than an empty
+  // tooltip: a row with nothing to report is an answer - the two are duplicates of each
+  // other in everything this plugin can see - and a tooltip that failed to open would read
+  // as one that had never been built.
+  function deltaText(self, other) {
+    if (!self || String(self.id) === String(other.id)) return '';
+    var d = tagDelta(self, other), lines = [];
+    if (d.extra.length) {
+      lines.push('Extra ' + plural(d.extra.length, 'tag') + ': ' + d.extra.join(', '));
+    }
+    if (d.missing.length) {
+      lines.push('Missing ' + plural(d.missing.length, 'tag') + ': ' + d.missing.join(', '));
+    }
+    var differ = ATTRS.filter(function (a) {
+      return attrValue(self, a) !== attrValue(other, a);
+    }).map(function (a) { return a.label; });
+    if (differ.length) lines.push('Attributes that differ: ' + differ.join(', '));
+    return lines.length ? lines.join('\n') : 'Same tags and attributes as this scene.';
+  }
+
   function bestFile(scene) {
     var files = scene.files || [];
     var best = null;
@@ -481,9 +579,9 @@
   // than one candidate at the top - which the user says is rare.
   var ROLE_RANK = { fl: 0, none: 1, bad: 1, pl: 2 };
 
-  function ordered(variants, m) {
+  function ordered(variants, self, m) {
     return variants.map(function (scene) {
-      return { scene: scene, cls: classify(scene, m) };
+      return { scene: scene, cls: classify(scene, m), delta: deltaText(self, scene) };
     }).sort(function (a, b) {
       var ra = ROLE_RANK[a.cls.role], rb = ROLE_RANK[b.cls.role];
       if (ra !== rb) return ra - rb;
@@ -865,7 +963,10 @@
       kids.unshift(React.createElement('a',
         { key: 'thumblink', className: 'svr-thumb-link', href: '/scenes/' + row.scene.id }, thumb));
     }
-    return React.createElement('div', { key: row.scene.id, className: 'svr-variant' }, kids);
+    // On the row rather than on any one thing in it, so anywhere in the row answers it -
+    // and the value span keeps its own title, which is a narrower answer about that span.
+    return React.createElement('div',
+      { key: row.scene.id, className: 'svr-variant', title: row.delta || null }, kids);
   }
 
   // `found` is null until the query lands, which is the loading state; after that it is

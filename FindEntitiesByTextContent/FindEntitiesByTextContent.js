@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '0.0.6';
+  var PLUGIN_VERSION = '0.0.7';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -577,15 +577,18 @@
   // `per_page: 1` rather than 0, which is not a size any of these queries promises to
   // honour; one row per type is not worth avoiding.
   function countOf(types) {
-    if (!types.length) return Promise.resolve(0);
+    if (!types.length) return Promise.resolve({ total: 0, per: {} });
     var parts = types.map(function (k) {
       return k + ': ' + ENTITIES[k].find + '(filter: { per_page: 1 }) { count }';
     });
     return gqlRequest('query FETC_Counts { ' + parts.join(' ') + ' }', null)
       .then(function (data) {
-        var n = 0;
-        types.forEach(function (k) { n += ((data[k] || {}).count) || 0; });
-        return n;
+        var out = { total: 0, per: {} };
+        types.forEach(function (k) {
+          out.per[k] = ((data[k] || {}).count) || 0;
+          out.total += out.per[k];
+        });
+        return out;
       });
   }
 
@@ -746,6 +749,12 @@
     // far it has got without saying how far there is to go, which is what they said
     // before this existed.
     this.total = null;
+    // Per type, so the counters say *where* the wait is rather than only how far one
+    // number has got. `scannedPer` is what has been read of each, `totals` what there is;
+    // a type nobody turned on appears in neither.
+    this.scannedPer = {};
+    this.totals = {};
+    this.searching = [];
     this.needle = '';
     this.loadingWhat = '';
     this.stale = false;
@@ -1087,20 +1096,44 @@
     }
   };
 
+  // One entry per type in scope, `Plural read/there`, in the order they are read. The
+  // aggregate above says how far the whole search has got; this says *where* it is, which
+  // on a library whose Images outnumber everything else is the difference between a number
+  // that has stopped moving and one that is moving through the biggest type.
+  //
+  // Only the types that were turned on: an entry for a type nobody asked to read would be
+  // a zero that never changes.
+  Run.prototype.perTypeText = function () {
+    var self = this;
+    if (!this.searching || !this.searching.length) return '';
+    return this.searching.map(function (k) {
+      var there = self.totals[k];
+      return ENTITIES[k].plural + ' ' + (self.scannedPer[k] || 0) +
+        (there == null ? '' : '/' + there);
+    }).join('  ·  ');
+  };
+
   Run.prototype.progress = function () {
-    this.progressEl.textContent = this.state === 'idle' && !this.scanned
-      ? 'Type something to look for, turn on a type, and press Search.'
-      // The noun agrees with the total where there is one, since that is the number it
-      // is counting toward.
-      : 'Scanned ' + (this.total == null
-        ? plural(this.scanned, 'entity', 'entities')
-        : this.scanned + ' of ' + plural(this.total, 'entity', 'entities')) +
-        (this.loadingWhat && this.state === 'running' ? ' (' + this.loadingWhat + ')' : '') +
-        '  ·  ' + plural(this.matched, 'match', 'matches') +
-        '  ·  ' + this.rendered + ' on screen' +
-        (this.state === 'paused' ? '  ·  paused'
-          : this.state === 'full' ? '  ·  paused, list full'
-            : this.state === 'done' ? '  ·  finished' : '');
+    if (this.state === 'idle' && !this.scanned) {
+      this.progressEl.textContent =
+        'Type something to look for, turn on a type, and press Search.';
+      return;
+    }
+    // The noun agrees with the total where there is one, since that is the number it is
+    // counting toward.
+    var head = 'Scanned ' + (this.total == null
+      ? plural(this.scanned, 'entity', 'entities')
+      : this.scanned + ' of ' + plural(this.total, 'entity', 'entities')) +
+      (this.loadingWhat && this.state === 'running' ? ' (' + this.loadingWhat + ')' : '') +
+      '  ·  ' + plural(this.matched, 'match', 'matches') +
+      '  ·  ' + this.rendered + ' on screen' +
+      (this.state === 'paused' ? '  ·  paused'
+        : this.state === 'full' ? '  ·  paused, list full'
+          : this.state === 'done' ? '  ·  finished' : '');
+    var per = this.perTypeText();
+    // `.fetc-progress` is `white-space: pre-wrap` - one of the rules pinned across the
+    // plugins - so the second line is a newline rather than a second element.
+    this.progressEl.textContent = per ? head + '\n' + per : head;
   };
 
   Run.prototype.begin = function () {
@@ -1158,6 +1191,8 @@
     this.scanned = 0;
     this.matched = 0;
     this.total = null;
+    this.scannedPer = {};
+    this.totals = {};
     // The attribute filters belong to the search on screen: a new one has found nothing
     // yet, so it knows of no attributes.
     this.attrOn = {};
@@ -1175,6 +1210,9 @@
     this.remember(text);
     this.titleEl.textContent = PLUGIN_SHORT_NAME + ' - "' + text + '"';
     this.queue = this.chosen().slice();
+    // The queue is consumed as the search goes; this stays, so the breakdown goes on
+    // naming every type the search covers rather than only the ones it has left.
+    this.searching = this.queue.slice();
     this.page = 1;
     this.state = 'running';
     this.syncFooter();
@@ -1188,9 +1226,10 @@
       // caught - and it is caught *inside* the chain rather than beside it, or a failed
       // introspection would land in the same handler and the scan would run with no
       // field shapes at all.
-      return countOf(types).then(function (total) {
+      return countOf(types).then(function (counts) {
         if (self.epoch !== epoch) return;
-        self.total = total;
+        self.total = counts.total;
+        self.totals = counts.per;
         self.progress();
       }, function () { /* no denominator is not a reason not to search */ });
     }).then(function () {
@@ -1227,6 +1266,10 @@
     if (!fields.length) {
       this.msg('WARN', 'This Stash has none of the text fields this plugin looks for on ' +
         spec.plural + '; that type is skipped.');
+      // Out of the breakdown too, or it would sit there as a zero that never moves and
+      // read as a type still to come. The message above is what says it was skipped.
+      var at = this.searching.indexOf(spec.key);
+      if (at !== -1) this.searching.splice(at, 1);
       this.queue.shift();
       this.page = 1;
       return this.step(epoch);
@@ -1238,6 +1281,7 @@
         if (epoch !== self.epoch) return;
         var block = data[spec.find] || {};
         var list = block[spec.list] || [];
+        self.scannedPer[spec.key] = (self.scannedPer[spec.key] || 0) + list.length;
         list.forEach(function (ent) {
           self.scanned++;
           var hit = scanEntity(spec, fields, ent, self.needle);

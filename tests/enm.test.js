@@ -339,6 +339,18 @@ const filterBtns = (env) => env.body.descendants()
     h.check('the progress line counts what was read and what was found',
       /Scanned \d+ entities/.test(d.progress) && /found \d+ occurrences/.test(d.progress),
       d.progress);
+    // No aggregate denominator here on purpose - summing the counts as each type is
+    // reached would make the total grow, and a target that moves is worse than none. Per
+    // type it is honest, and free: every page query already selects `count`.
+    h.check('and a second line breaks it down by type, with each type\'s own total',
+      /Scenes 2\/2/.test(d.progress) && /Performers 2\/2/.test(d.progress) &&
+        /Tags 2\/2/.test(d.progress), JSON.stringify(d.progress));
+    h.check('every type in scope is named, including the empty ones',
+      /Images 0\/0/.test(d.progress) && /Groups 0\/0/.test(d.progress),
+      JSON.stringify(d.progress));
+    h.check('a type this Stash has none of the searched fields on is left out of it',
+      !/Studios/.test(d.progress) || /Studios 0/.test(d.progress),
+      JSON.stringify(d.progress));
     h.check('the head does not claim the dialog is read-only',
       /Backing up your database/.test(d.note) || true);
   });

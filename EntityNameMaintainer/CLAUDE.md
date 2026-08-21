@@ -288,7 +288,26 @@ being written, in a batch that is already writing — and it is the whole of thi
 answer to concurrency. It is *not* a transaction: something changed between the re-read and
 the write still wins.
 
-## 16. Two limits, and only one of them refuses
+## 16. The counters say where the scan is, not only how far
+
+`Scanned 4200 entities` answers *how far* and leaves *where* unanswered, and on a library
+whose Images outnumber everything else by an order of magnitude those are different
+questions: a number that has stopped moving and a number moving through the biggest type
+look identical.
+
+So a second line, one entry per type in scope, `Plural read/there`.
+
+**Each type's own total costs nothing** — every page query already selects `count`, so the
+denominator lands with that type's first page and never moves. **There is deliberately no
+aggregate "of N"**: summing those counts as each type is reached would make the grand total
+grow while the scan ran, which is the moving-target problem `FindEntitiesByTextContent`
+needed a whole extra query to avoid. Per type the number is honest without one.
+
+A type this Stash has none of the searched fields on is dropped from the breakdown rather
+than left at zero, where it would read as a type still to come; the log line is what says it
+was skipped.
+
+## 17. Two limits, and only one of them refuses
 
 `b1WarnAbove` adds a proceed-with-caution note and changes nothing else. `c1StopAbove` ends
 the scan and disables Proceed.
@@ -303,7 +322,7 @@ The stop limit ends the scan rather than merely disabling the button, because th
 point reading another hundred thousand rows for a listing nobody can act on. Copy log and
 the listing still work, so the user can see what it found.
 
-## 17. One button for Proceed and Undo
+## 18. One button for Proceed and Undo
 
 The brief writes it `[Proceed/Undo]`, and the two never overlap: after a write the listing
 describes a library this dialog has already changed, so offering Proceed over it would write
@@ -316,12 +335,12 @@ user's explicit request, which is the one place here that does not follow from t
 change nothing in the library). The rule is about telling a plugin's controls from Stash's,
 and these are unambiguously ours.
 
-## 18. The head carries the backup sentence
+## 19. The head carries the backup sentence
 
 This dialog writes, so it carries the standing sentence in the shared wording, unedited. The
 `TagBundleClipboard` waiver is for dialogs that issue no mutation at all, which this is not.
 
-## 19. Scene markers are not covered
+## 20. Scene markers are not covered
 
 A marker carries a `title` and no page of its own to be renamed from, so there is no rename
 for the watcher to see. Adding markers to the *scan* alone would mean listing occurrences in

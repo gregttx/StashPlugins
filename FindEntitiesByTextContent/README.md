@@ -68,10 +68,16 @@ that it is still going:
 
 ```
 Scanned 4200 of 18300 entities (Images)  ·  37 matches  ·  37 on screen
+Scenes 1200/1200  ·  Galleries 0/0  ·  Images 3000/17000  ·  Tags 0/100
 ```
 
-The total is read once before the first page and covers only the types you turned on, so it
-means the same thing from the first page to the last.
+The first line says how far the whole search has got; the second says **where** it is. On a
+library whose Images outnumber everything else, that is the difference between a number that
+seems to have stopped and one that is working through the biggest type.
+
+The totals are read once before the first page and cover only the types you turned on, so
+they mean the same thing from the first page to the last. A type this Stash has none of the
+searched fields on is left out of the breakdown — the log says it was skipped.
 
 ## Pausing, and the list on screen
 

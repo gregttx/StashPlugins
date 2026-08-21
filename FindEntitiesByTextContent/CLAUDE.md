@@ -157,7 +157,23 @@ this existed. **The failure is caught inside the chain rather than beside it**, 
 introspection would land in the same handler and the scan would run with no field shapes at
 all.
 
-## 11. The log reads in the order things happened
+## 11. And they say where it is, not only how far
+
+A second line under the aggregate, one entry per chosen type, `Plural read/there`. The
+aggregate answers *how far*; this answers *where*, and on a library whose Images outnumber
+everything else those are different questions — a number that has stopped moving and a number
+moving through the biggest type look the same.
+
+The per-type totals come from the same `FETC_Counts` query the aggregate does, so the
+breakdown costs nothing beyond a wider return shape. A type skipped for having none of the
+searched fields is dropped from the breakdown rather than left at zero, where it would read
+as a type still to come.
+
+`searching` is a copy of the queue rather than the queue itself, because the queue is
+consumed as the search goes and the breakdown has to go on naming every type the search
+covers, not only the ones it has left.
+
+## 12. The log reads in the order things happened
 
 The listing and the messages share one box and one scrollbar. The list block was being
 *inserted at the top*, which pushed every message below it - so the first line written, the
@@ -168,7 +184,7 @@ It is appended now, and `start()` writes its message *before* creating the block
 or a Refresh gets a fresh block rather than an emptied one, for the same reason: the results
 start again after the message that says why.
 
-## 12. `epoch`, which is what makes Refresh and Cancel safe
+## 13. `epoch`, which is what makes Refresh and Cancel safe
 
 A page can be in flight when the user presses Refresh or closes the dialog. Every `step`
 carries the epoch it started under and returns immediately if it has moved. Without it, a
@@ -177,7 +193,7 @@ longer on the page.
 
 `close()` bumps it too, for exactly that second case.
 
-## 13. What is remembered lives in `localStorage`, not in the plugin configuration
+## 14. What is remembered lives in `localStorage`, not in the plugin configuration
 
 Two reasons, and the second is the one that matters. It belongs to the person at this browser
 rather than to the server — the same argument `TagBundleClipboard` makes for its clipboard.
@@ -193,7 +209,7 @@ site data, throws on the accessor itself.
 and is the one thing a number box can be asked to do that is not about the future. It is on
 the box's own tooltip, because nothing about a "0" says so.
 
-## 14. No settings at all, and what that costs
+## 15. No settings at all, and what that costs
 
 Every choice this plugin offers is made inside the dialog, where the user already is and
 where it is answered on the spot. The one setting it had was the console switch every
@@ -213,7 +229,7 @@ Two consequences, and both are load-bearing rather than incidental:
   anchor in the repo with nothing behind it. `CustomFieldsBulkEditor` was in this position
   before its 0.7.0 and its notes say the same thing.
 
-## 15. The settings anchor, and the guard that excluded the page it was written for
+## 16. The settings anchor, and the guard that excluded the page it was written for
 
 Worth writing down at length because it is the exact shape of mistake this repo keeps
 making, and this time it was caught by a user looking at the page rather than by anything
@@ -239,7 +255,7 @@ context: a structural test has to name the thing it means.** "Has a button" was 
 "is the Tasks page", and the proxy was false on the very page it was protecting. Where the
 real distinguishing feature is a string this plugin owns, use the string.
 
-## 16. The head does not tell anyone to back up
+## 17. The head does not tell anyone to back up
 
 Nothing here writes, so the standing sentence would be false. The head says where the results
 go instead — the `TagBundleClipboard` shape, and the shared rule is explicitly about dialogs
@@ -248,7 +264,7 @@ that *write*.
 The consequence is that the run's own warnings need a slot, and they take the amber `.warn`
 one the backup sentence would have occupied. Same swap `TagBundleClipboard` makes.
 
-## 17. Search is refused rather than silently doing nothing
+## 18. Search is refused rather than silently doing nothing
 
 An empty box "does nothing", per the brief — and a button that does nothing when pressed
 teaches nobody anything, so it is disabled with a title saying which half is missing. Same

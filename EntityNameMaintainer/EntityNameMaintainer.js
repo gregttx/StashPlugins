@@ -44,7 +44,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.4';
+  var PLUGIN_VERSION = '0.0.5';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -868,6 +868,19 @@
     this.failed = 0;
     this.skipped = 0;
     this.scanned = 0;
+    // Per type, so the counters say *where* the wait is rather than only how far one
+    // number has got - which on a library whose Images outnumber everything else is the
+    // difference between a number that has stopped moving and one that is moving through
+    // the biggest type.
+    //
+    // The totals cost nothing: every page query already selects `count`, so each type's
+    // denominator lands with its first page and never moves after that. There is no
+    // aggregate "of N" here for the same reason FETC needed a query to get one - summing
+    // the counts as they arrive would make the *total* grow as each new type is reached,
+    // and a target that moves is worse than no target. Per type, the number is honest.
+    this.scannedPer = {};
+    this.totals = {};
+    this.types = [];
     this.stopped = false;      // the stop threshold ended the scan early
     this.stale = false;
     this.loadingWhat = '';
@@ -1101,6 +1114,7 @@
     var types = TYPE_ORDER.filter(function (k) {
       return !(k === 'images' && self.settings.a1SkipImages);
     });
+    this.types = types.slice();
 
     function nextType(i) {
       if (i >= types.length || self.stopped) return Promise.resolve();
@@ -1109,6 +1123,10 @@
       if (!fields.length) {
         self.msg('WARN', 'This Stash has none of the text fields this plugin looks for on ' +
           spec.plural + '; that type is skipped.');
+        // Out of the breakdown too, or it would carry a zero that never moves and read as
+        // a type still to come.
+        var at = self.types.indexOf(types[i]);
+        if (at !== -1) self.types.splice(at, 1);
         return nextType(i + 1);
       }
       var query = pageQuery(spec, fields);
@@ -1120,6 +1138,8 @@
           .then(function (data) {
             var block = data[spec.find] || {};
             var rows = block[spec.list] || [];
+            self.scannedPer[spec.key] = (self.scannedPer[spec.key] || 0) + rows.length;
+            if (typeof block.count === 'number') self.totals[spec.key] = block.count;
             rows.forEach(function (ent) {
               self.scanned++;
               if (isPluginStore(ent)) { self.skipped++; return; }
@@ -1142,14 +1162,31 @@
     return nextType(0);
   };
 
+  // One entry per type in scope, `Plural read/there`, in the order they are read. A type
+  // whose denominator has not landed yet - the scan has not reached it - carries the count
+  // alone rather than a made-up total.
+  Run.prototype.perTypeText = function () {
+    var self = this;
+    if (!this.types.length) return '';
+    return this.types.map(function (k) {
+      var there = self.totals[k];
+      return ENTITIES[k].plural + ' ' + (self.scannedPer[k] || 0) +
+        (there == null ? '' : '/' + there);
+    }).join('  ·  ');
+  };
+
   Run.prototype.progressText = function () {
     var picked = this.state === 'listing' ? this.enabledHits().length : 0;
-    return 'Scanned ' + plural(this.scanned, 'entity', 'entities') +
+    var head = 'Scanned ' + plural(this.scanned, 'entity', 'entities') +
       (this.loadingWhat && this.state === 'scanning' ? ' (' + this.loadingWhat + ')' : '') +
       '  ·  found ' + plural(this.hits.length, 'occurrence') +
       (this.state === 'listing' ? '  ·  ' + picked + ' to replace' : '') +
       (this.written ? '  ·  replaced ' + this.written : '') +
       (this.failed ? '  ·  ' + plural(this.failed, 'failure') : '');
+    var per = this.perTypeText();
+    // `.enm-progress` is `white-space: pre-wrap` - one of the rules pinned across the
+    // plugins - so the second line is a newline rather than a second element.
+    return per ? head + '\n' + per : head;
   };
 
   Run.prototype.summarise = function () {

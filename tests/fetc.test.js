@@ -268,7 +268,7 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
 
 (function searching() {
   const env = makeEnv();
-  open(env, 'beach', ['Scenes', 'Performers', 'Tags', 'Groups'])
+  open(env, 'beach', ['Scenes', 'Performers', 'Tags', 'Galleries', 'Groups'])
     .then(() => search(env))
     .then(() => {
       const text = results(env).map((r) => r.textContent);
@@ -294,6 +294,19 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
           /3 on screen/.test(d.progress), d.progress);
       h.check('the denominator covers only the types that were turned on',
         !/of 5 entities/.test(d.progress), d.progress);
+      // The aggregate says how far; this says *where*, which is what a library whose
+      // Images outnumber everything else actually needs from a progress line.
+      h.check('and a second line breaks the count down by type',
+        /Scenes 2\/2/.test(d.progress) && /Performers 1\/1/.test(d.progress) &&
+          /Tags 1\/1/.test(d.progress), JSON.stringify(d.progress));
+      h.check('naming every type the search covers, including an empty one',
+        /Galleries 0\/0/.test(d.progress), JSON.stringify(d.progress));
+      h.check('and no type that was never turned on',
+        !/Images/.test(d.progress), JSON.stringify(d.progress));
+      // Skipped for lack of fields, and said so in the log - but out of the breakdown,
+      // where a permanent zero would read as a type still to come.
+      h.check('and not one it could not search at all',
+        !/Groups/.test(d.progress), JSON.stringify(d.progress));
       h.check('and that it finished', /finished/.test(d.progress), d.progress);
       h.check('the log says so too',
         d.lines.some((l) => /^\[INFO\] Finished: 3 entities mention "beach"/.test(l)),
@@ -430,6 +443,8 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
   }).then(() => {
     h.check('a pause stops it short of the whole library', run(env).scanned === 1000,
       String(run(env).scanned));
+    h.check('the breakdown says how far into that type it got',
+      /Scenes 1000\/1200/.test(dlg(env).progress), JSON.stringify(dlg(env).progress));
     h.check('the button reads Resume', !!dlg(env).button('Resume'));
     h.check('and the counters say paused', /paused/.test(dlg(env).progress), dlg(env).progress);
     h.check('the text box is editable again while paused', !run(env).textInput.disabled);

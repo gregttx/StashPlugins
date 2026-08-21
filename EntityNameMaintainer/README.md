@@ -55,6 +55,21 @@ match, with the match itself marked.
 - **Copy log** — the counters, the whole listing and every message, as plain text.
 - **Close**, or the Escape key.
 
+## While it scans
+
+```
+Scanned 4200 entities (Images)  ·  found 12 occurrences
+Scenes 1200/1200  ·  Images 3000/17000  ·  Tags 0/240
+```
+
+The first line says how far it has got; the second says **where**, one entry per entity type
+with that type's own total. Each total arrives with the first page of its type and does not
+move afterwards.
+
+There is no overall "out of N": adding the counts up as each type is reached would make the
+grand total grow as the scan went, and a target that moves is worse than none. Per type the
+number is honest, and it costs nothing — every page already carries its type's count.
+
 ## Safety
 
 - **Nothing is written until you press Proceed.** The scan is a read.

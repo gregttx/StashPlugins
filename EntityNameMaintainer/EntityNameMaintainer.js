@@ -44,7 +44,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.3';
+  var PLUGIN_VERSION = '0.0.4';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1814,17 +1814,22 @@
     }, function () { openRun(spec, id, from, to, DEFAULTS); });
   }
 
-  // A batched response is an array, like its request; a single one is an object. Either
-  // way the question is whether anything in it failed.
-  function anyErrors(json) {
-    if (!json) return true;
-    var list = Object.prototype.toString.call(json) === '[object Array]' ? json : [json];
-    for (var i = 0; i < list.length; i++) {
-      if (list[i] && list[i].errors) return true;
-    }
-    return false;
-  }
-
+  // **Nothing here reads the response body, and that is a decision paid for in the
+  // field.** It used to: `resp.clone().json()`, checking for GraphQL errors before
+  // reacting. On a page carrying five of these plugins - each with its own `fetch`
+  // wrapper, each cloning and reading the same response - that `json()` rejected on a
+  // real `tagUpdate`, and the only symptom was a dialog that did not open. The cause was
+  // never pinned down, and pinning it down would have bought a fix good until the sixth
+  // plugin.
+  //
+  // So the question "did the write land" is asked of the *server* instead: one more by-id
+  // read, and the entity either carries the new name or it does not. That is both cheaper
+  // to reason about and strictly more accurate - a mutation can return 200 with errors, or
+  // succeed in part, and what this plugin needs to know is whether the old name is now
+  // gone.
+  //
+  // **The general rule: a response body is shared, and a plugin that reads it is one of an
+  // unknown number doing so.** Anything that can be re-read from the server should be.
   function handle(orig, input, init) {
     // This plugin's own reads and writes, marked rather than inferred. On a page where the
     // script has been re-evaluated, `ORIG_FETCH` is the delegating wrapper above, so an
@@ -1857,20 +1862,23 @@
             '", which is what it was already called. Not a rename.');
           return resp;
         }
-        if (!resp || !resp.ok || !resp.clone) {
+        if (!resp || !resp.ok) {
           trace(rename.spec.label + ' ' + rename.id + ': the save did not come back as a ' +
-            'readable success (' + (resp ? 'status ' + resp.status : 'no response') + ').');
+            'success (' + (resp ? 'status ' + resp.status : 'no response') + ').');
           return resp;
         }
-        resp.clone().json().then(function (json) {
-          if (anyErrors(json)) {
-            trace(rename.spec.label + ' ' + rename.id + ': the save came back with ' +
-              'errors, so nothing was renamed.');
+        // **The response body is deliberately not read.** See the note above `handle`.
+        // One more by-id query instead: if the entity is now called what was posted, the
+        // rename landed - which is the thing actually being asked, rather than the
+        // absence of a GraphQL error in a body five plugins are all cloning at once.
+        currentName(rename.spec, rename.id).then(function (now) {
+          if (now === rename.to) {
+            onRename(rename.spec, rename.id, before, rename.to, held);
             return;
           }
-          onRename(rename.spec, rename.id, before, rename.to, held);
-        }, function () {
-          trace(rename.spec.label + ' ' + rename.id + ': the response was not JSON.');
+          trace(rename.spec.label + ' ' + rename.id + ': the save came back but it is ' +
+            (now == null ? 'no longer readable' : 'still called "' + now + '"') +
+            ', so nothing was renamed.');
         });
         return resp;
       });

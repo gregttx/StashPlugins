@@ -83,7 +83,42 @@ time.** Ask it after the event you are reacting to and you are also asking "did 
 react to this", which is a different question with the opposite right answer. Any future
 plugin that both reacts and respects leases has this to get right.
 
-## 5. Two other things that could produce the same symptom, fixed while looking
+## 5. The response body is shared, so nothing here reads it
+
+**This is the bug that was actually happening**, found by `tools/enm-probe.js` against the
+user's own Stash after three rounds of reading the diff had found nothing:
+
+```
+tagUpdate for Tag 2287 posts name as "..."
+Tag 2287: the response was not JSON.
+```
+
+The mutation was seen, matched, and the old name read. Then `resp.clone().json()` **rejected**
+— on a page carrying five of these plugins, each with its own `window.fetch` wrapper, each
+cloning and reading the same response. The symptom was a dialog that did not open, with
+nothing anywhere saying why until the trace existed.
+
+**The cause was not pinned down, and pinning it down would have bought a fix good until the
+sixth plugin.** So the dependency is gone instead: the question "did the write land" is asked
+of the *server*. One more by-id read after the mutation resolves, and the entity either
+carries the new name or it does not.
+
+That is not merely a workaround, it is the better question. A GraphQL mutation can return
+200 carrying `errors`, or succeed in part; what this plugin needs to know is whether the old
+name is now gone, and only the entity can say. The response check was answering a proxy for
+it — the same category of mistake as §14's "has a button" standing in for "is the Tasks
+page", in a completely different place.
+
+**The general rule, and it belongs to any plugin in this repo that wraps `fetch`: a response
+body is shared, and a plugin that reads one is one of an unknown number doing so. Anything
+that can be re-read from the server should be.** `tests/enm.test.js` pins it from the outside
+— it wraps the fake fetch, counts `clone()` and `json()` on every response to a request the
+plugin did not make, and requires both to be zero.
+
+The cost is one query per rename, next to the one already made before the write. The dialog
+that follows makes dozens.
+
+## 6. Two other things that could produce the same symptom, fixed while looking
 
 Neither is confirmed as the cause; both are cheap and both fail in exactly the
 "works sometimes" way, which is the shape that costs the most to diagnose.
@@ -98,7 +133,7 @@ Neither is confirmed as the cause; both are cheap and both fail in exactly the
   `clone().text()`, which is async and would have to hold the write — but it is *reported*
   under the debug switch, so the next report says whether it is happening at all.
 
-## 6. The diagnostic has to work backwards, and a latched wrapper is why
+## 7. The diagnostic has to work backwards, and a latched wrapper is why
 
 Both of these came out of the same report - *"still not seeing the dialog on rename, and the
 case that used to work does not any more"* - and neither could be answered by reading the
@@ -133,7 +168,7 @@ carrying a replaced title reads as a user's rename. Every request this plugin ma
 `__enm` on its init object, and `handle` passes those straight through. §2's claim - that
 `ORIG_FETCH` alone is enough - was true only while the script could be evaluated once.
 
-## 7. The gate switch, on the name the repo already has
+## 8. The gate switch, on the name the repo already has
 
 `__GTTx__.StashPluginCoop.debugButtons = true` turns on an `[enm gate]` channel. The name is
 narrower than what it now covers — this plugin draws no button — but the repo-root rule is
@@ -151,7 +186,7 @@ back clean; and whether a dialog was already open. **That list is the set of way
 can decide to do nothing**, which is the whole of what a "why did nothing happen" diagnostic
 has to cover.
 
-## 8. The field table is candidates; the server settles it
+## 9. The field table is candidates; the server settles it
 
 `ENTITIES[*].fields` is a list of names this plugin would *like* to search. One
 introspection query per scan turns that into what the running Stash actually has, and what
@@ -175,7 +210,7 @@ query fails there rather than in someone's library.
 The cache is per page load, because the schema cannot change without a restart and a rename
 is exactly the moment nobody wants to wait for it twice.
 
-## 9. Case-insensitive substring, and what pays for it
+## 10. Case-insensitive substring, and what pays for it
 
 Matching is a plain case-insensitive substring. A name written in prose is written the way
 the sentence wanted it, so a case-sensitive match misses the mentions most worth fixing —
@@ -187,7 +222,7 @@ the **tick on every line**, and the **two limits**. The `ponytail:` comment on `
 names the upgrade — a word-boundary mode — for when short names turn out to be common
 enough to be worth a control.
 
-## 10. Filters scope, ticks decide, and the two never touch
+## 11. Filters scope, ticks decide, and the two never touch
 
 The first draft had the filters act as bulk tick/untick, which is what a filter row usually
 does when there is nothing else in the dialog. The user's own correction is the design:
@@ -204,7 +239,7 @@ filters only**, for the same reason.
 The filter rows are built from what the scan actually hit — a toggle for a type with nothing
 in it is a control that cannot change anything.
 
-## 11. A control with nothing to act on is disabled, not merely inert
+## 12. A control with nothing to act on is disabled, not merely inert
 
 **All On / All Off** are dead when pressing them would change nothing: there are no filter
 toggles at all — a scan that found nothing draws none — or every one of them is already in
@@ -217,7 +252,7 @@ missing. `FindEntitiesByTextContent` gained the same pair on the same day, where
 answers the question its all-off default raises: All Off is dead the moment the dialog opens,
 which is what says the types start off deliberately.
 
-## 12. Attribute labels are per concept, not per field
+## 13. Attribute labels are per concept, not per field
 
 `Details` on a Scene and `Details` on a Performer are one filter, because a user turning
 Details off means both. `alias_list` and `aliases` both read **Aliases**. Custom fields are
@@ -225,7 +260,7 @@ Details off means both. `alias_list` and `aliases` both read **Aliases**. Custom
 a field and replacing in the other edits its contents — a user may well want one and not the
 other.
 
-## 13. Custom fields are changed structurally, never as text
+## 14. Custom fields are changed structurally, never as text
 
 A custom-field key is moved by writing the new one into `partial` and putting the old one in
 `remove`; a value is changed by writing the key again. Nothing in this plugin edits JSON as
@@ -241,7 +276,7 @@ inside it by substring is exactly how it stops parsing. The store marks itself w
 field so it can be recognised after any rename; both the current name and the legacy one are
 checked, since the two plugins can be at different releases.
 
-## 14. Every field is re-read immediately before it is written
+## 15. Every field is re-read immediately before it is written
 
 The dialog can be open for minutes. The scan recorded occurrence *positions*, and a position
 into a string somebody else has since edited is a position into a different string.
@@ -253,7 +288,7 @@ being written, in a batch that is already writing — and it is the whole of thi
 answer to concurrency. It is *not* a transaction: something changed between the re-read and
 the write still wins.
 
-## 15. Two limits, and only one of them refuses
+## 16. Two limits, and only one of them refuses
 
 `b1WarnAbove` adds a proceed-with-caution note and changes nothing else. `c1StopAbove` ends
 the scan and disables Proceed.
@@ -268,7 +303,7 @@ The stop limit ends the scan rather than merely disabling the button, because th
 point reading another hundred thousand rows for a listing nobody can act on. Copy log and
 the listing still work, so the user can see what it found.
 
-## 16. One button for Proceed and Undo
+## 17. One button for Proceed and Undo
 
 The brief writes it `[Proceed/Undo]`, and the two never overlap: after a write the listing
 describes a library this dialog has already changed, so offering Proceed over it would write
@@ -281,12 +316,12 @@ user's explicit request, which is the one place here that does not follow from t
 change nothing in the library). The rule is about telling a plugin's controls from Stash's,
 and these are unambiguously ours.
 
-## 17. The head carries the backup sentence
+## 18. The head carries the backup sentence
 
 This dialog writes, so it carries the standing sentence in the shared wording, unedited. The
 `TagBundleClipboard` waiver is for dialogs that issue no mutation at all, which this is not.
 
-## 18. Scene markers are not covered
+## 19. Scene markers are not covered
 
 A marker carries a `title` and no page of its own to be renamed from, so there is no rename
 for the watcher to see. Adding markers to the *scan* alone would mean listing occurrences in

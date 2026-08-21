@@ -135,6 +135,18 @@ function makeEnv(opts) {
         // A hook fired as the write goes out - which is where a sibling reacting to this
         // same save takes its own lease.
         if (opts.onWrite) opts.onWrite();
+        // **The write lands**, because the plugin confirms a rename by reading the entity
+        // again rather than by reading the response body. A responder that acknowledged
+        // the mutation and left the library alone would be testing against a server that
+        // does not exist, and would pass a plugin that never checked anything.
+        const node = ONE['find' + stash[1].replace(/Update$/, '')
+          .replace(/^./, (c) => c.toUpperCase())];
+        const row = (lib[node] || []).filter((e) => e.id === req.variables.input.id)[0];
+        if (row && !opts.writeFails) {
+          ['name', 'title'].forEach((f) => {
+            if (typeof req.variables.input[f] === 'string') row[f] = req.variables.input[f];
+          });
+        }
         return { data: { [stash[1]]: { id: req.variables.input.id } } };
       }
       return { data: {} };
@@ -258,6 +270,22 @@ const filterBtns = (env) => env.body.descendants()
   });
 }());
 
+// ── A save that did not land ────────────────────────────────────────────────
+
+(function didNotLand() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  // The mutation is acknowledged and the entity is not renamed - which is what a GraphQL
+  // error in a 200 looks like from outside. The plugin asks the server rather than
+  // reading the response body, so it sees through it.
+  const env = makeEnv({ library: lib, writeFails: true });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('a save that did not actually rename anything opens no dialog', !dlg(env).open);
+    h.check('and says so where it can be read back afterwards',
+      /still called "Jane Doe"/.test(env.api().status()), env.api().status());
+  });
+}());
+
 // ── The scan ────────────────────────────────────────────────────────────────
 
 (function scan() {
@@ -272,7 +300,6 @@ const filterBtns = (env) => env.body.descendants()
     const writeAt = seen.findIndex((q) => /Stash_performerUpdate/.test(q));
     h.check('the old name is read before the rename is let through',
       nameAt !== -1 && writeAt !== -1 && nameAt < writeAt, nameAt + ' / ' + writeAt);
-    lib.performers[0].name = NEW;    // the write landed
     return h.flush(240);
   }).then(() => {
     const d = dlg(env);
@@ -607,6 +634,37 @@ const filterBtns = (env) => env.body.descendants()
       env.calls.filter((c) => /ENM_Name/.test(c.query || '')).length === namesBefore,
       env.calls.filter((c) => /ENM_Name/.test(c.query || '')).length + ' / ' + namesBefore);
     h.check('and the writes did land', env.writes.filter((w) => !w.undo).length > 0);
+  });
+}());
+
+// ── The response body is never read ─────────────────────────────────────────
+
+(function neverReadsTheBody() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  // A page carrying five of these plugins has five fetch wrappers cloning and reading the
+  // same response. This one reads none of them: it asks the server whether the rename
+  // landed instead. The check is on the response object the page hands back - if anything
+  // in the plugin had touched it, `bodyUsed` would say so.
+  // Only responses to requests the plugin did *not* make: its own reads and writes have
+  // every right to their own bodies, and are marked `__enm` for exactly that reason.
+  let cloned = 0;
+  let read = 0;
+  const raw = env.ctx.fetch;
+  env.ctx.fetch = function (url, o) {
+    const ours = !!(o && o.__enm);
+    return raw.call(this, url, o).then((resp) => Object.assign({}, resp, {
+      clone() { if (!ours) cloned++; return this; },
+      json() { if (!ours) read++; return resp.json(); },
+    }));
+  };
+  env.ctx.window.fetch = env.ctx.fetch;
+  h.run(env.ctx, SRC);                       // re-evaluate, so the newest handler is ours
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('the dialog still opens', dlg(env).open);
+    h.check('and the plugin never cloned or read a response body',
+      cloned === 0 && read === 0, 'cloned ' + cloned + ', read ' + read);
   });
 }());
 

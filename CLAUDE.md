@@ -1211,6 +1211,30 @@ It found a second thing on the way: the harness's fake element had no `querySele
 a plugin reaching for `node.querySelectorAll('.setting')` threw on every settings tick with
 every suite still green. A fixture is only worth what it is driven by.
 
+## A response body is shared; re-read from the server instead
+
+Four plugins here chain `window.fetch` wrappers, and three of them `resp.clone().json()`
+every mutation response. On a page carrying all of them, `EntityNameMaintainer`'s
+`clone().json()` **rejected** on a real `tagUpdate` — one plugin's read of a body that four
+others were also cloning. The only symptom was a dialog that silently did not open, and no
+amount of reading the diff could have found it; `tools/enm-probe.js` did, in one paste.
+
+The cause was never pinned down, deliberately. **A fix for whichever interaction it was
+would have been good until the next plugin.** The dependency went instead: that plugin asks
+the *server* whether the write landed — one by-id read after the mutation resolves, and the
+entity either carries the new name or it does not.
+
+**And that is the better question anyway.** A GraphQL mutation can return 200 carrying
+`errors`, or succeed in part. "Was there an error in the response" is a proxy for "did the
+thing I care about happen", and the entity is the only thing that can answer the second.
+
+So: **a response body is shared, and a plugin that reads one is one of an unknown number
+doing so. Anything that can be re-read from the server should be.** Where a body genuinely
+must be read — `CustomFieldsBulkEditor` filters a `Find*ForSelect` result it has to return
+in place, and cannot re-read its way out of that — read it and know that it is the
+exception. `tests/enm.test.js` pins the rule from outside the plugin: it counts `clone()`
+and `json()` on every response to a request the plugin did not make, and requires zero.
+
 ## A diagnostic has to work backwards, and a wrapper flag must not latch
 
 Two lessons from one report - *"still not seeing the dialog, and the case that used to work

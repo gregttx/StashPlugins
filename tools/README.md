@@ -45,6 +45,11 @@ sends no request of its own and writes nothing.
 | `in the selection set: false` | the mutation is named somewhere other than where `renameOf` looks for it |
 | `enmFetchWrap: true` with the plugin's own `requests seen: 0` | the plugin's wrapper is installed but out of the chain |
 
+It has already earned its keep once. Three rounds of reading the diff had found nothing;
+one paste of this produced `the response was not JSON`, which named the failing step
+exactly and led to the rule now in the root `CLAUDE.md` about not reading a shared
+response body.
+
 It records **field names and string lengths, never values** — no title, no name,
 no description — so the report can be pasted into an issue as it stands.
 

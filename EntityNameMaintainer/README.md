@@ -58,6 +58,9 @@ match, with the match itself marked.
 ## Safety
 
 - **Nothing is written until you press Proceed.** The scan is a read.
+- **The rename is confirmed against your library, not against the reply to the save.** After
+  the save lands, the entity is read once more; the dialog opens only if it really is called
+  the new name now. A save that is acknowledged and changes nothing opens nothing.
 - **Every field is re-read immediately before it is written.** The occurrence positions
   recorded by the scan are checked against what is there now; a field somebody has changed
   in the meantime is skipped and said so in the log, rather than overwritten with a string

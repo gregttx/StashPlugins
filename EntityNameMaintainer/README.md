@@ -44,7 +44,9 @@ match, with the match itself marked.
   names found, amber while on. Turning one off hides its lines *and* leaves them alone. It
   never changes a tick, so turning it back on brings back exactly the selection that was
   there.
-- **All On / All Off** — sets every filter at once. Same rule: filters only.
+- **All On / All Off** — sets every filter at once. Same rule: filters only. Each is
+  disabled when pressing it would change nothing — no filters, or every one already on (or
+  already off).
 - **Replace with** — starts as the new name and is editable, because a replacement is not
   always literally the new name. "Jane Doe" may want to become "Jane" in the middle of a
   sentence.
@@ -67,8 +69,10 @@ match, with the match itself marked.
   rewriting text inside that by substring is how it stops parsing, so the tag carrying its
   marker is skipped and counted.
 - **It stands down while a sibling plugin is running a bulk task.** A library-wide rename
-  would otherwise put up one dialog per entity. It takes a lease of its own while it writes,
-  so those plugins stand down in turn.
+  would otherwise put up one dialog per entity. What decides is the lease being held *when
+  you pressed Save* — a sibling that reacts to that same save, such as ᝯㄝₓ Normalize Parent
+  Tags pruning the tag you just renamed, is not a bulk run and does not suppress the dialog.
+  It takes a lease of its own while it writes, so those plugins stand down in turn.
 - **Undo only reverses what this dialog wrote**, while it stays open, and cannot account for
   changes made elsewhere in the meantime. Backing up your database before proceeding is
   recommended.
@@ -111,8 +115,20 @@ Copy the `EntityNameMaintainer` folder into your Stash plugins directory
 
 **The dialog never appears.** It reacts to a rename made in that same browser tab. A rename
 made through the API, by a scraper, by an identify task or in another tab is not one it can
-see. It also stands down when another ᝯㄝₓ plugin holds a bulk lease — check the console for
-a line saying so.
+see. It also stands down when another ᝯㄝₓ plugin was already holding a bulk lease when you
+pressed Save.
+
+To find out which it is, open the browser console and type:
+
+```js
+__GTTx__.StashPluginCoop.debugButtons = true
+```
+
+Then rename something. Every save that looks like a rename prints a `[enm gate]` line saying
+what was posted, what the old name was, and — if no dialog opened — exactly why: the name did
+not actually change, the save came back with errors, a dialog was already open, or a sibling
+plugin held a lease. It takes effect on the next save, with no reload and no setting to
+change; the same switch works in every ᝯㄝₓ plugin.
 
 **A red banner says the page is running an older script.** Stash serves plugin JS with
 caching on, so the browser can still be running the file it fetched before the update. Press

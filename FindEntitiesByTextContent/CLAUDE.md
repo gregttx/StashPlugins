@@ -86,7 +86,17 @@ on-screen count can be exactly the cap.
 Continue clears the rendered rows and resumes. That is the one thing here that throws
 something away, and the log line says where it went.
 
-## 7. Search and Refresh, and the state where they are not the same button
+## 7. A control with nothing to act on is disabled, not merely inert
+
+**All On / All Off** are dead when every type is already on, or already off. The second half
+does real work here rather than being symmetry: the types start all-off, so All Off is
+disabled the moment the dialog opens, which is what says that default is deliberate rather
+than a dialog that failed to load its state.
+
+Same rule as Search, whose `title` says which half is missing. A live button that does
+nothing when pressed teaches the user that the control is broken.
+
+## 8. Search and Refresh, and the state where they are not the same button
 
 They were, and that was the bug: both called `start()`, so with the primary button reading
 **Search** the two were a duplicate pair sitting side by side. Refresh has a real job in
@@ -101,7 +111,7 @@ again, so the two can never disagree about which case this is.
 It works mid-run, and that costs nothing: `start()` moves the epoch, so the page in flight
 is discarded rather than raced. Forcing a Pause first would have been a rule to explain.
 
-## 8. The counters count toward something
+## 9. The counters count toward something
 
 "Scanned 4200 entities" answers *how far* and leaves *out of how many* unanswered, which on
 a library-wide read is most of what the line is for.
@@ -117,7 +127,7 @@ this existed. **The failure is caught inside the chain rather than beside it**, 
 introspection would land in the same handler and the scan would run with no field shapes at
 all.
 
-## 9. The log reads in the order things happened
+## 10. The log reads in the order things happened
 
 The listing and the messages share one box and one scrollbar. The list block was being
 *inserted at the top*, which pushed every message below it - so the first line written, the
@@ -128,7 +138,7 @@ It is appended now, and `start()` writes its message *before* creating the block
 or a Refresh gets a fresh block rather than an emptied one, for the same reason: the results
 start again after the message that says why.
 
-## 10. `epoch`, which is what makes Refresh and Cancel safe
+## 11. `epoch`, which is what makes Refresh and Cancel safe
 
 A page can be in flight when the user presses Refresh or closes the dialog. Every `step`
 carries the epoch it started under and returns immediately if it has moved. Without it, a
@@ -137,7 +147,7 @@ longer on the page.
 
 `close()` bumps it too, for exactly that second case.
 
-## 11. What is remembered lives in `localStorage`, not in the plugin configuration
+## 12. What is remembered lives in `localStorage`, not in the plugin configuration
 
 Two reasons, and the second is the one that matters. It belongs to the person at this browser
 rather than to the server — the same argument `TagBundleClipboard` makes for its clipboard.
@@ -153,7 +163,7 @@ site data, throws on the accessor itself.
 and is the one thing a number box can be asked to do that is not about the future. It is on
 the box's own tooltip, because nothing about a "0" says so.
 
-## 12. No settings at all, and what that costs
+## 13. No settings at all, and what that costs
 
 Every choice this plugin offers is made inside the dialog, where the user already is and
 where it is answered on the spot. The one setting it had was the console switch every
@@ -173,7 +183,7 @@ Two consequences, and both are load-bearing rather than incidental:
   anchor in the repo with nothing behind it. `CustomFieldsBulkEditor` was in this position
   before its 0.7.0 and its notes say the same thing.
 
-## 13. The settings anchor, and the guard that excluded the page it was written for
+## 14. The settings anchor, and the guard that excluded the page it was written for
 
 Worth writing down at length because it is the exact shape of mistake this repo keeps
 making, and this time it was caught by a user looking at the page rather than by anything
@@ -199,7 +209,7 @@ context: a structural test has to name the thing it means.** "Has a button" was 
 "is the Tasks page", and the proxy was false on the very page it was protecting. Where the
 real distinguishing feature is a string this plugin owns, use the string.
 
-## 14. The head does not tell anyone to back up
+## 15. The head does not tell anyone to back up
 
 Nothing here writes, so the standing sentence would be false. The head says where the results
 go instead — the `TagBundleClipboard` shape, and the shared rule is explicitly about dialogs
@@ -208,7 +218,7 @@ that *write*.
 The consequence is that the run's own warnings need a slot, and they take the amber `.warn`
 one the backup sentence would have occupied. Same swap `TagBundleClipboard` makes.
 
-## 15. Search is refused rather than silently doing nothing
+## 16. Search is refused rather than silently doing nothing
 
 An empty box "does nothing", per the brief — and a button that does nothing when pressed
 teaches nobody anything, so it is disabled with a title saying which half is missing. Same

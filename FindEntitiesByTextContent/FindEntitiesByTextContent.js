@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '0.0.3';
+  var PLUGIN_VERSION = '0.0.4';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1001,8 +1001,16 @@
     this.refreshBtn.disabled = !text || !types;
     this.textInput.disabled = this.state === 'running';
     this.historyInput.disabled = this.state === 'running';
-    this.allOnBtn.disabled = this.state === 'running';
-    this.allOffBtn.disabled = this.state === 'running';
+    // Disabled where pressing would change nothing: every type already on, or every one
+    // already off. They start all-off, so All Off is dead on open and says so.
+    var toggles = [];
+    for (var i = 0; i < this.typeRow.childNodes.length; i++) {
+      if (this.typeRow.childNodes[i]._key) toggles.push(this.typeRow.childNodes[i]);
+    }
+    var self = this;
+    var busy = this.state === 'running';
+    this.allOnBtn.disabled = busy || toggles.every(function (b) { return self.typeOn[b._key]; });
+    this.allOffBtn.disabled = busy || toggles.every(function (b) { return !self.typeOn[b._key]; });
     this.spin(this.state === 'running');
   };
 

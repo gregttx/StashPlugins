@@ -230,6 +230,11 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
       env.body.descendants().filter((n) => h.hasClass(n, 'fetc-filterbtn') && n._key)
         .every((b) => /btn-secondary/.test(b.className)));
     h.check('Search is disabled with an empty box', dlg(env).button('Search').disabled);
+    h.check('All Off is dead when every type is already off, and All On is not',
+      dlg(env).button('All Off').disabled && !dlg(env).button('All On').disabled);
+    dlg(env).button('All On').click();
+    h.check('and the two swap once every type is on',
+      !dlg(env).button('All Off').disabled && dlg(env).button('All On').disabled);
   });
 }());
 

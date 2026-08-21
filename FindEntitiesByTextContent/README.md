@@ -13,7 +13,9 @@ Requires Stash 0.31.0 or newer.
 **Settings → Tasks → Plugin Tasks → Find Entities by Text Content...**
 
 Type what to look for, turn on the entity types you want searched — they all start **off**,
-so nothing is read until you say so — and press **Search**.
+so nothing is read until you say so — and press **Search**. The amber **All On** and **All
+Off** pair sets them all at once, and each is disabled when pressing it would change nothing,
+so All Off is dead the moment the dialog opens.
 
 It looks in every text field of every type you turned on:
 

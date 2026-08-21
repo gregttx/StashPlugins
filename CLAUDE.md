@@ -202,6 +202,17 @@ Rules that make this safe:
   followed, not an omission** — its own suite pins all three together so a later edit cannot quietly
   add one, and that is worth copying for the next plugin in this shape.
 
+- **A lease answers "is a bulk run in progress", and that question has a *time*.** Sample it
+  at the wrong moment and you are asking a different question with the opposite right
+  answer. `EntityNameMaintainer` sampled it after the mutation it reacts to had returned - by
+  which point a sibling reacting to *that same save* (NPT's auto prune, MPTTS' auto-merge)
+  has already taken its own short lease - so it stood down for a reaction rather than for a
+  bulk run. The dialog opened for some renames and not others, with nothing distinguishing
+  them from the outside, because whether the sibling reacts at all depends on the entity.
+  **Sample it before letting the write through**: at that instant nothing has reacted yet, so
+  a lease that exists is genuinely pre-existing. Any plugin that both reacts and respects
+  leases has this to get right.
+
 - **A plugin can be both halves at once, and `EntityNameMaintainer` is the first that is
   both by design rather than by having two modes.** It reacts - it watches `window.fetch`
   for a rename and puts up a dialog - and it writes in bulk once that dialog is agreed to.

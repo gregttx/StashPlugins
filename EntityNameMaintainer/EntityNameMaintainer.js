@@ -44,7 +44,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.1';
+  var PLUGIN_VERSION = '0.0.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -260,6 +260,29 @@
   // an entity's action row - the rename itself is the trigger - so it registers no
   // `order` priority either.
   coop().respecters[PLUGIN_ID] = true;
+
+  // Off unless `__GTTx__.StashPluginCoop.debugButtons = true`, typed into the browser
+  // console: no setting, no reload, and read at call time so it takes effect on the next
+  // rename. The shared switch rather than one of our own, because the question it answers -
+  // "why did nothing happen when I renamed that" - is the same shape as "why is this button
+  // not there", and a user in DevTools should have one thing to type.
+  //
+  // A rename is a user action rather than a tick, so these are **not** deduplicated: one
+  // line per save is the point. The one exception is the unreadable-body line, which could
+  // otherwise fire on every request the page makes.
+  var _gateLast = {};
+
+  function gateLog(line) {
+    if (!coop().debugButtons) { _gateLast = {}; return; }
+    console.info('[enm gate] ' + line);
+  }
+
+  function gateOnce(channel, line) {
+    if (!coop().debugButtons) { _gateLast = {}; return; }
+    if (_gateLast[channel] === line) return;
+    _gateLast[channel] = line;
+    console.info('[enm gate] ' + line);
+  }
 
   // A bulk run announces itself for the duration of its writes, so a reactive plugin in
   // the same tab stands down rather than reacting to every entity we touch. Advisory,
@@ -940,9 +963,8 @@
     var busy = state === 'writing' || state === 'undoing' || state === 'scanning';
     this.closeBtn.disabled = busy;
     this.copyBtn.disabled = false;
-    this.allOnBtn.disabled = busy;
-    this.allOffBtn.disabled = busy;
     this.newInput.disabled = state !== 'listing';
+    this.syncFilterButtons();
     this.syncFooter();
     this.spin(busy);
   };
@@ -1164,7 +1186,11 @@
       if (types.indexOf(h.typeKey) === -1) types.push(h.typeKey);
       if (attrs.indexOf(h.label) === -1) attrs.push(h.label);
     });
-    if (!types.length) { this.show(this.filtersEl, false); return; }
+    if (!types.length) {
+      this.show(this.filtersEl, false);
+      this.syncFilterButtons();
+      return;
+    }
     this.show(this.filtersEl, true);
     types.sort(function (a, b) { return TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b); });
     attrs.sort();
@@ -1179,6 +1205,7 @@
       self.attrOn[a] = true;
       self.attrRow.appendChild(self.toggle(a, self.attrOn, a));
     });
+    this.syncFilterButtons();
   };
 
   Run.prototype.toggle = function (label, bag, key) {
@@ -1190,9 +1217,28 @@
     b.addEventListener('click', function () {
       bag[key] = !bag[key];
       paintButton(b, bag[key] ? PLUGIN_BTN_VARIANT : 'btn-secondary');
+      self.syncFilterButtons();
       self.renderHits();
     });
     return b;
+  };
+
+  // Disabled where pressing would change nothing: no filters at all, or every one of them
+  // already in the state the button would put it in. A scan that found nothing draws no
+  // toggles, and a live pair over an empty filter strip is two controls with nothing to
+  // act on.
+  Run.prototype.syncFilterButtons = function () {
+    var toggles = [];
+    [this.typeRow, this.attrRow].forEach(function (row) {
+      for (var i = 0; i < row.childNodes.length; i++) {
+        if (row.childNodes[i]._bag) toggles.push(row.childNodes[i]);
+      }
+    });
+    var busy = this.state !== 'listing';
+    var allOn = toggles.every(function (b) { return b._bag[b._key]; });
+    var allOff = toggles.every(function (b) { return !b._bag[b._key]; });
+    this.allOnBtn.disabled = busy || !toggles.length || allOn;
+    this.allOffBtn.disabled = busy || !toggles.length || allOff;
   };
 
   Run.prototype.setAllFilters = function (on) {
@@ -1206,6 +1252,7 @@
         paintButton(b, on ? PLUGIN_BTN_VARIANT : 'btn-secondary');
       }
     });
+    self.syncFilterButtons();
     self.renderHits();
   };
 
@@ -1598,9 +1645,24 @@
     return false;
   }
 
-  function bodyOf(init) {
-    if (!init || typeof init.body !== 'string') return null;
-    try { return JSON.parse(init.body); } catch (e) { return null; }
+  // The operations in one request. A GraphQL POST is normally one object, but the
+  // transport permits an **array** of them - a client that batches sends several
+  // operations in one body - and a rename batched with whatever else the page happened to
+  // be doing would otherwise go unseen, which from the outside reads as "it works on some
+  // of them and not others".
+  function operations(init) {
+    if (!init || typeof init.body !== 'string') {
+      // Not an error: most requests a page makes are not this. Worth one line under the
+      // debug switch, because `fetch(new Request(...))` carries its body on the request
+      // rather than on `init`, and that is where it would show up.
+      gateOnce('body', 'a request went past with no readable body on init; if renames are ' +
+        'not being noticed at all, this is why.');
+      return [];
+    }
+    var parsed;
+    try { parsed = JSON.parse(init.body); } catch (e) { return []; }
+    if (!parsed) return [];
+    return Object.prototype.toString.call(parsed) === '[object Array]' ? parsed : [parsed];
   }
 
   // The rename this request is about, or null. Deliberately narrow: one of the seven
@@ -1608,10 +1670,16 @@
   // present in it. Everything else - a bulk update, a merge, a scrape - is somebody
   // else's business.
   function renameOf(init) {
-    var body = bodyOf(init);
+    var ops = operations(init);
+    for (var i = 0; i < ops.length; i++) {
+      var hit = renameOfOne(ops[i]);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  function renameOfOne(body) {
     if (!body || typeof body.query !== 'string') return null;
-    var input = (body.variables || {}).input;
-    if (!input || input.id == null) return null;
     for (var name in BY_MUTATION) {
       if (!hasOwn(BY_MUTATION, name)) continue;
       // The mutation name as it appears in the selection set, not merely anywhere in the
@@ -1619,8 +1687,18 @@
       // would match a document that only mentions it in a comment.
       if (body.query.indexOf(name + '(') === -1) continue;
       var spec = BY_MUTATION[name];
+      var input = (body.variables || {}).input;
+      if (!input || input.id == null) {
+        gateLog(spec.update + ' posted with no id in its input; not a rename this plugin ' +
+          'can follow.');
+        return null;
+      }
       var to = input[spec.nameField];
-      if (typeof to !== 'string') return null;
+      if (typeof to !== 'string') {
+        gateLog(spec.update + ' for ' + spec.label + ' ' + input.id + ' carries no ' +
+          spec.nameField + '; not a rename.');
+        return null;
+      }
       return { spec: spec, id: String(input.id), to: to };
     }
     return null;
@@ -1640,20 +1718,47 @@
       }, function () { return null; });
   }
 
-  function onRename(spec, id, from, to) {
-    if (_active) return;                      // one dialog at a time
-    // A sibling rewriting the library in bulk renames many things at once, and a dialog
-    // per rename is the worst possible answer to that. Advisory and expiring, like every
-    // other use of the lease.
-    var other = foreignLease();
-    if (other) {
-      enm('[enm] ' + spec.label + ' ' + id + ' renamed while ' + other.owner +
-        ' holds a lease (' + other.label + '); standing down.');
+  // `held` is the lease that was already being held **when the mutation was posted**, not
+  // one sampled now. That distinction is the whole of this function's correctness, and
+  // getting it wrong is what made the plugin open a dialog for some renames and not
+  // others:
+  //
+  //   - A **bulk run** the user started elsewhere is holding its lease before the write
+  //     goes out. It is renaming many things, and a dialog per rename is the worst
+  //     possible answer, so this stands down.
+  //   - A **sibling reacting to this very save** - NormalizeParentTags' auto prune or
+  //     roll-up, MergePerformerTagsToScenes' auto-merge - takes its lease *after* the
+  //     response, in the same instant this would. Sampled here it looked identical to a
+  //     bulk run, so the dialog silently never opened; and whether the sibling reacts at
+  //     all depends on the entity, which is why it read as a property of the tag.
+  function onRename(spec, id, from, to, held) {
+    if (_active) {
+      gateLog(spec.label + ' ' + id + ' renamed "' + from + '" to "' + to +
+        '", but a dialog is already open; only one at a time.');
       return;
     }
+    if (held) {
+      gateLog(spec.label + ' ' + id + ' was renamed while ' + held.owner +
+        ' already held a lease (' + held.label + '); standing down.');
+      enm('[enm] ' + spec.label + ' ' + id + ' renamed while ' + held.owner +
+        ' holds a lease (' + held.label + '); standing down.');
+      return;
+    }
+    gateLog(spec.label + ' ' + id + ' renamed "' + from + '" to "' + to + '"; opening.');
     loadSettings().then(function (s) {
       openRun(spec, id, from, to, s);
     }, function () { openRun(spec, id, from, to, DEFAULTS); });
+  }
+
+  // A batched response is an array, like its request; a single one is an object. Either
+  // way the question is whether anything in it failed.
+  function anyErrors(json) {
+    if (!json) return true;
+    var list = Object.prototype.toString.call(json) === '[object Array]' ? json : [json];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].errors) return true;
+    }
+    return false;
   }
 
   function installRenameWatch() {
@@ -1661,6 +1766,11 @@
     window.fetch = function (input, init) {
       var rename = renameOf(init);
       if (!rename) return ORIG_FETCH(input, init);
+      // Sampled here, before the write goes out - see `onRename`.
+      var held = foreignLease();
+      gateLog(rename.spec.update + ' for ' + rename.spec.label + ' ' + rename.id +
+        ' posts ' + rename.spec.nameField + ' as "' + rename.to + '"' +
+        (held ? '; ' + held.owner + ' already holds a lease (' + held.label + ')' : '') + '.');
       var before = null;
       return currentName(rename.spec, rename.id).then(function (was) {
         before = was;
@@ -1668,11 +1778,31 @@
       }).then(function (resp) {
         // Only after the write is known to have landed, and only if the name actually
         // moved: Stash's edit form posts the name on every save, unchanged or not.
-        if (before && before !== rename.to && resp && resp.ok && resp.clone) {
-          resp.clone().json().then(function (json) {
-            if (json && !json.errors) onRename(rename.spec, rename.id, before, rename.to);
-          }, function () { /* not JSON: nothing to react to */ });
+        if (!before) {
+          gateLog(rename.spec.label + ' ' + rename.id + ': its name could not be read ' +
+            'before the write, so there is no old name to look for.');
+          return resp;
         }
+        if (before === rename.to) {
+          gateLog(rename.spec.label + ' ' + rename.id + ': saved as "' + rename.to +
+            '", which is what it was already called. Not a rename.');
+          return resp;
+        }
+        if (!resp || !resp.ok || !resp.clone) {
+          gateLog(rename.spec.label + ' ' + rename.id + ': the save did not come back as a ' +
+            'readable success (' + (resp ? 'status ' + resp.status : 'no response') + ').');
+          return resp;
+        }
+        resp.clone().json().then(function (json) {
+          if (anyErrors(json)) {
+            gateLog(rename.spec.label + ' ' + rename.id + ': the save came back with ' +
+              'errors, so nothing was renamed.');
+            return;
+          }
+          onRename(rename.spec, rename.id, before, rename.to, held);
+        }, function () {
+          gateLog(rename.spec.label + ' ' + rename.id + ': the response was not JSON.');
+        });
         return resp;
       });
     };

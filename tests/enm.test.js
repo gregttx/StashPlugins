@@ -131,7 +131,12 @@ function makeEnv(opts) {
       }
       // The rename itself, as Stash's own form posts it.
       const stash = /mutation Stash_(\w+)\(/.exec(q);
-      if (stash) return { data: { [stash[1]]: { id: req.variables.input.id } } };
+      if (stash) {
+        // A hook fired as the write goes out - which is where a sibling reacting to this
+        // same save takes its own lease.
+        if (opts.onWrite) opts.onWrite();
+        return { data: { [stash[1]]: { id: req.variables.input.id } } };
+      }
       return { data: {} };
     },
   });
@@ -204,6 +209,17 @@ const filterBtns = (env) => env.body.descendants()
     }) }) === null);
   h.check('renameOf survives a body that is not JSON',
     api.renameOf({ body: 'not json' }) === null);
+  h.check('renameOf survives a request with no body at all',
+    api.renameOf({}) === null && api.renameOf(undefined) === null);
+  // The transport permits a batch, and a rename batched with whatever else the page was
+  // doing would otherwise go unseen - which from the outside reads as "it works on some of
+  // them and not others".
+  h.check('renameOf finds a rename batched with other operations',
+    (api.renameOf({ body: JSON.stringify([
+      { query: '{ findTags { id } }', variables: {} },
+      { query: 'mutation X($input: I!) { tagUpdate(input: $input) { id } }',
+        variables: { input: { id: '3', name: 'B' } } },
+    ]) }) || {}).id === '3');
 }());
 
 // ── A rename that finds nothing ─────────────────────────────────────────────
@@ -224,6 +240,8 @@ const filterBtns = (env) => env.body.descendants()
       d.lines.join(' | '));
     h.check('with Proceed disabled, because there is nothing to do',
       d.button('Proceed').disabled);
+    h.check('and the filter buttons dead, because there are no filters to act on',
+      d.button('All On').disabled && d.button('All Off').disabled);
     h.check('and no write of any kind', env.writes.length === 0);
   });
 }());
@@ -340,7 +358,11 @@ const filterBtns = (env) => env.body.descendants()
       back.map((r) => box(r).checked).join(','));
     h.check('the counters agree again', dlg(env).progress === picked, dlg(env).progress);
 
+    h.check('All On is dead while every filter is already on',
+      dlg(env).button('All On').disabled && !dlg(env).button('All Off').disabled);
     dlg(env).button('All Off').click();
+    h.check('and they swap once every filter is off',
+      !dlg(env).button('All On').disabled && dlg(env).button('All Off').disabled);
     h.check('All Off turns every filter off', rows(env).length === 0);
     h.check('and Proceed with it', dlg(env).button('Proceed').disabled);
     dlg(env).button('All On').click();
@@ -482,6 +504,23 @@ const filterBtns = (env) => env.body.descendants()
     h.check('a rename during a sibling\'s bulk run opens no dialog', !dlg(env).open);
     h.check('and registers as a lease respecter so the sibling can say so',
       env.ctx.__GTTx__.StashPluginCoop.respecters.EntityNameMaintainer === true);
+  });
+
+  // A sibling reacting to *this* save takes its lease in the same instant the dialog
+  // would open. Sampled then it is indistinguishable from a bulk run, and the dialog
+  // silently never opened - which looked like a property of the entity, since whether the
+  // sibling reacts at all depends on what was renamed. The lease that decides is the one
+  // held when the mutation was *posted*.
+  const reacting = makeEnv({
+    library: (() => { const l = library(); l.performers[0].name = OLD; return l; })(),
+    onWrite() {
+      reacting.ctx.__GTTx__.StashPluginCoop.leases.push(
+        { owner: 'NormalizeParentTags', label: 'auto prune', until: Date.now() + 5000 });
+    },
+  });
+  rename(reacting, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('a sibling reacting to this very save does not stand it down',
+      dlg(reacting).open);
   });
 
   const expired = makeEnv({ library: (() => { const l = library(); l.performers[0].name = OLD; return l; })() });

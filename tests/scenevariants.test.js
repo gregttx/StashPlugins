@@ -179,6 +179,18 @@ const SIBLINGS = [
     files: [{ duration: 2500, width: 3840, height: 2160 }] },
 ];
 
+// The tag graph the plugin resolves the two configured names against. `Clip` is an alias
+// of the partial-length tag, `Trailer` is its child and `Teaser` its grandchild - so a
+// scene wearing any of the three is a partial-length variant without the settings naming
+// it. `Unrelated` is there to be the tag that matches nothing.
+const TAGS = [
+  { id: '1', name: 'Full Length', aliases: ['FL'], parents: [] },
+  { id: '2', name: 'Partial Length', aliases: ['Clip'], parents: [] },
+  { id: '3', name: 'Trailer', aliases: [], parents: [{ id: '2' }] },
+  { id: '4', name: 'Teaser', aliases: [], parents: [{ id: '3' }] },
+  { id: '5', name: 'Unrelated', aliases: [], parents: [] },
+];
+
 // What Stash hands the patch points: a `SceneDataFragment`, which already carries
 // `stash_ids`. That is the whole reason this is one query rather than two, so the
 // fixture has to be that shape rather than a bare id.
@@ -199,6 +211,10 @@ function responder(opts) {
         a1FullLengthTag: 'Full Length',
         a2PartialLengthTag: 'Partial Length',
       }, opts.settings) } } } };
+    }
+    if (q.indexOf('SVRTags') !== -1) {
+      if (opts.tagsFail) return { errors: [{ message: 'no such field' }] };
+      return { data: { findTags: { tags: opts.tags || TAGS } } };
     }
     if (q.indexOf('SVRVariants') !== -1) {
       if (opts.siblingsFail) return { errors: [{ message: 'invalid modifier' }] };
@@ -426,10 +442,122 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     h.check('and the tag that decided it is on the hover text',
       inRow(rows(inst.el)[0], 'svr-role').props.title === 'Tagged Full Length',
       inRow(rows(inst.el)[0], 'svr-role').props.title);
-    // The stored tag name is padded and lower-cased; these are typed into a settings box
-    // by hand, so a comparison that respected either would classify nothing.
-    h.check('the tag match ignores case and surrounding space',
+    h.check('a partial-length variant is named and marked',
       roleOf(rows(inst.el)[2]) === 'pl:Partial-length', roleOf(rows(inst.el)[2]));
+  }
+
+  {
+    // The names are typed into a settings box by hand, so a comparison that respected
+    // either the case or the padding would classify nothing.
+    const env = start({ settings: {
+      a1FullLengthTag: '  full length  ', a2PartialLengthTag: 'PARTIAL LENGTH' } });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    h.check('the tag name match ignores case and surrounding space',
+      roleOf(rows(inst.el)[0]) === 'fl:Full-length' &&
+        roleOf(rows(inst.el)[2]) === 'pl:Partial-length',
+      rows(inst.el).map(roleOf).join(' | '));
+  }
+
+  {
+    // A tag is found by any of its aliases as well as by its name. The alias is what the
+    // user typed; the row still says which tag the *scene* carries, since that is the
+    // question the hover text answers.
+    const env = start({ settings: { a1FullLengthTag: 'FL', a2PartialLengthTag: 'clip' } });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    h.check('a tag named by one of its aliases classifies the same way',
+      roleOf(rows(inst.el)[0]) === 'fl:Full-length' &&
+        roleOf(rows(inst.el)[2]) === 'pl:Partial-length',
+      rows(inst.el).map(roleOf).join(' | '));
+    h.check('and the hover text names the tag the scene carries, not the alias typed',
+      inRow(rows(inst.el)[0], 'svr-role').props.title === 'Tagged Full Length',
+      inRow(rows(inst.el)[0], 'svr-role').props.title);
+  }
+
+  {
+    // A descendant of a configured tag counts as that tag: a taxonomy puts the specific
+    // tags under the general one, and naming the general one is how a user says "any of
+    // these". Two levels down, because a one-level answer looks the same as a correct one
+    // against a child.
+    const env = start({ siblings: [
+      { id: '9', title: 'Trailer cut', tags: [{ id: '3', name: 'Trailer' }],
+        files: [{ duration: 60 }] },
+      { id: '10', title: 'Teaser cut', tags: [{ id: '4', name: 'Teaser' }],
+        files: [{ duration: 30 }] },
+      { id: '11', title: 'Something else', tags: [{ id: '5', name: 'Unrelated' }],
+        files: [{ duration: 90 }] },
+    ] });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    // Unclassified sorts above partial-length, so the untagged one leads and the two
+    // descendants follow it longest-first.
+    h.check('a child of the configured tag classifies as that tag',
+      roleOf(rows(inst.el)[1]) === 'pl:Partial-length', roleOf(rows(inst.el)[1]));
+    h.check('and so does a grandchild',
+      roleOf(rows(inst.el)[2]) === 'pl:Partial-length', roleOf(rows(inst.el)[2]));
+    h.check('while a tag outside the subtree still classifies as nothing',
+      roleOf(rows(inst.el)[0]) === null, roleOf(rows(inst.el)[0]));
+    h.check('the hover text names the descendant the scene actually carries',
+      inRow(rows(inst.el)[1], 'svr-role').props.title === 'Tagged Trailer',
+      inRow(rows(inst.el)[1], 'svr-role').props.title);
+  }
+
+  {
+    // Two settings resolving to one tag, or to two tags one of which contains the other,
+    // makes every scene under the overlap a contradiction - a settings mistake reported as
+    // a scene-level error, which is the wrong place to go looking. The pane says so once,
+    // above the summary, and still lists the rows.
+    const conflictOf = (el) => textOf(byClass(el, 'svr-conflict')[0] || { children: [] });
+
+    let env = start();
+    let inst = mountPane(env, { scene: sceneProp({}) }).inst;
+    await h.flush();
+    h.check('two unrelated tags produce no warning', conflictOf(inst.el) === '',
+      conflictOf(inst.el));
+
+    env = start({ settings: { a1FullLengthTag: 'Full Length', a2PartialLengthTag: 'FL' } });
+    inst = mountPane(env, { scene: sceneProp({}) }).inst;
+    await h.flush();
+    h.check('the same tag under both settings is warned about',
+      conflictOf(inst.el).indexOf('same tag (Full Length)') !== -1, conflictOf(inst.el));
+
+    env = start({ settings: { a1FullLengthTag: 'Trailer', a2PartialLengthTag: 'Partial Length' } });
+    inst = mountPane(env, { scene: sceneProp({}) }).inst;
+    await h.flush();
+    h.check('and so is a pair where one tag is a descendant of the other',
+      conflictOf(inst.el).indexOf('related in the tag hierarchy') !== -1 &&
+        conflictOf(inst.el).indexOf('Trailer') !== -1, conflictOf(inst.el));
+    h.check('the rows are still listed under it', rows(inst.el).length === 3,
+      String(rows(inst.el).length));
+    // Descendants are what makes this asymmetric-looking case symmetric: Teaser is under
+    // Trailer, so naming the two of them either way round is the same overlap.
+    env = start({ settings: { a1FullLengthTag: 'Teaser', a2PartialLengthTag: 'Trailer' } });
+    inst = mountPane(env, { scene: sceneProp({}) }).inst;
+    await h.flush();
+    h.check('either way round', conflictOf(inst.el).indexOf('related in the tag hierarchy') !== -1,
+      conflictOf(inst.el));
+
+    env = start({ settings: { a1FullLengthTag: 'Full Length', a2PartialLengthTag: '' } });
+    inst = mountPane(env, { scene: sceneProp({}) }).inst;
+    await h.flush();
+    h.check('and one name on its own can conflict with nothing', conflictOf(inst.el) === '',
+      conflictOf(inst.el));
+  }
+
+  {
+    // The tag tree is the only thing that can classify a row now, so a query that fails
+    // is reported however the logging setting is set - the alternative is a pane that
+    // looks exactly like two tag names matching nothing.
+    const env = start({ tagsFail: true });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    h.check('a failed tag query still lists the variants', rows(inst.el).length === 3,
+      String(rows(inst.el).length));
+    h.check('classifies none of them', rows(inst.el).every((r) => roleOf(r) === null));
+    h.check('and says so on the console',
+      env.warnings.some((w) => w.indexOf('tag list could not be read') !== -1),
+      env.warnings.join(' | '));
   }
 
   {
@@ -456,15 +584,19 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     // A pointer crossing a row before the page has been interacted with makes the browser
     // reject `play()`, and an uncaught rejection in a mouse handler is a console error on
     // every hover. The fake element hands back a rejected promise to prove it is caught.
-    let played = false, stopped = null;
+    let played = false, reset = false;
     const video = { play() { played = true; return Promise.reject(new Error('not allowed')); },
-      pause() { stopped = 'paused'; }, currentTime: 99 };
+      pause() { throw new Error('pause leaves the last frame on screen'); },
+      load() { reset = true; }, currentTime: 99 };
     v.props.onMouseEnter({ currentTarget: video });
     await h.flush(3);
     h.check('hovering plays it, and a browser refusing to is not an error', played);
+    // `pause()` leaves the frame it stopped on, and rewinding only moves that to frame
+    // zero of the *preview*: the poster is painted while the element has no frame at all,
+    // which is the state `load()` returns it to. Both of those were live symptoms - the
+    // last frame on the first hover, the first frame on every one after.
     v.props.onMouseLeave({ currentTarget: video });
-    h.check('and leaving stops it and rewinds',
-      stopped === 'paused' && video.currentTime === 0, stopped + ' at ' + video.currentTime);
+    h.check('and leaving puts the cover back rather than leaving a frame up', reset);
 
     const img = thumbOf(coverOnly);
     h.check('a variant with no preview generated gets a plain cover',

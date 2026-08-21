@@ -24,7 +24,7 @@ did not put there.
 
 Each cover and title is a link, and a cover plays the scene's preview loop while the pointer is over
 it — the same preview the scene cards use. Nothing is written to your library at any point: the tab
-is one query and a list of links.
+is two read queries and a list of links.
 
 Rows say **Full-length** and **Partial-length** rather than echoing your tag names back. The tag
 that decided a row is on its hover text, which is where it is useful and where it is not in the way
@@ -44,14 +44,24 @@ Two settings, both optional, both under **Settings → Plugins → ᝯㄝₓ Sce
 | Full-length Tag | The name of the tag you put on a scene that is the whole work |
 | Partial-length Tag | The name of the tag you put on a cut of one |
 
-Names are typed rather than picked, and compared without regard to case or surrounding spaces.
+Names are typed rather than picked, and compared without regard to case or surrounding spaces. A
+name finds the tag by any of its **aliases** as well as by its name, and a scene tagged with any
+**descendant** of that tag counts as tagged with it — so naming the general tag covers every specific
+one you have filed under it, and you do not have to keep the setting in step with your taxonomy.
 Leave both empty and the tab still lists the variants — it just says nothing about which is which.
+
+The row's hover text names the tag the **scene** carries, which is how an alias or a child tag says
+which one it matched.
 
 Rows are ordered full-length first, then longest running time, because "which of these is the whole
 thing" is the question the tab exists to answer. The value starts the line under each title, so a
 short list reads as a column: full-length is green and partial-length amber; a scene with neither tag simply has no label. A scene carrying
 **both** is shown in red — the two are mutually exclusive by definition, so the contradiction is
 reported rather than resolved.
+
+If the two settings resolve to the **same tag**, or to two tags one of which sits under the other,
+the tab says so in a line above the list. That is a settings mistake rather than a scene one, and
+left unsaid it shows up as every scene under the overlap being flagged red individually.
 
 ## What it does not do
 
@@ -108,8 +118,9 @@ and reloading the page is enough. Reload plugins only when the `.yml` changes.
 Check the scene has a stash-id at all (**Edit → Stash IDs**), and that its variants carry the same
 one. A failed query is always reported to the console, whatever the settings say.
 
-**Every row is unclassified.** The two tag names in the settings do not match the tags on those
-scenes. Copy the tag name from the tag's own page rather than retyping it.
+**Every row is unclassified.** The two tag names in the settings match no tag at all — neither a
+name nor an alias. Copy the name from the tag's own page rather than retyping it. If the tag list
+itself could not be read, the console says so: nothing can be classified without it.
 
 **The tab appeared and then stopped after a Stash upgrade.** The extension points it hangs off are
 Stash's and can move. That is the first thing to suspect, and the console line at load is where it

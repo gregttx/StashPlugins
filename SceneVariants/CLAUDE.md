@@ -64,6 +64,49 @@ answer per dimension. What is *not* affected is the half that finds the variants
 between the relation and the dimension is what keeps `findVariants` untouched by any of this, and it
 has held so far.
 
+## 0d. The two names are resolved against the whole tag graph, not compared as strings
+
+A configured name matches a tag's **aliases** as well as its name, and a scene carrying any
+**descendant** of the matched tag is classified as carrying it. Both are the same request: the user
+names the general tag once and does not have to keep a settings box in step with a taxonomy.
+
+**So the graph is what is fetched.** One unfiltered `findTags(per_page: -1)` for `id name aliases
+parents { id }`, cached for a minute, and every question answered from it in memory. The alternative
+— a filtered `findTags` per name, with `aliases` on the criterion and a `parents` hierarchical filter
+at `depth: -1` — is two or three queries whose field spellings and modifier whitelists would each be
+a fresh guess about Stash's schema. This plugin has already paid for one of those (`INCLUDES`, §5),
+and the tag list is the one query here that cannot be wrong about a filter it does not use.
+
+Three consequences worth knowing:
+
+- **Matching is by tag id from `classify` down.** The name only starts the search. That is what makes
+  a row's hover text able to name the tag the *scene* carries — `Trailer`, not the `Partial Length`
+  the reader typed — which is the whole of what alias and descendant matching cost in the UI. A row
+  matched through a child tag that reported the configured name back would be answering "did it match
+  the right tag" with the reader's own input.
+- **The hierarchy is a graph, so the walk carries a visited set.** A Stash tag can have several
+  parents; a diamond is ordinary and a cycle is possible. `withDescendants` is breadth-first over a
+  child map built from `parents`, which survives both.
+- **A failed tag query is loud**, like the variant query and for the same reason: with no tree
+  nothing can be classified, and a pane of unclassified rows is exactly what two tag names matching
+  nothing look like.
+
+## 0e. Two settings that overlap is a settings error, and it is reported one level up
+
+The full-length and partial-length values are mutually exclusive by definition, which is why a scene
+wearing both tags is red. Once descendants count, a **configuration** can make that unavoidable: the
+same tag under both names (easy, via an alias), or two tags one of which is inside the other.
+
+Left unsaid, that surfaces as every scene under the overlap being flagged red individually — a
+settings mistake reported once per scene, in the one place the user cannot act on it. `conflictNote`
+says it once, above the summary, and the rows are still listed: the plugin reads, so there is nothing
+to refuse to do.
+
+**One test covers all three shapes.** If the two descendant sets intersect at all, the two tags are
+related — identical roots, ancestor, or descendant, either way round. Naming which of the three it is
+only changes the sentence, and the sentence names the tags rather than the relationship's direction,
+which is the part a reader has to go and fix.
+
 ## 1. A tab, and the three things that got deleted to build one
 
 The plan's L0 was **a button** whose caption depended on the variant count. That became a DOM panel
@@ -262,18 +305,29 @@ called on hover with its rejection caught — a browser refuses it when the poin
 before the page has been interacted with, and an uncaught rejection in a mouse handler is a console
 error on every hover.
 
+**Mouse-out calls `load()`, not `pause()`.** The first cut paused and set `currentTime = 0`, which
+looks like a rewind and is not: a paused video goes on painting the frame it stopped on, and rewinding
+moves that to frame zero **of the preview**. Live, that read as "the cover comes back the first time
+and never again" — the last frame on the first hover, the preview's first frame on every hover after.
+The poster is only painted while the element has no frame at all, and `load()` is what returns it to
+that state; with `preload="none"` it fetches nothing on the way. Its own suite pins it with a fixture
+whose `pause()` throws, so the old shape cannot come back quietly.
+
 ## 5. Unverified — what is left of it
 
 **Confirmed live 2026-08-20**: the tab renders and sits in the strip, the query returns a real
 variant set, the classification reads the user's own tags, and the pane's greys look right in their
 theme. What has still not been seen:
 
-1. **The cover and the preview loop**, which arrived after that session.
-2. **Whether `preload="none"` makes the first hover feel slow.** Stash's own cards fetch earlier and
+1. **The cover and the preview loop**, which arrived after that session — and the `load()` that puts
+   the cover back on mouse-out, which is a fix for a symptom that was seen live.
+2. **Alias and descendant matching, and the overlap warning.** All three are decided from one
+   `findTags` whose fields (`aliases`, `parents { id }`) are read off Stash's schema and have not yet
+   been seen answering on a live server. A tag list that fails now costs every classification rather
+   than none, which is why that failure is on the console.
+3. **Whether `preload="none"` makes the first hover feel slow.** Stash's own cards fetch earlier and
    play from an `IntersectionObserver` — a different trade, and the one to copy if this feels laggy
    rather than cheap.
-3. **Where the tab lands in the strip.** It is appended, so it sits after Edit. Whether it reads
-   better before Edit is still a judgement nobody has made.
 
 **Confirmed, and worth not re-deriving:** `stash_ids_endpoint` exists, is spelled that way and takes
 a list (the live rejection came from inside its handler, so everything before the modifier parsed);

@@ -14,8 +14,8 @@
 // prose and as two synonyms in a UI. The plugin is called Scene Variants and the id is the
 // contract, so `variant` is the word that survives everywhere - tab, copy, log, CSS.
 //
-// **Nothing in this file writes to the library.** It reads one query and draws a list
-// of links. There is no mutation to undo, no lease to take and nothing to stand a
+// **Nothing in this file writes to the library.** It reads two queries - the variants and
+// the tag tree they are classified against - and draws a list of links. There is no mutation to undo, no lease to take and nothing to stand a
 // reactive plugin down for.
 //
 // The design notes, and the reasoning behind the parts that look arbitrary, are in
@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.2.3';
+  var PLUGIN_VERSION = '0.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -230,6 +230,115 @@
   function logToConsole(msg) {
     if (settings().b1LogToConsole) console.info('[svr] ' + msg);
   }
+  // ── The tag tree ───────────────────────────────────────────────────────
+  //
+  // A configured name is matched against every tag's name *and* its aliases, and a scene
+  // counts as classified when it carries the matched tag or any descendant of it. Both of
+  // those are questions about the whole tag graph rather than about one string, so the
+  // graph is what is fetched: one unfiltered `findTags`, cached, rather than a filter
+  // query per name whose field spellings would be one more guess about Stash's schema -
+  // the kind that cost this plugin two releases already.
+  //
+  // It also answers the question nothing else could: whether the two names are the same
+  // tag, or one an ancestor of the other. That is a contradiction to report rather than
+  // resolve - see `conflictNote`.
+  var TAGS_QUERY =
+    'query SVRTags { findTags(filter: { per_page: -1 }) ' +
+    '{ tags { id name aliases parents { id } } } }';
+
+  var TAGS_TTL_MS = 60000;   // the tag tree is re-read at most this often
+  var _tagsWait = null, _tagsAt = 0;
+
+  function tagTree() {
+    if (!_tagsWait || Date.now() - _tagsAt > TAGS_TTL_MS) {
+      _tagsAt = Date.now();
+      _tagsWait = gqlRequest(TAGS_QUERY, null).then(function (data) {
+        return (((data || {}).findTags) || {}).tags || [];
+      }, function (err) {
+        // Loud, like the variant query and for the same reason: with no tag tree every
+        // row lists unclassified, which is indistinguishable from two tag names that
+        // match nothing.
+        console.warn('[svr] the tag list could not be read, so no row can be classified: ' +
+          err.message);
+        return [];
+      });
+    }
+    return _tagsWait;
+  }
+
+  // The two configured names resolved against that tree: for each, the tags whose name or
+  // any alias matches, and every descendant of those. Matching is by tag **id** from here
+  // on - a name is only what starts the search, and a scene's tag is then that tag or it
+  // is not.
+  function matchers(tags, s) {
+    var byId = {}, kids = {};
+    tags.forEach(function (t) {
+      byId[t.id] = t;
+      (t.parents || []).forEach(function (p) {
+        (kids[p.id] = kids[p.id] || []).push(t.id);
+      });
+    });
+
+    function rootsFor(name) {
+      var k = tagKey(name);
+      if (!k) return [];
+      return tags.filter(function (t) {
+        if (tagKey(t.name) === k) return true;
+        var aliases = t.aliases || [];
+        for (var i = 0; i < aliases.length; i++) if (tagKey(aliases[i]) === k) return true;
+        return false;
+      });
+    }
+
+    // Breadth-first with a visited set. A Stash tag hierarchy is a graph rather than a
+    // tree - a tag can have several parents - so a diamond or a cycle is a shape to
+    // survive rather than one to assume away.
+    function withDescendants(roots) {
+      var set = {}, queue = roots.map(function (t) { return t.id; }), id, next, i;
+      while (queue.length) {
+        id = queue.shift();
+        if (set[id]) continue;
+        set[id] = true;
+        next = kids[id] || [];
+        for (i = 0; i < next.length; i++) queue.push(next[i]);
+      }
+      return set;
+    }
+
+    var fl = rootsFor(s.a1FullLengthTag), pl = rootsFor(s.a2PartialLengthTag);
+    return { byId: byId, flRoots: fl, plRoots: pl,
+      fl: withDescendants(fl), pl: withDescendants(pl) };
+  }
+
+  // The two values are mutually exclusive by definition, so a configuration where one tag
+  // can be both is a contradiction the plugin cannot resolve. Left unsaid it surfaces as
+  // every scene under the overlap being flagged red - a scene-level error for a settings
+  // mistake, which is the wrong place to go looking. One sentence at the head of the pane
+  // instead, and nothing is refused: the rows are still listed.
+  //
+  // One test covers all three shapes - the same tag under both names, and an ancestor and
+  // a descendant either way round - because if the two descendant sets meet at all, the
+  // two tags are related.
+  function conflictNote(m) {
+    if (!m.flRoots.length || !m.plRoots.length) return '';
+    var shared = [], id;
+    for (id in m.fl) if (hasOwn(m.fl, id) && m.pl[id]) shared.push(id);
+    if (!shared.length) return '';
+    var name = function (i) { return (m.byId[i] || {}).name || ('tag ' + i); };
+    var same = m.flRoots.some(function (a) {
+      return m.plRoots.some(function (b) { return b.id === a.id; });
+    });
+    if (same) {
+      return '⚠ Both tag settings name the same tag (' + name(m.flRoots[0].id) +
+        '), so every scene carrying it is listed as a contradiction. The full-length and ' +
+        'partial-length tags are meant to be mutually exclusive.';
+    }
+    return '⚠ The full-length tag (' + name(m.flRoots[0].id) + ') and the ' +
+      'partial-length tag (' + name(m.plRoots[0].id) + ') are related in the tag ' +
+      'hierarchy, so ' + plural(shared.length, 'tag') + ' counts as both: ' +
+      shared.map(name).join(', ') + '. The two are meant to be mutually exclusive.';
+  }
+
   // ── Finding the variants ──────────────────────────────────────────────────
   //
   // One query, which is what the plan sketched and what a DOM-injected panel could not
@@ -279,14 +388,16 @@
       return Promise.resolve({ rows: [], why: 'This scene carries no stash-id, which is ' +
         'the only evidence this plugin uses so far.' });
     }
-    return settingsReady().then(function (s) {
+    return Promise.all([settingsReady(), tagTree()]).then(function (both) {
+      var m = matchers(both[1], both[0]);
       return gqlRequest(VARIANTS_QUERY, { ids: ids }).then(function (data) {
         var scenes = (((data || {}).findScenes) || {}).scenes || [];
         var others = scenes.filter(function (o) { return String(o.id) !== String(scene.id); });
         logToConsole('scene ' + scene.id + ': ' + plural(others.length, 'variant') +
           ' from ' + plural(ids.length, 'stash-id'));
         return {
-          rows: ordered(others, s),
+          rows: ordered(others, m),
+          conflict: conflictNote(m),
           why: others.length
             ? 'Matched on ' + plural(ids.length, 'stash-id') + '.'
             : 'No other scene shares this one’s ' + plural(ids.length, 'stash-id') + '.',
@@ -322,20 +433,21 @@
     bad: { label: '⚠ both' },
   };
 
-  function classify(scene, s) {
-    var full = tagKey(s.a1FullLengthTag), partial = tagKey(s.a2PartialLengthTag);
-    var hasFull = false, hasPartial = false;
+  // The tag named on the hover text is the one the scene actually carries, which is the
+  // whole of what alias and descendant matching cost here: a row matched through a child
+  // tag or an alias has to say which, or the hover text is answering "did it match the
+  // right tag" with the string the reader typed into the settings.
+  function classify(scene, m) {
+    var full = null, partial = null;
     (scene.tags || []).forEach(function (t) {
-      var k = tagKey(t.name);
-      if (full && k === full) hasFull = true;
-      if (partial && k === partial) hasPartial = true;
+      if (!full && m.fl[t.id]) full = t;
+      if (!partial && m.pl[t.id]) partial = t;
     });
-    if (hasFull && hasPartial) {
-      return { role: 'bad', label: ROLES.bad.label,
-        tags: s.a1FullLengthTag + ' and ' + s.a2PartialLengthTag };
+    if (full && partial) {
+      return { role: 'bad', label: ROLES.bad.label, tags: full.name + ' and ' + partial.name };
     }
-    if (hasFull) return { role: 'fl', label: ROLES.fl.label, tags: s.a1FullLengthTag };
-    if (hasPartial) return { role: 'pl', label: ROLES.pl.label, tags: s.a2PartialLengthTag };
+    if (full) return { role: 'fl', label: ROLES.fl.label, tags: full.name };
+    if (partial) return { role: 'pl', label: ROLES.pl.label, tags: partial.name };
     return { role: 'none', label: '', tags: '' };
   }
 
@@ -369,9 +481,9 @@
   // than one candidate at the top - which the user says is rare.
   var ROLE_RANK = { fl: 0, none: 1, bad: 1, pl: 2 };
 
-  function ordered(variants, s) {
+  function ordered(variants, m) {
     return variants.map(function (scene) {
-      return { scene: scene, cls: classify(scene, s) };
+      return { scene: scene, cls: classify(scene, m) };
     }).sort(function (a, b) {
       var ra = ROLE_RANK[a.cls.role], rb = ROLE_RANK[b.cls.role];
       if (ra !== rb) return ra - rb;
@@ -413,6 +525,9 @@
     // plugins share has to mean the same thing in both, and a *tab* pane is not that.
     '.svr-tabpane{padding:1rem;}' +
     '.svr-summary{color:#7d8f9c;margin-bottom:.5rem;}' +
+    // The settings contradiction, in the same red the row-level one wears - it is the same
+    // fact reported one level up, before it can be mistaken for a fault in the scenes.
+    '.svr-conflict{color:#ff7373;margin-bottom:.5rem;}' +
     '.svr-variant{display:flex;align-items:center;gap:.75rem;padding:.35rem .5rem;' +
     'border-radius:3px;}' +
     '.svr-variant:hover{background:#3c4f5d;}' +
@@ -560,8 +675,8 @@
   //     The patch list is read when the component *renders*, not when it is defined, so
   //     registering at script load is early enough however late Scene.tsx is imported.
   //   * `props.scene` is a `SceneDataFragment`, which already carries `stash_ids`. That
-  //     is what makes this one query rather than two: there is nothing to look up before
-  //     the filter can be written.
+  //     is what makes the variant lookup one query rather than two: there is nothing to
+  //     look up before the filter can be written.
   //   * `activeTabKey` is a plain `useState("scene-details-panel")` with no whitelist, so
   //     a key of our own is selectable exactly like Stash's nine.
   //
@@ -712,10 +827,11 @@
         var v = e.currentTarget, p = v.play();
         if (p && p.catch) p.catch(function () {});
       },
-      onMouseLeave: function (e) {
-        e.currentTarget.pause();
-        e.currentTarget.currentTime = 0;
-      },
+      // `load()`, not pause-and-rewind. A paused video keeps showing the frame it
+      // stopped on, and rewinding it only moves that to frame zero of the *preview* - the
+      // poster is painted while the element has no frame at all, and `load()` is what
+      // returns it to that state. With `preload="none"` it fetches nothing on the way.
+      onMouseLeave: function (e) { e.currentTarget.load(); },
     });
   }
 
@@ -773,10 +889,17 @@
         return React.createElement('div', { className: 'svr-tabpane' },
           React.createElement('div', { className: 'svr-empty' }, 'Looking for variants…'));
       }
-      var kids = [React.createElement('div', { key: 'why', className: 'svr-summary' },
+      var kids = [];
+      // Above the summary rather than below it: it is about the settings the whole list
+      // was classified with, not about the list.
+      if (found.conflict) {
+        kids.push(React.createElement('div',
+          { key: 'conflict', className: 'svr-conflict' }, found.conflict));
+      }
+      kids.push(React.createElement('div', { key: 'why', className: 'svr-summary' },
         found.rows.length
           ? plural(found.rows.length, 'other variant') + ' of this scene. ' + found.why
-          : found.why)];
+          : found.why));
       found.rows.forEach(function (row) { kids.push(VariantRow(React, row)); });
       return React.createElement('div', { className: 'svr-tabpane' }, kids);
     };

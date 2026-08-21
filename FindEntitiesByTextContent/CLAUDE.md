@@ -71,12 +71,42 @@ This is the one substantive difference from `EntityNameMaintainer`, whose unit h
 occurrence because each one is a separate decision to replace or not. Here nothing is
 decided, so the entity is the unit and the line stays readable.
 
-## 6. The buffer pauses the search rather than the search knowing about the buffer
+## 6. Two filter rows that are not the same kind of control
+
+`EntityNameMaintainer` has a row of entity types and a row of attribute names, and this
+plugin now offers the same pair. They look identical - same shape, same amber, same
+All On / All Off - and they act at different moments, which is worth being explicit about
+rather than papering over:
+
+- **Entity types decide what is *read*.** They are the whole list from the start, they are
+  off by default, and turning one on is what sends the next search looking. They are
+  remembered, because they are a standing choice about this library.
+- **Attribute names decide what is *shown*,** over results already found. The list can only
+  be what the search has hit so far - a toggle for an attribute nothing matched in could not
+  change anything - so they appear as the search finds them, and a new search starts with the
+  row empty again. They are not remembered, because they belong to the search on screen.
+
+**A result is kept if any of its attributes is still showing, and displays only those.** An
+entity that matched in Title and Details, with Details off, is still a Title match; its
+Details chip goes, and so does the context if that was the line it was quoting. That last
+part is why `scanEntity` keeps a context **per attribute** rather than one for the whole
+result: a line quoting the details of an entity whose Details filter is off would be the
+filter lying about itself.
+
+**Copy log honours the attribute filters and not the buffer.** A filter is a choice about
+what is being looked at; the buffer is a limit on what fits. The two deserve opposite
+treatment and the tooltip says so.
+
+## 7. The buffer pauses the search rather than the search knowing about the buffer
 
 The brief offered two ways to keep a long result list bounded: bidirectional fetching over
 the whole list, or auto-pausing when the buffer fills. The second is far less machinery and
 loses nothing, because **every result stays in memory** — the cap is on rendered rows, and
 Copy log hands over all of them.
+
+`shownFrom` is what makes the window and the filters compose: the rows on screen are a
+window over `results` starting there, Continue moves it to the end, and a filter click
+redraws from it. The rows are never the results.
 
 **It stops at a page boundary, not at the exact row.** A page is the unit the whole loop
 works in; half a page of results on screen with the rest of that page discarded is a state
@@ -86,7 +116,7 @@ on-screen count can be exactly the cap.
 Continue clears the rendered rows and resumes. That is the one thing here that throws
 something away, and the log line says where it went.
 
-## 7. A control with nothing to act on is disabled, not merely inert
+## 8. A control with nothing to act on is disabled, not merely inert
 
 **All On / All Off** are dead when every type is already on, or already off. The second half
 does real work here rather than being symmetry: the types start all-off, so All Off is
@@ -96,7 +126,7 @@ than a dialog that failed to load its state.
 Same rule as Search, whose `title` says which half is missing. A live button that does
 nothing when pressed teaches the user that the control is broken.
 
-## 8. Search and Refresh, and the state where they are not the same button
+## 9. Search and Refresh, and the state where they are not the same button
 
 They were, and that was the bug: both called `start()`, so with the primary button reading
 **Search** the two were a duplicate pair sitting side by side. Refresh has a real job in
@@ -111,7 +141,7 @@ again, so the two can never disagree about which case this is.
 It works mid-run, and that costs nothing: `start()` moves the epoch, so the page in flight
 is discarded rather than raced. Forcing a Pause first would have been a rule to explain.
 
-## 9. The counters count toward something
+## 10. The counters count toward something
 
 "Scanned 4200 entities" answers *how far* and leaves *out of how many* unanswered, which on
 a library-wide read is most of what the line is for.
@@ -127,7 +157,7 @@ this existed. **The failure is caught inside the chain rather than beside it**, 
 introspection would land in the same handler and the scan would run with no field shapes at
 all.
 
-## 10. The log reads in the order things happened
+## 11. The log reads in the order things happened
 
 The listing and the messages share one box and one scrollbar. The list block was being
 *inserted at the top*, which pushed every message below it - so the first line written, the
@@ -138,7 +168,7 @@ It is appended now, and `start()` writes its message *before* creating the block
 or a Refresh gets a fresh block rather than an emptied one, for the same reason: the results
 start again after the message that says why.
 
-## 11. `epoch`, which is what makes Refresh and Cancel safe
+## 12. `epoch`, which is what makes Refresh and Cancel safe
 
 A page can be in flight when the user presses Refresh or closes the dialog. Every `step`
 carries the epoch it started under and returns immediately if it has moved. Without it, a
@@ -147,7 +177,7 @@ longer on the page.
 
 `close()` bumps it too, for exactly that second case.
 
-## 12. What is remembered lives in `localStorage`, not in the plugin configuration
+## 13. What is remembered lives in `localStorage`, not in the plugin configuration
 
 Two reasons, and the second is the one that matters. It belongs to the person at this browser
 rather than to the server — the same argument `TagBundleClipboard` makes for its clipboard.
@@ -163,7 +193,7 @@ site data, throws on the accessor itself.
 and is the one thing a number box can be asked to do that is not about the future. It is on
 the box's own tooltip, because nothing about a "0" says so.
 
-## 13. No settings at all, and what that costs
+## 14. No settings at all, and what that costs
 
 Every choice this plugin offers is made inside the dialog, where the user already is and
 where it is answered on the spot. The one setting it had was the console switch every
@@ -183,7 +213,7 @@ Two consequences, and both are load-bearing rather than incidental:
   anchor in the repo with nothing behind it. `CustomFieldsBulkEditor` was in this position
   before its 0.7.0 and its notes say the same thing.
 
-## 14. The settings anchor, and the guard that excluded the page it was written for
+## 15. The settings anchor, and the guard that excluded the page it was written for
 
 Worth writing down at length because it is the exact shape of mistake this repo keeps
 making, and this time it was caught by a user looking at the page rather than by anything
@@ -209,7 +239,7 @@ context: a structural test has to name the thing it means.** "Has a button" was 
 "is the Tasks page", and the proxy was false on the very page it was protecting. Where the
 real distinguishing feature is a string this plugin owns, use the string.
 
-## 15. The head does not tell anyone to back up
+## 16. The head does not tell anyone to back up
 
 Nothing here writes, so the standing sentence would be false. The head says where the results
 go instead — the `TagBundleClipboard` shape, and the shared rule is explicitly about dialogs
@@ -218,7 +248,7 @@ that *write*.
 The consequence is that the run's own warnings need a slot, and they take the amber `.warn`
 one the backup sentence would have occupied. Same swap `TagBundleClipboard` makes.
 
-## 16. Search is refused rather than silently doing nothing
+## 17. Search is refused rather than silently doing nothing
 
 An empty box "does nothing", per the brief — and a button that does nothing when pressed
 teaches nobody anything, so it is disabled with a title saying which half is missing. Same

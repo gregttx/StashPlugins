@@ -47,7 +47,19 @@ Sandy (7)          Performer · Details                                   Likes 
 Outdoors (3)       Tag · Aliases, Custom field name                      beachy
 ```
 
-Click one to open it in a new tab. The results and the messages share one box and read in
+Click one to open it in a new tab. A second row of filters appears above the list as the
+search finds attributes to offer — Title, Details, Aliases, Custom field name, and so on,
+one for every attribute something has actually matched in. Turning one off hides the
+entities that only matched there, and drops that attribute's chip from the ones that also
+matched elsewhere, so a line never claims a match it is hiding. They start on; the amber
+**All On** / **All Off** pair covers both rows.
+
+The two rows are not the same kind of control. **Entity types decide what is read** — they
+are the whole list from the start, and turning one on is what sends the search looking.
+**Attributes decide what is shown**, over results already found, so the list can only be what
+the search has hit so far.
+
+The results and the messages share one box and read in
 the order things happened — the line saying what is being looked for, then the results, then
 whatever the run had to say afterwards.
 
@@ -68,8 +80,9 @@ means the same thing from the first page to the last.
   stopped at; nothing is read twice.
 - When the list on screen is full it **pauses itself** and the button reads **Continue**,
   which clears the screen and carries on.
-- **Copy log** hands over the counters, the messages and **every** result as plain text —
-  including the ones the screen no longer shows.
+- **Copy log** hands over the counters, the messages and every result the attribute filters
+  leave, as plain text — including the ones the screen no longer shows. A filter is a choice
+  about what you are looking at, so it is honoured; the buffer is not a choice, so it is not.
 - **Refresh** throws away what this search has found and starts it again from the
   beginning, with whatever the box now says. It only appears while the other button has
   become Pause, Resume or Continue — those are the states where **Search** carries the

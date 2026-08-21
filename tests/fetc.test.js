@@ -150,6 +150,11 @@ const run = (env) => env.api().dialog();
 const results = (env) => env.body.descendants().filter((n) => h.hasClass(n, 'fetc-result'));
 const typeBtn = (env, label) => env.body.descendants()
   .filter((n) => h.hasClass(n, 'fetc-filterbtn') && n.textContent === label)[0];
+// The attribute row only holds names something has actually matched in.
+const attrBtns = (env) => run(env).attrRow.childNodes
+  .filter((n) => n._bag).map((n) => n.textContent);
+const attrBtn = (env, label) => run(env).attrRow.childNodes
+  .filter((n) => n._bag && n.textContent === label)[0];
 
 // Opens the dialog the way a user does, then types and turns on the types named.
 function open(env, text, types) {
@@ -191,12 +196,14 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
   }, 'beach');
   h.check('one entity is one result however many times it matched', !!hit && hit.id === '1');
   h.check('with every attribute it matched in, counted',
-    JSON.stringify(hit.attrs) === JSON.stringify([
-      { label: 'Title', count: 1 }, { label: 'Details', count: 2 },
-      { label: 'URLs', count: 1 }, { label: 'Custom field value', count: 1 },
-    ]), JSON.stringify(hit.attrs));
-  h.check('and the first match\'s surroundings on the line',
-    hit.first.label === 'Title' && hit.first.ctx.hit === 'Beach', JSON.stringify(hit.first));
+    JSON.stringify(hit.attrs.map((a) => [a.label, a.count])) === JSON.stringify([
+      ['Title', 1], ['Details', 2], ['URLs', 1], ['Custom field value', 1],
+    ]), JSON.stringify(hit.attrs.map((a) => [a.label, a.count])));
+  // One context **per attribute**, not one for the whole result: a filter that hides
+  // Title must not leave the line quoting the title it just hid.
+  h.check('and the first match in each of them, with its surroundings',
+    hit.attrs[0].ctx.hit === 'Beach' && hit.attrs[1].ctx.pre === 'Filmed on the ' &&
+      hit.attrs[1].ctx.hit === 'beach', JSON.stringify(hit.attrs[1].ctx));
   h.check('a custom field holding something that is not a string is not searched',
     !hit.attrs.some((a) => a.label === 'Custom field name'), JSON.stringify(hit.attrs));
   h.check('an entity that matches nothing is not a result',
@@ -295,6 +302,91 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
       h.check('a type that was never turned on is never queried',
         !env.calls.some((c) => /findImages/.test(c.query || '')),
         env.calls.map((c) => (c.query || '').slice(0, 40)).join(' | '));
+    });
+}());
+
+// ── The attribute filters ───────────────────────────────────────────────────
+
+(function attributes() {
+  const env = makeEnv();
+  open(env, 'beach', ['Scenes', 'Performers', 'Tags'])
+    .then(() => {
+      h.check('there is no attribute row before anything has been found',
+        h.hasClass(run(env).attrRow, 'fetc-hidden'), run(env).attrRow.className);
+      return search(env);
+    })
+    .then(() => {
+      // Only the names something matched in, which is the whole difference from the type
+      // row: the types are what gets *read* and are known up front; the attributes are
+      // what was *found* and cannot be.
+      h.check('the row offers exactly the attributes that were hit',
+        JSON.stringify(attrBtns(env).sort()) === JSON.stringify(
+          ['Aliases', 'Custom field name', 'Custom field value', 'Details', 'Title', 'URLs']),
+        attrBtns(env).join(', '));
+      h.check('and not one for an attribute nothing matched in',
+        attrBtns(env).indexOf('Synopsis') === -1, attrBtns(env).join(', '));
+      h.check('every one of them starts on',
+        run(env).attrRow.childNodes.filter((n) => n._bag)
+          .every((b) => /btn-warning/.test(b.className)));
+
+      const before = results(env).length;
+      // The scene matched in four attributes; the performer only in Details.
+      attrBtn(env, 'Details').click();
+      const text = results(env).map((r) => r.textContent);
+      h.check('turning an attribute off drops the entities that only matched there',
+        results(env).length === before - 1 && !text.some((t) => /Sandy/.test(t)),
+        text.join('\n'));
+      h.check('but keeps the ones that also matched elsewhere',
+        text.some((t) => /Beach day/.test(t)), text.join('\n'));
+      h.check('and takes the chip off the line, so it does not claim a match it is hiding',
+        text.some((t) => /Beach day/.test(t) && !/Details/.test(t)), text.join('\n'));
+
+      attrBtn(env, 'Title').click();
+      const t2 = results(env).map((r) => r.textContent);
+      h.check('the line quotes the first attribute still showing, not the one hidden',
+        t2.some((t) => /Beach day/.test(t) && /example/.test(t)), t2.join('\n'));
+
+      attrBtn(env, 'Details').click();
+      attrBtn(env, 'Title').click();
+      h.check('turning them back on brings everything back',
+        results(env).length === before, String(results(env).length));
+
+      // Copy log honours the filters - a filter is a choice about what is being looked
+      // at - while the buffer, which is not a choice, is not honoured.
+      attrBtn(env, 'Details').click();
+      dlg(env).button('Copy log').click();
+      return h.flush(20).then(() => before);
+    })
+    .then(() => {
+      h.check('Copy log leaves out what the attribute filters leave out',
+        !/Sandy/.test(env.copied) && /Beach day/.test(env.copied), env.copied.slice(0, 200));
+      h.check('and the line it does copy carries only the attributes still showing',
+        !/Beach day.*Details/.test(env.copied), env.copied.slice(0, 200));
+
+      // All On / All Off act on both rows, which is what "the filters" means to someone
+      // looking at one block of buttons.
+      dlg(env).button('All Off').click();
+      h.check('All Off turns the attribute row off as well as the types',
+        run(env).attrRow.childNodes.filter((n) => n._bag)
+          .every((b) => /btn-secondary/.test(b.className)) &&
+          !typeBtn(env, 'Scenes')._bag.scenes);
+      h.check('and the list empties with them', results(env).length === 0);
+      dlg(env).button('All On').click();
+      h.check('All On brings both rows back', results(env).length > 0 &&
+        run(env).attrRow.childNodes.filter((n) => n._bag)
+          .every((b) => /btn-warning/.test(b.className)));
+
+      // A fresh search knows of no attributes until it finds some.
+      run(env).textInput.value = 'sandy';
+      h.fire(run(env).textInput, 'input');
+      dlg(env).button('Search').click();
+      h.check('a new search starts with the attribute row empty again',
+        attrBtns(env).length === 0 || attrBtns(env).join() === '', attrBtns(env).join(', '));
+      return h.flush(200);
+    })
+    .then(() => {
+      h.check('and fills it from what the new search found',
+        JSON.stringify(attrBtns(env)) === JSON.stringify(['Name']), attrBtns(env).join(', '));
     });
 }());
 

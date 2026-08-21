@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '0.0.4';
+  var PLUGIN_VERSION = '0.0.5';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -606,14 +606,15 @@
   function scanEntity(spec, shapes, ent, needle) {
     var attrs = [];
     var index = {};
-    var first = null;
+    // One context per *attribute*, rather than one for the whole result. The line shows
+    // the surroundings of the first match in the first attribute still showing, so a
+    // filter that hides Title cannot leave a line quoting the title it just hid.
     function add(label, source, pos) {
       if (!hasOwn(index, label)) {
-        index[label] = { label: label, count: 0 };
+        index[label] = { label: label, count: 0, ctx: context(source, pos, needle.length) };
         attrs.push(index[label]);
       }
       index[label].count++;
-      if (!first) first = { label: label, ctx: context(source, pos, needle.length) };
     }
     shapes.forEach(function (f) {
       var v = ent[f.name];
@@ -649,7 +650,7 @@
     if (!attrs.length) return null;
     return {
       typeKey: spec.key, id: String(ent.id), name: displayName(ent) || '',
-      attrs: attrs, first: first,
+      attrs: attrs,
     };
   }
 
@@ -729,6 +730,14 @@
     // Every entity that matched, in scan order. The rendered rows are a window on this;
     // Copy log takes all of it.
     this.results = [];
+    // Which attribute names are letting their lines through. Filled in as the search
+    // finds them - unlike the entity types, which are the whole list from the start
+    // because they are what gets *read*. An attribute nothing has matched in is a toggle
+    // that could not change anything.
+    this.attrOn = {};
+    // Where the window on screen starts in `results`. Continue moves it to the end; a
+    // filter redraws from it. The rows are a window on the results, never the results.
+    this.shownFrom = 0;
     this.rendered = 0;
     this.scanned = 0;
     this.matched = 0;
@@ -836,9 +845,17 @@
     this.typeRow = el('div', 'fetc-filterrow');
     this.typeRow.appendChild(el('span', 'fetc-label', 'Entity types'));
     TYPE_ORDER.forEach(function (k) {
-      self.typeRow.appendChild(self.toggle(ENTITIES[k].plural, k));
+      self.typeRow.appendChild(self.toggle(ENTITIES[k].plural, self.typeOn, k));
     });
     this.filtersEl.appendChild(this.typeRow);
+    // **The two rows are not the same kind of control, and the labels say so.** A type
+    // decides what is *read* - turning one on is what makes the next search go and look.
+    // An attribute decides what is *shown*, over results already found, so it can only
+    // offer the names something has actually matched in. Same shape, same colour, same
+    // All On / All Off; different moment.
+    this.attrRow = el('div', 'fetc-filterrow fetc-hidden');
+    this.attrRow.appendChild(el('span', 'fetc-label', 'Attributes'));
+    this.filtersEl.appendChild(this.attrRow);
     this.modal.appendChild(this.filtersEl);
 
     this.logEl = el('div', 'fetc-log');
@@ -897,29 +914,43 @@
     this.show(this.staleEl, !!msg);
   };
 
-  Run.prototype.toggle = function (label, key) {
+  Run.prototype.toggle = function (label, bag, key) {
     var self = this;
     var b = button(label, 'fetc-filterbtn');
+    b._bag = bag;
     b._key = key;
-    paintButton(b, this.typeOn[key] ? FILTER_ON_VARIANT : 'btn-secondary');
+    paintButton(b, bag[key] ? FILTER_ON_VARIANT : 'btn-secondary');
     b.addEventListener('click', function () {
-      self.typeOn[key] = !self.typeOn[key];
-      paintButton(b, self.typeOn[key] ? FILTER_ON_VARIANT : 'btn-secondary');
-      self.save();
+      bag[key] = !bag[key];
+      paintButton(b, bag[key] ? FILTER_ON_VARIANT : 'btn-secondary');
+      // Only the types are remembered: they are a standing choice about what to read,
+      // while the attributes belong to the search that is on screen.
+      if (bag === self.typeOn) self.save();
+      if (bag === self.attrOn) self.redraw();
       self.syncFooter();
     });
     return b;
   };
 
+  // Every filter toggle in the strip, both rows. `All On` and `All Off` act on all of
+  // them, which is what "the filters" means to someone looking at one block of buttons.
+  Run.prototype.toggles = function () {
+    var out = [];
+    [this.typeRow, this.attrRow].forEach(function (row) {
+      for (var i = 0; i < row.childNodes.length; i++) {
+        if (row.childNodes[i]._bag) out.push(row.childNodes[i]);
+      }
+    });
+    return out;
+  };
+
   Run.prototype.setAll = function (on) {
-    var self = this;
-    for (var i = 0; i < this.typeRow.childNodes.length; i++) {
-      var b = this.typeRow.childNodes[i];
-      if (!b._key) continue;
-      self.typeOn[b._key] = on;
+    this.toggles().forEach(function (b) {
+      b._bag[b._key] = on;
       paintButton(b, on ? FILTER_ON_VARIANT : 'btn-secondary');
-    }
+    });
     this.save();
+    this.redraw();
     this.syncFooter();
   };
 
@@ -1001,16 +1032,15 @@
     this.refreshBtn.disabled = !text || !types;
     this.textInput.disabled = this.state === 'running';
     this.historyInput.disabled = this.state === 'running';
-    // Disabled where pressing would change nothing: every type already on, or every one
-    // already off. They start all-off, so All Off is dead on open and says so.
-    var toggles = [];
-    for (var i = 0; i < this.typeRow.childNodes.length; i++) {
-      if (this.typeRow.childNodes[i]._key) toggles.push(this.typeRow.childNodes[i]);
-    }
-    var self = this;
+    // Disabled where pressing would change nothing: every filter in the strip already on,
+    // or every one already off. The types start all-off, so All Off is dead on open and
+    // says so.
+    var toggles = this.toggles();
     var busy = this.state === 'running';
-    this.allOnBtn.disabled = busy || toggles.every(function (b) { return self.typeOn[b._key]; });
-    this.allOffBtn.disabled = busy || toggles.every(function (b) { return !self.typeOn[b._key]; });
+    this.allOnBtn.disabled = busy || !toggles.length ||
+      toggles.every(function (b) { return b._bag[b._key]; });
+    this.allOffBtn.disabled = busy || !toggles.length ||
+      toggles.every(function (b) { return !b._bag[b._key]; });
     this.spin(this.state === 'running');
   };
 
@@ -1104,7 +1134,12 @@
   Run.prototype.go = function () {
     if (this.state === 'running') { this.state = 'paused'; this.syncFooter(); this.progress(); return; }
     if (this.state === 'paused') { this.resume(); return; }
-    if (this.state === 'full') { this.clearRows(); this.resume(); return; }
+    if (this.state === 'full') {
+      this.shownFrom = this.results.length;   // a fresh window, starting after what is shown
+      this.clearRows();
+      this.resume();
+      return;
+    }
     this.start();
   };
 
@@ -1123,6 +1158,12 @@
     this.scanned = 0;
     this.matched = 0;
     this.total = null;
+    // The attribute filters belong to the search on screen: a new one has found nothing
+    // yet, so it knows of no attributes.
+    this.attrOn = {};
+    this.attrRow.childNodes.slice(1).forEach(function (b) { self.attrRow.removeChild(b); });
+    this.show(this.attrRow, false);
+    this.shownFrom = 0;
     this.remember(text);
     this.titleEl.textContent = PLUGIN_SHORT_NAME + ' - "' + text + '"';
     this.queue = this.chosen().slice();
@@ -1195,7 +1236,8 @@
           if (!hit) return;
           self.matched++;
           self.results.push(hit);
-          if (self.rendered < RESULT_BUFFER) self.addRow(hit);
+          self.learnAttrs(hit);
+          if (self.rendered < RESULT_BUFFER && self.shownAttrs(hit).length) self.addRow(hit);
         });
         if (list.length < READ_PAGE) { self.queue.shift(); self.page = 1; } else self.page++;
         self.progress();
@@ -1245,8 +1287,42 @@
     this.rendered = 0;
   };
 
+  // The attributes of one result that are still showing. An entity that matched in Title
+  // and in Details, with Details turned off, is still a Title match and stays - carrying
+  // only the chip that is still true.
+  Run.prototype.shownAttrs = function (hit) {
+    var self = this;
+    return hit.attrs.filter(function (a) { return self.attrOn[a.label] !== false; });
+  };
+
+  // A new attribute name gets a toggle the moment something matches in it. There is no
+  // list to draw up front: which attributes a search hits is what the search is finding
+  // out, and a toggle for one nothing matched in could not change anything.
+  Run.prototype.learnAttrs = function (hit) {
+    var self = this;
+    hit.attrs.forEach(function (a) {
+      if (hasOwn(self.attrOn, a.label)) return;
+      self.attrOn[a.label] = true;
+      self.attrRow.appendChild(self.toggle(a.label, self.attrOn, a.label));
+      self.show(self.attrRow, true);
+    });
+  };
+
+  // Redraw the window on screen from where it starts. Cheap enough to run on every filter
+  // click: it is bounded by the buffer, not by how much has been found.
+  Run.prototype.redraw = function () {
+    if (!this.listEl) return;
+    this.clearRows();
+    for (var i = this.shownFrom; i < this.results.length; i++) {
+      if (this.rendered >= RESULT_BUFFER) break;
+      if (this.shownAttrs(this.results[i]).length) this.addRow(this.results[i]);
+    }
+    this.progress();
+  };
+
   Run.prototype.addRow = function (hit) {
     if (!this.listEl) this.clearRows();
+    var shown = this.shownAttrs(hit);
     var row = el('div', 'fetc-result');
     var link = el('a', 'fetc-ent', (hit.name || '(untitled)') + ' (' + hit.id + ')');
     link.href = ENTITIES[hit.typeKey].route + hit.id;
@@ -1254,14 +1330,14 @@
     link.rel = 'noopener noreferrer';
     row.appendChild(link);
     row.appendChild(el('span', 'fetc-attr', ENTITIES[hit.typeKey].label + ' · ' +
-      hit.attrs.map(function (a) {
+      shown.map(function (a) {
         return a.label + (a.count > 1 ? ' ×' + a.count : '');
       }).join(', ')));
-    if (hit.first) {
+    if (shown.length) {
       var ctx = el('span', 'fetc-ctx');
-      ctx.appendChild(el('span', null, hit.first.ctx.pre));
-      ctx.appendChild(el('span', 'fetc-mark', hit.first.ctx.hit));
-      ctx.appendChild(el('span', null, hit.first.ctx.post));
+      ctx.appendChild(el('span', null, shown[0].ctx.pre));
+      ctx.appendChild(el('span', 'fetc-mark', shown[0].ctx.hit));
+      ctx.appendChild(el('span', null, shown[0].ctx.post));
       row.appendChild(ctx);
     }
     this.listEl.appendChild(row);
@@ -1270,19 +1346,24 @@
   };
 
   Run.prototype.resultText = function (hit) {
+    var shown = this.shownAttrs(hit);
     return ENTITIES[hit.typeKey].label + ' ' + (hit.name || '(untitled)') + ' (' + hit.id +
-      ') · ' + hit.attrs.map(function (a) {
+      ') · ' + shown.map(function (a) {
         return a.label + (a.count > 1 ? ' x' + a.count : '');
       }).join(', ') +
-      (hit.first ? ': ' + hit.first.ctx.pre + hit.first.ctx.hit + hit.first.ctx.post : '');
+      (shown.length ? ': ' + shown[0].ctx.pre + shown[0].ctx.hit + shown[0].ctx.post : '');
   };
 
   Run.prototype.copyLog = function () {
     var self = this;
     var lines = [this.progressEl.textContent, ''];
-    // Every result, not only the ones the buffer is currently showing - which is the
-    // whole reason the buffer is allowed to throw rows away.
-    this.results.forEach(function (hit) { lines.push(self.resultText(hit)); });
+    // Every result the attribute filters leave, not only the ones the window is currently
+    // showing - which is the whole reason the buffer is allowed to drop rows. A filter is
+    // a choice about what is being looked at, so it is honoured here; the buffer is not a
+    // choice, so it is not.
+    this.results.forEach(function (hit) {
+      if (self.shownAttrs(hit).length) lines.push(self.resultText(hit));
+    });
     lines.push('');
     this.logText.forEach(function (l) { lines.push(l); });
     var was = this.copyBtn.textContent;

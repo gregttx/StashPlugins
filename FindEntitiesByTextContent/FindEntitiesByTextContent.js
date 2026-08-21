@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '0.0.1';
+  var PLUGIN_VERSION = '0.0.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -181,17 +181,24 @@
   var CF_NAME_LABEL  = 'Custom field name';
   var CF_VALUE_LABEL = 'Custom field value';
 
-  // ── Settings ──────────────────────────────────────────────────────────────
+  // ── No settings ───────────────────────────────────────────────────────────
   //
-  // One, and it is the console switch every plugin here has. What the dialog remembers -
-  // which types are ticked, and the recent searches - is deliberately **not** a setting:
-  // it belongs to the person at this browser rather than to the server, it changes on
-  // every search, and a plugin that writes its own configuration on every search is one
-  // that can lose the user's settings to a partial `configurePlugin` (see the repo-root
-  // CLAUDE.md). It goes in `localStorage` instead.
-  var DEFAULTS = {
-    a1LogToConsole: false,
-  };
+  // This plugin declares none, and that is a decision rather than an oversight. Every
+  // choice it offers - what to look for, which types to read, what to remember - is made
+  // inside the dialog, where the user already is, and answered on the spot. A console
+  // switch was the one setting it had; it duplicated Copy log, which hands over the same
+  // lines plus every result, and reached the console of a page the user only opens to
+  // read a list on screen.
+  //
+  // Two consequences worth knowing, because both are load-bearing:
+  //
+  //   - **Stash still renders a group, a heading and a description for it**, which is the
+  //     first thing anyone reads before installing. So the description half of the shared
+  //     settings design still applies here in full; only the per-*setting* tooltip does
+  //     not, because there is no setting row for one to open from.
+  //   - **There is no `plugin-<id>-<key>` id to anchor on**, so `ownParts` enters by the
+  //     heading alone. That is the one anchor in this repo with nothing behind it; see
+  //     the note there.
 
   // ── Cross-plugin cooperation ──────────────────────────────────────────────
   //
@@ -256,19 +263,6 @@
         if (json.errors) throw new Error(json.errors.map(function (e) { return e.message; }).join('; '));
         return json.data;
       });
-  }
-
-  // `configuration { plugins }` cannot be scoped to one plugin, so every other plugin's
-  // settings arrive in the same response. Nothing here needs them.
-  function loadSettings() {
-    return gqlRequest('{ configuration { plugins } }', null).then(function (data) {
-      var raw = ((data.configuration || {}).plugins || {})[PLUGIN_ID] || {};
-      var s = {};
-      for (var k in DEFAULTS) {
-        if (hasOwn(DEFAULTS, k)) s[k] = !!raw[k];
-      }
-      return s;
-    });
   }
 
   // ── What the dialog remembers ─────────────────────────────────────────────
@@ -383,38 +377,12 @@
     '.fetc-own-group .sub-heading .fetc-p{margin:0 0 .35em;}' +
     '.fetc-own-group .sub-heading .fetc-p:last-child{margin-bottom:0;}' +
     '.fetc-desc-collapsed .fetc-p:not(:first-child){display:none;}' +
+    // **No per-setting hover box and no colour-coded toggle**, because this plugin
+    // declares no settings: both would style rows Stash never renders for it. The teal is
+    // not lost - it is on the task button, which `paintTaskButtons` sets.
     '.fetc-desc-toggle{display:block;margin-top:.25rem;padding:0;border:0;' +
     'background:none;color:#7cc4ff;font-size:.8rem;cursor:pointer;' +
-    'text-decoration:underline;}' +
-    // The per-setting hover box: a summary on the row, the rest behind a ⓘ that opens
-    // from the mark, the summary or the setting's own name. Stash's `title` slot cannot
-    // be sized, placed or opened from the keyboard, which is why this exists.
-    '.fetc-tipped{position:relative;}' +
-    '.fetc-tip{margin-left:.35rem;cursor:pointer;opacity:.65;font-style:normal;' +
-    'font-size:1.05em;}' +
-    '.fetc-tip:hover,.fetc-tip:focus{opacity:1;outline:none;}' +
-    // pointer-events:none is load-bearing, not tidiness. Opened from the setting's name
-    // the box lands over the h3, so a box that took the pointer would fire mouseleave on
-    // the name, close, hand the pointer back and reopen - a flicker loop.
-    '.fetc-tipbox{display:none;position:absolute;left:0;bottom:calc(100% + .35rem);' +
-    'z-index:1500;width:max-content;max-width:100%;padding:.5rem .65rem;' +
-    'background:#202b33;color:#d6dee4;border:1px solid #425a6b;border-radius:3px;' +
-    'font-size:.92rem;line-height:1.45;white-space:pre-wrap;pointer-events:none;' +
-    'box-shadow:0 2px 10px rgba(0,0,0,.55);}' +
-    '.fetc-tipped.fetc-tip-open .fetc-tipbox{display:block;}' +
-    // ── Colour-coded toggles ────────────────────────────────────────────────
-    //
-    // Teal for the one setting, which only talks to the console - the same teal every
-    // sibling gives its console switch, and here also the colour of the task button,
-    // because nothing in this plugin writes.
-    //
-    // Keyed on the id SettingsPluginsPanel.tsx builds from the plugin id and the setting
-    // key, the same anchor `settingElement` uses. Two shapes because the switch is
-    // Stash's to render: `::before` is the track of the react-bootstrap Form.Switch it
-    // renders today, and `accent-color` covers a plain checkbox if that ever changes.
-    '#plugin-FindEntitiesByTextContent-a1LogToConsole{accent-color:#17a2b8;}' +
-    '#plugin-FindEntitiesByTextContent-a1LogToConsole:checked~.custom-control-label::before' +
-    '{background-color:#17a2b8;border-color:#17a2b8;}';
+    'text-decoration:underline;}';
 
   function injectStyle() {
     if (document.getElementById(STYLE_ID)) return;
@@ -717,23 +685,17 @@
   // ── The dialog ────────────────────────────────────────────────────────────
 
   var _active = null;
-  var _opening = false;
 
+  // Opens straight away. The siblings read their settings at the click so that flipping a
+  // switch and pressing the button in one page session does what it says; this plugin has
+  // no setting for that to be true of, so there is nothing to wait for.
   function startRun() {
     if (_active) { _active.focus(); return; }
-    if (_opening) return;                      // a second click inside the round trip
-    _opening = true;
-    var go = function (s) {
-      _opening = false;
-      if (_active) return;
-      _active = new Run(s);
-      _active.begin();
-    };
-    loadSettings().then(go, function () { go(DEFAULTS); });
+    _active = new Run();
+    _active.begin();
   }
 
-  function Run(settings) {
-    this.settings = settings || DEFAULTS;
+  function Run() {
     var stored = readStore();
     // Off by default, as asked: a search that covered everything the first time it was
     // opened would read the whole library before the user had chosen anything.
@@ -1037,7 +999,6 @@
     this.logText.push('[' + kind + '] ' + message);
     if (this.spinEl) this.logEl.appendChild(this.spinEl);   // back to the end
     this.scrollLog();
-    if (this.settings.a1LogToConsole) fetc('[fetc] ' + kind + ': ' + message);
     return line;
   };
 
@@ -1322,60 +1283,57 @@
     return t === PLUGIN_NAME;
   }
 
-  function settingElement(key) {
-    return document.getElementById('plugin-' + PLUGIN_ID + '-' + key);
-  }
-
-  function settingRow(key) {
-    var node = settingElement(key);
-    for (var d = 0; node && d < 10; d++, node = node.parentElement) {
-      if (hasClass(node, 'setting')) return node;
-    }
-    return null;
-  }
-
   function byClass(root, name) {
     if (!root || typeof root.querySelector !== 'function') return null;
     try { return root.querySelector('.' + name) || null; } catch (e) { return null; }
   }
 
-  // The group and the description, found from our own setting row where there is one and
-  // from our heading otherwise. The description is required to be in the same `.setting`
-  // row as the heading: Settings → Tasks heads its group with the plugin name too and
-  // gives every task row a `.sub-heading` of its own, so anything looser decorates the
-  // wrong panel - and there the slot the README link takes is inside the task button.
-  function ownParts() {
-    var anchors = [];
-    for (var k in DEFAULTS) {
-      if (!hasOwn(DEFAULTS, k)) continue;
-      var e = settingElement(k);
-      if (e) { anchors.push(e); break; }
+  // The group and the description, found from the one h3 on the page that is ours.
+  //
+  // **The heading is the only anchor available, and that is the one thing here worth
+  // being uneasy about.** Every sibling with settings finds its group through the
+  // `plugin-<id>-<key>` element ids Stash builds from the plugin id and a setting key -
+  // ours by construction - and keeps a heading match only as a fallback, because two of
+  // them shipped broken twice on heading text. A plugin that declares no settings has no
+  // such ids to anchor on, so this is the fallback promoted to the only route, and it is
+  // why `headingIsOurs` compares *exactly* rather than by prefix.
+  //
+  // Two guards, and both are needed. The description has to be **in the same `.setting`
+  // row as the heading**: Settings - Tasks gives every *task* row an h3 with a
+  // `.sub-heading` under it, so "a `.sub-heading` somewhere in the group" finds a task's
+  // description and decorates the wrong panel. And the group must not hold **our own task
+  // button**: Settings - Tasks heads its group with the same name, and decorating it puts
+  // a README link and a split description on a page that never had either - the link's
+  // slot is picked by structure, and there that slot is inside the button.
+  //
+  // The task-button test is by *caption*, not by "does this group hold a button". Stash
+  // puts its own Enable/Disable button in the plugin group's header row on Settings -
+  // Plugins, so "any button" excludes the very page this decoration is for - which is
+  // exactly what shipped, and why nothing on this plugin's settings page was formatted.
+  function hasOwnTaskButton(node) {
+    if (!node) return false;
+    if (node.tagName === 'BUTTON' && trim(node.textContent) === TASK_NAME) return true;
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (hasOwnTaskButton(kids[i])) return true;
     }
+    return false;
+  }
+
+  function ownParts() {
     var heads = document.querySelectorAll ? document.querySelectorAll('h3') : [];
     for (var i = 0; i < heads.length; i++) {
-      if (headingIsOurs(heads[i].textContent)) anchors.push(heads[i]);
-    }
-    for (var a = 0; a < anchors.length; a++) {
-      var node = anchors[a];
-      for (var d = 0; node && d < 12; d++, node = node.parentElement) {
+      if (!headingIsOurs(heads[i].textContent)) continue;
+      var node = heads[i];
+      var header = null;
+      for (var d = 0; node && d < 10; d++, node = node.parentElement) {
+        if (!header && hasClass(node, 'setting')) header = node;
         if (!hasClass(node, 'setting-group')) continue;
-        var heading = node.querySelector ? node.querySelector('h3') : null;
-        var header = null;
-        var rows = node.querySelectorAll ? node.querySelectorAll('.setting') : [];
-        for (var r = 0; r < rows.length; r++) {
-          if (rows[r].querySelector && rows[r].querySelector('h3') === heading) {
-            header = rows[r];
-            break;
-          }
-        }
         var sub = header ? byClass(header, 'sub-heading') : null;
-        // A group whose header row holds a task button is Settings → Tasks, which heads
-        // its group with the same name; decorating it destroys the button.
-        var isTasks = header && header.querySelector && header.querySelector('button');
-        if (sub && !isTasks && heading && headingIsOurs(heading.textContent)) {
-          return { group: node, sub: sub, heading: heading };
+        if (sub && !hasOwnTaskButton(node)) {
+          return { group: node, sub: sub, heading: heads[i] };
         }
-        break;
+        break;    // our heading, but not our page: keep looking
       }
     }
     return null;
@@ -1431,68 +1389,6 @@
     return { parent: sub.parentNode, before: sub.nextSibling };
   }
 
-  var TIP_MARK = 'ⓘ';                       // circled Latin small letter i
-
-  function setTipOpen(sub, on) {
-    var cls = String(sub.className || '').replace(/\s*fetc-tip-open\b/, '');
-    sub.className = (on ? cls + ' fetc-tip-open' : cls).replace(/^\s+/, '');
-  }
-
-  // The row is passed rather than the .sub-heading, and the current one looked up per
-  // event: an <h3> is Stash's element and survives the re-renders that replace everything
-  // we put in the row, so a captured reference would go stale.
-  function tipTrigger(node, row) {
-    if (!node || node._fetcTipWired) return;
-    node._fetcTipWired = true;
-    var toggle = function (on) {
-      var sub = byClass(row, 'sub-heading');
-      if (sub) setTipOpen(sub, on);
-    };
-    node.addEventListener('mouseenter', function () { toggle(true); });
-    node.addEventListener('mouseleave', function () { toggle(false); });
-    node.addEventListener('focus', function () { toggle(true); });
-    node.addEventListener('blur', function () { toggle(false); });
-  }
-
-  function tipSetting(key) {
-    var row = settingRow(key);
-    if (!row) return;
-    var sub = byClass(row, 'sub-heading');
-    if (!sub) return;
-    var kids = sub.childNodes || [];
-    if (kids.length && hasClass(kids[0], 'fetc-sum')) return;
-    var text = sub.textContent || '';
-    var cut = text.indexOf('\n\n');
-    if (cut === -1) return;
-    var summary = oneLine(text.slice(0, cut));
-    var detail = text.slice(cut + 2).split(/\n{2,}/).map(oneLine)
-      .filter(function (p) { return !!p; }).join('\n\n');
-    if (!summary || !detail) return;
-    sub.textContent = '';
-    if (!hasClass(sub, 'fetc-tipped')) {
-      sub.className = ((sub.className || '') + ' fetc-tipped').replace(/^\s+/, '');
-    }
-    var sum = el('span', 'fetc-sum', summary);
-    sub.appendChild(sum);
-    // tabIndex, so the box can be reached and read without a mouse. The box is a sibling
-    // of the mark rather than a child: as a child it would sit inside an inline span and
-    // inherit its clipping and stacking.
-    var mark = el('span', 'fetc-tip', TIP_MARK);
-    mark.tabIndex = 0;
-    sub.appendChild(mark);
-    sub.appendChild(el('span', 'fetc-tipbox', detail));
-    tipTrigger(mark, row);
-    tipTrigger(sum, row);
-    var h3 = row.querySelector ? row.querySelector('h3') : null;
-    if (h3) tipTrigger(h3, row);
-  }
-
-  function tipSettings() {
-    for (var k in DEFAULTS) {
-      if (hasOwn(DEFAULTS, k)) tipSetting(k);
-    }
-  }
-
   // ── The stale-script banner ───────────────────────────────────────────────
   //
   // Stash serves plugin JS with caching on, so a browser holding the old file goes on
@@ -1533,7 +1429,6 @@
     }
     splitDescription(parts.sub);
     collapseDescription(parts.sub);   // after the split: it counts the .fetc-p divs
-    tipSettings();
     ensureStaleNotice(parts);         // before the early return: the link outlives it
     if (document.getElementById(README_LINK_ID)) return;
     var link = el('a', 'fetc-readme', 'FindEntitiesByTextContent/README.md');

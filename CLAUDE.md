@@ -1167,6 +1167,39 @@ Tests cover the plugin's own logic and its assumptions about Stash's markup and 
 
 When fixing a bug, check the new test fails against the unfixed plugin before trusting it: `SRC=/path/to/old.js node tests/<suite>.test.js`.
 
+## Finding your own settings group: name the thing, and test that you found it
+
+Every plugin here decorates its own group in Settings → Plugins - the description split, the
+**Show more** toggle, the README link, the stale-script banner - and every one of them finds
+that group by walking Stash's markup. The anchor has to tell apart two groups that are both
+headed with the plugin's name: Settings → **Plugins**, which is ours, and Settings →
+**Tasks**, which is not - decorating that one puts a README link and a split description on
+a page that never had either, and destroys the task button, whose slot the link takes.
+
+**The distinguishing feature is our own task caption, and nothing looser will do.**
+`hasOwnTaskButton` walks the group for a `<button>` whose text is one of *this plugin's*
+task names. `FindEntitiesByTextContent` shipped the loose version - exclude a group whose
+header row holds a button - and **Stash puts its own Enable/Disable button in the plugin
+group's header row**, so the guard excluded the one page the decoration is for. Nothing on
+that plugin's settings page was ever formatted, and a user reading the page is what caught
+it.
+
+That is the same mistake as the `.delete` class and the inert `row-gap`, in a third place:
+**a structural test standing in for the thing it means**. "Has a button" was a proxy for "is
+the Tasks page", and the proxy was false on the page it was protecting. Where the real
+feature is a string the plugin owns, match the string.
+
+**And it went unnoticed because nothing drove that tick.** `tests/style.test.js` pins the
+CSS those rules are written in; no suite asked whether the group is ever found, so a plugin
+could carry a perfect stylesheet, pass everything, and decorate nothing.
+`tests/settings-page.test.js` is that suite now: both group shapes, every plugin, one line
+per plugin to add a new one. **Add the line when you add the plugin** - it is the only check
+in the repo that looks at the page a user reads before installing anything.
+
+It found a second thing on the way: the harness's fake element had no `querySelectorAll`, so
+a plugin reaching for `node.querySelectorAll('.setting')` threw on every settings tick with
+every suite still green. A fixture is only worth what it is driven by.
+
 ## Ask the schema rather than guessing a field name
 
 Every "Reference:" section above exists because a plugin here guessed something about

@@ -111,7 +111,53 @@ site data, throws on the accessor itself.
 and is the one thing a number box can be asked to do that is not about the future. It is on
 the box's own tooltip, because nothing about a "0" says so.
 
-## 9. The head does not tell anyone to back up
+## 9. No settings at all, and what that costs
+
+Every choice this plugin offers is made inside the dialog, where the user already is and
+where it is answered on the spot. The one setting it had was the console switch every
+sibling carries, and here it duplicated Copy log - which hands over the same lines plus
+every result - on a page whose whole point is a list you are looking at.
+
+Two consequences, and both are load-bearing rather than incidental:
+
+- **Stash still renders a group, a heading and a description.** That description is the
+  first thing anyone reads before installing, so the *description* half of the shared
+  settings design is required here in full. Only the per-**setting** tooltip is not, and
+  `tests/style.test.js`'s `settings: false` flag is checked in both directions so the flag
+  records the absence rather than excusing a drift.
+- **There is no `plugin-<id>-<key>` id to anchor on.** Every sibling with settings finds
+  its group through those ids - ours by construction - and keeps a heading match only as a
+  fallback. This plugin has the fallback promoted to the only route, which is the one
+  anchor in the repo with nothing behind it. `CustomFieldsBulkEditor` was in this position
+  before its 0.7.0 and its notes say the same thing.
+
+## 10. The settings anchor, and the guard that excluded the page it was written for
+
+Worth writing down at length because it is the exact shape of mistake this repo keeps
+making, and this time it was caught by a user looking at the page rather than by anything
+here.
+
+The anchor has to tell two groups apart that are both headed with the plugin's name:
+Settings → **Plugins**, which is ours to decorate, and Settings → **Tasks**, which is not -
+decorating that one puts a README link and a split description on a page that never had
+either, and destroys the task button, because the link's slot is picked by structure and
+there that slot is inside the button.
+
+The guard shipped as *"exclude a group whose header row holds a button"*. **Stash puts its
+own Enable/Disable button in the plugin group's header row**, so the guard excluded
+Settings → Plugins and nothing on this plugin's settings page was ever formatted.
+
+The older plugins had it right and the reason is one word: they test by the task's
+**caption**, not by "is there a button". `hasOwnTaskButton` walks the group for a `<button>`
+whose text is one of *our own* task names. A button that is not ours says nothing about
+which page this is.
+
+**The general lesson is the one the button-placement note already states in another
+context: a structural test has to name the thing it means.** "Has a button" was a proxy for
+"is the Tasks page", and the proxy was false on the very page it was protecting. Where the
+real distinguishing feature is a string this plugin owns, use the string.
+
+## 11. The head does not tell anyone to back up
 
 Nothing here writes, so the standing sentence would be false. The head says where the results
 go instead — the `TagBundleClipboard` shape, and the shared rule is explicitly about dialogs
@@ -120,7 +166,7 @@ that *write*.
 The consequence is that the run's own warnings need a slot, and they take the amber `.warn`
 one the backup sentence would have occupied. Same swap `TagBundleClipboard` makes.
 
-## 10. Search is refused rather than silently doing nothing
+## 12. Search is refused rather than silently doing nothing
 
 An empty box "does nothing", per the brief — and a button that does nothing when pressed
 teaches nobody anything, so it is disabled with a title saying which half is missing. Same
@@ -142,9 +188,10 @@ this list is empty.
   a *missing* one — a text field this plugin never thought to look in — is invisible.
 - **How long a real search takes**, and therefore whether `RESULT_BUFFER` at 200 and
   `READ_PAGE` at 500 are the right numbers.
-- **The settings page decoration**, which depends on Stash's own `.setting-group` /
-  `.setting` / `.sub-heading` markup — including `ownParts`' refusal to decorate a group
-  whose header row holds a button, which is how Settings → Tasks is told apart from
-  Settings → Plugins here.
+- **The settings page decoration.** `tests/settings-page.test.js` now drives it against
+  both group shapes for every plugin here, so the *logic* is covered; what stays unverified
+  is whether those fixtures match the markup Stash actually renders. The Disable button in
+  the plugin group's header row is the newest claim in them and the one this plugin got
+  wrong.
 - **`<select>` and `<input type="number">` inside the dialog**, which no other plugin in this
   repo puts there and which Stash's own CSS may style.

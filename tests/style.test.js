@@ -16,8 +16,8 @@ const h = require('./npt-harness');
 // `settings: false` is not an exemption granted to a plugin that skimped: it says the
 // plugin declares no `settings:` at all, so Stash renders no *setting rows* for it -
 // no per-setting tooltip to open, no toggle to colour. Those rules would be dead CSS
-// naming ids that never exist. All four carry settings since
-// `CustomFieldsBulkEditor` 0.7.0, so nothing sets it to false today.
+// naming ids that never exist. `FindEntitiesByTextContent` is the plugin the flag was kept
+// for: every choice it offers is made inside its dialog.
 //
 // It does still get a group, a heading and a **description**, which is the first thing
 // a user reads before installing anything, so the description half of the shared design
@@ -48,10 +48,13 @@ const PLUGINS = [
   // The image switch and the two match limits keep Stash's blue - they choose what a scan
   // *covers*, not what anything does on its own.
   { name: 'EntityNameMaintainer', prefix: 'enm', decl: 'var CSS =', settings: true, toggles: true },
-  // One setting, and it is the console switch, so it is the teal one. Nothing in this
-  // plugin writes - which is also why its *task* button is teal rather than amber, the
-  // first time the repo-root rule's read-only half has had a plugin to apply to.
-  { name: 'FindEntitiesByTextContent', prefix: 'fetc', decl: 'var CSS =', settings: true, toggles: true },
+  // The first plugin since CustomFieldsBulkEditor 0.7.0 to set `settings: false`, and the
+  // reason the flag was kept: it declares none, so it styles no setting rows and colours
+  // no toggle - the inverse check below is what holds it to that. It still has a group, a
+  // heading and a description, so the description half is required of it like everyone
+  // else's. Nothing in it writes, which is also why its *task* button is teal rather than
+  // amber - the first time the repo-root rule's read-only half has had a plugin to apply to.
+  { name: 'FindEntitiesByTextContent', prefix: 'fetc', decl: 'var CSS =', settings: false, toggles: false },
 ];
 
 // The CSS is a run of single-quoted fragments joined with +. Pull the block out,
@@ -130,9 +133,7 @@ parsed.forEach((p) => {
 
 // A plugin with no settings must not carry the per-setting rules either: a stylesheet
 // that styles rows Stash never renders is dead weight nobody would notice, and the
-// flag above would then be hiding a real drift rather than a real absence. No plugin
-// here qualifies since CustomFieldsBulkEditor 0.7.0 - it is kept for the next one that
-// ships without settings, which is a shape this repo has had twice.
+// flag above would then be hiding a real drift rather than a real absence.
 parsed.filter((p) => !p.plugin.settings).forEach((p) => {
   h.check(p.plugin.name + ' declares no settings and styles no setting rows',
     SETTING_TIPS.every((s) => !Object.prototype.hasOwnProperty.call(p.rules, s)) &&

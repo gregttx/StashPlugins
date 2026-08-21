@@ -97,10 +97,11 @@ Pause.
 Turning off the types you do not need is the way to make it quick — which is why they all
 start off.
 
-## Settings
+## No settings
 
-- **Log to the Browser Console** — print the dialog's messages under the `[fetc]` prefix as
-  well. The results themselves are not printed: a search can match thousands of entities.
+There are none, on purpose. Every choice this plugin offers — what to look for, which types
+to read, what to remember — is made inside the dialog, where you already are. Its group on
+the settings page carries the description and nothing else.
 
 ## Installing
 

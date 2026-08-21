@@ -151,6 +151,20 @@ function makeElement(tag) {
         return true;
       })[0] || null;
     },
+    // The same matcher, all of them. A real element has this and the fake one did not,
+    // which is how a plugin reaching for `node.querySelectorAll('.setting')` could throw
+    // on every settings tick with every suite still green - nothing drove that tick.
+    querySelectorAll(sel) {
+      const s2 = String(sel);
+      const dot2 = s2.indexOf('.');
+      const tag2 = dot2 === -1 ? s2 : s2.slice(0, dot2);
+      const cls2 = dot2 === -1 ? null : s2.slice(dot2 + 1);
+      return this.descendants().filter((n) => {
+        if (tag2 && n.tagName !== tag2.toUpperCase()) return false;
+        if (cls2 && !hasClass(n, cls2)) return false;
+        return true;
+      });
+    },
     closest(sel) {
       const want = String(sel).toUpperCase();
       let n = this;

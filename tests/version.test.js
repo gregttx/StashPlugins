@@ -29,7 +29,9 @@ const SETTING_TABLE = {
   TagBundleClipboard: 'var DEFAULTS = {',
   SceneVariants: 'var DEFAULTS = {',
   EntityNameMaintainer: 'var DEFAULTS = {',
-  FindEntitiesByTextContent: 'var DEFAULTS = {',
+  // `null`, not a table name: this plugin declares no settings at all, so there is
+  // nothing for a table to mirror. Checked as an absence rather than skipped - see below.
+  FindEntitiesByTextContent: null,
 };
 
 const read = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8');
@@ -138,14 +140,28 @@ PLUGINS.forEach((name) => {
   // stale caption there is worse than a stale one in the README.
   const settings = settingsBlock(read(name, name + '.yml'));
   const settingKeys = Object.keys(settings);
-  h.check(name + ' declares at least one setting', settingKeys.length > 0);
+  const src = read(name, name + '.js');
+
+  // A plugin with no settings is a shape this repo has had three times, and the entry
+  // above is what says which one this is. Held to it in both directions, so the null
+  // records an absence rather than excusing a plugin that quietly stopped reading its own
+  // settings table: no `settings:` in the yml, and no table in the script either.
+  if (!SETTING_TABLE[name]) {
+    h.check(name + ' declares no settings in its yml', settingKeys.length === 0,
+      settingKeys.join(','));
+    h.check(name + ' has no settings table in its script either',
+      src.indexOf('var DEFAULTS = {') === -1);
+  } else {
+    h.check(name + ' declares at least one setting', settingKeys.length > 0);
+  }
 
   // The yml and the script's own table are the same list, in both directions.
-  const src = read(name, name + '.js');
-  const tableAt = src.indexOf(SETTING_TABLE[name]);
+  const tableAt = SETTING_TABLE[name] ? src.indexOf(SETTING_TABLE[name]) : -1;
   const tableEnd = tableAt === -1 ? -1 : src.indexOf('\n  };', tableAt);
   const table = tableAt === -1 || tableEnd === -1 ? '' : src.slice(tableAt, tableEnd);
-  h.check(name + ' has a settings table in its script', !!table, SETTING_TABLE[name]);
+  if (SETTING_TABLE[name]) {
+    h.check(name + ' has a settings table in its script', !!table, SETTING_TABLE[name]);
+  }
   const tableKeys = (table.match(/^\s{4}([A-Za-z0-9_]+):/gm) || [])
     .map((m) => m.trim().replace(':', ''));
   settingKeys.forEach((k) => h.check(name + ' reads its yml setting ' + k,

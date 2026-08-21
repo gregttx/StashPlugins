@@ -211,6 +211,20 @@ Rules that make this safe:
   relationship copy) and registers no `order` priority (the rename is the trigger; there is
   no button). Those two absences are the rule being followed, and its suite pins them.
 
+- **A plugin can be on neither side, and the absence is four things rather than three.**
+  `FindEntitiesByTextContent` reads the library and writes nothing at all: no lease (there
+  is no bulk write to announce), no `respecters` entry (it reacts to nothing), no `declares`
+  entry (it performs no relationship copy) and no `order` priority (its only control is a
+  task button). `TagBundleClipboard` is the other plugin in this shape. It does **note** a
+  foreign lease in its head, which is not standing down: a bulk run is rewriting the entities
+  being read, so a result may be a moment behind, and saying so costs a line where refusing
+  to search would be absurd.
+
+  **It also calls `coop()` at load with nothing to register**, which is the one line this
+  shape needs and would not otherwise have. Every other plugin brings the shared object into
+  its full shape as a side effect of the entry it *does* make; a plugin that loads first and
+  leaves `leases` undefined is one the next plugin's `coop()` has to repair.
+
 - **A bulk-only plugin takes leases and registers no `respecters` entry.**
   `CustomFieldsBulkEditor` is the first of those: it never reacts to a save, so it has nothing to
   stand down. Registering anyway would be a claim a sibling's dialog repeats to the user ("it will
@@ -555,6 +569,14 @@ is the storage key**, so renaming a setting drops its colour silently along with
 renaming one drops; `tests/style.test.js` checks every such selector against the plugin's own `.yml`.
 It deliberately does *not* pin *which* settings are coloured — that is a judgement per plugin, and
 pinning the list would make every new setting an edit in two files for no gain.
+
+**The teal half of the rule finally has a plugin.** Every plugin here wrote something, so
+`btn-info` had never been used for anything but a settings toggle -
+`FindEntitiesByTextContent` is the first whose *task button* is teal, because no path in it
+issues a mutation. Its filter toggles are amber anyway, at the user's ask, and that is the
+other job the colour does: marking a control as ours rather than Stash's. Keep the two
+reasons in separate constants where a plugin uses both - `PLUGIN_BTN_VARIANT` and
+`FILTER_ON_VARIANT` - or the next reader will read one as a mistake.
 
 **Marking everything would mark nothing.** Only the settings that write on their own are amber. The
 entity toggles, the path toggles and the exclusion filters all stay Stash's blue, because they

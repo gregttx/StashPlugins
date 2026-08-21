@@ -48,6 +48,10 @@ const PLUGINS = [
   // The image switch and the two match limits keep Stash's blue - they choose what a scan
   // *covers*, not what anything does on its own.
   { name: 'EntityNameMaintainer', prefix: 'enm', decl: 'var CSS =', settings: true, toggles: true },
+  // One setting, and it is the console switch, so it is the teal one. Nothing in this
+  // plugin writes - which is also why its *task* button is teal rather than amber, the
+  // first time the repo-root rule's read-only half has had a plugin to apply to.
+  { name: 'FindEntitiesByTextContent', prefix: 'fetc', decl: 'var CSS =', settings: true, toggles: true },
 ];
 
 // The CSS is a run of single-quoted fragments joined with +. Pull the block out,

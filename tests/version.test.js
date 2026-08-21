@@ -15,7 +15,7 @@ const h = require('./npt-harness');
 
 const PLUGINS = ['NormalizeParentTags', 'MergePerformerTagsToScenes',
   'PropagateTagsAndPerformers', 'CustomFieldsBulkEditor', 'TagBundleClipboard',
-  'SceneVariants', 'EntityNameMaintainer'];
+  'SceneVariants', 'EntityNameMaintainer', 'FindEntitiesByTextContent'];
 
 // The script-side table each plugin's settings are read through. Every plugin has
 // exactly one, and a key in the yml that is missing from it is a setting the plugin
@@ -29,6 +29,7 @@ const SETTING_TABLE = {
   TagBundleClipboard: 'var DEFAULTS = {',
   SceneVariants: 'var DEFAULTS = {',
   EntityNameMaintainer: 'var DEFAULTS = {',
+  FindEntitiesByTextContent: 'var DEFAULTS = {',
 };
 
 const read = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8');

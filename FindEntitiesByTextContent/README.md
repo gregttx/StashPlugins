@@ -1,0 +1,122 @@
+# ᝯㄝₓ Find Entities by Text Content
+
+Which entities in your library mention this text?
+
+Stash cannot be asked. It will filter a scene list on a scene's own `details`, and a
+performer list on a performer's own `details`, and nothing at all on whichever custom fields
+an entity happens to carry. This plugin is that one question, with one box to type it into.
+
+Requires Stash 0.31.0 or newer.
+
+## Using it
+
+**Settings → Tasks → Plugin Tasks → Find Entities by Text Content...**
+
+Type what to look for, turn on the entity types you want searched — they all start **off**,
+so nothing is read until you say so — and press **Search**.
+
+It looks in every text field of every type you turned on:
+
+| Type | Fields |
+|---|---|
+| Scene | title, code, details, director, URLs, custom field names and values |
+| Image | title, code, details, photographer, URLs, custom field names and values |
+| Gallery | title, code, details, photographer, URLs, custom field names and values |
+| Performer | name, disambiguation, aliases, details, URLs, tattoos, piercings, measurements, career length, custom field names and values |
+| Studio | name, aliases, details, URLs, custom field names and values |
+| Group | name, aliases, synopsis, director, URLs, custom field names and values |
+| Tag | name, aliases, description, custom field names and values |
+
+Which of those your Stash actually has is settled by asking it, once per search, rather than
+assumed — a field this plugin looks for and your server does not have is skipped instead of
+failing the whole search.
+
+Scene markers are not searched: a marker carries a title and no page of its own to open.
+
+## The results
+
+One line per entity that matched, reading: the entity with its id in brackets, then which
+attributes matched and how many times each, then the text around the first match with the
+match marked.
+
+```
+Beach day (1)      Scene · Title, Details ×2, URLs, Custom field value   …Beach day…
+Sandy (7)          Performer · Details                                   Likes the BEACH
+Outdoors (3)       Tag · Aliases, Custom field name                      beachy
+```
+
+Click one to open it in a new tab. Counters and a cycling cursor across the top say how far
+it has read and that it is still going.
+
+## Pausing, and the list on screen
+
+- **Search** becomes **Pause** while it runs and **Resume** after, so a long search can be
+  stopped and picked up rather than started again. Resume carries on from the page it
+  stopped at; nothing is read twice.
+- When the list on screen is full it **pauses itself** and the button reads **Continue**,
+  which clears the screen and carries on.
+- **Copy log** hands over the counters, the messages and **every** result as plain text —
+  including the ones the screen no longer shows.
+- **Refresh** throws the results away and searches again with whatever the box now says.
+- **Cancel**, or the Escape key, closes it.
+
+## Remembering
+
+Two things the dialog can keep, both off until you ask for them, and both in **this browser**
+rather than on the server:
+
+- **Remember filters** — the entity types you turned on come back the next time it is opened.
+- **Recent searches kept** — how many previous searches to offer in the pulldown beside the
+  box. Setting it to **zero** keeps none, and is also what throws away the ones already kept.
+
+Neither is a plugin setting, and neither writes anything: they live in the browser's own
+storage. A private window, or a browser set to block site data, simply remembers nothing.
+
+## Nothing is written
+
+This is a read of your library and a list of links. There is no undo because there is nothing
+to undo, and the dialog says so where a writing one would tell you to back up first. It takes
+no bulk lease and stands down for nobody — though it does note in its head when another ᝯㄝₓ
+plugin is rewriting the library while you search, since a result may then be a moment behind.
+
+## Matching
+
+A plain case-insensitive substring. A short word matches inside longer ones — "sea" inside
+"season" — which is why the text around every result is on the line: so you can see which it
+was.
+
+## Why it reads everything
+
+There is no server-side filter that can answer "does any text field of any type contain this
+string". Each type's filter names its own fields, so a query would have to be built per type
+and OR-ed across fields; and custom fields can only be filtered by naming the key up front,
+with no way to ask for whichever keys an entity happens to carry. So the rows come back and
+the matching happens in the browser, one page of one type at a time, with counters and a
+Pause.
+
+Turning off the types you do not need is the way to make it quick — which is why they all
+start off.
+
+## Settings
+
+- **Log to the Browser Console** — print the dialog's messages under the `[fetc]` prefix as
+  well. The results themselves are not printed: a search can match thousands of entities.
+
+## Installing
+
+Copy the `FindEntitiesByTextContent` folder into your Stash plugins directory
+(`<stash-config-dir>/plugins/`) and press **Reload plugins** in Settings → Plugins.
+
+## Troubleshooting
+
+**The task button does nothing.** The click is handled in the browser — there is no
+server-side job behind it. If Stash instead shows an "added job to queue" toast, the page is
+running a script that does not recognise the button; reload with Ctrl+Shift+R.
+
+**A red banner says the page is running an older script.** Stash serves plugin JS with
+caching on, so the browser can still be running the file it fetched before the update. Press
+Ctrl+Shift+R (⌘+Shift+R on a Mac).
+
+**A type is skipped with a warning.** Your Stash has none of the text fields this plugin
+looks for on that type. That is the introspection check doing its job rather than a failure;
+the other types are searched normally.

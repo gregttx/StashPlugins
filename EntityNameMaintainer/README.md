@@ -38,6 +38,10 @@ One line per occurrence, reading: the entity it is in with its id in brackets, t
 attribute — numbered where that attribute holds more than one — and the text around the
 match, with the match itself marked.
 
+The listing and the messages share one box and read in the order things happened — the line
+saying what is being looked for, then the occurrences, then whatever the run had to say
+afterwards.
+
 - **Tick** — every line starts ticked. Untick one to leave that occurrence alone.
 - **Click the entity** — opens it in a new tab.
 - **Filters** — one row of toggles for the entity types found and one for the attribute

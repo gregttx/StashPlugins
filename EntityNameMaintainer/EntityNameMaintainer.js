@@ -44,7 +44,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.5';
+  var PLUGIN_VERSION = '0.0.6';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1335,8 +1335,12 @@
   Run.prototype.renderHits = function () {
     var self = this;
     if (!this.listEl) {
+      // Appended, not put first: the log reads in the order things happened, so the line
+      // saying what is being looked for stays above the hits and whatever the scan has to
+      // say afterwards stays below them.
       this.listEl = el('div', 'enm-hits');
-      this.logEl.insertBefore(this.listEl, this.logEl.firstChild);
+      this.logEl.appendChild(this.listEl);
+      if (this.spinEl) this.logEl.appendChild(this.spinEl);   // the cursor stays last
     }
     this.listEl.textContent = '';
     this.hits.forEach(function (h) {

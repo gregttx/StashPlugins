@@ -413,6 +413,34 @@ const filterBtns = (env) => env.body.descendants()
 
 // ── Proceeding, and taking it back ──────────────────────────────────────────
 
+// ── The order the log reads in ──────────────────────────────────────────────
+
+(function order() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    dlg(env).button('Proceed').click();
+    return h.flush(200);
+  }).then(() => {
+    // The hit list and the messages share one box and one scrollbar, so the box has to
+    // read in the order things happened. It shipped the other way round - the list
+    // inserted at the top, pushing every message below it - so the first line written
+    // ended up last on the page, where a reader takes it for the newest.
+    const blocks = env.body.descendants()
+      .filter((n) => h.hasClass(n, 'enm-line') || h.hasClass(n, 'enm-hits'));
+    const first = blocks[0];
+    h.check('the line saying what is being looked for comes first',
+      !!first && h.hasClass(first, 'enm-line') && /Looking for "Jane Doe"/.test(first.textContent),
+      first ? first.textContent.slice(0, 60) : '(nothing)');
+    const listAt = blocks.findIndex((n) => h.hasClass(n, 'enm-hits'));
+    h.check('then the hits', listAt > 0 && rows(env).length > 0, String(listAt));
+    h.check('and the messages the run had afterwards come after them',
+      blocks.slice(listAt + 1).some((n) => /Done:/.test(n.textContent)),
+      blocks.map((n) => n.textContent.slice(0, 25)).join(' | '));
+  });
+}());
+
 (function writeAndUndo() {
   const lib = library();
   lib.performers[0].name = OLD;
@@ -451,9 +479,15 @@ const filterBtns = (env) => env.body.descendants()
     h.check('a match in different case is replaced with the name as typed',
       tag.input.description === 'about Jane Doe Jr', tag.input.description);
 
-    h.check('nothing is written for an unticked line',
-      !env.writes.some((w) => !w.undo && w.input.id === '8'),
-      JSON.stringify(env.writes.map((w) => w.input.id)));
+    // Performer 8 is the substring footgun and also has a real mention in an alias, so
+    // it is written - but the unticked line is not. A per-occurrence tick is what that
+    // distinction is for, and an entity-level assertion would not see it.
+    const doel = env.writes.filter((w) => !w.undo && w.input.id === '8')[0];
+    h.check('an unticked line is left alone even where the entity is written',
+      !!doel && doel.input.name === undefined, JSON.stringify(doel && doel.input));
+    h.check('while the ticked line in the same entity is replaced',
+      !!doel && doel.input.alias_list[0] === 'Jane Doe Jr (uk)',
+      JSON.stringify(doel && doel.input));
 
     const d = dlg(env);
     h.check('the write button becomes Undo', !!d.button('Undo') && !d.button('Proceed'));
@@ -697,4 +731,9 @@ const filterBtns = (env) => env.body.descendants()
 
 // Every case above is a promise chain started at load; the suite's own result is only
 // known once they have all settled.
-h.flush(400).then(() => h.finish());
+//
+// The number is a tick count, not a duration, and it has to cover the *longest* chain
+// here rather than a typical one - `h.finish` exits the process, so a case still in
+// flight is silently dropped and the run reports every check that did manage to run as
+// a pass. The write-and-undo case is the long one: a rename, a Proceed and an Undo.
+h.flush(900).then(() => h.finish());

@@ -307,7 +307,19 @@ A type this Stash has none of the searched fields on is dropped from the breakdo
 than left at zero, where it would read as a type still to come; the log line is what says it
 was skipped.
 
-## 17. Two limits, and only one of them refuses
+## 17. The listing reads in the order things happened
+
+The listing and the messages share one box and one scrollbar. The list block was being
+*inserted at the top*, which pushed every message below it - so the first line written, the
+one saying what is being looked for, ended up last on the page, where a reader takes it for
+the newest. It is appended now, and the cursor is moved back under it, since the cursor's
+whole job is to be the last thing in the box.
+
+The same mistake was in `FindEntitiesByTextContent` and was fixed there first. **Two plugins
+whose dialogs are one design will have one bug twice** - which is the argument for looking at
+the sibling when a report names either.
+
+## 18. Two limits, and only one of them refuses
 
 `b1WarnAbove` adds a proceed-with-caution note and changes nothing else. `c1StopAbove` ends
 the scan and disables Proceed.
@@ -322,7 +334,7 @@ The stop limit ends the scan rather than merely disabling the button, because th
 point reading another hundred thousand rows for a listing nobody can act on. Copy log and
 the listing still work, so the user can see what it found.
 
-## 18. One button for Proceed and Undo
+## 19. One button for Proceed and Undo
 
 The brief writes it `[Proceed/Undo]`, and the two never overlap: after a write the listing
 describes a library this dialog has already changed, so offering Proceed over it would write
@@ -335,12 +347,12 @@ user's explicit request, which is the one place here that does not follow from t
 change nothing in the library). The rule is about telling a plugin's controls from Stash's,
 and these are unambiguously ours.
 
-## 19. The head carries the backup sentence
+## 20. The head carries the backup sentence
 
 This dialog writes, so it carries the standing sentence in the shared wording, unedited. The
 `TagBundleClipboard` waiver is for dialogs that issue no mutation at all, which this is not.
 
-## 20. Scene markers are not covered
+## 21. Scene markers are not covered
 
 A marker carries a `title` and no page of its own to be renamed from, so there is no rename
 for the watcher to see. Adding markers to the *scan* alone would mean listing occurrences in

@@ -1178,6 +1178,19 @@ Tests cover the plugin's own logic and its assumptions about Stash's markup and 
 
 When fixing a bug, check the new test fails against the unfixed plugin before trusting it: `SRC=/path/to/old.js node tests/<suite>.test.js`.
 
+**A suite that ends `h.flush(n).then(h.finish)` decides, with `n`, how many of its cases get to
+run at all.** Most suites here chain their cases one after another and finish when the chain
+does; two (`enm`, `fetc`) start every case at load and let them interleave, which is faster to
+read and has one hazard: `h.finish` calls `process.exit`, so a case still in flight when the
+closing flush runs out is dropped **silently** — no error, no skip line, and the checks that did
+run are reported as a clean pass. `enm` was cutting two cases that way, and one of them was
+asserting something untrue about the plugin; nothing had failed because nothing had run.
+
+So `n` is sized for the *longest* chain in the file, not a typical one, and the way to check it
+is to multiply it and compare the number of checks — a count that goes up means cases were being
+dropped. `n` is a count of macrotask ticks rather than milliseconds, so a generous one costs a
+fraction of a second and nothing else.
+
 ## Finding your own settings group: name the thing, and test that you found it
 
 Every plugin here decorates its own group in Settings → Plugins - the description split, the

@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-21 |  | 0.0.3 (`16ee35d`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.3: it can be asked what it did, and Reload plugins takes effect |
 | 2026-08-21 |  | 0.0.2 (`76fc8c9`) | 0.0.4 (`76fc8c9`) |  |  |  |  |  | EntityNameMaintainer 0.0.2 / FindEntitiesByTextContent 0.0.4: the rename hook fires whether or not a sibling reacted, and All On/All Off go dead with nothing to act on |
 | 2026-08-21 |  |  | 0.0.3 (`c22f6dd`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.3: Refresh means something, the counters count toward something, and the log reads in order |
 | 2026-08-21 |  |  | 0.0.2 (`b6f06bb`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.2: its settings group is found again, and it has no settings |

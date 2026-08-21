@@ -8,5 +8,6 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.0.3 (`16ee35d`) | 2026-08-21 | EntityNameMaintainer 0.0.3: it can be asked what it did, and Reload plugins takes effect |
 | 0.0.2 (`76fc8c9`) | 2026-08-21 | EntityNameMaintainer 0.0.2 / FindEntitiesByTextContent 0.0.4: the rename hook fires whether or not a sibling reacted, and All On/All Off go dead with nothing to act on |
 | 0.0.1 (`82878d1`) | 2026-08-21 | EntityNameMaintainer 0.0.1: a rename offers to fix every text that named the old name |

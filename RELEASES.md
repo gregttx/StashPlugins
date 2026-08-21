@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-21 |  |  | 0.0.2 (`b6f06bb`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.2: its settings group is found again, and it has no settings |
 | 2026-08-21 |  |  | 0.0.1 (`d8440f7`) |  |  |  |  |  | FindEntitiesByTextContent 0.0.1: one box that asks which entities mention this text |
 | 2026-08-21 |  | 0.0.1 (`82878d1`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.1: a rename offers to fix every text that named the old name |
 | 2026-08-21 |  |  |  |  |  |  | 0.4.0 (`147f0d7`) |  | SceneVariants 0.4.0: a row's hover text says how that variant differs |

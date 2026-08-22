@@ -14,6 +14,31 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.8.3 makes Undo take the *list* back, not only the library.** Reported live: after applying a
+rename and pressing Undo, the pane still named the field the new way and had no description under
+it. Both halves of the write were correct - the entities went back to the old key and the store went
+back to the description it held - and neither of them touches what this dialog *shows*. The name was
+moved through `fields`, `names`, `orphans` and `sel` when the rename was staged, and nothing moved
+it back.
+
+**`moveName(from, to, withDesc)` is that move, extracted, and the flag is the whole reason it needed
+extracting.** Staging moves the description with the name and leaves `base` alone, so the diff reads
+as the old description going and the new one arriving. Undo must *not*, because it has already
+rebuilt `desc` **and** `base` from the store it put back, which is keyed by the old name - moving
+again would file the description under a name it is already under, or under none. Two callers, one
+line different, and the difference is not a convenience.
+
+**And re-applying after an Undo needed the move forward again.** The rename stays staged after being
+taken back - which is right, and is what re-offers Apply - so `apply()` starts from a list on the
+*old* name. It moves it forward before building the diff and the store, or the description would be
+filed under the name the library is about to stop using. On a first apply that branch is a no-op,
+because staging has already done it.
+
+**The shape worth remembering: a staged change lives in two places, and only one of them is undone
+by reversing the write.** The library is put back by the mutation; the dialog's own view of it is
+not, and nothing will complain. Anything here that moves a name, a key or an id through this
+plugin's own maps has to be reversible the same way.
+
 **2.8.2 stops Apply being live on a dialog nobody has touched**, which is the same question from
 the other end. Two of `pending()`'s clauses were housekeeping that *rides along* with a write rather
 than a reason to make one:

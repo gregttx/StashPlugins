@@ -630,6 +630,46 @@ openDesc()
     });
   })
 
+  // Undo has to take the *list* back as well as the library: the write reverses what
+  // Stash holds, and nothing else was going to reverse what this dialog shows. Reported
+  // live - the pane still named the field the new way, with no description under it.
+  .then((env) => {
+    const undoBtn = one(env.body, 'cfbe-undo');
+    h.check('Undo is offered after a rename was applied',
+      !h.hasClass(undoBtn, 'cfbe-hidden'), undoBtn.className);
+    undoBtn.click();                       // arms
+    return press(env, 'cfbe-undo').then(() => {
+      const back = writes(env.calls).filter((c) => c.variables.input.custom_fields &&
+        c.variables.input.custom_fields.remove &&
+        c.variables.input.custom_fields.remove[0] === 'shade');
+      h.check('the field goes back to its old name on every entity', back.length === 3,
+        String(back.length));
+      h.check('the list names it the old way again',
+        names(env.body).some((n) => /colour/.test(n)) &&
+        !names(env.body).some((n) => /shade/.test(n)), names(env.body).join(' | '));
+      h.check('with its description under it, not lost with the new name',
+        names(env.body).some((n) => /^[•*] +colour/.test(n)) &&
+        one(env.body, 'cfbe-namebox').value === 'colour',
+        names(env.body).join(' | ') + ' / ' + one(env.body, 'cfbe-namebox').value);
+      h.check('and the carrier count comes back with it',
+        names(env.body).some((n) => /colour x3/.test(n)), names(env.body).join(' | '));
+      // The rename is still staged after being taken back, so Apply is offered again -
+      // and re-applying it has to move the list forward a second time, or the store
+      // would file the description under the name the library has just stopped using.
+      h.check('the rename is still staged, so Apply is offered again',
+        one(env.body, 'cfbe-apply').disabled === false);
+      return press(env, 'cfbe-apply').then(() => {
+        h.check('re-applying renames the field again',
+          names(env.body).some((n) => /shade x3/.test(n)) &&
+          !names(env.body).some((n) => /colour/.test(n)), names(env.body).join(' | '));
+        h.check('and the description is filed under the name the library now has',
+          !!sentStore(env.calls).descriptions.shade && !sentStore(env.calls).descriptions.colour,
+          JSON.stringify(sentStore(env.calls).descriptions));
+        return env;
+      });
+    });
+  })
+
   // ── A renamed hide field ─────────────────────────────────────────────────
   .then(() => openDesc({
     settings: { c1ExcludeFromAddListField: 'Hide_me' },

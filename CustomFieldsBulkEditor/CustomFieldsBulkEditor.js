@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.8.2';
+  var PLUGIN_VERSION = '2.8.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -3564,23 +3564,37 @@
     }
 
     // The list, without a rescan: nothing has been written, so moving the name in this
-    // dialog's own maps *is* the refresh. `base` is deliberately untouched - the diff
-    // then reads as the old description going and the new one arriving, which is exactly
-    // what the store has to end up holding.
+    // dialog's own maps *is* the refresh.
+    this.moveName(from, to, true);
+    this.pick(to);
+    this.syncApply();
+  };
+
+  // One field name moved through everything this dialog lists it in. `withDesc` is what
+  // the two callers differ on, and it is not a convenience:
+  //
+  //  - **Staging a rename** moves the description too, and leaves `base` alone - so the
+  //    diff reads as the old description going and the new one arriving, which is
+  //    exactly what the store has to end up holding.
+  //  - **Undoing one** must not, because `undo()` has already rebuilt `desc` *and* `base`
+  //    from the store it put back, which is keyed by the old name. Moving again would
+  //    file the description under a name it is already under, or under none.
+  //
+  // Getting that second half wrong is what left the left pane naming the field the way
+  // the reversed rename had, with no description under it.
+  DescRun.prototype.moveName = function (from, to, withDesc) {
     var move = function (bag) {
       if (bag && hasOwn(bag, from)) { bag[to] = bag[from]; delete bag[from]; }
     };
     move(this.fields);
-    move(this.desc);
+    if (withDesc) move(this.desc);
     var swap = function (list) {
       return (list || []).map(function (n) { return n === from ? to : n; });
     };
     this.names = swap(this.names);
     this.orphans = swap(this.orphans);
     this.storeOnly = swap(this.storeOnly);
-    this.sel = to;
-    this.pick(to);
-    this.syncApply();
+    if (this.sel === from) this.sel = to;
   };
 
   // Grow the box to whatever description was just loaded, so a long one is read without
@@ -3767,6 +3781,18 @@
   // the library through the same `runWrites` an Apply in the other dialog uses.
   DescRun.prototype.apply = function () {
     var self = this;
+    // An Undo puts the list back on the old name (see `undo`), so a re-apply of the same
+    // staged rename starts from there and has to move it forward again - *before* the
+    // diff and the store are built from `desc`, or the description would be filed under
+    // the name the library is about to stop using. On a first apply this is a no-op:
+    // staging already moved it.
+    var m = this.migration;
+    if (m && m.armed && !m.done && hasOwn(this.fields, m.from)) {
+      this.moveName(m.from, m.to, true);
+      // `moveName` moves the maps; the pane is drawn from them and has to be told.
+      // Staging goes through `renameField`, which redraws on its own.
+      if (this.sel != null) this.pick(this.sel); else this.renderNames();
+    }
     var changes = this.diff();
     if (!this.pending()) { this.msg('INFO', 'Nothing to change.'); return; }
 
@@ -3957,7 +3983,14 @@
           'to put its description back to. The tag itself is left in place - delete it ' +
           'by hand if it is not wanted.');
       }
-      return self.runMigration(true);
+      // Whether there is a rename to take back has to be read *before* `runMigration`
+      // clears it, and the list has to be moved back after - the write reverses what the
+      // library holds, and nothing else was going to reverse what this dialog shows.
+      var m = self.migration;
+      var reversing = !!(m && m.armed && m.done);
+      return self.runMigration(true).then(function () {
+        if (reversing) self.moveName(m.to, m.from, false);
+      });
     }, function (e) {
       lease.release();
       self.msg('ERROR', 'Undo failed: ' + (e && e.message ? e.message : String(e)));

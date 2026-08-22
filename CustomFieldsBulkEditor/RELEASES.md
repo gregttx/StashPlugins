@@ -8,8 +8,8 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 2.11.1 (`dc3f0b5`) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
-| 2.11.0 (`6712889`) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
+| [2.11.1](https://github.com/gregttx/StashPlugins/commit/dc3f0b5) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
+| [2.11.0](https://github.com/gregttx/StashPlugins/commit/6712889) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
 | [2.10.0](https://github.com/gregttx/StashPlugins/commit/cccd6be) | 2026-08-22 | CustomFieldsBulkEditor 2.10.0 / EntityNameMaintainer 0.1.0: descriptions are read and written through coop().api |
 | [2.9.0](https://github.com/gregttx/StashPlugins/commit/0b9205b) | 2026-08-22 | CustomFieldsBulkEditor 2.9.0: the description tooltip appears where Stash shows the field name |
 | [2.8.4](https://github.com/gregttx/StashPlugins/commit/bb28ff4) | 2026-08-22 | CustomFieldsBulkEditor 2.8.4: the detail tick stops throwing on every page |

@@ -8,8 +8,8 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 3.8.1 (`dc3f0b5`) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
-| 3.8.0 (`6712889`) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
+| [3.8.1](https://github.com/gregttx/StashPlugins/commit/dc3f0b5) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
+| [3.8.0](https://github.com/gregttx/StashPlugins/commit/6712889) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
 | [3.7.0](https://github.com/gregttx/StashPlugins/commit/e8c5914) | 2026-08-20 | MPTTS 3.7.0: the superseded notice reads PTP2RE's settings too |
 | [3.6.2](https://github.com/gregttx/StashPlugins/commit/15dc942) | 2026-08-20 | MPTTS 3.6.2: the superseded notice sits in the heading, after the name |
 | [3.6.1](https://github.com/gregttx/StashPlugins/commit/7d1ad93) | 2026-08-20 | MPTTS 3.6.1: the superseded notice moves to the heading line |

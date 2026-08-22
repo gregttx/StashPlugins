@@ -8,9 +8,10 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 4.8.1 (`dc3f0b5`) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
-| 4.8.0 (`6712889`) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
-| 4.7.1 (`34981ce`) | 2026-08-22 | NPT 4.7.1 / PTP2RE 3.13.2: the settings dialogs' Save waits for a change |
+| 4.8.2 (`033b1eb`) | 2026-08-22 | NPT 4.8.2 / PTP2RE 3.14.2: Escape cannot abandon a settings save in flight |
+| [4.8.1](https://github.com/gregttx/StashPlugins/commit/dc3f0b5) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
+| [4.8.0](https://github.com/gregttx/StashPlugins/commit/6712889) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
+| [4.7.1](https://github.com/gregttx/StashPlugins/commit/34981ce) | 2026-08-22 | NPT 4.7.1 / PTP2RE 3.13.2: the settings dialogs' Save waits for a change |
 | [4.7.0](https://github.com/gregttx/StashPlugins/commit/e3597ce) | 2026-08-22 | CustomFieldsBulkEditor 2.6.0 / NormalizeParentTags 4.7.0: three more boxes remember, and the descriptions pane reads Name then Description |
 | [4.6.6](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | 2026-08-20 | One grammatical load banner, in all five |
 | [4.6.5](https://github.com/gregttx/StashPlugins/commit/fb346a7) | 2026-08-19 | Release history out of all five plugin sources |

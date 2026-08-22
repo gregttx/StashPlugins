@@ -910,6 +910,10 @@ openDialog()
         renameOpt.className);
       h.check('and so is the select, since that is what shows while the list is shut',
         h.hasClass(modeSel, 'cfbe-bad'), modeSel.className);
+      h.check('but only that option - the other three are not marked',
+        modeSel.childNodes.filter((o) => o.value !== 'rename')
+          .every((o) => !h.hasClass(o, 'cfbe-bad')),
+        modeSel.childNodes.map((o) => o.value + ':' + o.className).join(' | '));
       h.check('Apply is blocked, with the reason in its title',
         one(env.body, 'cfbe-apply').disabled === true &&
         /needs one field name in scope/.test(one(env.body, 'cfbe-apply').title),
@@ -949,8 +953,11 @@ openDialog()
       h.check('changing the operation clears the select and unblocks Apply',
         !h.hasClass(modeSel, 'cfbe-bad') && one(env.body, 'cfbe-apply').disabled === false,
         modeSel.className + ' / ' + one(env.body, 'cfbe-apply').title);
-      h.check('while the option itself stays red, because it is still unavailable',
-        h.hasClass(renameOpt, 'cfbe-bad'), renameOpt.className);
+      // Red is about a selection that cannot be applied, not about an option nobody
+      // has chosen: that one is simply disabled, which the browser greys on its own.
+      h.check('and takes the red off the option too, leaving it merely disabled',
+        !h.hasClass(renameOpt, 'cfbe-bad') && renameOpt.disabled === true,
+        renameOpt.className);
 
       modeSel.value = 'rename';
       h.fire(modeSel, 'change');

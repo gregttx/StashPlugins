@@ -14,6 +14,9 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**The red on a bad mode is CSS this suite cannot check** - see 2.5.1 below; the harness has
+no style engine, so an option inheriting the select's colour is invisible to every check here.
+
 **2.5.0 gives the filter boxes a memory, and corrects 2.3.0's answer to a lost Rename.**
 
 **The history is a `<datalist>`, which is the whole feature.** No dropdown of ours to build, place,
@@ -55,6 +58,21 @@ same reason.
 own ERROR red. The `<option>` carries it as well as the select: a browser honours `color` on an
 option inside an open dropdown list, and the select is what is visible when the list is shut - the
 two together are what makes the mark visible in both states.
+
+**2.5.1 corrects both halves of that mark, from a live look.**
+
+**An option inherits the select's colour, so reddening the select reddened all four options.** The
+fix is a pair of rules rather than dropping the select's colour: `select.cfbe-bad option` puts the
+normal colour back, and `select.cfbe-bad option.cfbe-bad` - two classes deep, so it outranks the
+reset - is the one that stays red. Nothing in this repo's test suite can see it: the harness has no
+style engine, so a rule that cascades wrongly passes everything. The check that *is* there pins the
+class on one option and not the other three, which is the half a fixture can answer.
+
+**And red marks a selection that cannot be applied, not an option that is unavailable.** Both marks
+now carry the same condition (`rename && lost`), so picking another operation takes them both off
+and Rename goes back to the browser's own disabled grey. A second colour on a mode the user is not
+in is the list shouting about a choice nobody made; disabled already says everything that needs
+saying there.
 
 **2.4.0 renames a custom field from the descriptions dialog, and it is almost all reuse.**
 

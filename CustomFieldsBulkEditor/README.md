@@ -132,9 +132,10 @@ reverses both halves at once.
 
 **Rename** is offered only while everything in scope carries one field name, and anything that
 moves the scope can take that away — a filter, the type filter, a rescan over a library that has
-changed. When it does, **the operation is marked, never switched**: Rename goes red in the list and
-on the select, **Apply** is blocked with the reason in its tooltip, and an `[INFO]` line says it is
-not possible any more and why. Nothing changes what you had selected — filter the scope back down to
+changed. When it does, **the operation is marked, never switched**: while Rename is the one selected it goes
+red — on the select and on its own line in the list, and on nothing else — **Apply** is blocked with
+the reason in its tooltip, and an `[INFO]` line says it is not possible any more and why. Pick
+another operation and the red goes; Rename is then simply greyed out like any unavailable choice. Nothing changes what you had selected — filter the scope back down to
 one field name, or pick another operation. The line is said once on the way in, not once per
 keystroke.
 

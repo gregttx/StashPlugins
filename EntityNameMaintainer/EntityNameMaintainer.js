@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.8';
+  var PLUGIN_VERSION = '0.0.9';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -82,9 +82,9 @@
   var SPIN_FRAMES = ['▙', '▛', '▜', '▟'];
   var SPIN_MS = 125;           // one four-frame cycle at 2Hz
   // How long Close stays armed after the first press. Long enough to read the
-  // question, short enough that a user who has looked away does not come back to a
-  // button still waiting to close.
-  var CLOSE_CONFIRM_SECONDS = 3;
+  // question and to reach the button, short enough that a user who has looked away does
+  // not come back to one still waiting to close.
+  var CLOSE_CONFIRM_SECONDS = 5;
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);

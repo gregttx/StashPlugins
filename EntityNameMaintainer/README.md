@@ -59,7 +59,7 @@ afterwards.
 - **Copy log** — the counters, the whole listing and every message, as plain text.
 - **Close**, or the Escape key. While the listing holds occurrences *nothing has been done
   with yet*, the first press asks **Are you sure?** and counts down for a few seconds; a
-  second press within that closes. The scan runs off a rename that has already happened, so
+  second press within five seconds closes. The scan runs off a rename that has already happened, so
   a listing thrown away cannot be asked for again — press **Copy log** first if you want to
   keep it. It closes on the first press once there is nothing left to lose: nothing was
   found, or **Proceed** has run. An **Undo** puts the question back, since it puts the

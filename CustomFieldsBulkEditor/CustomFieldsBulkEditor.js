@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.5.0';
+  var PLUGIN_VERSION = '2.5.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -745,12 +745,17 @@
     // set their own background and colour, so the browser's own disabled look does not
     // show through.
     '.cfbe-input:disabled{opacity:.5;}' +
-    // A mode that cannot be applied over the scope as it now stands. The log's own
-    // ERROR red, on the option and on the select while that option is the one chosen -
-    // an `<option>` honours `color` in a dropdown list, and the select is what is
-    // visible when the list is shut.
+    // The mode currently chosen cannot be applied over the scope as it stands. The log's
+    // own ERROR red, on the select - which is what is visible while the list is shut -
+    // and on the one option it is about, which is what is visible while it is open.
+    //
+    // **An option inherits the select's colour**, so reddening the select reddens every
+    // option in the list with it. The middle rule puts them back; the marked one is two
+    // classes deep and outranks it. Without that pair, "mark Rename" marks all four.
     '.cfbe-bad{color:#ff7373;}' +
     'select.cfbe-bad{border-color:#ff7373;}' +
+    'select.cfbe-bad option{color:#f5f8fa;}' +
+    'select.cfbe-bad option.cfbe-bad{color:#ff7373;}' +
     // ── The manage-descriptions dialog ──────────────────────────────────────
     //
     // Two panes over one log. None of these selectors exists in a sibling, so
@@ -2366,9 +2371,14 @@
     var rename = this.modeSel.value === 'rename';
     this.renameName = this.renameFrom(rows);
     var lost = !this.renameName;
+    // **Red marks a selection that cannot be applied, not an option that is unavailable.**
+    // An unavailable option nobody has chosen is simply disabled, which the browser
+    // already greys - a second colour on it would be the list shouting about a mode the
+    // user is not in. So both marks carry the same condition, and picking another
+    // operation takes them both off.
     if (this.modeSel._opts && this.modeSel._opts.rename) {
       this.modeSel._opts.rename.disabled = lost;
-      paintBad(this.modeSel._opts.rename, lost);
+      paintBad(this.modeSel._opts.rename, rename && lost);
     }
     paintBad(this.modeSel, rename && lost);
     if (rename && lost && !this._renameLost) {

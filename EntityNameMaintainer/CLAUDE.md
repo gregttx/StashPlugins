@@ -7,7 +7,7 @@ argued.
 **0.0.7 puts a confirm on Close.** The listing is not reproducible: the scan runs off a rename
 that has already happened, and the old name is known only because the plugin watched it go. So
 Close - and the Escape key, which acts through it - arms and counts down rather than closing, and a
-second press within a few seconds closes. The tooltip is the user's own wording: *Some
+second press within five seconds closes. The tooltip is the user's own wording: *Some
 cross-references might be lost. Copy log just in case.*
 
 **Only over a listing nothing has been done with.** Two ways that is true and one way it is not.

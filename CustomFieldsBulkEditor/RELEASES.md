@@ -8,7 +8,8 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 2.8.1 (`3d8adb6`) | 2026-08-22 | CustomFieldsBulkEditor 2.8.1: Apply goes back to disabled once a rename has been written |
+| 2.8.2 (`2484566`) | 2026-08-22 | CustomFieldsBulkEditor 2.8.2: Apply is quiet until there is something a user would call a change |
+| [2.8.1](https://github.com/gregttx/StashPlugins/commit/3d8adb6) | 2026-08-22 | CustomFieldsBulkEditor 2.8.1: Apply goes back to disabled once a rename has been written |
 | [2.8.0](https://github.com/gregttx/StashPlugins/commit/06f51e6) | 2026-08-22 | PropagateTagsAndPerformers 3.13.1 / CustomFieldsBulkEditor 2.8.0 / FindEntitiesByTextContent 0.0.9: an empty box is empty again, Undo Rename, and the search box keeps its own history |
 | [2.7.0](https://github.com/gregttx/StashPlugins/commit/16a1bcf) | 2026-08-22 | CustomFieldsBulkEditor 2.7.0 / PropagateTagsAndPerformers 3.13.0: the descriptions reach the entity page, and the exclusion field has a default that documents itself |
 | [2.6.0](https://github.com/gregttx/StashPlugins/commit/e3597ce) | 2026-08-22 | CustomFieldsBulkEditor 2.6.0 / NormalizeParentTags 4.7.0: three more boxes remember, and the descriptions pane reads Name then Description |

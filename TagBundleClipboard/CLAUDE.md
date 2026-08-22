@@ -5,16 +5,10 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
-**Status: partly verified. 0.7.2.** Three live passes in, and most of the guesses held — §11 records
-what was confirmed and what it cost. It is still `0.x`: §10's list is shorter than it was and not
-empty, and the major digit is the claim that the whole thing works.
-
-**0.7.2 fixes the grammar of the load banner.** The line this plugin prints at load read "the
-running script own version": the pass that replaced its curly quotes and em dashes with ASCII
-took the `’s` with them, here and in three of the four siblings. `MergePerformerTagsToScenes`
-is the one it never touched, and that odd line out is what made the drift visible. All five now
-print `script\'s own version - ` from the same shape of string. Wording only; nothing executes
-differently.
+**Status: verified in use. 1.0.0.** Several live passes in, and the guesses that mattered held —
+§11 records what was confirmed and what it cost. The major digit is the claim that the whole thing
+works, and it is made on that use. §10's list is what remains unchecked by any test here; a Stash
+upgrade can still move any of it.
 
 | Step | | Version |
 | --- | --- | --- |
@@ -31,6 +25,7 @@ differently.
 | 11 | The two mode marks cut to one word each, for the room the column has | 0.6.1 |
 | 12 | The shared `domBus`, the heading fallback folded into `ownSettingGroup`, and two dead pieces removed | 0.7.0 |
 | 13 | The release history out of the source comments, pinned by `version.test.js` | 0.7.1 |
+| 14 | The paste dialog's head naming the entity by name as well as by id | 0.7.3 |
 
 Steps 1–4 landed in one pass, so they share a version rather than each taking a minor. The table is
 kept because it is the order the parts depend on each other in, which is what a second pass over

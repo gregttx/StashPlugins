@@ -8,7 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 1.2.0 (`7b3793e`) | 2026-08-22 | FETC 1.2.0 / ENM 1.3.0: lock the controls that steer a run for as long as it runs |
+| [1.2.0](https://github.com/gregttx/StashPlugins/commit/7b3793e) | 2026-08-22 | FETC 1.2.0 / ENM 1.3.0: lock the controls that steer a run for as long as it runs |
 | [1.1.1](https://github.com/gregttx/StashPlugins/commit/dc3f0b5) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
 | [1.1.0](https://github.com/gregttx/StashPlugins/commit/6712889) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
 | [1.0.0](https://github.com/gregttx/StashPlugins/commit/a5353a8) | 2026-08-22 | EntityNameMaintainer 1.0.1 / FindEntitiesByTextContent 1.0.0: a cancelled rename reloads the page it changed |

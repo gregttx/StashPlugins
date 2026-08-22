@@ -41,6 +41,7 @@ const SHORT = {
   TagBundleClipboard: 'TBC',
   EntityNameMaintainer: 'ENM',
   FindEntitiesByTextContent: 'FETC',
+  SceneVariants: 'SVR',
 };
 const short = (p) => SHORT[p] || p;
 

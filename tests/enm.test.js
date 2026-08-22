@@ -156,10 +156,21 @@ function makeEnv(opts) {
         const rows = req.variables.f.page === 1 ? (lib[node] || []) : [];
         return { data: { [scan[1]]: { count: (lib[node] || []).length, [node]: rows } } };
       }
-      const write = /mutation ENM_(Write|Undo)\(.*\{ (\w+)\(/.exec(q);
+      const write = /mutation ENM_(Write|Undo|Cancel)\(.*\{ (\w+)\(/.exec(q);
       if (write) {
-        writes.push({ undo: write[1] === 'Undo', mutation: write[2], input: req.variables.input });
+        writes.push({ undo: write[1] === 'Undo', cancel: write[1] === 'Cancel',
+          mutation: write[2], input: req.variables.input });
         if (opts.failWrite && opts.failWrite(req)) return { errors: [{ message: 'write boom' }] };
+        // A cancel is a real rename on the server, so the fixture applies it: a check
+        // that only read the request could not tell a write that landed from one that
+        // was sent.
+        if (write[1] === 'Cancel') {
+          const node = ONE['find' + write[2].replace(/Update$/, '').replace(/^./, (c) => c.toUpperCase())];
+          const row = (lib[node] || []).filter((e) => e.id === req.variables.input.id)[0];
+          if (row) ['name', 'title'].forEach((f) => {
+            if (typeof req.variables.input[f] === 'string') row[f] = req.variables.input[f];
+          });
+        }
         return { data: { [write[2]]: { id: req.variables.input.id } } };
       }
       // The rename itself, as Stash's own form posts it.
@@ -808,6 +819,92 @@ const filterBtns = (env) => env.body.descendants()
     h.check('the dialog still opens', dlg(env).open);
     h.check('and the plugin never cloned or read a response body',
       cloned === 0 && read === 0, 'cloned ' + cloned + ', read ' + read);
+  });
+}());
+
+// ── Cancel: taking back the rename itself ───────────────────────────────────
+//
+// The one control here that writes without a plan in front of it, because what it
+// writes is the reversal of what the user just typed. It is offered only while nothing
+// else has been written: after Proceed the rename is no longer the only thing that
+// would have to come back.
+
+(function cancel() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('Cancel is offered while nothing has been written', dlg(env).visible('Cancel'));
+    h.check('and says what it does, both halves of it',
+      /Revert Entity Rename and Close/.test(dlg(env).button('Cancel').title),
+      dlg(env).button('Cancel').title);
+    dlg(env).button('Cancel').click();
+    return h.flush(200);
+  }).then(() => {
+    const back = env.writes.filter((w) => w.cancel);
+    h.check('pressing it writes the old name back, once',
+      back.length === 1 && back[0].mutation === 'performerUpdate' &&
+        back[0].input.id === '7' && back[0].input.name === OLD,
+      JSON.stringify(back));
+    h.check('and the entity really carries it again, rather than the request merely going out',
+      env.lib.performers[0].name === OLD, env.lib.performers[0].name);
+    h.check('nothing else was written', env.writes.filter((w) => !w.cancel).length === 0,
+      JSON.stringify(env.writes));
+    h.check('and the dialog is gone', !dlg(env).open);
+  });
+}());
+
+// After Proceed it is withdrawn - putting the name back would leave every replacement
+// it caused pointing at it - and an Undo brings it back, the same fact `changes` already
+// decides the write button's caption with.
+(function cancelAfterProceed() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    dlg(env).button('Proceed').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('Cancel is withdrawn once something else has been written',
+      !dlg(env).visible('Cancel'));
+    dlg(env).button('Undo').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('and comes back when the run is taken back', dlg(env).visible('Cancel'));
+  });
+}());
+
+// The re-read every other write here makes: a name that moved again since the dialog
+// opened is not this dialog's to put back.
+(function cancelRenamedAgain() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    env.lib.performers[0].name = 'Someone Else';
+    dlg(env).button('Cancel').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('a name that moved again is not written over',
+      env.writes.filter((w) => w.cancel).length === 0, JSON.stringify(env.writes));
+    h.check('the dialog stays open and says why',
+      dlg(env).open && dlg(env).lines.some((l) => /not reverted.*Someone Else/.test(l)),
+      dlg(env).lines.join(' | '));
+  });
+}());
+
+// Escape reaches Close, never Cancel: a key press must not write to the library.
+(function escapeIsNotCancel() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    return h.flush(20);
+  }).then(() => {
+    h.check('Escape closes rather than reverting', !dlg(env).open &&
+      env.writes.filter((w) => w.cancel).length === 0, JSON.stringify(env.writes));
   });
 }());
 

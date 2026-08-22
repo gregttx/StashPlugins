@@ -65,6 +65,12 @@ afterwards.
   sentence.
 - **Proceed** — writes. Afterwards the same button reads **Undo** and puts back exactly what
   this dialog changed, while it stays open.
+- **Cancel** — takes back the rename itself: the entity goes back to the name it had when
+  the dialog opened, and the dialog closes. Nothing else is touched, because nothing else has
+  been. It is offered only while **Proceed** has not run — after that the rename is no longer
+  the only thing that would have to come back, and **Undo** is the control for that; an
+  **Undo** brings **Cancel** back. If the name has moved again in the meantime it is left
+  alone and the log says so. The Escape key never reaches this button.
 - **Copy log** — the counters, the whole listing and every message, as plain text.
 - **Close**, or the Escape key. While the listing holds occurrences *nothing has been done
   with yet*, the first press asks **Are you sure?** and counts down for a few seconds; a

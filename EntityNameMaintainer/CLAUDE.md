@@ -446,6 +446,29 @@ which entity this is about as it stands now, and the old name is what every line
 It costs no query, which is what separates this from the siblings' `scopeLabel`: the rename is
 the trigger, so both names are already in hand when the dialog is constructed.
 
+## 20c. Cancel takes back the rename, and only while it is the only write
+
+The dialog reacts to a rename that has **already landed**, so the user's own edit is the one
+write it cannot undo through `changes` - `changes` holds what *this dialog* wrote. Cancel is
+that missing half: one `<Type>Update` putting `nameField` back to `oldName`, then `close()`.
+
+Three decisions in it:
+
+- **Offered only while `changes` is empty.** After Proceed the replacements in the library
+  all point at the new name, and putting the name back alone would leave every one of them
+  wrong. `changes` is already the fact the write button's caption is decided by, and an Undo
+  empties it, so Cancel comes back with Proceed - one condition, no second flag.
+- **Amber, where every sibling's Cancel is grey.** Theirs abandon a plan; this one writes.
+  The repo's colour rule is about which controls change the library.
+- **Escape does not reach it.** `escapeButton` returns `closeBtn` only, which is where this
+  plugin's copy of that shared function differs from the other four. A key press that wrote
+  to the library would be a worse version of the thing the Close confirm exists to prevent.
+
+It re-reads the name immediately before writing, like every other write here: an entity
+renamed again since the dialog opened is not this dialog's to put back, and the log says so
+rather than the write going out. The read and the write both go through `gqlRequest`, so the
+watcher does not see its own reversal as a new rename.
+
 ## 21. Scene markers are not covered
 
 A marker carries a `title` and no page of its own to be renamed from, so there is no rename
@@ -454,8 +477,9 @@ a type that can never be the trigger — worth doing when there is a second way 
 
 ## Unverified in a live Stash
 
-Everything below is a guess the test suite cannot check. The major digit stays at 0 until
-this list is empty.
+Everything below is a guess the test suite cannot check. The plugin has been run in a live
+Stash, which is what the major digit says; these assumptions are the ones no test in this
+repo reaches, and a Stash upgrade can still move any of them.
 
 - **Which mutation Stash's edit form actually posts, and what it carries.** The watcher
   matches `<type>Update(` in the query and an `input` with an `id` and a name field. A form

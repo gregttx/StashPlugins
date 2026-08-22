@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.1.2';
+  var PLUGIN_VERSION = '1.0.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1010,6 +1010,12 @@
     // is no longer looking at.
     this.goBtn = button('Proceed', 'enm-go');
     this.goBtn.className = this.goBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    // Amber, where every sibling's Cancel is grey: theirs abandon a plan, and this one
+    // writes - it puts the entity's own name back. The colour rule is about which
+    // controls change the library, not about which word is on them.
+    this.cancelBtn = button('Cancel', 'enm-cancel');
+    this.cancelBtn.className = this.cancelBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    this.cancelBtn.title = 'Cancel entire operation. Revert Entity Rename and Close';
     this.closeBtn = button('Close', 'enm-close');
     this.copyBtn = button('Copy log', 'enm-copy');
     this.copyBtn.title = 'Copy the counters, the messages and every line of the listing as ' +
@@ -1023,12 +1029,13 @@
     });
 
     this.goBtn.addEventListener('click', function () { self.go(); });
+    this.cancelBtn.addEventListener('click', function () { self.cancelRename(); });
     this.closeBtn.addEventListener('click', function () { self.requestClose(); });
     this.copyBtn.addEventListener('click', function () { self.copyLog(); });
     this.allOnBtn.addEventListener('click', function () { self.setAllFilters(true); });
     this.allOffBtn.addEventListener('click', function () { self.setAllFilters(false); });
 
-    [this.goBtn, this.closeBtn, this.copyBtn].forEach(function (b) { foot.appendChild(b); });
+    [this.goBtn, this.cancelBtn, this.closeBtn, this.copyBtn].forEach(function (b) { foot.appendChild(b); });
     foot.appendChild(el('div', 'enm-spacer'));
     foot.appendChild(this.allOnBtn);
     foot.appendChild(this.allOffBtn);
@@ -1053,7 +1060,9 @@
 
   Run.prototype.setState = function (state) {
     this.state = state;
-    var busy = state === 'writing' || state === 'undoing' || state === 'scanning';
+    // Every state but the resting one is work in flight, so a new one is busy by
+    // default rather than by being added to a list somebody has to remember.
+    var busy = state !== 'listing';
     // An armed Close is a question about a listing nobody has used, and pressing Proceed
     // is the answer to it. Leaving the countdown running under a write means a disabled
     // button reading "Are you sure? (3)" while the replacements go out - and by the time
@@ -1061,6 +1070,7 @@
     // is where this belongs rather than in `go()`: every path in and out of a write goes
     // through here, which is the same reason the cursor hangs off it.
     if (busy) this.disarmClose();
+    this.cancelBtn.disabled = busy;
     this.closeBtn.disabled = busy;
     this.copyBtn.disabled = false;
     this.newInput.disabled = state !== 'listing';
@@ -1073,6 +1083,11 @@
   // said out loud rather than left to be guessed at.
   Run.prototype.syncFooter = function () {
     var undo = this.changes.length > 0;
+    // Cancel reverses exactly one write - the rename this dialog opened for - so it is
+    // offered only while that is the only write there is. Once Proceed has run, putting
+    // the name back would leave every replacement it caused pointing at it, and Undo is
+    // the control for that; an Undo empties `changes` and brings Cancel back.
+    this.show(this.cancelBtn, !undo);
     this.goBtn.textContent = undo ? 'Undo' : 'Proceed';
     if (undo) {
       this.goBtn.disabled = this.state !== 'listing';
@@ -1846,12 +1861,46 @@
     });
   };
 
+  // Cancel: put the entity back to the name it had when this dialog opened, and close.
+  // The one control here that writes with no plan in front of it, and it is allowed to
+  // because the write is the *reversal* of one the user just made by hand - there is
+  // nothing to review that they did not type themselves a moment ago.
+  Run.prototype.cancelRename = function () {
+    var self = this;
+    this.setState('reverting');
+    this.msg('INFO', 'Putting "' + this.newName + '" back to "' + this.oldName + '".');
+    var lease = acquireLease('Entity rename (cancel)');
+    // Re-read immediately before writing, like every other write here: a name that has
+    // moved again since this dialog opened is not this dialog's to put back, and saying
+    // so beats writing over somebody else's edit.
+    currentName(this.spec, this.id).then(function (now) {
+      if (now !== self.newName) {
+        throw new Error(now === null ? 'it could not be read back now'
+          : 'it is now named "' + now + '", which is not what this dialog saw');
+      }
+      var input = { id: self.id };
+      input[self.spec.nameField] = self.oldName;
+      return sendJob({ spec: self.spec }, input, 'ENM_Cancel');
+    }).then(function () {
+      lease.release();
+      self.close();
+    }, function (e) {
+      lease.release();
+      self.setState('listing');
+      self.msg('ERROR', 'The rename was not reverted: ' +
+        (e && e.message ? e.message : String(e)) + '.');
+    });
+  };
+
   // ── Escape ────────────────────────────────────────────────────────────────
   //
   // Escape acts through whichever of the footer's exits is actually showing and
   // enabled, never by calling `close()` itself. The footer is the dialog's own statement
   // of what it will let you do right now, so the key can never reach a button that is
   // hidden or disabled - and in particular does nothing mid-write.
+  // `closeBtn` and never `cancelBtn`, which is where this differs from the siblings'
+  // copy of the same function: their Cancel abandons a plan, and this one writes. A key
+  // press must not reach a control that changes the library.
   function escapeButton(run) {
     var b = run.closeBtn;
     return b && !b.disabled && !hasClass(b, 'enm-hidden') ? b : null;

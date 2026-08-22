@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.7.0';
+  var PLUGIN_VERSION = '0.7.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -933,10 +933,10 @@
     this.goBtn = button('Proceed', 'svr-go');
     this.goBtn.className = this.goBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
     this.goBtn.disabled = true;
-    // Every phase here can be long - the scan pages through the whole library - so the
-    // one exit is offered throughout: it stops after the request in flight, leaving what
-    // has been found or written on screen. A part-finished scan is still a listing that
-    // Proceed can act on, which is why it does not close the dialog instead.
+    // Offered while a write runs and never during the scan, which is the split the
+    // siblings make too. A scan is a read: Close abandons it outright, so a second
+    // control that ends it slowly - after the page in flight, which is hundreds of
+    // scenes - would be the worse of the two exits and the one nearer the pointer.
     this.stopBtn = button('Stop', 'svr-stop svr-hidden');
     this.closeBtn = button('Close', 'svr-close');
     this.copyBtn = button('Copy log', 'svr-copy');
@@ -969,8 +969,13 @@
   Run.prototype.setState = function (state) {
     this.state = state;
     var busy = state !== 'listing';
-    this.show(this.stopBtn, busy);
-    this.closeBtn.disabled = busy;
+    var writing = state === 'writing' || state === 'undoing';
+    this.show(this.stopBtn, writing);
+    // Closing mid-scan is safe and instant: nothing has been written, so there is
+    // nothing to leave half-done, and the paging stops on the next answer. Closing
+    // mid-write is the one thing this dialog must not let happen - what it wrote is
+    // only undoable while it is open - so there Stop is the only way out.
+    this.closeBtn.disabled = writing;
     this.syncFooter();
     this.spin(busy);
   };
@@ -1018,10 +1023,20 @@
     this.scrollLog();
   };
 
+  // Coalesced: a scan page appends up to `READ_PAGE` lines in one go, and reading
+  // `scrollHeight` after each of them forces a layout per line. That is what a stuttering
+  // cursor and a Stop that takes a moment to answer both are - the main thread, not the
+  // request. One read per burst says the same thing.
   Run.prototype.scrollLog = function () {
-    if (this.logEl && typeof this.logEl.scrollTop === 'number') {
-      this.logEl.scrollTop = this.logEl.scrollHeight || 0;
-    }
+    var self = this;
+    if (this.scrollQueued) return;
+    this.scrollQueued = true;
+    setTimeout(function () {
+      self.scrollQueued = false;
+      if (self.logEl && typeof self.logEl.scrollTop === 'number') {
+        self.logEl.scrollTop = self.logEl.scrollHeight || 0;
+      }
+    }, 0);
   };
 
   Run.prototype.progress = function (text) {
@@ -1067,12 +1082,16 @@
   };
 
   Run.prototype.stop = function () {
-    if (this.state === 'listing' || this.stopped) return;
+    if (this.state !== 'writing' && this.state !== 'undoing') return;
+    if (this.stopped) return;
     this.stopped = true;
     this.msg('WARN', 'Stopping after the request in flight…');
   };
 
   Run.prototype.close = function () {
+    // What ends a scan: the paging checks this before asking for the next page, so a
+    // closed dialog stops reading rather than filling a log nobody can see.
+    this.stopped = true;
     unwireEscape(this);
     this.spin(false);
     if (this.backdrop && this.backdrop.parentNode) {
@@ -1145,10 +1164,6 @@
       return self.scanPage(1, m, field, tags).then(function () {
         self.setState('listing');
         self.progress(self.progressText());
-        if (self.stopped) {
-          self.msg('WARN', 'Stopped: only the scenes read so far are listed, and Proceed ' +
-            'writes those. Open the task again for the rest.');
-        }
         if (!self.jobs.length) {
           self.msg('INFO', 'Nothing to migrate: every tagged scene either carries no ' +
             'stash-id or has been through this already.');
@@ -1180,6 +1195,7 @@
         self.jobLine(job);
       });
       self.progress(self.progressText());
+      // `stopped` here means the dialog was closed: stop reading.
       if (self.stopped || scenes.length < READ_PAGE) return null;
       return self.scanPage(page + 1, m, field, tags);
     });

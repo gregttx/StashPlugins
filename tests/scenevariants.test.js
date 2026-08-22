@@ -999,8 +999,9 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
 
   {
     // The scan pages through the whole library, which is the longest a user waits here,
-    // so the exit has to be offered *during* it. Stop takes effect between pages, and
-    // what was read stays on screen as a listing Proceed can act on.
+    // so an exit has to be offered *during* it - and it is Close, not a second button:
+    // nothing has been written, so leaving is free and instant. What it must not do is
+    // go on reading pages into a dialog that is gone.
     const lib = [];
     for (let i = 0; i < 501; i++) {
       lib.push({ id: String(1000 + i), title: 'S' + i, tags: [{ id: '1' }], custom_fields: {},
@@ -1015,25 +1016,18 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
         if (pages === 1) {
           // Asked from inside the scan, because that is the state being reported on: by
           // the time the dialog settles the answer is a different one.
-          offered = dlg(env).visible('Stop') && dlg(env).button('Close').disabled;
-          dlg(env).button('Stop').click();
+          offered = !dlg(env).button('Close').disabled && !dlg(env).visible('Stop');
+          h.fire(env.ctx.document, 'keydown', { key: 'Escape' });   // the same exit
         }
       }
       return base(req);
     };
     env = start(opts);
     await openTask(env);
-    h.check('Stop is offered while the scan runs, where Close is not', offered === true,
-      String(offered));
+    h.check('Close is live while the scan runs, and Stop is not offered at all',
+      offered === true, String(offered));
+    h.check('Escape reaches it, and the dialog goes', !dlg(env).open);
     h.check('and the next page is never asked for', pages === 1, String(pages));
-    h.check('the scenes already read are listed', jobLines(env).length === 500,
-      String(jobLines(env).length));
-    h.check('the log says the listing is only what was reached',
-      dlg(env).lines.some((l) => /Stopped: only the scenes read so far/.test(l)),
-      dlg(env).lines.join(' | '));
-    h.check('and the dialog is back to a listing: Stop gone, Close and Proceed live',
-      !dlg(env).visible('Stop') && !dlg(env).button('Close').disabled &&
-        !dlg(env).button('Proceed').disabled);
   }
 
   {

@@ -425,14 +425,27 @@ there is one every rule in `CHROME` is required of it. The stylesheet was copied
 `EntityNameMaintainer`'s with the prefix swapped, because that is what "byte-identical where they
 overlap" means in a repo with no shared module.
 
-**Stop is one button for three phases**, which is why this footer has no Cancel. The siblings offer
-Cancel during a scan — it closes the dialog, because their scan produces nothing until it finishes —
-and Stop only during a write. Here the scan is the phase a user actually sits through, and a
-part-finished one is a *listing*: every scene it reached is planned, and Proceed writes those. So
-the exit stops the phase and hands back the dialog, and a user who wanted Cancel presses Close
-after it, which the same state change re-enables.
+**Stop is a write-phase button, and the scan is left to Close.** It shipped the other way round for
+one release — one Stop covering all three phases, ending the scan after the page in flight — and
+every part of that was wrong in use. A page is `READ_PAGE` scenes, so the press appeared to do
+nothing for seconds; it left a part-finished listing with no way to carry on; and it sat next to a
+Close that was disabled for no reason a user could see. **A scan is a read.** Nothing has been
+written, so abandoning it costs nothing and can be instant, which is exactly what Close already
+does — the second control was answering a question the first one answers better.
 
-The undo bookkeeping had to move for it. `changes` was emptied at the top of an undo, on the
+So Close is enabled while scanning (Escape with it, through `escapeButton`, unchanged) and disabled
+while writing, which is the one state where leaving is destructive: what this dialog wrote is only
+undoable while it is open. Stop is shown in that state and nowhere else, matching the siblings, and
+`close()` sets the same `stopped` flag so the paging stops asking rather than filling a log nobody
+can see.
+
+**The stutter was ours, not the server's.** "Unresponsive for a few seconds, and the cursor is not
+animating smoothly" is one bug: `scrollLog` read `scrollHeight` after every line appended, so a page
+of 500 forced 500 layouts. It is coalesced to one per burst now. Worth keeping in mind for any
+dialog here that logs a line per entity — the counters and the cursor exist to say the run is alive,
+and a log that blocks the main thread makes both of them lie.
+
+The undo bookkeeping moved with the same release. `changes` was emptied at the top of an undo, on the
 assumption that an undo always finishes; a stopped one would then have forgotten the scenes it did
 not reach, leaving them written with nothing offering to put them back. It is emptied a scene at a
 time by the write itself now, so what remains is exactly what is still undone — and a *failed*

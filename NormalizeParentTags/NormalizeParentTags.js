@@ -30,7 +30,7 @@
   // stale script, not a contradiction. This constant travels inside the file, so the
   // line below says which script is actually running. Bump it with the manifest and
   // the yml; the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.7.0';
+  var PLUGIN_VERSION = '4.7.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2542,7 +2542,19 @@
     TYPES.forEach(function (t) { this.modes[t.key] = MODE_OFF; }, this);
     this.saving = false;
     this.stale = false;
+    this.stored = null;   // the modes as read, formatted; null until they have been
   }
+
+  // Save is offered only once a selector has actually moved. A write button that is
+  // live before anything has been touched invites a press that stores back exactly
+  // what it read - and on a stale tab that press is the one thing this dialog blocks.
+  // The comparison is between formatted modes rather than between the stored string
+  // and this one, so a hand-typed value naming only some of the types does not read
+  // as a change: the selectors show the same seven either way.
+  ModesDialog.prototype.refreshSave = function () {
+    this.saveBtn.disabled = this.saving || this.stale || this.stored === null ||
+      this.stored === formatAutoModes(this.modes);
+  };
 
   ModesDialog.prototype.build = function () {
     injectStyle();
@@ -2568,7 +2580,7 @@
     this.modal.appendChild(head);
 
     var body = el('div', 'npt-modesbody');
-    this.panel = modesPanel(this.modes, null, true);
+    this.panel = modesPanel(this.modes, function () { self.refreshSave(); }, true);
     this.panel.enable(false);
     body.appendChild(this.panel.el);
     this.modal.appendChild(body);
@@ -2590,9 +2602,10 @@
 
     loadSettings().then(function (loaded) {
       if (_active !== self) return;
+      self.stored = formatAutoModes(loaded.settings.modes);
       self.panel.set(loaded.settings.modes);
       self.panel.enable(true);
-      self.saveBtn.disabled = self.stale;
+      self.refreshSave();
       self.noteEl.textContent = '';
     }, function (e) {
       if (_active !== self) return;
@@ -2642,7 +2655,7 @@
     }, function (e) {
       self.saving = false;
       if (_active !== self) return;
-      self.saveBtn.disabled = false;
+      self.refreshSave();
       self.panel.enable(true);
       self.noteEl.textContent = 'The setting could not be saved: ' +
         (e && e.message ? e.message : e);

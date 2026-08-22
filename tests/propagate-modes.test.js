@@ -832,8 +832,28 @@ Promise.resolve()
     settings: { b1Paths: 'tags:studio>scene=ON' },
     installed: { id: 'SomeOtherPlugin', version: '9.9.9' },
   })).then((env) => {
-    h.check('another plugin being out of date is not our warning',
-      !d(env).stale && d(env).button('Save').disabled === false, d(env).stale);
+    h.check('another plugin being out of date is not our warning', !d(env).stale,
+      d(env).stale);
+  })
+
+  // Save is a write, and a write button live before anything has been touched invites
+  // a press that stores back exactly what it read.
+  .then(() => open({ settings: { b1Paths: 'tags:studio>scene=ON' } })).then((env) => {
+    h.check('Save is held back until something is changed',
+      d(env).button('Save').disabled === true);
+    setMode(env, 'Tags: Studio → Scenes', 'Off');
+    h.check('and offered once a path moves', d(env).button('Save').disabled === false);
+    setMode(env, 'Tags: Studio → Scenes', 'On');
+    h.check('and held back again when it moves back',
+      d(env).button('Save').disabled === true);
+  })
+
+  // The one case where nothing has to move: the stored string is not what this script
+  // would write, which is exactly what the note above the panel offers Save for.
+  .then(() => open({ settings: { b1Paths: 'tags:studio>scene=on, nonsense=ON' } }))
+  .then((env) => {
+    h.check('a setting this script could not fully read offers Save straight away',
+      d(env).button('Save').disabled === false);
   })
 
   .then(() => open({ settings: {} })).then((env) => {

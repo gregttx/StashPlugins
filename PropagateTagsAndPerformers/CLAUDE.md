@@ -568,6 +568,19 @@ pairs — and a **Path Settings...** task that is the editor for it.
   *act* on - the migration carries their configuration across, and the new shape is described in
   the prose where someone reading about paths is already looking.
 
+**Save is held back until a toggle has actually moved** (3.13.2). It shipped live from the moment
+the settings landed, which invites a press that stores back exactly what it just read - a write
+with nothing behind it, and on a stale tab the one press this dialog exists to block. `refreshSave`
+is the single place the button's state is decided, called from `repaint` so that a toggle click,
+the three bulk buttons and the load itself all route through it.
+
+**With one press worth offering with nothing moved**, and it is the reason this is not the plain
+"have the modes changed" test the sibling uses: where part of the stored string is not something
+this script could read, the note above the panel promises that Save is what replaces the whole of
+it. So `unread` is read from `unrecognisedPairs(raw)` *before* the toggles are set, and it arms
+Save on its own. The comparison beside it is between formatted modes rather than between the stored
+string and the one Save would write, so a difference of case or spacing is not a change.
+
 **2.1.0 is the busy cursor.** `▙ ▛ ▜ ▟` under the last log line, one cycle at 2Hz, while the run
 dialog is scanning, applying or undoing. The sweep is the case that wanted it: reading every image
 in the library to find each gallery's leaves the counters still for a long time, and a progress line

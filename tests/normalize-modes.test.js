@@ -323,8 +323,21 @@ Promise.resolve()
     modes: 'SCENES=PRUNE', task: h.TASK_MODES,
     installed: { id: 'SomeOtherPlugin', version: '9.9.9' },
   })).then((env) => {
-    h.check('another plugin being out of date is not our warning',
-      !d(env).stale && d(env).button('Save').disabled === false, d(env).stale);
+    h.check('another plugin being out of date is not our warning', !d(env).stale,
+      d(env).stale);
+  })
+
+  // Save is a write, and a write button live before anything has been touched invites
+  // a press that stores back exactly what it read. A stored string naming only some of
+  // the types is not a change either - the selectors show the same seven either way.
+  .then(() => open({ modes: 'SCENES=PRUNE', task: h.TASK_MODES })).then((env) => {
+    h.check('Save is held back until something is changed',
+      d(env).button('Save').disabled === true);
+    setSelect(env, 'Scenes', 'rollup');
+    h.check('and offered once a selector moves', d(env).button('Save').disabled === false);
+    setSelect(env, 'Scenes', 'prune');
+    h.check('and held back again when it moves back',
+      d(env).button('Save').disabled === true);
   })
 
   .then(() => open({ task: h.TASK_MODES })).then((env) => {

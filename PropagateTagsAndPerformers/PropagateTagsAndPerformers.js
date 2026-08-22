@@ -42,7 +42,7 @@
   // not a contradiction.
   // This constant travels inside the file. Bump it with the manifest and the yml;
   // the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '3.13.1';
+  var PLUGIN_VERSION = '3.13.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -3983,7 +3983,22 @@
     PATHS.forEach(function (p) { this.modes[p.id] = PATH_OFF; }, this);
     this.saving = false;
     this.stale = false;
+    this.stored = null;   // the paths as read, formatted; null until they have been
+    this.unread = false;  // ... and whether part of the stored string was not understood
   }
+
+  // Save is offered only once a toggle has actually moved. A write button that is
+  // live before anything has been touched invites a press that stores back exactly
+  // what it read - and on a stale tab that press is the one thing this dialog blocks.
+  //
+  // The one press worth offering with nothing moved is the one the note above the
+  // panel promises: part of the stored string is not something this script could read,
+  // and Save is what replaces the whole of it with what is shown.
+  PathsDialog.prototype.refreshSave = function () {
+    if (!this.saveBtn) return;
+    this.saveBtn.disabled = this.saving || this.stale || this.stored === null ||
+      (!this.unread && this.stored === formatPaths(this.modes));
+  };
 
   // ── One button per path, and it *is* the control ──────────────────────────
   //
@@ -4126,6 +4141,7 @@
     this.chains = pathChains(this.modes);
     PATHS.forEach(function (p) { self.toggles[p.id].paint(); });
     if (this.diaBoxes) this.paintDiagram();
+    this.refreshSave();
   };
 
   // ── The diagram view ──────────────────────────────────────────────────────
@@ -4530,14 +4546,17 @@
 
     loadSettings().then(function (loaded) {
       if (_paths !== self) return;
-      self.set(loaded.settings.paths);
-      self.enable(true);
-      self.saveBtn.disabled = self.stale;
       // Save rewrites the whole setting from these selectors, so a value this script
       // could not read is about to be replaced by what it managed to make of it. That
-      // is a fair thing to do on a press, and not one to do without saying so.
+      // is a fair thing to do on a press, and not one to do without saying so - and it
+      // is the one press this dialog offers with nothing changed, so it is read before
+      // the toggles are set, which is what arms Save.
       var raw = String(loaded.settings.b1Paths || '').replace(/^\s+|\s+$/g, '');
-      self.noteEl.textContent = raw && unrecognisedPairs(raw) > 0
+      self.unread = !!raw && unrecognisedPairs(raw) > 0;
+      self.stored = formatPaths(loaded.settings.paths);
+      self.set(loaded.settings.paths);
+      self.enable(true);
+      self.noteEl.textContent = self.unread
         ? '\u26a0 Part of the stored setting is not something this script understands ' +
           '("' + raw + '"). It is shown below as far as it could be read, and it is left ' +
           'alone until you press Save - which replaces the whole of it with what is ' +
@@ -4597,7 +4616,7 @@
     }, function (e) {
       self.saving = false;
       if (_paths !== self) return;
-      self.saveBtn.disabled = false;
+      self.refreshSave();
       self.enable(true);
       self.noteEl.textContent = 'The setting could not be saved: ' +
         (e && e.message ? e.message : e);

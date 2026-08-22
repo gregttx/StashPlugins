@@ -1303,6 +1303,21 @@ dialog at least prints the plan it would write. So the same `checkInstalledVersi
 answer will not be written back whatever it says), and **the selectors stay live** — the string can
 still be read off the preview, which is most of what someone opens this dialog for.
 
+**Save is held back until a selector has actually moved** (4.7.1). It shipped live from the
+moment the settings landed, which invites a press that stores back exactly what it just read - a
+write with nothing behind it, and on a stale tab the one press this dialog exists to block. The
+comparison is between `formatAutoModes(loaded.settings.modes)` and `formatAutoModes(this.modes)`,
+not between the stored string and the one Save would write: a hand-typed value naming only some of
+the seven types is not a *change*, since the selectors show the same seven either way, and the
+settings page's renormalizer canonicalises it on its own. `refreshSave` is the single place the
+button's state is decided - the panel's `onChange`, the load, and a failed save all route through
+it - which is what stops the four conditions (saving, stale, not yet read, unchanged) drifting
+apart.
+
+**`PropagateTagsAndPerformers` had the same defect and one extra case**, which is worth knowing
+before copying this rule anywhere else: its dialog *does* have a press worth offering with nothing
+moved, because its note promises Save is what replaces a stored string it could not fully read.
+
 **4.6.2 stops `saveAutoModes` deleting the eight exclusion filters.** `configurePlugin` replaces
 `plugins.<id>` rather than merging into it, so a mutation naming `a1AutoModes` alone wiped every
 other setting this plugin had - on every Save from the Auto Mode Settings dialog, and once more for

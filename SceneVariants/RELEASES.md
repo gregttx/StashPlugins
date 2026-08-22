@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.6.0 (`6712889`) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
 | 0.5.0 (`011ff95`) | 2026-08-22 | SceneVariants 0.5.0: a partial-length scene's stash-id moves into a custom field, and the tab matches on both |
 | [0.4.0](https://github.com/gregttx/StashPlugins/commit/147f0d7) | 2026-08-21 | SceneVariants 0.4.0: a row's hover text says how that variant differs |
 | [0.3.0](https://github.com/gregttx/StashPlugins/commit/330502e) | 2026-08-21 | SceneVariants 0.3.0: aliases and descendants classify a variant, and the cover comes back |

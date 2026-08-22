@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.1.0';
+  var PLUGIN_VERSION = '0.1.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -930,6 +930,10 @@
     this.types = [];
     this.stopped = false;      // the stop threshold ended the scan early
     this.stale = false;
+    // How many custom field descriptions the sibling handed over, or null where it was
+    // never asked - absent, disabled, or too old to publish the call. The two are
+    // different things to say about a skipped store tag.
+    this.descriptionsRead = null;
     this.loadingWhat = '';
     // Every line the log holds, as plain text - what Copy log copies. Built beside the
     // nodes rather than read back off them.
@@ -1288,10 +1292,22 @@
 
   Run.prototype.summarise = function () {
     this.progress(this.progressText());
+    // The store tag is skipped as an *entity* whether or not its owner is here to ask -
+    // its JSON is not text to rewrite by substring, and that has not changed. What has
+    // changed is whether the prose inside it was reached anyway, and the line says which,
+    // because "left out" on its own reads as something missed.
     if (this.skipped) {
-      this.msg('INFO', 'Left out: ' + plural(this.skipped, 'entity', 'entities') +
+      var what = 'Left out: ' + plural(this.skipped, 'entity', 'entities') +
         ' carrying another plugin\'s machine-written store. Rewriting text inside one by ' +
-        'substring is how its JSON stops parsing.');
+        'substring is how its JSON stops parsing.';
+      this.msg('INFO', this.descriptionsRead == null
+        ? what + ' Its custom field descriptions are searched as text when ' + CFBE_NAME +
+          ' is installed and enabled.'
+        : what + ' Nothing was missed: the ' +
+          plural(this.descriptionsRead, 'description') + ' it holds ' +
+          (this.descriptionsRead === 1 ? 'was' : 'were') + ' searched through ' +
+          CFBE_NAME + ' itself, which is the only way to change one without touching ' +
+          'the JSON around it.');
     }
     if (this.stopped) {
       this.msg('ERROR', 'Too many matches: the scan stopped after ' +

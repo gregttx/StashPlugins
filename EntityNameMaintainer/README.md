@@ -106,7 +106,9 @@ number is honest, and it costs nothing — every page already carries its type's
   Editor keeps every custom field's description as JSON inside one tag's description;
   rewriting text inside that by substring is how it stops parsing, so the tag carrying its
   marker is skipped and counted. The descriptions *in* it are still reached — by asking that
-  plugin for them, which is the only way to change one without touching the JSON.
+  plugin for them, which is the only way to change one without touching the JSON — and the
+  line that reports the skip says so, rather than reading as something missed. With that
+  plugin absent or disabled it says the descriptions are searchable when it is enabled.
 - **It stands down while a sibling plugin is running a bulk task.** A library-wide rename
   would otherwise put up one dialog per entity. What decides is the lease being held *when
   you pressed Save* — a sibling that reacts to that same save, such as ᝯㄝₓ Normalize Parent

@@ -13,6 +13,15 @@ handed back to their owner. **Nothing here parses or serialises that JSON**, whi
 reason this is a call rather than a copy: the store's shape is that plugin's decision, and a copy
 of it here would be wrong the first time it changed.
 
+**0.1.1 stops the skip line reading as a loss.** *"Left out: 1 entity carrying another plugin's
+machine-written store"* was true before and is still true - the store tag is skipped as an entity
+whatever else happens, because its JSON is not text to rewrite by substring - but it now sits in a
+run that has just searched the prose inside that very tag, where "left out" is the wrong thing for
+a user to take away. So the line ends with which of the two happened: the descriptions were
+searched through their owner and nothing was missed, or they were not, and the sibling is what
+makes them searchable. `descriptionsRead` is `null` until the sibling answers, which is what tells
+"none to search" from "never asked".
+
 **It is an eighth entity *type*, not a new field.** `ENTITIES` gains a `cfbeDescriptions` entry
 with a label, a plural and no route; `TYPE_ORDER` leaves it out, which is what keeps it out of the
 scan loop and out of the introspection. Everything downstream then works unchanged - the plan

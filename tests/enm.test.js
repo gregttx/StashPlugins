@@ -894,6 +894,10 @@ const filterBtns = (env) => env.body.descendants()
     h.check('the description with no mention in it is not listed',
       !rowText(env).some((t) => /Free text/.test(t)), rowText(env).join(' | '));
     const labels = filterBtns(env).map((b) => b.textContent);
+    h.check('the skipped store tag no longer reads as something missed',
+      d.lines.some((l) => /Left out: 1 entity/.test(l) &&
+        /Nothing was missed: the 2 descriptions it holds were searched/.test(l)),
+      d.lines.filter((l) => /Left out/.test(l)).join(' | '));
     h.check('and it gets a filter of its own, last among the types rather than first',
       labels.indexOf('Custom field descriptions') === labels.indexOf('Tags') + 1,
       labels.join(' | '));
@@ -970,18 +974,22 @@ const filterBtns = (env) => env.body.descendants()
   const env = makeEnv({ library: bare });
   rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
     const d = dlg(env);
-    h.check('with the sibling absent nothing is said about descriptions',
-      !d.lines.some((l) => /custom field description/i.test(l)), d.lines.join(' | '));
+    h.check('with the sibling absent no descriptions are searched',
+      !d.lines.some((l) => /Also searched/.test(l)) &&
+      !rowText(env).some((t) => /The colour/.test(t)), d.lines.join(' | '));
+    h.check('and the skipped store tag says they are searchable rather than claiming nothing was missed',
+      d.lines.some((l) => /Left out: 1 entity/.test(l) &&
+        /searched as text when/.test(l) && !/Nothing was missed/.test(l)),
+      d.lines.filter((l) => /Left out/.test(l)).join(' | '));
     h.check('and the library hits are all still there',
-      rows(env).length > 0 && !rowText(env).some((t) => /The colour/.test(t)),
-      rowText(env).join(' | '));
+      rows(env).length > 0, rowText(env).join(' | '));
   });
   const oldLib = library();
   oldLib.performers[0].name = OLD;
   const old = makeEnv({ library: oldLib, cfbe: true, cfbeOld: true });
   rename(old, 'performerUpdate', { id: '7', name: NEW }).then(() => {
-    h.check('a sibling too old to publish the halves is passed over in silence',
-      !dlg(old).lines.some((l) => /custom field description/i.test(l)) &&
+    h.check('a sibling too old to publish the halves is the same case, with no error',
+      !dlg(old).lines.some((l) => /Also searched|ERROR/.test(l)) &&
       !rowText(old).some((t) => /The colour/.test(t)),
       dlg(old).lines.join(' | '));
   });

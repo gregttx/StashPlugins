@@ -14,6 +14,25 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.3.0 is two things a live filter row wanted.**
+
+**A × in each of the three filter boxes.** `NormalizeParentTags`' `clearableInput` is the shape -
+inside the box against a wrapper, hidden while there is nothing to clear - and taking that shape
+was not optional: `.clear` is a rule two plugins now share, so `tests/style.test.js` pins it
+byte-identical. The first cut was a small footer-style button beside the box, which passed
+everything except that check, and the check was right: a class two plugins share has to mean the
+same thing in both. The right-hand padding lives on `.cfbe-filterbox`, added to the three filter
+inputs only, since the editor's two boxes have no ×.
+
+**A rescan takes Rename back to Add, and says so.** §6a's rule is that a mode which becomes
+unavailable while selected *stays* selected - switching the operation under someone about to press
+Apply is worse than a disabled button that says why. A rescan is the one moment that is wrong: it is
+a fresh read of a library that may have moved, so a Rename left selected over a scope now carrying
+several field names is a mode with no field to rename and an Apply that can never enable. So
+`dropRenameIfGone` runs after a *read*, never from `syncOps` - which also runs on every keystroke in
+a filter box, where mid-typing is exactly where staying put is right. The `[INFO]` line is what
+keeps this from being the silent switch the rule refuses.
+
 **2.2.0 is two lines of housekeeping from a full repo read.** `window.__cfbeSelectFilter`, the
 "`fetch` is already wrapped" flag §23 needs to survive a second evaluation of the script, is
 `__GTTx__.cfbeSelectFilter` — the repo takes one global and this was the second. And the

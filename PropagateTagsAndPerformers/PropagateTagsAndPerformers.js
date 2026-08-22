@@ -42,7 +42,7 @@
   // not a contradiction.
   // This constant travels inside the file. Bump it with the manifest and the yml;
   // the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '3.11.2';
+  var PLUGIN_VERSION = '3.12.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -87,12 +87,14 @@
   // Declared in the manifest so Stash lists it under Settings - Tasks - Plugin
   // Tasks, but run in the browser: this plugin has no exec, so a queued job could
   // only fail.
-  var TASK_PROPAGATE_ALL = 'Propagate Tags and Performers to All Related Entities...';
+  var TASK_PROPAGATE_ALL = 'Propagate All...';
   // The editor for the one setting the path block is now. It writes a setting rather
-  // than the library, and it is the same dialog the settings row's own button opens -
-  // one editor, two ways in, like NormalizeParentTags' Auto Mode Settings.
+  // than the library, and it is **not** a task: Stash's task list is for things that
+  // act on the library, and this one only changes which paths are enabled. It opens
+  // from the run dialog's own footer and from the button that takes over the Paths
+  // settings row - both places a user is already looking at what it edits.
   var TASK_PATHS = 'Path Settings...';
-  var TASKS = [TASK_PROPAGATE_ALL, TASK_PATHS];
+  var TASKS = [TASK_PROPAGATE_ALL];
 
   var PAGE_SIZE      = 500;    // targets per page while walking the library
   var CHUNK_SIZE     = 100;    // target ids per bulk mutation
@@ -1393,6 +1395,25 @@
     'font-size:.8rem;line-height:1.35;min-height:14rem;}' +
     '.ptp2re-line{white-space:pre-wrap;word-break:break-word;}' +
     '.ptp2re-spin{color:#a7b6c2;}' +
+    // An entity named in the log is a link to it. The same blue the siblings' result
+    // lines use, underlined only on hover so a log full of them does not read as a
+    // page of underlines.
+    '.ptp2re-elink{color:#7cc4ff;text-decoration:none;}' +
+    '.ptp2re-elink:hover{text-decoration:underline;}' +
+    // A tag or performer named in the log opens a card on hover. The shared `.tipbox`
+    // rule cannot do this job: it is absolutely positioned inside its trigger, and the
+    // log is an `overflow:auto` box that would clip it against its own top edge. This
+    // one is `position:fixed` and placed from the pointer, so it is never clipped -
+    // and it holds an image, which a `title` cannot.
+    '.ptp2re-card{position:fixed;display:none;z-index:1600;width:20rem;max-width:90vw;' +
+    'padding:.5rem .65rem;background:#202b33;color:#d6dee4;border:1px solid #425a6b;' +
+    'border-radius:3px;font-size:.8rem;line-height:1.45;white-space:pre-wrap;' +
+    'pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.55);font-family:inherit;}' +
+    '.ptp2re-card-open{display:block;}' +
+    '.ptp2re-card img{display:block;width:100%;max-height:14rem;object-fit:contain;' +
+    'margin-bottom:.4rem;border-radius:3px;background:#111a20;}' +
+    '.ptp2re-card-name{font-weight:600;color:#f5f8fa;}' +
+    '.ptp2re-hover{cursor:help;}' +
     // The path toggles: the whole body of the settings dialog, in three columns of
     // label-and-button. Each column is a grid of its own rather than the whole panel
     // being one six-column grid, because a shared grid sizes every label column to
@@ -1746,6 +1767,19 @@
 
   function entityLabel(target, ent) {
     return TARGETS[target].label + ' "' + (displayName(ent) || 'untitled') + '" (' + ent.id + ')';
+  }
+
+  // Where an entity of each type lives in Stash's UI. `TARGETS[].route` is a regex for
+  // reading an id *out* of a path and cannot be run backwards, so this is a table of its
+  // own. A Marker is deliberately absent: it has no page to open, which is the same fact
+  // that gives it no source button.
+  var ROUTES = {
+    scene: '/scenes/', gallery: '/galleries/', image: '/images/', group: '/groups/',
+    performer: '/performers/', studio: '/studios/', tag: '/tags/',
+  };
+
+  function entityHref(type, id) {
+    return ROUTES[type] ? ROUTES[type] + id : null;
   }
 
   // The entity a copy came *from*, for the log line. Same shape as a target's label so
@@ -2190,20 +2224,25 @@
   }
 
   var _active = null;
+  // The path editor gets a slot of its own rather than sharing `_active`, because it
+  // is now opened from *inside* the run dialog's footer: a run holding `_active` must
+  // not stop the editor opening over it, and the editor closing must not clear the run.
+  var _paths = null;
 
   // `scope` is what a manual button's dialog adds: `{ pathId, target, ids }` for a
   // target-side button (this one entity) or `{ pathId, sourceId }` for a source-side
   // one (whatever that source reaches, resolved once the settings are in). Absent for
   // the library-wide task, which is every enabled path over everything.
   function startRun(taskName, scope) {
-    if (_active) { _active.focus(); return; }
     // The path editor writes a setting and has no plan, so it is a different object
-    // rather than a second mode threaded through the run.
+    // rather than a second mode threaded through the run - and it opens over one.
     if (taskName === TASK_PATHS) {
-      _active = new PathsDialog(taskName);
-      _active.build();
+      if (_paths) { _paths.focus(); return; }
+      _paths = new PathsDialog(taskName);
+      _paths.build();
       return;
     }
+    if (_active) { _active.focus(); return; }
     _active = new Run(taskName, scope);
     _active.begin();
   }
@@ -2329,6 +2368,14 @@
     });
     this.rescanBtn  = button('Rescan', 'ptp2re-rescan ptp2re-hidden');
     this.closeBtn   = button('Close', 'ptp2re-close ptp2re-hidden');
+    // Teal: it edits a setting of ours and never the library. It is here rather than in
+    // Settings - Tasks because this dialog is where a user finds out that a path they
+    // wanted is off - the head lists what is enabled, and the plan is empty without it -
+    // so the editor belongs a press away from that, not a page away.
+    this.pathsBtn   = button(TASK_PATHS, 'ptp2re-paths-open');
+    this.pathsBtn.className = this.pathsBtn.className.replace('btn-secondary', READONLY_BTN_VARIANT);
+    this.pathsBtn.title = 'Choose which of the thirteen paths run. Saving there changes ' +
+      'nothing already planned above - press Rescan to plan with the paths you have just set.';
     this.proceedBtn.disabled = true;
     this.undoBtn.title = 'Reverse every change this dialog has written, as an add/remove delta. ' +
       'Only what this dialog wrote, and only while it stays open.';
@@ -2342,9 +2389,10 @@
     this.undoBtn.addEventListener('click', function () { self.undo(); });
     this.rescanBtn.addEventListener('click', function () { self.rescan(); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
+    this.pathsBtn.addEventListener('click', function () { startRun(TASK_PATHS); });
 
     [this.proceedBtn, this.cancelBtn, this.stopBtn, this.copyBtn, this.undoBtn,
-      this.rescanBtn, this.closeBtn].forEach(function (b) { foot.appendChild(b); });
+      this.rescanBtn, this.closeBtn, this.pathsBtn].forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
     wireEscape(this);
@@ -2383,6 +2431,9 @@
     this.show(this.undoBtn, (ready || done) && this.undoable.length > 0);
     this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
+    // Hidden mid-write for the same reason Close is: the paths it edits are the ones
+    // the batches in flight were planned from.
+    this.show(this.pathsBtn, !applying && !undoing);
     // Undo is deliberately not gated on `stale`: it reverses writes this dialog has
     // already made, and stranding the user with changes they cannot take back would
     // be a worse outcome than the mismatch it is protecting them from.
@@ -2462,10 +2513,19 @@
       if (p.parts) {
         node.appendChild(el('span', null, '[' + p.kind + '] '));
         p.parts.forEach(function (seg) {
-          var span = el('span', null, seg.text);
+          var span;
+          if (seg.href) {
+            span = el('a', 'ptp2re-elink', seg.text);
+            span.href = seg.href;
+            span.target = '_blank';
+            span.rel = 'noopener noreferrer';
+          } else {
+            span = el('span', seg.card ? 'ptp2re-hover' : null, seg.text);
+          }
           if (seg.title) span.title = seg.title;
+          if (seg.card) this.hoverCard(span, seg.card.kind, seg.card.id);
           node.appendChild(span);
-        });
+        }, this);
       }
       this.logEl.appendChild(node);
     }, this);
@@ -2475,6 +2535,129 @@
     if (this.spinEl) this.logEl.appendChild(this.spinEl);
     if (typeof this.logEl.scrollHeight === 'number') this.logEl.scrollTop = this.logEl.scrollHeight;
     this.renderProgress();
+  };
+
+  // ── The hover card ────────────────────────────────────────────────────────
+  //
+  // A log line names an entity, a tag and a performer, and the two that are not the
+  // entity are the ones a user cannot recognise from a name alone - which tag out of
+  // three with similar names, which of two performers. A `title` answers that for a
+  // tag and cannot for a performer, because the thing that identifies a performer is
+  // their picture.
+  //
+  // One card for the whole dialog, filled on hover, rather than a box per line: a plan
+  // can run to six figures of lines, and a hidden card on each of them would be the
+  // same page-that-stops-responding the render cap exists to prevent.
+  //
+  // `position:fixed` and placed from the anchor's rect, because the log scrolls: a box
+  // positioned inside a line is clipped by the log's own overflow, which is exactly the
+  // top of the log where the pointer usually is.
+  Run.prototype.cardEl = function () {
+    if (!this._card) {
+      this._card = el('div', 'ptp2re-card');
+      (this.modal || document.body).appendChild(this._card);
+    }
+    return this._card;
+  };
+
+  Run.prototype.hideCard = function () {
+    if (!this._card) return;
+    this._card.className = 'ptp2re-card';
+  };
+
+  Run.prototype.hoverCard = function (node, kind, id) {
+    var self = this;
+    var open = function () {
+      // A stale answer arriving after the pointer has moved on must not reopen the card.
+      self._cardFor = kind + ':' + id;
+      self.showCard(node, kind, id);
+    };
+    var shut = function () { self._cardFor = null; self.hideCard(); };
+    node.addEventListener('mouseenter', open);
+    node.addEventListener('mouseleave', shut);
+    // Reachable without a mouse. The spans are not focusable by default and giving a log
+    // line a tab stop per tag would make the log untabbable, so only the link half of a
+    // line takes focus; this is here for a browser that focuses on other grounds.
+    node.addEventListener('focus', open);
+    node.addEventListener('blur', shut);
+  };
+
+  Run.prototype.showCard = function (node, kind, id) {
+    var self = this, key = kind + ':' + id;
+    this.cardDetail(kind, id).then(function (detail) {
+      if (self._cardFor !== key) return;
+      self.paintCard(kind, id, detail);
+      self.placeCard(node);
+    });
+  };
+
+  // Failure resolves to null rather than rejecting, and a null card simply does not
+  // open: this buys a hover, not a write, and an [ERROR] line in a log the user is
+  // reading for what changed would be the worse outcome. Cached per dialog, so hovering
+  // the same tag down a hundred lines is one query.
+  Run.prototype.cardDetail = function (kind, id) {
+    var cache = this._cardCache || (this._cardCache = {});
+    var key = kind + ':' + id;
+    if (cache[key]) return cache[key];
+    var q = kind === 'performer'
+      ? gqlRequest('query PTPPerformerCard($id: ID!) { findPerformer(id: $id) ' +
+        '{ id name disambiguation gender birthdate country alias_list favorite ' +
+        'rating100 scene_count image_path } }', { id: id })
+        .then(function (d) { return (d && d.findPerformer) || null; })
+      : gqlRequest('query PTPTagCard($id: ID!) { findTag(id: $id) ' +
+        '{ id name description aliases } }', { id: id })
+        .then(function (d) { return (d && d.findTag) || null; });
+    cache[key] = q.then(null, function () { return null; });
+    return cache[key];
+  };
+
+  Run.prototype.paintCard = function (kind, id, detail) {
+    var card = this.cardEl();
+    card.textContent = '';
+    if (!detail) return;
+    if (kind === 'performer' && detail.image_path) {
+      var img = el('img');
+      img.src = detail.image_path;
+      img.alt = '';
+      card.appendChild(img);
+    }
+    card.appendChild(el('div', 'ptp2re-card-name',
+      (detail.name || 'unknown') + (detail.disambiguation ? ' (' + detail.disambiguation + ')' : '')));
+    var rows = [];
+    if (kind === 'performer') {
+      rows.push(['Gender', detail.gender]);
+      rows.push(['Born', detail.birthdate]);
+      rows.push(['Country', detail.country]);
+      rows.push(['Scenes', detail.scene_count]);
+      rows.push(['Rating', detail.rating100 == null ? null : Math.round(detail.rating100 / 20) + '/5']);
+      rows.push(['Favourite', detail.favorite ? 'yes' : null]);
+      rows.push(['Aliases', (detail.alias_list || []).join(', ')]);
+    } else {
+      rows.push(['Aliases', (detail.aliases || []).join(', ')]);
+      rows.push(['Description', oneLine(detail.description)]);
+    }
+    rows.push(['id', id]);
+    rows.forEach(function (r) {
+      if (r[1] == null || r[1] === '') return;
+      card.appendChild(el('div', null, r[0] + ': ' + r[1]));
+    });
+    card.className = 'ptp2re-card ptp2re-card-open';
+  };
+
+  // Beside the pointer's anchor, flipped and clamped rather than allowed off screen.
+  // Read at open time: the log scrolls, so the rect is only true of this instant - which
+  // is fine, because the card is closed the moment the pointer leaves.
+  Run.prototype.placeCard = function (node) {
+    var card = this._card;
+    if (!card || !node.getBoundingClientRect || !card.getBoundingClientRect) return;
+    var a = node.getBoundingClientRect();
+    var c = card.getBoundingClientRect();
+    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
+    var top = a.bottom + 6;
+    if (top + c.height > vh - 8) top = Math.max(8, a.top - c.height - 6);
+    var left = Math.min(Math.max(8, a.left), Math.max(8, vw - c.width - 8));
+    card.style.top = top + 'px';
+    card.style.left = left + 'px';
   };
 
   Run.prototype.renderProgress = function () {
@@ -2949,12 +3132,8 @@
         // Held on the entry, not recomputed: phase 2 and Undo log the same attribution
         // for the same addition, and by then the sources are long out of scope.
         entry.from[id] = fromLabel(first[id], counts[id]);
-        self.log(path.kind === 'performers' ? 'PERF' : 'TAG',
-          entry.label + ' - ' +
-          (path.kind === 'performers'
-            ? performerLabel(self.performerNames, id)
-            : tagLabel(self.tagMap, id)) +
-          ' - from ' + entry.from[id]);
+        var parts = self.changeParts(entry, path.kind, id);
+        self.log(path.kind === 'performers' ? 'PERF' : 'TAG', partsText(parts), parts);
       });
     });
   };
@@ -3194,12 +3373,21 @@
   // The name each line reports. Batches group entities by an identical addition, but
   // each entity carries its own attribution - the same tag is rarely wanted for the
   // same reason twice - so the line is built per entry, not per batch.
-  Run.prototype.changeLine = function (batch, entry, id, prefix) {
-    return (prefix || '') + entry.label + ' - ' +
-      (batch.kind === 'performers'
-        ? performerLabel(this.performerNames, id)
-        : tagLabel(this.tagMap, id)) +
-      (entry.from[id] ? ' - from ' + entry.from[id] : '');
+  //
+  // As `parts` rather than one string: the entity is a link to its own page and the tag
+  // or performer opens a hover card, and both are things a user reads a plan to decide
+  // about. `partsText` is what goes into `lines`, so Copy log is unchanged - a link and
+  // a card are not text.
+  Run.prototype.changeParts = function (entry, kind, id, prefix) {
+    var parts = [];
+    if (prefix) parts.push({ text: prefix });
+    parts.push({ text: entry.label, href: entityHref(entry.target, entry.id) });
+    parts.push({ text: ' - ' });
+    parts.push(kind === 'performers'
+      ? { text: performerLabel(this.performerNames, id), card: { kind: 'performer', id: id } }
+      : { text: tagLabel(this.tagMap, id), card: { kind: 'tag', id: id } });
+    if (entry.from[id]) parts.push({ text: ' - from ' + entry.from[id] });
+    return parts;
   };
 
   // Called from both directions - an undo moves an entity as surely as an apply does,
@@ -3231,8 +3419,8 @@
         self.noteWritten(batch);
         batch.entries.forEach(function (entry) {
           batch.ids.forEach(function (id) {
-            self.log(batch.kind === 'performers' ? 'PERF' : 'TAG',
-              self.changeLine(batch, entry, id));
+            var line = self.changeParts(entry, batch.kind, id);
+            self.log(batch.kind === 'performers' ? 'PERF' : 'TAG', partsText(line), line);
             var c = self.appliedCounts[batch.kind];
             c[id] = (hasOwn(c, id) ? c[id] : 0) + 1;
           });
@@ -3351,8 +3539,8 @@
         self.noteWritten(batch);
         batch.entries.forEach(function (entry) {
           batch.ids.forEach(function (id) {
-            self.log(batch.kind === 'performers' ? 'PERF' : 'TAG',
-              self.changeLine(batch, entry, id, 'Undo - '));
+            var back = self.changeParts(entry, batch.kind, id, 'Undo - ');
+            self.log(batch.kind === 'performers' ? 'PERF' : 'TAG', partsText(back), back);
             var c = self.undoneCounts[batch.kind];
             c[id] = (hasOwn(c, id) ? c[id] : 0) + 1;
           });
@@ -3528,6 +3716,10 @@
   function wireEscape(run) {
     run._onEscape = function (ev) {
       if (!ev || (ev.key !== 'Escape' && ev.keyCode !== 27)) return;
+      // Two dialogs can be on the page at once - the path editor opens over the run -
+      // and both listen on `document`, so without this the key would close both. The
+      // editor is always the one on top while it is open.
+      if (_paths && _paths !== run) return;
       var b = escapeButton(run);
       if (!b) return;
       if (ev.preventDefault) ev.preventDefault();
@@ -4235,7 +4427,7 @@
     this.checkVersion();
 
     loadSettings().then(function (loaded) {
-      if (_active !== self) return;
+      if (_paths !== self) return;
       self.set(loaded.settings.paths);
       self.enable(true);
       self.saveBtn.disabled = self.stale;
@@ -4250,7 +4442,7 @@
           'selected here.'
         : '';
     }, function (e) {
-      if (_active !== self) return;
+      if (_paths !== self) return;
       self.noteEl.textContent = 'The current setting could not be read (' +
         (e && e.message ? e.message : e) + '). Saving from here would replace it with ' +
         'whatever is selected above, so Save stays disabled - close this and try again.';
@@ -4265,7 +4457,7 @@
   PathsDialog.prototype.checkVersion = function () {
     var self = this;
     return checkInstalledVersion(function (installed) {
-      if (_active !== self) return;
+      if (_paths !== self) return;
       self.stale = true;
       self.saveBtn.disabled = true;
       self.noteEl.parentNode.insertBefore(el('div', 'ptp2re-stale',
@@ -4290,11 +4482,19 @@
     this.enable(false);
     this.noteEl.textContent = 'Saving...';
     savePaths(formatPaths(this.modes)).then(function () {
-      if (_active !== self) return;
+      if (_paths !== self) return;
+      // A run dialog underneath is holding a plan built from the paths that were set a
+      // moment ago. Saying so beats letting the user read a plan that no longer matches
+      // the configuration the head above it lists.
+      if (_active && _active.log) {
+        _active.log('INFO', 'The paths were changed while this dialog was open. The plan ' +
+          'above was built from the previous setting - press Rescan to plan again.');
+        _active.flush();
+      }
       self.close();
     }, function (e) {
       self.saving = false;
-      if (_active !== self) return;
+      if (_paths !== self) return;
       self.saveBtn.disabled = false;
       self.enable(true);
       self.noteEl.textContent = 'The setting could not be saved: ' +
@@ -4307,7 +4507,7 @@
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);
     }
-    if (_active === this) _active = null;
+    if (_paths === this) _paths = null;
     // Whatever was saved changes which manual buttons belong on the page behind this.
     invalidateButtonProbes();
   };
@@ -4638,7 +4838,12 @@
     this.written = 0;
   }
 
-  ['planEntry', 'plannedFor', 'addSource', 'aggregate', 'planTarget'].forEach(function (m) {
+  // `changeParts` comes along with `planTarget`, which builds every plan line through
+  // it. Nothing here renders the parts - `AutoRun.log` takes the text and drops the
+  // rest - but the line has to be built the same way in both, or the console line a
+  // reaction prints would say something different from the one the dialog shows.
+  ['planEntry', 'plannedFor', 'addSource', 'aggregate', 'planTarget',
+    'changeParts'].forEach(function (m) {
     AutoRun.prototype[m] = Run.prototype[m];
   });
 

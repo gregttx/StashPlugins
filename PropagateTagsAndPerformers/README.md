@@ -40,8 +40,14 @@ entity it came from**:
 ```
 
 Where several entities carried the same thing, one is named and the rest are counted — the named
-one is where to start looking. Numbers in brackets are ids, so you can go straight to
-`/performers/7` to see why a tag was copied, or to undo one by hand later.
+one is where to start looking. Numbers in brackets are ids.
+
+**The entity a change lands on is a link** — click it to open that scene, gallery, image or group
+in a new tab. **The tag or performer being added hovers to a card**: a tag's aliases and
+description, and a performer's picture with their gender, birthdate, country, scene count, rating
+and aliases. That is what tells two similarly named tags apart, or says which of two performers
+this is, without leaving the dialog. **Copy log** hands over the plain text either way — a link and
+a card are not text.
 
 Each phase closes with a recap of every distinct tag and performer the run moves and how many
 entities each lands on — the question worth asking before a library-wide write, and one a
@@ -56,9 +62,13 @@ are set to act on the same path. Neither disables the other.
 ## The thirteen paths
 
 Every one of them is **off** on a fresh install. Which paths run is one setting, edited in the
-**Path Settings** dialog — from **Settings → Tasks → Plugin Tasks**, or from the button on the
-setting's own row under **Settings → Plugins**. Each path is *Off* or *On*, and the two group
+**Path Settings** dialog — from the button on the setting's own row under **Settings → Plugins**,
+or from the **Path Settings...** button in the footer of the propagate dialog itself, which is
+where you find out that a path you wanted is off. Each path is *Off* or *On*, and the two group
 aggregations offer a third choice, *Common tags only*.
+
+Saving there changes nothing already planned in the dialog behind it — press **Rescan** to plan
+again with the paths you have just set. The dialog says so when you do.
 
 One button per path, and it is the control: it shows the state the path is in, and a click takes
 the next one. Turning a path on is a single click, and a path that is on wears the plugin's amber.
@@ -405,7 +415,7 @@ two automatic modes (react when the *target* is saved, or when a *source* is sav
 source-side mode fans out: saving one performer can rewrite every scene they appear in.
 
 **Paths** — one row, listing the paths that are on in three columns and holding the button that
-opens the **Path Settings** dialog. All thirteen are in that dialog, in three columns read top to
+opens the **Path Settings** dialog (the propagate dialog's own footer is the other way in). All thirteen are in that dialog, in three columns read top to
 bottom, in the same order this row lists them. Each is *Off* or *On*,
 and the two group aggregations offer *Common tags only* as a third choice. The setting itself is one line of text (`tags:studio>scene=ON,
 tags:scene>group=COMMON`) and can be typed by hand — it is read forgivingly, in any order and any
@@ -435,8 +445,9 @@ or the Logs page — this is a UI plugin and cannot write there).
 Four of those switches are not Stash's blue. **Save Immediately** and the two
 automatic modes are **amber**, the plugin's colour for a setting that makes it write without
 showing you a plan first; the logging switch is **teal**, for one that only talks to the console.
-Everything else stays blue. In **Settings → Tasks → Plugin Tasks** the propagate task is amber for
-the same reason, and **Path Settings** is teal — it writes a setting, not your library.
+Everything else stays blue. In **Settings → Tasks → Plugin Tasks** the one task, **Propagate
+All...**, is amber for the same reason, and **Path Settings** — wherever it appears — is teal: it
+writes a setting, not your library.
 
 **If your paths or toggles look reset, that is a bug this plugin used to have.** Stash's
 `configurePlugin` replaces a plugin's whole settings block rather than merging into it, so any

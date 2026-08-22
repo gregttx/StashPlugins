@@ -4,6 +4,23 @@ Why the parts that look arbitrary are the way they are. This file does not ship
 (`files:` carries the `js`, the `yml` and the `README.md`), so this is where a release is
 argued.
 
+**0.0.8 is two small things about the controls, both from live use.**
+
+**The exit says which of the two it is.** One button, `Cancel` while there is a search to abandon
+and `Close` once the state is `done` - the same slash-caption pattern the primary button beside it
+already uses for Search/Pause/Resume/Continue, keyed off the same state in the same `syncFooter`.
+Cancelling something that has finished is a sentence that does not parse.
+
+**The box has a ×, and it is `NormalizeParentTags`' one.** That plugin's `clearableInput` is the
+shape: the icon is positioned inside the box against a wrapper, hidden while the box is empty, and
+`.clear` is now a rule two plugins share - so it is pinned byte-identical by `tests/style.test.js`
+and had to *be* the same thing in both, not merely be spelled the same. The first cut was a footer
+button beside the box, which is a different control wearing a shared name; the suite caught it.
+
+The right-hand padding that keeps typed text clear of the icon is `.fetc-searchbox`, a modifier
+beside the pinned `.textbox` rule rather than an edit to it - `EntityNameMaintainer` shares that
+rule and its box has no ×. Same escape hatch as `.cfbe-tall`.
+
 ## 1. It exists because Stash's filters cannot be asked this question
 
 Each `*FilterType` names its own fields — `SceneFilterType.details`,

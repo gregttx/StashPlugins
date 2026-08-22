@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.2.2';
+  var PLUGIN_VERSION = '2.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -675,6 +675,17 @@
     '.cfbe-input,.cfbe-select{background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
     'border-radius:3px;padding:.25rem .5rem;}' +
     '.cfbe-input{flex:1 1 10rem;min-width:8rem;}' +
+    // The × that empties a filter box, inside the box. `NormalizeParentTags` got here
+    // first and these two rules are its, byte-identical with the prefix swapped - a
+    // class two plugins share has to mean the same thing in both, and this one does.
+    // The filter boxes carry the right padding that keeps the text clear of the icon;
+    // `.cfbe-input` at large does not, since the editor's two boxes have no ×.
+    '.cfbe-inputwrap{position:relative;display:flex;align-items:center;flex:1 1 0;}' +
+    '.cfbe-clear{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);' +
+    'background:none;border:0;color:#a7b6c2;font-size:1.1rem;line-height:1;cursor:pointer;' +
+    'padding:0 .35rem;}' +
+    '.cfbe-clear:hover{color:#f5f8fa;}' +
+    '.cfbe-filterbox{padding-right:1.9rem;}' +
     // Stash marks its own dropdowns with a stacked ▲/▼ (Settings - Logs - Log Level);
     // a bare <select> gets whatever single chevron the browser draws. `appearance:none`
     // removes that one and the pair goes back as a background image, inline as a data
@@ -1393,12 +1404,12 @@
     this.entFilter.title = this.entMode.title = 'Matches the entity name and id together, ' +
       'as name, space, id in brackets - so "Cool Scene (42)", "Cool Scene" and "(42)" all ' +
       'find that one row.';
-    filters.appendChild(this.entFilter);
+    filters.appendChild(this.clearable(this.entFilter));
     filters.appendChild(el('span', 'cfbe-label', 'Filter by Name'));
     this.nameMode = this.select('cfbe-filter-namemode', TEXT_MODES, 'contains');
     filters.appendChild(this.nameMode);
     this.nameFilter = this.input('cfbe-filter-name');
-    filters.appendChild(this.nameFilter);
+    filters.appendChild(this.clearable(this.nameFilter));
     filters.appendChild(el('span', 'cfbe-label', 'Filter by Value'));
     // The mode is a control of its own rather than something typed into the box, because
     // any sentinel the box could carry is also a value somebody is allowed to have.
@@ -1413,7 +1424,7 @@
       '"is empty" is the narrower of the two.';
     filters.appendChild(this.valueMode);
     this.valueFilter = this.input('cfbe-filter-value');
-    filters.appendChild(this.valueFilter);
+    filters.appendChild(this.clearable(this.valueFilter));
     [this.nameFilter, this.entFilter, this.valueFilter].forEach(function (i) {
       i.addEventListener('input', function () { self.filterChanged(); });
     });
@@ -1521,6 +1532,30 @@
     i.type = 'text';
     i.value = '';
     return i;
+  };
+
+  // A filter box with the × that empties it, in a wrapper the icon positions against -
+  // `NormalizeParentTags`' `clearableInput`, which pinning the icon to the row instead
+  // of the box could not do here: this row holds three of them. Hidden while the box is
+  // empty, so the row never shows a press that would do nothing.
+  Run.prototype.clearable = function (input) {
+    var self = this;
+    var wrap = el('div', 'cfbe-inputwrap');
+    input.className += ' cfbe-filterbox';
+    var clear = el('button', 'cfbe-clear cfbe-hidden', '\u00d7');
+    clear.type = 'button';
+    clear.title = 'Empty this filter.';
+    var sync = function () { self.show(clear, !!input.value); };
+    input.addEventListener('input', sync);
+    clear.addEventListener('click', function () {
+      input.value = '';
+      sync();
+      if (input.focus) input.focus();
+      self.filterChanged();
+    });
+    wrap.appendChild(input);
+    wrap.appendChild(clear);
+    return wrap;
   };
 
   // `[value, label]`, or `[value, label, tooltip]`. The options are kept on `_opts` as
@@ -1720,11 +1755,13 @@
       self.setState('listing');
       self.renderList();
       self.summarise();
+      self.dropRenameIfGone();
     }, function (e) {
       self.msg('ERROR', 'Reading custom fields failed: ' + (e && e.message ? e.message : String(e)));
       self.setState('listing');
       self.renderList();
       self.summarise();
+      self.dropRenameIfGone();
     });
   };
 
@@ -2208,6 +2245,22 @@
       else if (scoped[i].name !== name) return null;
     }
     return name;
+  };
+
+  // The one place that rule is wrong: a rescan is a fresh read of a library that may
+  // have moved, and a Rename left selected over a scope that now carries several field
+  // names is a mode with no field to rename and an Apply that can never enable. So the
+  // operation goes back to Add and the log says it did - which is the part that keeps
+  // this from being the silent switch the rule above refuses.
+  //
+  // Called after a read rather than from `syncOps`, which also runs on every keystroke
+  // in a filter box: mid-typing is exactly where staying selected is the right answer.
+  Run.prototype.dropRenameIfGone = function () {
+    if (this.modeSel.value !== 'rename' || this.renameFrom()) return;
+    this.modeSel.value = 'add';
+    this.msg('INFO', 'Rename is no longer offered - what is in scope now carries more than ' +
+      'one custom field name - so the operation has been set back to Add.');
+    this.syncOps();
   };
 
   // Rename is offered only while the scope carries exactly one field name, and the

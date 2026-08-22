@@ -873,6 +873,47 @@ openDialog()
       });
   })
 
+  // A rescan is the one moment a mode that has become unavailable is switched back,
+  // and the × on a filter box is the quickest way to make it unavailable.
+  .then(() => openDialog({
+    entities: {
+      1: { id: '1', title: 'S1', custom_fields: { colour: 'blue', rating: '5' } },
+      2: { id: '2', title: 'S2', custom_fields: { colour: 'red' } },
+    },
+    select: ['1', '2'],
+  }))
+  .then((env) => {
+    const modeSel = one(env.body, 'cfbe-mode');
+    const nameFilter = one(env.body, 'cfbe-filter-name');
+    const clear = byClass(env.body, 'cfbe-clear')[1];   // entity, name, value
+    h.check('each text filter has a × of its own', byClass(env.body, 'cfbe-clear').length === 3,
+      String(byClass(env.body, 'cfbe-clear').length));
+    h.check('hidden while its box is empty', h.hasClass(clear, 'cfbe-hidden'), clear.className);
+    nameFilter.value = 'colour';
+    h.fire(nameFilter, 'input');
+    h.check('and showing once something is typed', !h.hasClass(clear, 'cfbe-hidden'));
+    modeSel.value = 'rename';
+    h.fire(modeSel, 'change');
+    h.check('Rename is selectable over the one field name left showing',
+      modeSel.value === 'rename');
+    clear.click();
+    return h.flush().then(() => {
+      h.check('the × empties the box', nameFilter.value === '');
+      h.check('and hides itself again', h.hasClass(clear, 'cfbe-hidden'));
+      h.check('Rename stays selected mid-editing, even though it is now unavailable',
+        modeSel.value === 'rename' &&
+        modeSel.childNodes.filter((o) => o.value === 'rename')[0].disabled === true);
+      press(env.body, 'cfbe-rescan');
+      return h.flush().then(() => {
+        h.check('a rescan switches the operation back to Add', modeSel.value === 'add');
+        h.check('and says so in the log',
+          notes(env.body).some((l) => /Rename is no longer offered.*set back to Add/.test(l)),
+          notes(env.body).join(' | '));
+        return env;
+      });
+    });
+  })
+
   // The one case a rename must refuse: the new name is already on the entity, so the
   // write would overwrite a value rather than move one.
   .then(() => openDialog({

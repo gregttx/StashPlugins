@@ -44,7 +44,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.6';
+  var PLUGIN_VERSION = '0.0.7';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -79,6 +79,10 @@
   // a write has got; this says it is still going.
   var SPIN_FRAMES = ['▙', '▛', '▜', '▟'];
   var SPIN_MS = 125;           // one four-frame cycle at 2Hz
+  // How long Close stays armed after the first press. Long enough to read the
+  // question, short enough that a user who has looked away does not come back to a
+  // button still waiting to close.
+  var CLOSE_CONFIRM_SECONDS = 3;
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
@@ -969,7 +973,7 @@
     });
 
     this.goBtn.addEventListener('click', function () { self.go(); });
-    this.closeBtn.addEventListener('click', function () { self.close(); });
+    this.closeBtn.addEventListener('click', function () { self.requestClose(); });
     this.copyBtn.addEventListener('click', function () { self.copyLog(); });
     this.allOnBtn.addEventListener('click', function () { self.setAllFilters(true); });
     this.allOffBtn.addEventListener('click', function () { self.setAllFilters(false); });
@@ -1682,8 +1686,46 @@
     run._onEscape = null;
   }
 
+  // ── Closing throws away a listing that cannot be got back ─────────────────
+  //
+  // The scan runs off a rename that has already happened, so once this dialog is gone
+  // there is no way to ask for the same listing again - the old name is only known
+  // because the plugin saw it go. A stray Escape over a hundred found occurrences is
+  // therefore unrecoverable, which is what earns a confirm on a button that is
+  // otherwise the harmless one.
+  //
+  // The first press arms and counts down rather than closing; a second press while it
+  // is armed closes. Nothing to dismiss and nothing to undo if the user simply walks
+  // away - the countdown disarms itself. Only when something was found: an empty
+  // listing is nothing to lose.
+  Run.prototype.requestClose = function () {
+    if (!this.hits.length || this._armed) { this.close(); return; }
+    var self = this;
+    var left = CLOSE_CONFIRM_SECONDS;
+    this._armed = true;
+    this._closeLabel = this.closeBtn.textContent;
+    this.closeBtn.title = 'Some cross-references might be lost. Copy log just in case.';
+    var tick = function () {
+      self.closeBtn.textContent = 'Are you sure? (' + left + ')';
+      if (left-- <= 0) self.disarmClose();
+    };
+    tick();
+    this._armTimer = setInterval(tick, 1000);
+  };
+
+  Run.prototype.disarmClose = function () {
+    if (this._armTimer) clearInterval(this._armTimer);
+    this._armTimer = null;
+    if (!this._armed) return;
+    this._armed = false;
+    this.closeBtn.textContent = this._closeLabel || 'Close';
+    this.closeBtn.title = '';
+  };
+
   Run.prototype.close = function () {
     unwireEscape(this);
+    if (this._armTimer) clearInterval(this._armTimer);
+    this._armTimer = null;
     this.spin(false);
     if (this.backdrop && this.backdrop.parentNode) {
       this.backdrop.parentNode.removeChild(this.backdrop);

@@ -94,7 +94,11 @@ searched fields on is left out of the breakdown — the log says it was skipped.
   become Pause, Resume or Continue — those are the states where **Search** carries the
   current search *on* and there is no other way to say *start over*. When that button
   already says Search, Refresh would do the same thing, so it is not offered.
-- **Cancel**, or the Escape key, closes it.
+- **Cancel**, or the Escape key, closes it. Once a search has run out it reads **Close**
+  instead — the same button, saying which of the two pressing it now means.
+
+The **×** at the right-hand end of the box empties it. It is there only while there is
+something to empty.
 
 ## Remembering
 

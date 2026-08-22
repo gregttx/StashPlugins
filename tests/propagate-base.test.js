@@ -14,7 +14,7 @@ const h = require('./npt-harness');
 const NAME = 'PropagateTagsAndPerformers';
 const SRC = process.env.SRC || path.join(__dirname, '..', NAME, NAME + '.js');
 const PREFIX = 'ptp2re';
-const TASK = 'Propagate Tags and Performers to All Related Entities...';
+const TASK = 'Propagate All...';
 
 // Answers the three queries the dialog makes at 0.1.0: the settings, the installed
 // version, and nothing else. `installed` absent means Stash reported no version,
@@ -564,6 +564,68 @@ Promise.resolve()
     h.check('and not Stop, Rescan, Close or Undo',
       !d.visible('Stop') && !d.visible('Rescan') && !d.visible('Close') && !d.visible('Undo'),
       ['Stop', 'Rescan', 'Close', 'Undo'].filter((b) => d.visible(b)).join(' '));
+  })
+
+  // ── The path editor, opened from this footer rather than from Tasks ───────
+  //
+  // It stopped being a task: Stash's task list is for things that act on the library,
+  // and it is here instead - a press away from the head that lists which paths are on
+  // and the empty plan a missing one produces.
+  .then(() => open({ settings: { b1TagsPerformersToScenes: true } })).then(({ env, d }) => {
+    h.check('the run dialog offers Path Settings', d.visible('Path Settings...'));
+    h.check('in teal, since it writes a setting and not the library',
+      h.hasClass(d.button('Path Settings...'), 'btn-info'),
+      d.button('Path Settings...').className);
+    d.button('Path Settings...').click();
+    return h.flush().then(() => {
+      const dialogs = env.ctx.document.body.descendants()
+        .filter((n) => h.hasClass(n, PREFIX + '-modal'));
+      h.check('pressing it opens the editor over the run rather than instead of it',
+        dialogs.length === 2, String(dialogs.length));
+      h.check('and the run is still the one holding its log',
+        h.dialog(env.ctx.document.body, PREFIX).lines.some((l) => /Enabled, in the order/.test(l)),
+        h.dialog(env.ctx.document.body, PREFIX).lines.join(' | '));
+      // Both dialogs listen on `document`, so without the top-dialog check the key
+      // reaches the run's own handler too - and the run was wired first, so it is the
+      // one that closes. Counting modals cannot see that: the editor is a modal as
+      // well. Each side has to be named by something only it has.
+      const editorUp = () => env.ctx.document.body.descendants()
+        .some((n) => h.hasClass(n, PREFIX + '-pathsbody'));
+      const runUp = () => env.ctx.document.body.descendants()
+        .some((n) => h.hasClass(n, PREFIX + '-log'));
+      h.check('both are on the page together', editorUp() && runUp());
+      h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+      return h.flush().then(() => {
+        h.check('Escape closes the editor', !editorUp());
+        h.check('and leaves the run behind it open', runUp());
+        h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+        return h.flush().then(() => {
+          h.check('a second Escape then closes the run', !runUp());
+        });
+      });
+    });
+  })
+
+  .then(() => {
+    const env = boot({ settings: { b1TagsPerformersToScenes: true } });
+    // Stash renders one task now, and the paths editor is not it.
+    const group = h.makeElement('div');
+    group.className = 'setting-group';
+    const heading = h.makeElement('h3');
+    heading.textContent = 'ᝯㄝₓ Propagate Tags and Performers to Related Entities';
+    group.appendChild(heading);
+    const btn = h.makeElement('button');
+    btn.textContent = 'Path Settings...';
+    group.appendChild(btn);
+    env.ctx.document.body.appendChild(group);
+    env.tick();
+    h.check('a Path Settings task button is no longer ours to intercept or paint',
+      !h.hasClass(btn, 'btn-info') && !h.hasClass(btn, 'btn-warning'), btn.className);
+    h.fire(env.ctx.document, 'click', { target: btn });
+    return h.flush().then(() => {
+      h.check('and clicking it opens nothing',
+        !h.dialog(env.ctx.document.body, PREFIX).open);
+    });
   })
 
   // ── The settings page ─────────────────────────────────────────────────────

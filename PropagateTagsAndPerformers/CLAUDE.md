@@ -5,10 +5,60 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
-**Status: released, 3.11.2.** Every step in the table below has landed, so the version left the
+**Status: released, 3.12.0.** Every step in the table below has landed, so the version left the
 0.x range: the major digit was always the claim that the plugin is finished and worth installing,
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
+
+**3.12.0 moves the path editor out of Stash's task list and makes a log line clickable.**
+
+**One task, and a shorter name for it.** `Propagate Tags and Performers to All Related Entities...`
+is `Propagate All...`; the settings group above it already says which plugin this is, and the
+manifest name was two thirds of a caption that then had to fit beside twelve other plugins' tasks.
+**And `Path Settings...` is not a task at all any more.** Stash's task list is for things that act
+on the library; that one edits a setting. It now opens from two places that are already looking at
+what it edits: the button on the Paths settings row, which is where it always was, and the run
+dialog's own footer - which is where a user *finds out* a path they wanted is off, because the head
+lists what is enabled and the plan below it is empty without it.
+
+- **`_paths` is a slot of its own beside `_active`.** The editor opens *over* a run rather than
+  instead of one, so a run holding `_active` must not block it and the editor closing must not clear
+  the run. Every `_active !== self` guard inside `PathsDialog` moved with it - five of them, which
+  is the number that says this object was only ever the second thing in a one-at-a-time slot.
+- **Escape needs a top-dialog check, and counting modals cannot test it.** Both dialogs listen on
+  `document` and the run was wired first, so without the check the key closes the *run* and leaves
+  the editor. The editor is a modal too, so a check on how many `-modal` elements are on the page
+  passes either way; `propagate-base` names each side by something only it has (`-pathsbody`,
+  `-log`). The mutant that drops the guard fails exactly those two checks and nothing else.
+- **Saving tells the run its plan is stale** rather than rescanning for it. A rescan is a
+  library-wide read the user did not ask for, and the dialog's own Rescan is right there; what was
+  missing was anything saying the plan above no longer matches the configuration the head lists.
+- **`TASKS` is one entry now, which is what actually removes the task** - `ownTaskName` reads it, so
+  a `Path Settings...` button rendered by a Stash that has not reloaded its manifests is no longer
+  ours to intercept or paint. The `runPluginTask` backstop still routes the name if something posts
+  it, which costs a line and covers exactly that window.
+
+**A change line is markup, not only text.** The entity is a link to its own page in a new tab, and
+the tag or performer being added hovers to a card. Four things about it:
+
+- **`changeParts` replaced `changeLine`, and `AutoRun` borrows it** beside `planTarget`, which
+  builds every plan line through it. Nothing in a reaction renders the parts - `AutoRun.log` takes
+  the text - but the line has to be *built* the same way in both, or a reaction's console line would
+  say something different from the dialog's. Forgetting that borrow failed thirty checks across two
+  suites, which is the borrow list doing its job.
+- **`partsText(parts)` is what goes into `lines`,** so Copy log is unchanged. The recap line had
+  this shape already; this generalises it rather than inventing a second one.
+- **One card for the whole dialog, filled on hover.** A plan can run to six figures of lines, and a
+  hidden box per line is the page-that-stops-responding the render cap exists to prevent. It is
+  `position:fixed` and placed from the anchor's rect, because the log is an `overflow:auto` box that
+  would clip a box positioned inside a line - against its own top edge, which is where the pointer
+  usually is. The shared `.tipbox` rule cannot do either, and it holds no image.
+- **The detail is one by-id query per hovered thing, cached per dialog, and silent on failure.**
+  Same bargain as the recap's tooltips: this buys a hover, not a write. `_cardFor` is what stops a
+  late answer reopening a card the pointer has already left.
+- **`ROUTES` is a table of its own** rather than something derived from `TARGETS[].route`, which is
+  a regex for reading an id *out* of a path and cannot be run backwards. A Marker is deliberately
+  absent - it has no page, which is the same fact that gives it no source button.
 
 **3.11.2 fixes the grammar of the load banner.** The line this plugin prints at load read "the
 running script own version": the pass that replaced its curly quotes and em dashes with ASCII

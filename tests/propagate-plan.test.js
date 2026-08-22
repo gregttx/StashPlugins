@@ -12,7 +12,7 @@ const h = require('./npt-harness');
 const NAME = 'PropagateTagsAndPerformers';
 const SRC = process.env.SRC || path.join(__dirname, '..', NAME, NAME + '.js');
 const PREFIX = 'ptp2re';
-const TASK = 'Propagate Tags and Performers to All Related Entities...';
+const TASK = 'Propagate All...';
 
 // Hair Colour (1) / Blonde (2) / Outdoor (3) / Interview (4) / Locked (5) / Skip (6)
 const TAGS = [
@@ -44,6 +44,14 @@ function responder(opts) {
     if (/PTPTagDetail/.test(q)) {
       if (opts.failTagDetail) return { errors: [{ message: 'too expensive' }] };
       return { data: { findTags: { tags: opts.tagDetail || [] } } };
+    }
+    // The hover card's own two queries, by id and on demand. Ahead of `PTPTags` for the
+    // same reason `PTPTagDetail` is: that regex would match these names too.
+    if (/PTPTagCard/.test(q)) {
+      return { data: { findTag: (opts.cards || {})['tag:' + req.variables.id] || null } };
+    }
+    if (/PTPPerformerCard/.test(q)) {
+      return { data: { findPerformer: (opts.cards || {})['performer:' + req.variables.id] || null } };
     }
     if (/PTPTags/.test(q)) {
       if (opts.failTags) return { errors: [{ message: 'tags boom' }] };
@@ -116,6 +124,82 @@ Promise.resolve()
     h.check('planning writes nothing', mutations(env.calls).length === 0);
     h.check('and Proceed is enabled once there is a plan',
       d.button('Proceed').disabled === false);
+  })
+
+  // ── The line is markup, not only text ─────────────────────────────────────
+  //
+  // The entity opens in a new tab and the tag and the performer hover to a card. What
+  // `lines` holds - and so what Copy log hands over - is unchanged either way, which is
+  // what the last check here is for.
+  .then(() => run({
+    settings: { b1TagsPerformersToScenes: true, b5PerformersGalleriesToScenes: true },
+    cards: {
+      'tag:2': { id: '2', name: 'Blonde', description: 'Hair like that', aliases: ['blond'] },
+      'performer:100': { id: '100', name: 'Jane', gender: 'FEMALE', birthdate: '1990-01-02',
+        country: 'FR', alias_list: ['J'], favorite: true, rating100: 80, scene_count: 12,
+        image_path: 'http://stash/p/100.jpg' },
+    },
+    library: {
+      findScenes: { node: 'scenes', list: [
+        // The performer arrives from the gallery in stage 1, so its own [PERF] line is
+        // what the performer card hangs off; the tag it carries follows in stage 2.
+        { id: '10', title: 'One', tags: [], organized: false,
+          // Ada is already on the scene and supplies the tag line; Jane arrives from the
+          // gallery in stage 1 and supplies the performer line. Two lines, two kinds of
+          // card, one fixture.
+          performers: [{ id: '101', name: 'Ada', tags: [{ id: '2' }] }],
+          galleries: [{ id: '50', performers: [{ id: '100', name: 'Jane' }] }] },
+      ] },
+    },
+  })).then(({ env, d }) => {
+    const line = env.ctx.document.body.descendants().filter((n) =>
+      h.hasClass(n, 'ptp2re-line') && /Performer "Jane"/.test(n.textContent))[0];
+    const kids = line ? line.descendants() : [];
+    const link = kids.filter((n) => n.tagName === 'A')[0];
+    h.check('the entity a change lands on is a link', !!link && link.textContent === 'Scene "One" (10)',
+      link && link.textContent);
+    h.check('to its own page, in a new tab',
+      !!link && link.href === '/scenes/10' && link.target === '_blank' &&
+      link.rel === 'noopener noreferrer', link && link.href + ' ' + link.target);
+    const perfSpan = kids.filter((n) => h.hasClass(n, 'ptp2re-hover'))[0];
+    h.check('and the performer beside it is a hover target', !!perfSpan &&
+      /Performer "Jane" \(100\)/.test(perfSpan.textContent), perfSpan && perfSpan.textContent);
+    h.check('the log line reads exactly as it always did, so Copy log is unchanged',
+      d.lines.some((l) =>
+        l === '[PERF] Scene "One" (10) - Performer "Jane" (100) - from Gallery "untitled" (50)'),
+      d.lines.join('\n'));
+
+    const card = () => env.ctx.document.body.descendants()
+      .filter((n) => h.hasClass(n, 'ptp2re-card'))[0];
+    h.check('no card is on the page until something is hovered',
+      !card() || !h.hasClass(card(), 'ptp2re-card-open'));
+    h.fire(perfSpan, 'mouseenter');
+    return h.flush(20).then(() => {
+      h.check('hovering a performer opens a card with their picture',
+        !!card() && h.hasClass(card(), 'ptp2re-card-open') &&
+        card().descendants().some((n) => n.tagName === 'IMG' && n.src === 'http://stash/p/100.jpg'),
+        card() && card().className);
+      h.check('and the basic attributes beside it',
+        /Gender: FEMALE/.test(card().textContent) && /Born: 1990-01-02/.test(card().textContent) &&
+        /Country: FR/.test(card().textContent) && /Scenes: 12/.test(card().textContent),
+        card().textContent);
+      h.fire(perfSpan, 'mouseleave');
+      h.check('and it closes again when the pointer leaves',
+        !h.hasClass(card(), 'ptp2re-card-open'), card().className);
+
+      const tagLine = env.ctx.document.body.descendants().filter((n) =>
+        h.hasClass(n, 'ptp2re-line') && /Tag "Blonde"/.test(n.textContent))[0];
+      const tagSpan = tagLine &&
+        tagLine.descendants().filter((n) => h.hasClass(n, 'ptp2re-hover'))[0];
+      h.check('a tag on another line hovers too', !!tagSpan, tagLine && tagLine.textContent);
+      if (!tagSpan) return;
+      h.fire(tagSpan, 'mouseenter');
+      return h.flush(20).then(() => {
+        h.check('to its description and its aliases',
+          /Hair like that/.test(card().textContent) && /blond/.test(card().textContent),
+          card().textContent);
+      });
+    });
   })
 
   .then(() => run({

@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '0.0.7';
+  var PLUGIN_VERSION = '0.0.8';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -329,6 +329,19 @@
     '.fetc-label{color:#a7b6c2;font-size:.85rem;white-space:nowrap;}' +
     '.fetc-textbox{background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;border-radius:3px;' +
     'padding:.25rem .5rem;flex:1 1 12rem;min-width:8rem;}' +
+    // The × that empties the box, inside it. `NormalizeParentTags` got here first and
+    // these two rules are its, byte-identical with the prefix swapped - a class two
+    // plugins share has to mean the same thing in both, and this one does. The right
+    // padding above is what keeps the text clear of the icon.
+    '.fetc-inputwrap{position:relative;display:flex;align-items:center;flex:1 1 0;}' +
+    '.fetc-clear{position:absolute;right:.35rem;top:50%;transform:translateY(-50%);' +
+    'background:none;border:0;color:#a7b6c2;font-size:1.1rem;line-height:1;cursor:pointer;' +
+    'padding:0 .35rem;}' +
+    '.fetc-clear:hover{color:#f5f8fa;}' +
+    // The right padding that keeps the typed text clear of the icon, as a modifier
+    // beside the pinned `.textbox` rule rather than an edit to it - `EntityNameMaintainer`
+    // shares that rule and its box has no ×.
+    '.fetc-searchbox{padding-right:1.9rem;}' +
     // A fixed height rather than the shared `max-height` alone: rows arrive while the
     // user is reading, and a content-sized modal would grow under the pointer with every
     // page of results. The modifier pattern `CustomFieldsBulkEditor` established - a
@@ -807,11 +820,25 @@
 
     var bar = el('div', 'fetc-search fetc-search-wrap');
     bar.appendChild(el('span', 'fetc-label', 'Contains:'));
-    this.textInput = el('input', 'fetc-textbox');
+    this.textInput = el('input', 'fetc-textbox fetc-searchbox');
     this.textInput.type = 'text';
     this.textInput.value = '';
     this.textInput.addEventListener('input', function () { self.syncFooter(); });
-    bar.appendChild(this.textInput);
+    // The × that empties it, in a wrapper it positions against - the shape
+    // `NormalizeParentTags`' `clearableInput` settled on. Hidden while the box is empty,
+    // so the row never shows a press that would do nothing.
+    var wrap = el('div', 'fetc-inputwrap');
+    this.clearBtn = el('button', 'fetc-clear fetc-hidden', '\u00d7');
+    this.clearBtn.type = 'button';
+    this.clearBtn.title = 'Empty the box.';
+    this.clearBtn.addEventListener('click', function () {
+      self.textInput.value = '';
+      if (self.textInput.focus) self.textInput.focus();
+      self.syncFooter();
+    });
+    wrap.appendChild(this.textInput);
+    wrap.appendChild(this.clearBtn);
+    bar.appendChild(wrap);
 
     // Only on the page while the history is set to keep something, so an unused feature
     // is not a control that has to be explained.
@@ -1041,6 +1068,10 @@
     this.refreshBtn.disabled = !text || !types;
     this.textInput.disabled = this.state === 'running';
     this.historyInput.disabled = this.state === 'running';
+    // Cancel while there is something to abandon, Close once the search has run out:
+    // the same button, saying which of the two pressing it now means.
+    this.cancelBtn.textContent = this.state === 'done' ? 'Close' : 'Cancel';
+    this.show(this.clearBtn, !!text && this.state !== 'running');
     // Disabled where pressing would change nothing: every filter in the strip already on,
     // or every one already off. The types start all-off, so All Off is dead on open and
     // says so.

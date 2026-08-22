@@ -722,10 +722,36 @@ const filterBtns = (env) => env.body.descendants()
   const env = makeEnv({ library: lib });
   rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
     h.check('the dialog is open before Escape', dlg(env).open);
+    // Escape acts through the footer's Close, so it inherits the confirm the button
+    // grew: with occurrences on screen the first press arms and the second closes.
     h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
-    h.check('Escape closes it', !dlg(env).open);
+    h.check('the first Escape arms rather than closing', dlg(env).open);
+    h.check('and the button asks', /^Are you sure\? \(\d\)$/.test(
+      (env.body.descendants().filter((n) => h.hasClass(n, 'enm-close'))[0] || {}).textContent),
+      (env.body.descendants().filter((n) => h.hasClass(n, 'enm-close'))[0] || {}).textContent);
+    h.check('with the tooltip saying what may be lost',
+      /Copy log just in case/.test(
+        (env.body.descendants().filter((n) => h.hasClass(n, 'enm-close'))[0] || {}).title));
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('the second Escape closes it', !dlg(env).open);
     h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
     h.check('and the handler is gone with it', !dlg(env).open);
+  });
+}());
+
+// The other side of the guard: nothing found is nothing to lose, so Close closes.
+(function closeWithNothingFound() {
+  const lib = {
+    scenes: [], images: [], galleries: [], studios: [], groups: [], tags: [],
+    performers: [{ id: '7', name: OLD, details: '', alias_list: [], custom_fields: {} }],
+  };
+  const env = makeEnv({ library: lib });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('the dialog opens saying nothing else mentions the old name',
+      dlg(env).open && dlg(env).lines.some((l) => /Nothing else in your library mentions/.test(l)),
+      dlg(env).lines.join(' | '));
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('Escape closes it outright, with no confirm', !dlg(env).open);
   });
 }());
 

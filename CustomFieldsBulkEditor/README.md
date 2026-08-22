@@ -73,6 +73,8 @@ with no colours to paste into anything.
   brackets — so `Beach Day (412)`, `Beach Day` and `(412)` all reach that entity's fields.
 - Each of the three has a mode beside it: **contains**, or **omits** for its exact complement. An
   empty box filters nothing in either mode.
+- Each also has a **×** at the right-hand end of its box, showing only while there is something
+  to empty.
 - The dropdown beside **Filter by Value** also offers three modes that are the whole query on
   their own — the text box greys out for all three:
   - **is empty** lists only the fields set to the empty string — the one thing an empty box cannot
@@ -123,6 +125,11 @@ and drops the old one in the same input, so no entity is ever briefly without th
 that **already carries the new name** is skipped with a `[WARN]` naming the value it would have
 overwritten: that is a merge, not a rename, and the dialog will not decide it for you. **Undo**
 reverses both halves at once.
+
+**Rename** is offered only while everything in scope carries one field name, and a **Rescan** can
+take that away — the library may have moved, or the filter that narrowed the scope may no longer
+narrow it to one. When it does, the operation goes back to **Add** and an `[INFO]` line says so.
+Editing a filter does not: mid-typing is exactly where a mode should stay where you put it.
 
 **Why Add/Overwrite and not Stash's own Overwrite/Add/Remove tabs.** A custom field holds *one*
 value per key, so there is no list to append to. "Add" therefore means *do not overwrite* and

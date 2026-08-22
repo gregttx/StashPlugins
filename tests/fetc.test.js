@@ -682,6 +682,41 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
   });
 }());
 
+// ── The exit's caption, and the box's own clear ─────────────────────────────
+
+(function exitAndClear() {
+  const env = makeEnv();
+  const clear = () => env.body.descendants().filter((n) => h.hasClass(n, 'fetc-clear'))[0];
+  open(env, 'beach', ['Scenes']).then(() => {
+    h.check('before a search the exit says Cancel', !!dlg(env).button('Cancel'));
+    h.check('and the × is showing, because the box has something in it',
+      !!clear() && !h.hasClass(clear(), 'fetc-hidden'), clear() && clear().className);
+    return search(env);
+  }).then(() => {
+    h.check('once the search has finished the exit says Close',
+      !!dlg(env).button('Close') && !dlg(env).button('Cancel'));
+    h.check('and it still closes the dialog', (dlg(env).button('Close').click(), !dlg(env).open));
+  });
+}());
+
+(function clearing() {
+  const env = makeEnv();
+  const clear = () => env.body.descendants().filter((n) => h.hasClass(n, 'fetc-clear'))[0];
+  open(env, null, ['Scenes']).then(() => {
+    h.check('the × is hidden while the box is empty', h.hasClass(clear(), 'fetc-hidden'));
+    run(env).textInput.value = 'beach';
+    h.fire(run(env).textInput, 'input');
+    h.check('and appears once something is typed', !h.hasClass(clear(), 'fetc-hidden'));
+    clear().click();
+    h.check('pressing it empties the box', run(env).textInput.value === '');
+    h.check('hides itself again', h.hasClass(clear(), 'fetc-hidden'));
+    h.check('and Search goes back to saying what is missing',
+      dlg(env).button('Search').disabled &&
+      /Type what to look for/.test(dlg(env).button('Search').title),
+      dlg(env).button('Search').title);
+  });
+}());
+
 // ── Escape ──────────────────────────────────────────────────────────────────
 
 (function escape() {

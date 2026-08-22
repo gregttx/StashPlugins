@@ -4,6 +4,24 @@ Why the parts that look arbitrary are the way they are. This file does not ship
 (`files:` carries the `js`, the `yml` and the `README.md`), so this is where a release is
 argued.
 
+**0.0.7 puts a confirm on Close.** The listing is not reproducible: the scan runs off a rename
+that has already happened, and the old name is known only because the plugin watched it go. So
+Close - and the Escape key, which acts through it - arms and counts down rather than closing, and a
+second press within a few seconds closes. The tooltip is the user's own wording: *Some
+cross-references might be lost. Copy log just in case.*
+
+**Only when the listing holds something.** An empty listing is nothing to lose, and a confirm over
+it would be the dialog asking permission to do nothing - the same rule §12 applies to All On / All
+Off. The countdown disarms itself, so a user who walks away comes back to an ordinary Close rather
+than to a dialog waiting on a second press it will never explain.
+
+**It arms in the caption rather than putting up a second dialog.** `Are you sure? (3)` is on the
+button being pressed, which is where the question is; a `confirm()` would be a modal over a modal,
+and the repo has no chrome for one. Same latch shape as `PropagateTagsAndPerformers`' Undo, which
+arms for the opposite reason - that one guards a write, this one guards a *loss of a read* - and
+that is worth noting: this is the first control here that asks before something that writes
+nothing.
+
 ## 1. The trigger is a rename, not a button
 
 The brief said "when an entity is renamed (manually for now, maybe more later, on-update)",

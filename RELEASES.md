@@ -10,7 +10,8 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-22 | 2.8.4 (`bb28ff4`) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.8.4: the detail tick stops throwing on every page |
+| 2026-08-22 | 2.9.0 (`0b9205b`) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.9.0: the description tooltip appears where Stash shows the field name |
+| 2026-08-22 | [2.8.4](https://github.com/gregttx/StashPlugins/commit/bb28ff4) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.8.4: the detail tick stops throwing on every page |
 | 2026-08-22 | [2.8.3](https://github.com/gregttx/StashPlugins/commit/c8d90e7) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.8.3: Undo of an applied rename takes the list back, not only the library |
 | 2026-08-22 | [2.8.2](https://github.com/gregttx/StashPlugins/commit/2484566) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.8.2: Apply is quiet until there is something a user would call a change |
 | 2026-08-22 | [2.8.1](https://github.com/gregttx/StashPlugins/commit/3d8adb6) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.8.1: Apply goes back to disabled once a rename has been written |

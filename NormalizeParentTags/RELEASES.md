@@ -8,7 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 4.8.3 (`1725c41`) | 2026-08-22 | NPT 4.8.3 / PTP2RE 3.14.3: a control that changes what a run is doing is locked while it scans, not only while it writes |
+| [4.8.3](https://github.com/gregttx/StashPlugins/commit/1725c41) | 2026-08-22 | NPT 4.8.3 / PTP2RE 3.14.3: a control that changes what a run is doing is locked while it scans, not only while it writes |
 | [4.8.2](https://github.com/gregttx/StashPlugins/commit/033b1eb) | 2026-08-22 | NPT 4.8.2 / PTP2RE 3.14.2: Escape cannot abandon a settings save in flight |
 | [4.8.1](https://github.com/gregttx/StashPlugins/commit/dc3f0b5) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
 | [4.8.0](https://github.com/gregttx/StashPlugins/commit/6712889) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |

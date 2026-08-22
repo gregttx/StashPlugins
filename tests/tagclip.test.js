@@ -460,6 +460,10 @@ const btn = (body, label) => body.descendants()
     const d = h.dialog(env.body, 'tbc');
     h.check('the head says nothing is written, rather than warning about backups',
       /Nothing is written to your library/.test(d.note) && !/back/i.test(d.note), d.note);
+    const title = (env.body.descendants().filter((n) => h.hasClass(n, 'tbc-title'))[0] || {})
+      .textContent || '';
+    h.check('and names the entity being pasted onto, by name as well as by id',
+      /Paste Tags - Scene "Other Shoot" \(43\)$/.test(title), title);
   }
 
   {

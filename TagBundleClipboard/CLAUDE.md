@@ -284,6 +284,16 @@ now. Two plugin-local additions and one near-miss:
 declared and always null: this dialog has no mid-write state to cancel, and a special case in
 `escapeButton` would be a fifth copy of that function that is not the same function.
 
+**The head names the entity, and does it late.** The press has only the route to go on —
+`Scene 43` — and a by-id read there would put a round trip between the click and the modal. So
+the dialog opens on the route's label and `scopeName` fills the entity's own name in behind it,
+joining the two reads the dialog already does not wait for. `this.scope` is what the log lines
+and the console say too, so all three gain the name from one write. It reuses `tagQueryFor`
+rather than declaring a query of its own: that query already selects the fields `entityLabel`
+reads, and the tags it also returns are one entity's worth of rows on a read nothing is
+blocking. A failure leaves the route's label in place — a dialog that cannot name its scope
+still opens.
+
 ## 8b. Redundant parent tags: Prune and Roll Up in a dialog that removes nothing
 
 The two operations `NormalizeParentTags` names, scoped to one paste and applied to **the plan**

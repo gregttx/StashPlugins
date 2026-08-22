@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.1.1';
+  var PLUGIN_VERSION = '0.1.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -952,8 +952,11 @@
 
     var head = el('div', 'enm-head');
     // A plain block, so a title too long for one line wraps rather than being clipped.
+    // The new name, not the old one: the head describes the entity as it is now, and
+    // the old name is the string every log line below is about. `Label "name" (id)` is
+    // the shape every plugin here names an entity with.
     head.appendChild(el('div', 'enm-title', PLUGIN_SHORT_NAME + ' - ' + this.spec.label +
-      ' ' + this.id + ' renamed'));
+      ' "' + this.newName + '" (' + this.id + ') renamed'));
     this.staleEl = el('div', 'enm-stale enm-hidden', '');
     head.appendChild(this.staleEl);
     head.appendChild(el('div', 'enm-warn',

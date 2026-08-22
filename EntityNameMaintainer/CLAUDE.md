@@ -436,6 +436,16 @@ and these are unambiguously ours.
 This dialog writes, so it carries the standing sentence in the shared wording, unedited. The
 `TagBundleClipboard` waiver is for dialogs that issue no mutation at all, which this is not.
 
+## 20b. The head names the entity, not just its id
+
+`Tag "Blonde hair" (57) renamed` rather than `Tag 57 renamed`. The id is the one thing about
+the entity the user cannot recognise, and the shape is the repo's — `Label "name" (id)`, the
+same one every log line here already uses. **The new name, not the old one**: the head says
+which entity this is about as it stands now, and the old name is what every line below quotes.
+
+It costs no query, which is what separates this from the siblings' `scopeLabel`: the rename is
+the trigger, so both names are already in hand when the dialog is constructed.
+
 ## 21. Scene markers are not covered
 
 A marker carries a `title` and no page of its own to be renamed from, so there is no rename

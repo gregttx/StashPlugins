@@ -37,7 +37,7 @@
   // The major digit is deliberately still zero, and stays there until the plugin has
   // been used in a live Stash: it is the claim that the thing works, and no test in
   // this repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '0.7.2';
+  var PLUGIN_VERSION = '0.7.3';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -994,6 +994,22 @@
       ' tags { id name } } }';
   }
 
+  // The name for the head and the log lines, read by id. Behind the dialog rather
+  // than in front of it: the press opens on the route's label alone, so a round trip
+  // never sits between the click and the modal. Resolves to null on a failure - a
+  // dialog that cannot name its scope keeps the label it opened with.
+  function scopeName(type, id) {
+    var e = ENTITIES[type];
+    if (!e) return Promise.resolve(null);
+    // `tagQueryFor` rather than a query of its own: it already reads the fields a
+    // label is built from, and the tags it also brings back cost one entity's worth
+    // of rows on a read nothing is waiting for.
+    return gqlRequest(tagQueryFor(type), { id: String(id) }).then(function (data) {
+      var ent = data && data[e.one];
+      return ent ? entityLabel(type, ent, id) : null;
+    }, function () { return null; });
+  }
+
   function copyBundle(type, id) {
     var e = ENTITIES[type];
     return gqlRequest(tagQueryFor(type), { id: id }).then(function (data) {
@@ -1124,9 +1140,11 @@
       loadTagGraph(),
       api ? api.prepare({ entityType: this.type }).then(null, function () { return null; })
           : Promise.resolve(null),
+      scopeName(this.type, this.id),
     ]).then(function (r) {
       if (_active !== self) return;
       _npt = r[1];
+      if (r[2]) { self.scope = r[2]; self.setTitle(); }
       if (!r[0]) {
         self.log('WARN', 'the tag hierarchy could not be read, so Prune and Roll Up are ' +
           'unavailable and a tag hover shows its name only');
@@ -1151,6 +1169,13 @@
     });
   }
 
+  // One expression for the head, because the scope it names is filled in behind the
+  // open dialog: the press has only the route's `Scene 42` to go on, and the name
+  // arrives with the reads below.
+  PasteRun.prototype.setTitle = function () {
+    this.titleEl.textContent = PLUGIN_SHORT_NAME + ' - Paste Tags - ' + this.scope;
+  };
+
   PasteRun.prototype.build = function () {
     var self = this;
     this.backdrop = el('div', 'tbc-backdrop');
@@ -1160,7 +1185,9 @@
     this.modal = el('div', 'tbc-modal tbc-tall');
 
     var head = el('div', 'tbc-head');
-    head.appendChild(el('div', 'tbc-title', PLUGIN_SHORT_NAME + ' - Paste Tags - ' + this.scope));
+    this.titleEl = el('div', 'tbc-title', '');
+    this.setTitle();
+    head.appendChild(this.titleEl);
     this.staleEl = el('div', 'tbc-stale tbc-hidden');
     head.appendChild(this.staleEl);
     // Not the siblings' backup warning, and that is the point rather than an omission:
@@ -2426,9 +2453,8 @@
     var e = ENTITIES[rt.type];
     // The dialog is its own feedback and it covers this button, so the caption is
     // restored immediately rather than flashed underneath a modal nobody can see.
-    // One by-id query for the label would put a round trip between the press and the
-    // dialog; the form's own heading is not reachable from here, so the scope is named
-    // from the route alone and the bundle list carries the richer labels.
+    // The scope opens as the route names it, with no round trip between the press and
+    // the dialog; `scopeName` fills the entity's own name in behind it.
     openPaste(rt.type, rt.id, e.label + ' ' + rt.id);
   }
 

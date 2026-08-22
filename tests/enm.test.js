@@ -822,8 +822,8 @@ const filterBtns = (env) => env.body.descendants()
       .textContent || '';
     h.check('the head wears the plugin\'s whole name, the one the settings page shows',
       title.indexOf('ᝯㄝₓ Entity Name Maintainer') === 0, title);
-    h.check('and goes on to name the entity it is about',
-      /Performer 7 renamed$/.test(title), title);
+    h.check('and goes on to name the entity it is about, by name as well as by id',
+      title.indexOf('Performer "' + NEW + '" (7) renamed') > 0, title);
   });
 }());
 

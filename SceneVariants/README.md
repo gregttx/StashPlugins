@@ -156,6 +156,8 @@ no hand-built imitation of a tab to fall back to.
 copy of the script. The console says which, once, at load, and the settings page shows a
 stale-script banner when it can tell.
 
+**A red Reload UI button appears beside Stash's own Reload plugins** while any ᝯㄝₓ plugin's script is out of date, at the top of Settings → Plugins. Pressing it reloads the page, which is the whole fix: **Reload plugins** re-reads the plugin folder on the server and cannot replace a script this page has already run. Any other Stash tab you have open needs the same.
+
 **To find out which script Stash is actually serving**, open `/plugin/SceneVariants/javascript` on
 your Stash and search it for `PLUGIN_VERSION`. Those are the exact bytes your browser is given.
 Stash sends that with `Cache-Control: no-cache` and an ETag, so **the browser cannot be serving you a

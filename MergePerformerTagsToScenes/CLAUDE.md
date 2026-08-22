@@ -5,6 +5,13 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 apply. The user-facing description is `README.md`; this file is for the reasoning that does not
 belong in either.
 
+**The Reload UI button (3.8.0).** The stale banner said to reload and nothing on the page did
+it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
+Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -
+why Stash's own reload cannot replace a running script, why the anchor is the section rather than
+the button's translated caption, and why the colour is red - is in the repo-root `CLAUDE.md` under
+"one Reload UI button"; the three functions are byte-identical in all eight plugins and pinned.
+
 **Status: released, 3.7.0.** Requires Stash 0.31.0 or newer — tag `custom_fields` (the
 custom-field exclusion filter) and `PluginApi.patch` (staging) both arrived there.
 

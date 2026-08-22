@@ -1,5 +1,12 @@
 # CLAUDE.md — ᝯㄝₓ Normalize Parent Tags
 
+**The Reload UI button (4.8.0).** The stale banner said to reload and nothing on the page did
+it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
+Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -
+why Stash's own reload cannot replace a running script, why the anchor is the section rather than
+the button's translated caption, and why the colour is red - is in the repo-root `CLAUDE.md` under
+"one Reload UI button"; the three functions are byte-identical in all eight plugins and pinned.
+
 **4.7.0 gives the tree's filter box a memory.** The last ten things filtered on, offered back
 through the browser's own `<datalist>` - `CustomFieldsBulkEditor`'s mechanism copied like every
 other thing shared here, and the whole control is one attribute: nothing of ours to build, to

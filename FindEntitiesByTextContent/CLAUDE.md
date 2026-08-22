@@ -4,6 +4,13 @@ Why the parts that look arbitrary are the way they are. This file does not ship
 (`files:` carries the `js`, the `yml` and the `README.md`), so this is where a release is
 argued.
 
+**The Reload UI button (1.1.0).** The stale banner said to reload and nothing on the page did
+it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
+Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -
+why Stash's own reload cannot replace a running script, why the anchor is the section rather than
+the button's translated caption, and why the colour is red - is in the repo-root `CLAUDE.md` under
+"one Reload UI button"; the three functions are byte-identical in all eight plugins and pinned.
+
 **0.0.9 retires the recent-searches pulldown for the box's own autocomplete.** A `<select>` beside
 the box was a second control to explain, a second thing to line up in a wrapping row, and a list you
 had to leave the box to read. It is a `<datalist>` on the box now - the shape the three siblings'

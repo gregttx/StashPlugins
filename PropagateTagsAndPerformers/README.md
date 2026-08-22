@@ -572,6 +572,8 @@ running, the version installed, and the fix:
   disagree, since the plan would otherwise be computed by the code you replaced, and the warning
   goes into the log so **Copy log** carries it.
 
+**A red Reload UI button appears beside Stash's own Reload plugins** while any ᝯㄝₓ plugin's script is out of date, at the top of Settings → Plugins. Pressing it reloads the page, which is the whole fix: **Reload plugins** re-reads the plugin folder on the server and cannot replace a script this page has already run. Any other Stash tab you have open needs the same.
+
 Press **F5** first — Stash serves plugin scripts so that a normal reload picks up a changed file —
 and keep **Ctrl+Shift+R** (**Cmd+Shift+R**) for when it does not. If neither works, check the new
 `.js` really is in your plugins folder: a file that was never copied cannot be refreshed into

@@ -510,6 +510,58 @@ user does rather than by what React does, and sharing it would mean a bus that h
 parsed request and the response promise — a much larger contract than "something changed". If a
 plugin here ever wraps `fetch` for something hot, this is the seam to revisit.
 
+## Cross-plugin cooperation: one Reload UI button
+
+The seventh shared mechanism, and the only one that draws a control into a page Stash owns
+outright rather than into an entity's edit row. Every plugin here compares the version in its own
+settings heading - which Stash builds from the **manifest**, fetched fresh - against the
+`PLUGIN_VERSION` compiled into the script that is running, and puts a red banner in its own group
+when they disagree. The banner says to reload; nothing on the page did it.
+
+**Why Stash's own Reload plugins cannot.** Read off `stashapp/stash` `develop`, 2026-08-22. It is
+not caching: `/plugin/<id>/javascript` goes through `utils.ServeStaticContent`, which sets
+`Cache-Control: no-cache` and an ETag, so the browser revalidates every time. The script is pinned
+by the UI - `ui/v2.5/src/plugins.tsx` builds the list of plugin script URLs through `useMemoOnce`
+("only set once, and will not be updated once it has been set") and `useScript` appends the
+`<script>` tags at app boot. `ReloadPlugins` is a server-side mutation; nothing in the SPA
+re-injects. **And nothing safely could**: re-appending a tag re-executes the script into a page
+where the previous evaluation's listeners, observers and `fetch` wrappers are still live, which is
+the failure `__GTTx__.enmHandle` exists for. A page reload is the whole fix, and Stash agrees -
+`SettingsPluginsPanel.tsx` already renders a **Reload UI** button (literally
+`window.location.reload()`) beside a plugin it has just enabled or disabled.
+
+So `ensureStaleNotice` calls `ensureReloadUiButton(group, stale)`, and three functions -
+`anyStale`, `reloadUiAnchor`, `ensureReloadUiButton` - are duplicated byte-identically in all eight
+plugins and pinned by `tests/style.test.js`, along with `RELOAD_UI_ID` and the tooltip. Five
+decisions worth repeating:
+
+- **One button for any number of stale plugins, deduped by id.** `coop().staleUI` is a flag per
+  plugin id rather than one shared boolean, so a plugin that has caught up can say so without
+  clearing a sibling's claim; every copy reads the whole map before deciding. `gttx-reload-ui` is
+  the id - the shared namespace, not a plugin prefix, because the button belongs to none of them.
+- **Anchored through the section, never by the button's caption.** "Reload plugins" is a
+  translated string (`actions.reload_plugins`). The walk goes up from our own group to
+  `.setting-section` and takes the last `<button>` in that section's `.justify-content-between`
+  row, which is Stash's own filter-box-and-Reload-plugins row. Scoping to the section is also what
+  keeps the package-manager sections above it from matching, and it is why the button cannot
+  appear on Settings → Tasks, whose sections have no such row.
+- **`margin-left:auto` rather than a spacing class.** That row is `justify-content-between`, so a
+  third child would otherwise sit stranded in the middle of it; this puts our button and Stash's
+  together at the right with the filter box still at the left. The measured-donor rule for entity
+  rows does not apply - this row spaces itself.
+- **Red (`btn-danger`), which is neither of the repo's two button colours.** Amber says a control
+  of ours writes and teal says it only reads; this one does neither, and its whole job is to be
+  told apart from Stash's own button beside it. Like `EntityNameMaintainer`'s green Close, it is
+  one button in one place rather than a third repo-wide convention.
+- **Re-added rather than tracked**, on the same tick as the banner and the README link, because
+  React drops anything injected into that panel on its next render.
+
+**The banner keeps its Ctrl+Shift+R sentence and the button's tooltip repeats it**, because a plain
+reload is normally enough (the response revalidates) and a hard refresh is the fallback for the
+cases it is not - a proxy in front of Stash, or a file that was never actually copied into the
+plugin folder. The tooltip also says that other open tabs need the same treatment, which is true of
+every mechanism on this page: each tab injected the script once, at its own load.
+
 ## Cross-plugin cooperation: the shared debug switch
 
 The smallest of the shared mechanisms, and the only one that changes no behaviour.

@@ -159,6 +159,8 @@ running a script that does not recognise the button; reload with Ctrl+Shift+R.
 caching on, so the browser can still be running the file it fetched before the update. Press
 Ctrl+Shift+R (⌘+Shift+R on a Mac).
 
+**A red Reload UI button appears beside Stash's own Reload plugins** while any ᝯㄝₓ plugin's script is out of date, at the top of Settings → Plugins. Pressing it reloads the page, which is the whole fix: **Reload plugins** re-reads the plugin folder on the server and cannot replace a script this page has already run. Any other Stash tab you have open needs the same.
+
 **A type is skipped with a warning.** Your Stash has none of the text fields this plugin
 looks for on that type. That is the introspection check doing its job rather than a failure;
 the other types are searched normally.

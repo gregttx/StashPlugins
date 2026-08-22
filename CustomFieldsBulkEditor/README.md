@@ -367,6 +367,8 @@ two places:
   collapsed.
 - **Either dialog**, in a box of its own under the title.
 
+**A red Reload UI button appears beside Stash's own Reload plugins** while any ᝯㄝₓ plugin's script is out of date, at the top of Settings → Plugins. Pressing it reloads the page, which is the whole fix: **Reload plugins** re-reads the plugin folder on the server and cannot replace a script this page has already run. Any other Stash tab you have open needs the same.
+
 Both name the version you are running, the version installed, and the fix: reload the page, and if
 the warning comes back, hard-refresh with **Ctrl+Shift+R** (⌘+Shift+R on a Mac). **Apply** stays
 disabled while they disagree — but never Undo, since stranding you with changes you cannot take back

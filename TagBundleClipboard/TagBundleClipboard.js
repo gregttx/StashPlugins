@@ -37,7 +37,7 @@
   // The major digit is deliberately still zero, and stays there until the plugin has
   // been used in a live Stash: it is the claim that the thing works, and no test in
   // this repo can check a guess about Stash's markup.
-  var PLUGIN_VERSION = '1.0.0';
+  var PLUGIN_VERSION = '1.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all: banner plus error means the new code is
@@ -1996,9 +1996,85 @@
     return { parent: group, before: group.firstChild };
   }
 
+  // ── One Reload UI button for every stale plugin ───────────────────────────
+  //
+  // Byte-identical in every plugin here, like `coopObject` and the dialog CSS, and
+  // pinned by `tests/style.test.js` for the same reason: whichever plugin notices a
+  // mismatch first draws it, and a copy that had drifted would draw a second one.
+  //
+  // **Why the banner alone is not enough.** Stash's Reload plugins re-reads the plugin
+  // folder on the *server*; the UI builds its list of plugin scripts through
+  // `useMemoOnce` and injects the tags once at app boot, so nothing on the page
+  // re-fetches them. Reloading the page is the whole fix, and the settings page is
+  // where the user already is when they find out they need it - Stash itself puts a
+  // Reload UI button beside a plugin it has just enabled, for exactly this reason.
+  //
+  // Red rather than the repo's amber: it is not one of ours in the sense the colour
+  // rule means - it writes nothing and configures nothing - and it has to be told
+  // apart from Stash's own button beside it.
+  var RELOAD_UI_ID = 'gttx-reload-ui';
+  var RELOAD_UI_TIP = '⚠ This page is running a mismatching version of plugin/s ' +
+    'installed. Press to solve issue. Every other opened tab on Stash may require a ' +
+    'similar UI refresh. Press Ctrl+Shift+R (⌘+Shift+R on a Mac) if you still see ' +
+    'this afterward.';
+
+  // One flag per plugin rather than one shared boolean: a plugin that has caught up
+  // must be able to say so without clearing a sibling's claim.
+  function anyStale() {
+    var m = coop().staleUI || {}, k;
+    for (k in m) if (Object.prototype.hasOwnProperty.call(m, k) && m[k]) return true;
+    return false;
+  }
+
+  // Stash's own row at the top of the plugins section - the filter box and the Reload
+  // plugins button in one flex row. Found through the section our own group is in,
+  // never by the button's caption, which is translated; the scope is also what keeps
+  // the package-manager sections above it from matching.
+  function reloadUiAnchor(group) {
+    var sec = group;
+    while (sec && !hasClass(sec, 'setting-section')) sec = sec.parentNode;
+    var row = sec && sec.querySelector ? sec.querySelector('.justify-content-between') : null;
+    var kids = (row && row.childNodes) || [], i, b = null;
+    for (i = 0; i < kids.length; i++) {
+      if (kids[i] && kids[i].tagName === 'BUTTON' && kids[i].id !== RELOAD_UI_ID) b = kids[i];
+    }
+    return b;
+  }
+
+  // Re-added rather than tracked, like everything else this tick puts on the page:
+  // React drops it on the next render of the panel.
+  function ensureReloadUiButton(group, stale) {
+    var c = coop();
+    if (!c.staleUI) c.staleUI = {};
+    c.staleUI[PLUGIN_ID] = !!stale;
+    var node = document.getElementById(RELOAD_UI_ID);
+    var anchor = anyStale() ? reloadUiAnchor(group) : null;
+    if (!anchor) {
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+      return;
+    }
+    if (node && node.parentNode === anchor.parentNode) return;
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn btn-danger';
+    b.textContent = 'Reload UI';
+    b.id = RELOAD_UI_ID;
+    b.title = RELOAD_UI_TIP;
+    // `margin-left:auto` rather than a class: the row is `justify-content-between`, so
+    // a third child would otherwise sit alone in the middle of it. This puts our
+    // button and Stash's together at the right, with the filter box still at the left.
+    b.style = 'margin-left:auto;margin-right:.5rem;';
+    b.addEventListener('click', function () {
+      if (window.location && window.location.reload) window.location.reload();
+    });
+    anchor.parentNode.insertBefore(b, anchor);
+  }
+
   function ensureStaleNotice(group) {
     var installed = installedFromHeading(group);
     var node = document.getElementById(STALE_ID);
+    ensureReloadUiButton(group, !!installed && installed !== PLUGIN_VERSION);
     // No parenthesised version on the heading means Settings - Tasks, which heads its
     // group with the bare name - not a mismatch, and nothing to say.
     if (!installed || installed === PLUGIN_VERSION) {

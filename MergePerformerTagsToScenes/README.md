@@ -357,6 +357,8 @@ The version beside the plugin's name in **Settings → Plugins** does not settle
 **The plugin says so when it happens.** A stale script is called out in red, in two places, both naming the version you are running, the version installed, and the fix:
 
 - **Settings → Plugins → ᝯㄝₓ Merge Performer Tags To Scenes**, at the top of the group and above the description — so it shows even with the group collapsed. It disappears once the two agree.
+
+**A red Reload UI button appears beside Stash's own Reload plugins** while any ᝯㄝₓ plugin's script is out of date, at the top of Settings → Plugins. Pressing it reloads the page, which is the whole fix: **Reload plugins** re-reads the plugin folder on the server and cannot replace a script this page has already run. Any other Stash tab you have open needs the same.
 - **Every dialog the plugin opens**, in a box of its own under the title.
 
 It says which script is running in the browser console too (**F12** → Console), on every page load, whether or not merge logging is enabled:

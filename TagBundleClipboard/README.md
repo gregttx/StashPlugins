@@ -205,6 +205,8 @@ If that number disagrees with the one beside the plugin's name in **Settings →
 banner appears in the plugin's own settings group saying so, and the paste dialog carries the same
 warning in its head. Press **Ctrl+Shift+R** (⌘+Shift+R on a Mac).
 
+**A red Reload UI button appears beside Stash's own Reload plugins** while any ᝯㄝₓ plugin's script is out of date, at the top of Settings → Plugins. Pressing it reloads the page, which is the whole fix: **Reload plugins** re-reads the plugin folder on the server and cannot replace a script this page has already run. Any other Stash tab you have open needs the same.
+
 ## Installing
 
 Copy the `TagBundleClipboard` folder into your Stash plugins directory (`<stash-config-dir>/plugins/`)

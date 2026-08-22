@@ -524,6 +524,8 @@ naming the version you are running, the version installed, and the fix:
   description — so it shows even with the group collapsed. It disappears once the two agree.
 - **Every dialog the plugin opens**, in a box of its own under the title.
 
+**A red Reload UI button appears beside Stash's own Reload plugins** while any ᝯㄝₓ plugin's script is out of date, at the top of Settings → Plugins. Pressing it reloads the page, which is the whole fix: **Reload plugins** re-reads the plugin folder on the server and cannot replace a script this page has already run. Any other Stash tab you have open needs the same.
+
 It says which script is running in your browser's console too (**F12** → Console), on every page
 load:
 

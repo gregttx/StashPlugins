@@ -198,6 +198,8 @@ prints the same lines to the console as they happen — the same switch every �
 caching on, so the browser can still be running the file it fetched before the update. Press
 Ctrl+Shift+R (⌘+Shift+R on a Mac).
 
+**A red Reload UI button appears beside Stash's own Reload plugins** while any ᝯㄝₓ plugin's script is out of date, at the top of Settings → Plugins. Pressing it reloads the page, which is the whole fix: **Reload plugins** re-reads the plugin folder on the server and cannot replace a script this page has already run. Any other Stash tab you have open needs the same.
+
 **The settings page shows nothing formatted.** The same cause. If the folder was updated
 half-way — the `.yml` replaced and the `.js` not, or the reverse — the plugin can be looking
 for a heading that has moved. Copy the whole folder.

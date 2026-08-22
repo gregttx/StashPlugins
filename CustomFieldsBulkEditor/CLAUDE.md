@@ -5,6 +5,13 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
+**The Reload UI button (2.11.0).** The stale banner said to reload and nothing on the page did
+it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
+Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -
+why Stash's own reload cannot replace a running script, why the anchor is the section rather than
+the button's translated caption, and why the colour is red - is in the repo-root `CLAUDE.md` under
+"one Reload UI button"; the three functions are byte-identical in all eight plugins and pinned.
+
 **0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0, all of 1.0.0, all of
 1.1.0, the stale-script banner of 1.2.0/1.3.0 and 2.1.0's cursor are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text
 filters, §6a's Rename, §6b's scope switch, §24's three and §25's. Every one of them came from live use of

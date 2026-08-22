@@ -6,6 +6,13 @@ name prefix) are in `../CLAUDE.md` and still apply. The user-facing description 
 this file is for the reasoning that does not belong in either. The design this was built from is
 `../.plans/scene-variants.md`, which covers five further levels.
 
+**The Reload UI button (0.6.0).** The stale banner said to reload and nothing on the page did
+it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
+Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -
+why Stash's own reload cannot replace a running script, why the anchor is the section rather than
+the button's translated caption, and why the colour is red - is in the repo-root `CLAUDE.md` under
+"one Reload UI button"; the three functions are byte-identical in all eight plugins and pinned.
+
 **The presentation was rebuilt once, before it had ever been seen working.** The first cut injected
 a block of DOM under the scene page's tab strip; what was actually wanted was a *tab* — one more
 entry beside Details, Queue, Markers, Group, Filter, File Info, History and Edit. The rebuild is a

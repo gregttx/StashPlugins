@@ -300,8 +300,10 @@ sources.forEach((s) => {
 // no module between them, and both were the kind of thing that had to agree byte-for-byte
 // and was checked by nothing: the CSS gets a full comparison and `plural` gets a regex,
 // while the functions the other mechanisms are built on got neither.
+// Matches on the name and the open bracket rather than on `()`, so a shared helper that
+// takes arguments can be pinned the same way.
 const fnSource = (src, name) => {
-  const at = src.indexOf('\n  function ' + name + '() {');
+  const at = src.indexOf('\n  function ' + name + '(');
   if (at === -1) return null;
   const end = src.indexOf('\n  }\n', at);
   return end === -1 ? null : src.slice(at, end + 4);
@@ -325,5 +327,18 @@ pinShared('coopObject', true,
 // subscribe to and an absent copy is the rule being followed, not an omission.
 pinShared('domBus', false,
   'a drifted copy would build a second observer on the same subtree, which is what this replaced');
+
+// The Reload UI button is one button for however many plugins are stale, so every copy
+// has to agree about the id it dedups on, the row it anchors in and what it says. A
+// drifted copy draws a second button beside the first.
+['anyStale', 'reloadUiAnchor', 'ensureReloadUiButton'].forEach((fn) => {
+  pinShared(fn, true, 'every plugin that can go stale draws the same one button');
+});
+sources.forEach((s) => {
+  h.check(s.plugin.name + ' names the shared Reload UI id',
+    /var RELOAD_UI_ID = 'gttx-reload-ui';/.test(s.src));
+  h.check(s.plugin.name + ' carries the same Reload UI tooltip',
+    s.src.indexOf('⚠ This page is running a mismatching version of plugin/s ') !== -1);
+});
 
 h.finish();

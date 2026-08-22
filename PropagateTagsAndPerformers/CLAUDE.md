@@ -5,6 +5,18 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
+**Escape could abandon a settings save in flight (3.14.2).** The footer is what the key acts
+through, which is what stops it reaching a hidden or disabled button - but this dialog's Save
+disabled itself and left **Cancel** live, so Escape during the one `configurePlugin` closed the
+dialog. The write still landed; what was lost was the report of whether it had, and a failure would
+have gone unseen entirely. Cancel is disabled with Save now and re-enabled with it on a failure, so
+mid-write the footer offers nothing and the key reaches nothing - the state the three run dialogs
+were already in, where both exits are hidden and Stop is the only way out.
+
+**The gap was invisible to every check because nothing read the dialog *during* a save.** The
+suites answer `configurePlugin` immediately, so the dialog is always past it by the time anything
+looks. `hangSave` leaves it in flight, the same trick `h.HANG` exists for in the bulk suites.
+
 **The Reload UI button (3.14.0, fixed at 3.14.1).** The stale banner said to reload and nothing on the page did
 it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
 Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -

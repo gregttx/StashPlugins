@@ -30,7 +30,7 @@
   // stale script, not a contradiction. This constant travels inside the file, so the
   // line below says which script is actually running. Bump it with the manifest and
   // the yml; the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.8.1';
+  var PLUGIN_VERSION = '4.8.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -2647,6 +2647,11 @@
     var self = this;
     this.saving = true;
     this.saveBtn.disabled = true;
+    // Cancel goes with it, and Escape acts through Cancel: this dialog's footer is its
+    // own statement of what it will let you do, and mid-write the honest answer is
+    // nothing. A key that abandoned a save in flight would leave the user with no
+    // report of whether it landed.
+    this.cancelBtn.disabled = true;
     this.panel.enable(false);
     this.noteEl.textContent = 'Saving...';
     saveAutoModes(formatAutoModes(this.modes)).then(function () {
@@ -2656,6 +2661,7 @@
       self.saving = false;
       if (_active !== self) return;
       self.refreshSave();
+      self.cancelBtn.disabled = false;
       self.panel.enable(true);
       self.noteEl.textContent = 'The setting could not be saved: ' +
         (e && e.message ? e.message : e);

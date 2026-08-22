@@ -36,8 +36,15 @@ function responder(opts) {
 
 function boot(opts) {
   opts = opts || {};
+  const base = responder(opts);
   const env = h.makeEnv({
-    quiet: true, respond: responder(opts), localStorage: opts.localStorage,
+    quiet: true,
+    // `hangSave` leaves the settings write in flight, which is the only way to read the
+    // dialog *during* one - a footer only ever seen after a write cannot show the state
+    // that would be wrong.
+    respond: (req) => (opts.hangSave && /configurePlugin/.test(req.query || ''))
+      ? h.HANG : base(req),
+    localStorage: opts.localStorage,
     clipboard: { writeText: (t) => { env.copied = t; return Promise.resolve(); } } });
   h.run(env.ctx, SRC);
   return env;
@@ -854,6 +861,22 @@ Promise.resolve()
   .then((env) => {
     h.check('a setting this script could not fully read offers Save straight away',
       d(env).button('Save').disabled === false);
+  })
+
+  // Escape acts through the footer, so it must not reach a way out the footer is not
+  // offering - and a save in flight is exactly that state.
+  .then(() => open({ settings: { b1Paths: 'tags:studio>scene=ON' }, hangSave: true }))
+  .then((env) => {
+    setMode(env, 'Tags: Studio → Scenes', 'Off');
+    d(env).button('Save').click();
+    return h.flush().then(() => {
+      h.check('Cancel is held back while the save is in flight',
+        d(env).button('Cancel').disabled === true);
+      env.ctx.document.handlers.keydown.forEach((fn) => fn({ key: 'Escape', preventDefault() {} }));
+      return h.flush().then(() => {
+        h.check('so Escape does not abandon a save that is still going', d(env).open);
+      });
+    });
   })
 
   .then(() => open({ settings: {} })).then((env) => {

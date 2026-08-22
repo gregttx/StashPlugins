@@ -21,15 +21,20 @@ const RUN_KEY = '__GTTx__.nptRunModes';
 
 function open(opts) {
   opts = opts || {};
+  const base = h.makeResponder({
+    entities: opts.entities || LIB,
+    settings: Object.assign(
+      { a1AutoModes: opts.modes === undefined ? h.autoModes({ scenes: 'prune' }) : opts.modes },
+      opts.settings),
+    installed: opts.installed,
+  });
   const env = h.makeEnv({
     quiet: true,
-    respond: h.makeResponder({
-      entities: opts.entities || LIB,
-      settings: Object.assign(
-        { a1AutoModes: opts.modes === undefined ? h.autoModes({ scenes: 'prune' }) : opts.modes },
-        opts.settings),
-      installed: opts.installed,
-    }),
+    // `hangSave` leaves the settings write in flight, which is the only way to read the
+    // dialog *during* one - a footer only ever seen after a write cannot show the state
+    // that would be wrong.
+    respond: (req) => (opts.hangSave && /configurePlugin/.test(req.query || ''))
+      ? h.HANG : base(req),
     localStorage: opts.localStorage,
   });
   h.run(env.ctx);
@@ -338,6 +343,22 @@ Promise.resolve()
     setSelect(env, 'Scenes', 'prune');
     h.check('and held back again when it moves back',
       d(env).button('Save').disabled === true);
+  })
+
+  // Escape acts through the footer, so it must not reach a way out the footer is not
+  // offering - and a save in flight is exactly that state.
+  .then(() => open({ modes: 'SCENES=PRUNE', task: h.TASK_MODES, hangSave: true }))
+  .then((env) => {
+    setSelect(env, 'Scenes', 'rollup');
+    d(env).button('Save').click();
+    return h.flush().then(() => {
+      h.check('Cancel is held back while the save is in flight',
+        d(env).button('Cancel').disabled === true);
+      env.ctx.document.handlers.keydown.forEach((fn) => fn({ key: 'Escape', preventDefault() {} }));
+      return h.flush().then(() => {
+        h.check('so Escape does not abandon a save that is still going', d(env).open);
+      });
+    });
   })
 
   .then(() => open({ task: h.TASK_MODES })).then((env) => {

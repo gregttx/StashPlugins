@@ -42,7 +42,7 @@
   // not a contradiction.
   // This constant travels inside the file. Bump it with the manifest and the yml;
   // the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '3.14.1';
+  var PLUGIN_VERSION = '3.14.2';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -4600,6 +4600,11 @@
     var self = this;
     this.saving = true;
     this.saveBtn.disabled = true;
+    // Cancel goes with it, and Escape acts through Cancel: this dialog's footer is its
+    // own statement of what it will let you do, and mid-write the honest answer is
+    // nothing. A key that abandoned a save in flight would leave the user with no
+    // report of whether it landed.
+    this.cancelBtn.disabled = true;
     this.enable(false);
     this.noteEl.textContent = 'Saving...';
     savePaths(formatPaths(this.modes)).then(function () {
@@ -4617,6 +4622,7 @@
       self.saving = false;
       if (_paths !== self) return;
       self.refreshSave();
+      self.cancelBtn.disabled = false;
       self.enable(true);
       self.noteEl.textContent = 'The setting could not be saved: ' +
         (e && e.message ? e.message : e);

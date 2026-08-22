@@ -160,17 +160,18 @@ function makeEnv(opts) {
       if (write) {
         writes.push({ undo: write[1] === 'Undo', cancel: write[1] === 'Cancel',
           mutation: write[2], input: req.variables.input });
-        if (opts.failWrite && opts.failWrite(req)) return { errors: [{ message: 'write boom' }] };
         // A cancel is a real rename on the server, so the fixture applies it: a check
         // that only read the request could not tell a write that landed from one that
-        // was sent.
-        if (write[1] === 'Cancel') {
+        // was sent. Applied *before* the failure gate, which is what lets a case say
+        // "errored and landed anyway" - the shape the response body cannot be trusted on.
+        if (write[1] === 'Cancel' && !opts.cancelLost) {
           const node = ONE['find' + write[2].replace(/Update$/, '').replace(/^./, (c) => c.toUpperCase())];
           const row = (lib[node] || []).filter((e) => e.id === req.variables.input.id)[0];
           if (row) ['name', 'title'].forEach((f) => {
             if (typeof req.variables.input[f] === 'string') row[f] = req.variables.input[f];
           });
         }
+        if (opts.failWrite && opts.failWrite(req)) return { errors: [{ message: 'write boom' }] };
         return { data: { [write[2]]: { id: req.variables.input.id } } };
       }
       // The rename itself, as Stash's own form posts it.
@@ -899,6 +900,44 @@ const filterBtns = (env) => env.body.descendants()
       dlg(env).open && dlg(env).lines.some((l) => /not reverted.*Someone Else/.test(l)),
       dlg(env).lines.join(' | '));
     h.check('and nothing is reloaded, since nothing changed', reloads === 0, String(reloads));
+  });
+}());
+
+// The response body does not decide whether the revert landed - the entity does. A
+// mutation can come back carrying errors and still have been applied, and reporting a
+// failure over a name that is already back would leave the dialog describing a library
+// it no longer matches, with no reload to show it.
+(function cancelErroredButLanded() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib, failWrite: (req) => /ENM_Cancel/.test(req.query) });
+  let reloads = 0;
+  env.ctx.location.reload = () => { reloads++; };
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    dlg(env).button('Cancel').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('a write that errored but landed counts as done, because the entity says so',
+      env.lib.performers[0].name === OLD && !dlg(env).open && reloads === 1,
+      env.lib.performers[0].name + ' / open ' + dlg(env).open + ' / reloads ' + reloads);
+  });
+}());
+
+// And the other way round: acknowledged, but the entity never moved.
+(function cancelAcknowledgedButLost() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib, cancelLost: true });
+  let reloads = 0;
+  env.ctx.location.reload = () => { reloads++; };
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    dlg(env).button('Cancel').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('an acknowledged write that did not land is reported rather than believed',
+      dlg(env).open && reloads === 0 &&
+        dlg(env).lines.some((l) => /not reverted.*still named/.test(l)),
+      dlg(env).lines.join(' | '));
   });
 }());
 

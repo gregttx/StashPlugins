@@ -471,6 +471,13 @@ Three decisions in it:
   Only on success - a refused revert changed nothing and must leave the log on screen to be
   read.
 
+- **The entity decides whether it landed, not the response.** §5's rule applied to this
+  plugin's own write: a mutation can return 200 carrying `errors`, and a request that rejects
+  can still have been applied. So the write is followed by one more `currentName`, and the
+  write's own error is only reported if that read agrees the name is not back. Reporting
+  "not reverted" over a name that is already back would leave the dialog describing a library
+  it no longer matches, and skip the reload that would have shown it.
+
 It re-reads the name immediately before writing, like every other write here: an entity
 renamed again since the dialog opened is not this dialog's to put back, and the log says so
 rather than the write going out. The read and the write both go through `gqlRequest`, so the

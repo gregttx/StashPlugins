@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '1.0.1';
+  var PLUGIN_VERSION = '1.0.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1880,7 +1880,21 @@
       }
       var input = { id: self.id };
       input[self.spec.nameField] = self.oldName;
-      return sendJob({ spec: self.spec }, input, 'ENM_Cancel');
+      // The entity decides whether this landed, never the response: a mutation can come
+      // back 200 carrying `errors`, and a request that rejects can still have been
+      // applied. Reporting "not reverted" over a name that is already back would leave
+      // the dialog describing a library it no longer matches, with no reload to show it.
+      // So the write's own error is carried along and only used if the read agrees.
+      return sendJob({ spec: self.spec }, input, 'ENM_Cancel')
+        .then(function () { return null; }, function (err) { return err; })
+        .then(function (err) {
+          return currentName(self.spec, self.id).then(function (after) {
+            if (after === self.oldName) return null;
+            throw err || new Error(after === null
+              ? 'it could not be read back afterwards'
+              : 'it is still named "' + after + '"');
+          });
+        });
     }).then(function () {
       lease.release();
       self.close();

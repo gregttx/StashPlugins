@@ -363,7 +363,14 @@ theme. What has still not been seen:
 3. **The hover delta**, and with it the eleven attribute fields the variant query now selects.
    A wrong field name there costs the whole tab, not the tooltip - the one place in this plugin
    where a new feature can take an old one down with it.
-4. **Whether `preload="none"` makes the first hover feel slow.** Stash's own cards fetch earlier and
+4. **The whole migration task**, and four separate guesses inside it: that
+   `CustomFieldCriterionInput` is `{ field, value, modifier }` with `value` a `[Any!]` and `EQUALS`
+   over it meaning "any of these" the way `stash_ids_endpoint` does; that the tags criterion takes
+   `INCLUDES` for "any of these tags" at `depth: 0`; that `custom_fields: { partial }` and
+   `stash_ids: []` in one `SceneUpdateInput` do what they read as doing; and that a scene's
+   `custom_fields` map comes back on `findScene`. The first of those is the one to check first —
+   it is the same shape of guess as the `INCLUDES` modifier below, which shipped wrong once.
+5. **Whether `preload="none"` makes the first hover feel slow.** Stash's own cards fetch earlier and
    play from an `IntersectionObserver` — a different trade, and the one to copy if this feels laggy
    rather than cheap.
 
@@ -378,32 +385,49 @@ stash IDs criterion reads like its neighbours and is not: it accepts exactly `IS
 `EQUALS` and `NOT_EQUALS`, and `f.setError`s on anything else. A filter field that parses is not a
 filter field that runs, and the four-modifier whitelist is invisible from the schema.
 
+**A known gap in the field matching, and it is the price of storing several ids in one value.**
+The criterion matches the field's whole value, so a migrated scene holding two lines is found by a
+query asking for both lines together and not by one asking for either alone. Two partial-length
+scenes whose id sets *overlap without being equal* therefore do not find each other once both have
+lost their stash-ids. The alternative — a field per id, or a criterion that matches inside the value
+— is more machinery than the case is worth until a library turns one up; the stash-id half of the
+lookup still covers every scene that has not been migrated.
+
 **A failed variant query is reported on the console whatever `b1LogToConsole` says**, and that is
 the one place this plugin is deliberately noisy. Every other way of listing nothing — no stash-id,
 nobody sharing it — is a legitimate answer, and the three are indistinguishable to a user looking at
 an empty tab. Only one of them is worth a line.
 
-## 6. Why there is no dialog, and what that cost in the suites
+## 6. The dialog it did not have, and what dropping `chrome: false` meant
 
-The plugin draws a tab pane and links. There is no backdrop, no log, no footer — so
-`tests/style.test.js` gained a `chrome: false` flag beside its existing `settings` one, plus the
-inverse check that a plugin claiming no dialog defines none of the chrome *and* names no backdrop of
-its own in its source. That is the same shape as the settings flag: a flag recording an absence has
-to be checked against the plugin, or it is excusing a drift.
+For four releases this plugin drew a tab pane and links and nothing else, and `tests/style.test.js`
+carried a `chrome: false` flag beside its `settings` one, plus the inverse check that a plugin
+claiming no dialog defines none of the chrome *and* names no backdrop of its own in its source.
 
-The settings half of the shared design is **not** waived. Every plugin here gets a group, a heading
+**The migration task is what took the flag away**, and that is the flag working as designed rather
+than an exception to it: a plugin that writes shows a plan first, a plan is a dialog, and the moment
+there is one every rule in `CHROME` is required of it. The stylesheet was copied from
+`EntityNameMaintainer`'s with the prefix swapped, because that is what "byte-identical where they
+overlap" means in a repo with no shared module.
+
+The settings half of the shared design was never waived. Every plugin here gets a group, a heading
 and a description whether or not it puts up a dialog, and the per-setting tooltip applies the moment
-there is a setting row. Both halves are byte-identical to the siblings'.
+there is a setting row.
 
-## 7. The five shared mechanisms this plugin correctly does not use
+## 7. Four shared mechanisms this plugin does not use, and the one it took
 
-No lease (it issues no mutation), no `respecters` entry (it reacts to no save), no `declares` entry
-(it copies no relationship, so any path id would be a lie). `TagBundleClipboard` is the precedent for
-those three. Two more are added here: no `coop().order`, because the ordering protocol is about
-buttons sharing one of Stash's own action rows and this plugin draws no button; and **no `domBus`**,
-because the shared observer exists to put a control back after a re-render and React is doing the
-rendering. That leaves the settings page, which is decoration a one-second timer covers — exactly
-the position `NormalizeParentTags` is in, and it is the second plugin here to subscribe to nothing.
+No `respecters` entry (it reacts to no save — its one write is a task somebody pressed, which §7 of
+the repo rules says is never suppressed), no `declares` entry (it copies no relationship, so any
+path id would be a lie), no `coop().order` (the ordering protocol is about buttons sharing one of
+Stash's own action rows, and this plugin's only button is the one Stash renders for its task), and
+**no `domBus`** (the shared observer exists to put a control back after a re-render, and React is
+doing the rendering — the settings page is decoration a one-second timer covers, exactly the
+position `NormalizeParentTags` is in).
+
+**The one it took is the lease.** The migration task rewrites many scenes on purpose, which is the
+definition of the bulk half of that protocol; it is renewed per batch rather than held for the whole
+run, so a tab that crashes mid-migration leaves a sibling standing down for one batch rather than
+for two minutes.
 
 What it *does* read is `coop().debugButtons`, on the same reasoning the name already stretched to
 cover a list-view menu item: the flag answers "why is this control not there", and a tab is a
@@ -425,6 +449,48 @@ beside it. The division is worth keeping: the fake-React suite covers ordering, 
 empty answers and the effect keying — dozens of checks that would be miserable to write against a
 real renderer — and the render suite covers the one thing a fake cannot be trusted on, which is what
 React actually does.
+
+## 9. The variant stash-id field, and the four decisions in it
+
+A stash-id names the **work**. A stash-box holds one entry for the whole scene, so a partial-length
+cut wearing that stash-id asserts something false, and every part of Stash that reads a stash-id as
+a fact about the file — scraping, Submit to Stash-box, duplicate detection — believes it. The
+migration task moves the claim into a custom field of this plugin's own and takes the stash-id off
+the cut. That is a *write*, which is why this release brought a dialog, a lease and a task button
+with it.
+
+- **One setting, holding the field key.** Default `ᱜ╦╦🞮_Variant_Stash_ID`, empty meaning the
+  default, the same shape `TagBundleClipboard`'s bundle limit has. The Unicode prefix is the
+  repo-root rule about names written into a namespace shared with the user: a custom field key is
+  flat and unowned, exactly like `CustomFieldsBulkEditor`'s marker field. There is deliberately no
+  second "display name" setting — `CustomFieldsBulkEditor`'s store is keyed by the field name and
+  has no display-name concept, so a second string would be one nothing else could read.
+- **`stashdb.org:9f3c1e2a-…`, one line per id.** The endpoint is a GraphQL URL and its host is the
+  half a person recognises; the whole of it would put an `https://` and a `/graphql` in front of
+  every value in Stash's own custom-field panel, where this is read by eye. Several ids become
+  several lines, because a scene with entries at two providers is one work with two names for it.
+- **Full-length scenes are written too, and keep their stash-ids.** Not symmetry for its own sake:
+  with the field on both sides one custom-field query finds a whole variant set, where a
+  half-migrated library needs the union of two. Their stash-id is left alone because on the
+  full-length scene it is true.
+- **The task classifies with `matchers`, not with a filter of its own.** The scan asks for the
+  expanded tag ids at `depth: 0` rather than the two configured roots at `depth: -1`, so the task
+  covers exactly the scenes the tab would classify — aliases and descendants included — and the two
+  can never disagree about what "partial-length" means.
+
+**The plan is the listing and Undo is the inverse.** Every scene the task would write is a line in
+the log before anything moves, and each carries what the field said before — `remove` where the
+scene had none, the old string where it had one — so an Undo is built at plan time rather than
+re-derived. A scene whose field already says the right thing *and* has no stash-id left to move is
+not planned at all, which is what makes a second run a no-op.
+
+**The tab now asks two queries and merges them.** `stash_ids_endpoint` for the scenes that still
+carry an id, `custom_fields` for the ones that carry the field, deduplicated by scene id. The
+custom-field half catches its own failure: a Stash that spells that criterion differently must lose
+the half of the answer it cannot give, not the half it can. And the field is read off the viewed
+scene only where that scene has **no** stash-id — the values a scene with ids would derive are the
+same ones the migration wrote, so a by-id read there is a second round trip for an answer already in
+hand.
 
 ## 8. Where L1 goes when it arrives
 

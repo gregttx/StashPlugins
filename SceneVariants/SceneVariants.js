@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.4.0';
+  var PLUGIN_VERSION = '0.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -72,8 +72,23 @@
 
   var SETTINGS_TTL_MS = 10000;   // settings are re-read at most this often
 
+  // The migration task writes, so it takes a lease for the duration - see the repo-root
+  // CLAUDE.md. Sized to the work: a library-wide pass over every tagged scene is minutes,
+  // and the lease is renewed per batch rather than taken once for all of it.
+  var LEASE_TTL_MS = 120000;
+  var READ_PAGE  = 500;          // scenes per scan query
+  var WRITE_CHUNK = 10;          // scenes written in parallel
+
+  // Stash's own button variant for a control that writes, and the one every plugin here
+  // paints its task button with.
+  var PLUGIN_BTN_VARIANT = 'btn-warning';
+
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  function trim(text) {
+    return String(text == null ? '' : text).replace(/^\s+|\s+$/g, '');
   }
 
   // "3 scenes", "1 scene" - the count is always known where it is printed, so the
@@ -102,8 +117,65 @@
   var DEFAULTS = {
     a1FullLengthTag: '',
     a2PartialLengthTag: '',
+    a3VariantStashIdField: '',
     b1LogToConsole: false,
   };
+
+  // ── The variant stash-id custom field ─────────────────────────────────────
+  //
+  // A stash-id is meant to name the *work*, and a stash-box has one entry for the full
+  // scene - so a partial-length cut carrying the same stash-id is claiming to be the
+  // thing it was cut out of. The migration task moves that claim into a custom field of
+  // this plugin's own and takes the stash-id off, which leaves the identity where the
+  // variant lookup can still read it and out of everywhere Stash treats a stash-id as an
+  // assertion about the file: scraping, Submit to Stash-box, and duplicate detection.
+  //
+  // Prefixed like every other name this repo writes into a namespace it shares with the
+  // user - a custom field key is flat and unowned, exactly like the description store's
+  // marker field. Stash has no default for a plugin setting, so an empty box means this.
+  var FIELD_DEFAULT = 'ᱜ╦╦🞮_Variant_Stash_ID';
+
+  function fieldName(s) {
+    return trim((s || settings()).a3VariantStashIdField) || FIELD_DEFAULT;
+  }
+
+  // `stashdb.org:9f3c1e2a-...`: the provider, then the id. The endpoint is a GraphQL URL
+  // and its host is the half a reader recognises - keeping the whole of it would put an
+  // `https://` and a `/graphql` in front of every value in Stash's own custom-field
+  // panel, which is where this is read by eye.
+  function hostOf(endpoint) {
+    var t = trim(endpoint).replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+    return t.split('/')[0] || t;
+  }
+
+  function variantValue(entry) {
+    var id = trim(entry && entry.stash_id);
+    if (!id) return '';
+    var host = hostOf(entry && entry.endpoint);
+    return host ? host + ':' + id : id;
+  }
+
+  // One line per stash-id, in the order the scene carries them. A scene with ids from two
+  // providers is one work with two names for it, and both belong in the field; a value
+  // holding one line is the ordinary case and the one the filter matches on exactly.
+  function variantValues(stashIds) {
+    var out = [], seen = {};
+    (stashIds || []).forEach(function (e) {
+      var v = variantValue(e);
+      if (v && !hasOwn(seen, v)) { seen[v] = true; out.push(v); }
+    });
+    return out;
+  }
+
+  function splitValues(raw) {
+    if (raw == null) return [];
+    return String(raw).split('\n').map(trim).filter(function (v) { return !!v; });
+  }
+
+  function customField(scene, field) {
+    var cf = scene && scene.custom_fields;
+    return cf && typeof cf === 'object' && hasOwn(cf, field) ? cf[field] : null;
+  }
 
   // Compared case-insensitively and with the surrounding space trimmed, because these
   // are typed into a settings box by hand rather than picked from a list.
@@ -141,18 +213,19 @@
     return c;
   }
 
-  // **Five of the shared mechanisms are correctly left alone, and each absence is a rule
+  // **Four of the shared mechanisms are correctly left alone, and each absence is a rule
   // rather than an omission:**
   //
-  //   no lease           - a lease announces a bulk *write*, and this plugin issues no
-  //                        mutation at all.
   //   no `respecters`    - the flag says "I react to saves and will stand down". This
-  //                        plugin reacts to nothing.
+  //                        plugin reacts to nothing: its one write is a task somebody
+  //                        pressed, which is the case §7 of the repo-root rules says is
+  //                        never suppressed.
   //   no `declares`      - the registry is for two plugins performing the *identical*
   //                        relationship copy, keyed by a path id. Nothing here copies a
   //                        relationship, so any path id would be a lie.
   //   no `order`         - the ordering protocol is for buttons sharing one of Stash's
-  //                        own action rows. This plugin draws no button at all.
+  //                        own action rows. This plugin's only button is the one Stash
+  //                        renders for its task.
   //   no `domBus`        - the shared MutationObserver is for a control that has to be
   //                        put back into Stash's DOM after every re-render. This plugin
   //                        hands React a component and React renders it, so there is
@@ -160,9 +233,41 @@
   //                        page is decoration, which the one-second timer covers - the
   //                        same position `NormalizeParentTags` is in.
   //
-  // What it does read is `debugButtons`, below - the tab is a control drawn into Stash's
-  // chrome and "why is it not there" is the same question that flag answers for every
-  // sibling.
+  // The fifth it does take: the migration task rewrites many scenes on purpose, which is
+  // exactly what a **lease** announces. It reads `debugButtons` too - the tab is a control
+  // drawn into Stash's chrome and "why is it not there" is the same question that flag
+  // answers for every sibling.
+
+  // A bulk run announces itself for the duration of its writes, so a reactive plugin in
+  // the same tab stands down rather than reacting to every entity we touch. Advisory,
+  // always expiring, per tab - see the repo-root CLAUDE.md.
+  function acquireLease(label, ttl) {
+    var c = coop();
+    var ms = ttl || LEASE_TTL_MS;
+    var lease = { owner: PLUGIN_ID, label: label, until: Date.now() + ms };
+    c.leases.push(lease);
+    return {
+      renew: function () { lease.until = Date.now() + ms; },
+      release: function () {
+        var i = c.leases.indexOf(lease);
+        if (i !== -1) c.leases.splice(i, 1);
+      },
+    };
+  }
+
+  // Someone else's lease, still live. Expired ones are dropped on the way past: a tab
+  // that crashed mid-run must not disable this plugin until the next reload.
+  function foreignLease() {
+    var c = coop();
+    var now = Date.now();
+    for (var i = c.leases.length - 1; i >= 0; i--) {
+      if (c.leases[i].until <= now) c.leases.splice(i, 1);
+    }
+    for (var j = 0; j < c.leases.length; j++) {
+      if (c.leases[j].owner !== PLUGIN_ID) return c.leases[j];
+    }
+    return null;
+  }
 
   // ── Tab gating diagnostics ───────────────────────────────────────────────
   //
@@ -358,18 +463,74 @@
   // ids, which is the semantics wanted here. INCLUDES is the natural guess for a list
   // criterion and every other list filter in Stash takes it, so this is the one place
   // reading like its neighbours is wrong.
+  // Everything the hover delta compares, and nothing else. The list is the price of that
+  // feature and is worth reading as one: a field named wrongly here does not lose the
+  // delta, it loses the whole query and with it the tab's only answer. All of them are
+  // ordinary `Scene` fields on the Stash this plugin already requires, and
+  // `groups { group { ... } }` is the shape a sibling plugin runs against a live server.
+  //
+  // One string for both lookups below, because the two answers are merged into one list:
+  // a row has to be the same shape whichever query found it, and two field lists that
+  // drifted would show a delta against fields only half the rows carry.
+  var SCENE_FIELDS =
+    'id title tags { id name } ' +
+    'paths { screenshot preview } files { duration width height } ' +
+    'code details director date rating100 organized urls ' +
+    'studio { id name } performers { id name } groups { group { id name } }';
+
   var VARIANTS_QUERY =
     'query SVRVariants($ids: [String!]) { findScenes(' +
     'scene_filter: { stash_ids_endpoint: { stash_ids: $ids, modifier: EQUALS } }, ' +
-    'filter: { per_page: -1 }) { scenes { id title tags { id name } ' +
-    'paths { screenshot preview } files { duration width height } ' +
-    // Everything the hover delta compares, and nothing else. The list is the price of
-    // that feature and is worth reading as one: a field named wrongly here does not lose
-    // the delta, it loses the whole query and with it the tab's only answer. All of them
-    // are ordinary `Scene` fields on the Stash this plugin already requires, and
-    // `groups { group { ... } }` is the shape a sibling plugin runs against a live server.
-    'code details director date rating100 organized urls ' +
-    'studio { id name } performers { id name } groups { group { id name } } } } }';
+    'filter: { per_page: -1 }) { scenes { ' + SCENE_FIELDS + ' } } }';
+
+  // The other half of the same question, for the scenes whose stash-id has been moved
+  // into the custom field - and for the full-length ones carrying both, where either
+  // query finds them. `custom_fields` takes a list of criteria and each one a list of
+  // values; EQUALS over that list is an OR, the same semantics `stash_ids_endpoint` has
+  // above, so one criterion covers a scene with several ids.
+  //
+  // Its own failure is caught where it is asked rather than here: a Stash that spells
+  // this criterion differently must lose the half of the answer it cannot give, not the
+  // half it can.
+  var BY_FIELD_QUERY =
+    'query SVRFieldMatch($field: String!, $values: [Any!]) { findScenes(' +
+    'scene_filter: { custom_fields: [{ field: $field, value: $values, modifier: EQUALS }] }, ' +
+    'filter: { per_page: -1 }) { scenes { ' + SCENE_FIELDS + ' } } }';
+
+  // What this scene's own custom field holds. `props.scene` is Stash's
+  // `SceneDataFragment` and whether it carries `custom_fields` is Stash's to decide, so
+  // the field is read off it when it is there and asked for by id when it is not - one
+  // query, on the scenes that need it, which after a migration is every partial-length
+  // one. A failure reads as "no values", which is what a scene that never had any looks
+  // like anyway.
+  function ownFieldValues(scene, field, ids) {
+    if (scene && scene.custom_fields && typeof scene.custom_fields === 'object') {
+      return Promise.resolve(splitValues(customField(scene, field)));
+    }
+    // Only where the scene has no stash-id of its own, which after a migration is every
+    // partial-length one and is the only case where the field says something the
+    // stash-ids do not: a scene that still carries them derives the same values from
+    // them, and the field a migration wrote holds exactly those. A query per scene page
+    // to re-read what is already in hand is the two-round-trip version of a lookup this
+    // plugin deliberately does in one.
+    if (ids && ids.length) return Promise.resolve([]);
+    return gqlRequest('query SVRSceneFields($id: ID!) { findScene(id: $id) ' +
+      '{ id custom_fields } }', { id: String(scene && scene.id) })
+      .then(function (data) {
+        return splitValues(customField((data || {}).findScene, field));
+      }, function () { return []; });
+  }
+
+  // What a lookup was matched on, in one phrase. Both halves are named where both were
+  // used, because "no other scene shares this one's stash-id" is a different fact from
+  // "...or its variant stash-id", and a user deciding whether to migrate a scene is
+  // exactly the person who needs to know which was asked.
+  function matchedOn(ids, own) {
+    var parts = [];
+    if (ids.length) parts.push(plural(ids.length, 'stash-id'));
+    if (own.length) parts.push(plural(own.length, 'variant stash-id'));
+    return parts.join(' and ');
+  }
 
   // Resolves once the first settings read has landed, so the rows are classified against
   // the user's tag names rather than against the empty defaults. The pane reads settings
@@ -391,29 +552,56 @@
   function findVariants(scene) {
     var ids = ((scene && scene.stash_ids) || []).map(function (s) { return s.stash_id; })
       .filter(function (v) { return !!v; });
-    if (!ids.length) {
-      return Promise.resolve({ rows: [], why: 'This scene carries no stash-id, which is ' +
-        'the only evidence this plugin uses so far.' });
-    }
     return Promise.all([settingsReady(), tagTree()]).then(function (both) {
       var m = matchers(both[1], both[0]);
-      return gqlRequest(VARIANTS_QUERY, { ids: ids }).then(function (data) {
-        var scenes = (((data || {}).findScenes) || {}).scenes || [];
-        var others = scenes.filter(function (o) { return String(o.id) !== String(scene.id); });
-        // The viewed scene as the query returned it - the same fields, selected the same
-        // way, which is what the delta compares against. A server that does not agree this
-        // scene carries the stash-id leaves it null, and every row then reports no
-        // difference rather than reporting a wrong one.
-        var self = scenes.filter(function (o) { return String(o.id) === String(scene.id); })[0];
-        logToConsole('scene ' + scene.id + ': ' + plural(others.length, 'variant') +
-          ' from ' + plural(ids.length, 'stash-id'));
-        return {
-          rows: ordered(others, self, m),
-          conflict: conflictNote(m),
-          why: others.length
-            ? 'Matched on ' + plural(ids.length, 'stash-id') + '.'
-            : 'No other scene shares this one’s ' + plural(ids.length, 'stash-id') + '.',
-        };
+      var field = fieldName(both[0]);
+      return ownFieldValues(scene, field, ids).then(function (own) {
+        // The scene's own stash-ids expressed the way the field stores them, plus
+        // whatever the field already holds. A migrated partial has only the second; a
+        // full-length scene that has been through the task has both, and they agree.
+        var values = variantValues(scene && scene.stash_ids).concat(own)
+          .filter(function (v, i, all) { return all.indexOf(v) === i; });
+        if (!ids.length && !values.length) {
+          return { rows: [], conflict: conflictNote(m),
+            why: 'This scene carries no stash-id and no "' + field + '" custom field, ' +
+              'which are the only evidence this plugin uses so far.' };
+        }
+        return Promise.all([
+          ids.length ? gqlRequest(VARIANTS_QUERY, { ids: ids }) : Promise.resolve(null),
+          values.length ? gqlRequest(BY_FIELD_QUERY, { field: field, values: values })
+            .then(null, function (err) {
+              // Half an answer beats none: the stash-id half is still valid, and a
+              // criterion this server spells differently is worth one line rather than
+              // an empty tab.
+              console.warn('[svr] the "' + field + '" custom-field lookup failed for scene ' +
+                scene.id + ', so only stash-id matches are listed: ' + err.message);
+              return null;
+            }) : Promise.resolve(null),
+        ]).then(function (answers) {
+          var scenes = [], seen = {};
+          answers.forEach(function (data) {
+            ((((data || {}).findScenes) || {}).scenes || []).forEach(function (o) {
+              if (hasOwn(seen, String(o.id))) return;
+              seen[String(o.id)] = true;
+              scenes.push(o);
+            });
+          });
+          var others = scenes.filter(function (o) { return String(o.id) !== String(scene.id); });
+          // The viewed scene as the query returned it - the same fields, selected the same
+          // way, which is what the delta compares against. A server that does not agree this
+          // scene carries the stash-id leaves it null, and every row then reports no
+          // difference rather than reporting a wrong one.
+          var self = scenes.filter(function (o) { return String(o.id) === String(scene.id); })[0];
+          logToConsole('scene ' + scene.id + ': ' + plural(others.length, 'variant') +
+            ' from ' + matchedOn(ids, own));
+          return {
+            rows: ordered(others, self, m),
+            conflict: conflictNote(m),
+            why: others.length
+              ? 'Matched on ' + matchedOn(ids, own) + '.'
+              : 'No other scene shares this one’s ' + matchedOn(ids, own) + '.',
+          };
+        });
       });
     }).then(null, function (err) {
       // Loud rather than silent: a pane that stays empty because a filter field is
@@ -588,9 +776,562 @@
       return ((bestFile(b.scene) || {}).duration || 0) - ((bestFile(a.scene) || {}).duration || 0);
     });
   }
+  // ── The migration task ────────────────────────────────────────────────────
+  //
+  // A stash-id belongs to the *work*, and a stash-box holds one entry for the whole
+  // scene - so a partial-length cut wearing the same stash-id is claiming to be the
+  // thing it was cut out of, and every part of Stash that treats a stash-id as an
+  // assertion about the file believes it. The task moves that claim into this plugin's
+  // own custom field and takes the stash-id off the cut.
+  //
+  // Full-length scenes are written too, and keep their stash-ids. That is not symmetry
+  // for its own sake: with the field on both sides the variant lookup is one query over
+  // one criterion, where a library half-migrated needs the union of two. Their stash-id
+  // is untouched, because on the full-length scene it is true.
+  var TASK_NAME = 'Migrate Variant Stash-IDs...';
+
+  // The scan reads only what a plan needs - the tags to classify by, the stash-ids to
+  // move, and the field as it stands so an entry already in place is not written again.
+  var MIGRATE_QUERY =
+    'query SVRMigrateScan($f: FindFilterType, $tags: [ID!]) { findScenes(' +
+    'scene_filter: { tags: { value: $tags, modifier: INCLUDES, depth: 0 } }, filter: $f) ' +
+    '{ count scenes { id title tags { id } custom_fields ' +
+    'stash_ids { endpoint stash_id } } } }';
+
+  // Depth 0 with the descendants already expanded, rather than `depth: -1` over the two
+  // configured roots: `matchers` has resolved the names through aliases and the whole
+  // hierarchy by the time this runs, and reusing that answer keeps the task classifying
+  // scenes by exactly the rule the tab classifies rows by. One filter semantics fewer to
+  // be right about, and the two can never disagree.
+  function tagIdsFor(m) {
+    var out = [], id;
+    for (id in m.fl) if (hasOwn(m.fl, id)) out.push(String(id));
+    for (id in m.pl) if (hasOwn(m.pl, id) && !m.fl[id]) out.push(String(id));
+    return out;
+  }
+
+  // What one scene needs doing to it, or null. Three shapes of "nothing to do" and they
+  // are deliberately not one: a scene with no stash-id has nothing to move, a scene
+  // whose field already says the right thing has nothing to write, and a scene that is
+  // neither full nor partial is not this task's business at all.
+  function planScene(scene, m, field) {
+    var cls = classify(scene, m);
+    if (cls.role !== 'fl' && cls.role !== 'pl') return null;
+    var values = variantValues(scene.stash_ids);
+    if (!values.length) return null;
+    var had = customField(scene, field);
+    var value = values.join('\n');
+    var clear = cls.role === 'pl' && (scene.stash_ids || []).length > 0;
+    if (String(had == null ? '' : had) === value && !clear) return null;
+    return {
+      id: String(scene.id),
+      title: scene.title || ('Scene ' + scene.id),
+      role: cls.role,
+      field: field,
+      value: value,
+      had: had == null ? null : String(had),
+      clear: clear,
+      stashIds: (scene.stash_ids || []).map(function (e) {
+        return { endpoint: e.endpoint, stash_id: e.stash_id };
+      }),
+    };
+  }
+
+  function writeInput(job) {
+    var input = { id: job.id, custom_fields: { partial: {} } };
+    input.custom_fields.partial[job.field] = job.value;
+    // `stash_ids: []` on the partial only. `partial` is what leaves every other custom
+    // field the scene carries alone, which is the whole reason it exists.
+    if (job.clear) input.stash_ids = [];
+    return input;
+  }
+
+  // The exact inverse, built at plan time from what the scene held: the field back to the
+  // string it had - or removed, where it had none - and the stash-ids back on the ones
+  // they were taken off. `remove` rather than an empty string, because a field set to ""
+  // is a field the scene carries, and it did not carry one.
+  function undoInput(job) {
+    var input = { id: job.id };
+    if (job.had == null) {
+      input.custom_fields = { remove: [job.field] };
+    } else {
+      input.custom_fields = { partial: {} };
+      input.custom_fields.partial[job.field] = job.had;
+    }
+    if (job.clear) input.stash_ids = job.stashIds;
+    return input;
+  }
+
+  var SCENE_UPDATE =
+    'mutation SVR_Write($input: SceneUpdateInput!) { sceneUpdate(input: $input) { id } }';
+
+  // ── The dialog ────────────────────────────────────────────────────────────
+  //
+  // The shared chrome every plugin here puts up, and the first one in this plugin: a
+  // head with the backup sentence and a legend, a monospace log, and a footer whose
+  // write button leads. Nothing is written until Proceed, which is the standing rule -
+  // the scan is a read, and what it found is on screen before anything moves.
+  var _active = null;
+
+  function startRun() {
+    if (_active) { _active.focus(); return; }
+    _active = new Run();
+    _active.begin();
+  }
+
+  function Run() {
+    this.lines = [];        // the rendered log, kept until the dialog closes
+    this.logText = [];      // the same thing as plain text, for Copy log
+    this.jobs = [];         // what the scan found to do
+    this.changes = [];      // what Proceed wrote, newest last, for Undo
+    this.scanned = 0;
+    this.total = 0;
+    this.written = 0;
+    this.failed = 0;
+    this.state = 'scanning';
+    this.build();
+  }
+
+  Run.prototype.build = function () {
+    injectStyle();
+    var self = this;
+
+    this.backdrop = el('div', 'svr-backdrop');
+    this.modal = el('div', 'svr-modal');
+    this.backdrop.appendChild(this.modal);
+
+    var head = el('div', 'svr-head');
+    // A plain block, so a title too long for one line wraps rather than being clipped.
+    head.appendChild(el('div', 'svr-title', PLUGIN_SHORT_NAME + ' - Migrate Variant Stash-IDs'));
+    this.staleEl = el('div', 'svr-stale svr-hidden', '');
+    head.appendChild(this.staleEl);
+    head.appendChild(el('div', 'svr-warn',
+      'Backing up your database before proceeding is recommended. Undo only reverses what this ' +
+      'dialog wrote, while it stays open, and cannot account for changes made elsewhere in the ' +
+      'meantime.'));
+    this.noteEl = el('div', 'svr-note svr-hidden', '');
+    head.appendChild(this.noteEl);
+    head.appendChild(el('div', 'svr-legend',
+      'One line per scene: whether it is full-length or partial-length, the scene with its id ' +
+      'in brackets, and the value its custom field will hold. A partial-length scene also has ' +
+      'its stash-ids removed, which is what the migration is for; a full-length one keeps ' +
+      'them.'));
+    this.modal.appendChild(head);
+
+    this.progressEl = el('div', 'svr-progress', 'Starting…');
+    this.modal.appendChild(this.progressEl);
+
+    this.logEl = el('div', 'svr-log');
+    this.modal.appendChild(this.logEl);
+
+    var foot = el('div', 'svr-foot');
+    // One button for both halves of the write, the shape `EntityNameMaintainer` settled
+    // on: Proceed until something has been written and Undo afterwards. The two never
+    // overlap, because after a write the listing describes a library this dialog has
+    // already changed.
+    this.goBtn = button('Proceed', 'svr-go');
+    this.goBtn.className = this.goBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    this.goBtn.disabled = true;
+    this.closeBtn = button('Close', 'svr-close');
+    this.copyBtn = button('Copy log', 'svr-copy');
+    this.copyBtn.title = 'Copy the counters, the messages and every line of the listing as ' +
+      'plain text.';
+    this.goBtn.addEventListener('click', function () { self.go(); });
+    this.closeBtn.addEventListener('click', function () { self.close(); });
+    this.copyBtn.addEventListener('click', function () { self.copyLog(); });
+    [this.goBtn, this.closeBtn, this.copyBtn].forEach(function (b) { foot.appendChild(b); });
+    this.modal.appendChild(foot);
+
+    wireEscape(this);
+    document.body.appendChild(this.backdrop);
+  };
+
+  Run.prototype.focus = function () {
+    if (this.modal && this.modal.scrollIntoView) this.modal.scrollIntoView();
+  };
+
+  Run.prototype.show = function (node, visible) {
+    node.className = node.className.replace(/\s*svr-hidden/g, '') + (visible ? '' : ' svr-hidden');
+  };
+
+  Run.prototype.note = function (text) {
+    this.noteEl.textContent = text || '';
+    this.show(this.noteEl, !!text);
+  };
+
+  Run.prototype.setState = function (state) {
+    this.state = state;
+    var busy = state !== 'listing';
+    this.closeBtn.disabled = busy;
+    this.syncFooter();
+    this.spin(busy);
+  };
+
+  // Proceed until a write has landed, Undo afterwards, and the reason it is disabled said
+  // out loud rather than left to be guessed at.
+  Run.prototype.syncFooter = function () {
+    var undo = this.changes.length > 0;
+    this.goBtn.textContent = undo ? 'Undo' : 'Proceed';
+    if (undo) {
+      this.goBtn.disabled = this.state !== 'listing';
+      this.goBtn.title = 'Put back the custom field and the stash-ids of every scene this ' +
+        'dialog wrote. Only what it wrote, and only while it stays open.';
+      return;
+    }
+    var why = this.state !== 'listing' ? 'Still working.'
+      : this.stale ? 'Reload the page first: this tab is running an older script.'
+        : !this.jobs.length ? 'Nothing found to migrate.'
+          : '';
+    this.goBtn.disabled = !!why;
+    this.goBtn.title = why || ('Write ' + plural(this.jobs.length, 'scene') + '.');
+  };
+
+  Run.prototype.msg = function (kind, message) {
+    var line = el('div', 'svr-line svr-' + kind);
+    line.textContent = '[' + kind + '] ' + message;
+    this.logEl.appendChild(line);
+    this.lines.push(line);
+    this.logText.push('[' + kind + '] ' + message);
+    if (this.spinEl) this.logEl.appendChild(this.spinEl);   // back to the end
+    this.scrollLog();
+    if (settings().b1LogToConsole) console.info('[svr] ' + kind + ': ' + message);
+  };
+
+  Run.prototype.jobLine = function (job) {
+    var text = (job.role === 'fl' ? ROLES.fl.label : ROLES.pl.label) + '  ' +
+      job.title + ' [' + job.id + ']  ' + job.field + ' = ' +
+      job.value.split('\n').join(' + ') +
+      (job.clear ? '  (stash-ids removed)' : '');
+    var line = el('div', 'svr-line svr-job svr-role-' + job.role, text);
+    this.logEl.appendChild(line);
+    this.lines.push(line);
+    this.logText.push(text);
+    if (this.spinEl) this.logEl.appendChild(this.spinEl);
+    this.scrollLog();
+  };
+
+  Run.prototype.scrollLog = function () {
+    if (this.logEl && typeof this.logEl.scrollTop === 'number') {
+      this.logEl.scrollTop = this.logEl.scrollHeight || 0;
+    }
+  };
+
+  Run.prototype.progress = function (text) {
+    this.progressEl.textContent = text;
+  };
+
+  Run.prototype.progressText = function () {
+    var parts = ['Scanned ' + this.scanned + (this.total ? ' of ' + this.total : '') +
+      ' tagged ' + (this.scanned === 1 && !this.total ? 'scene' : 'scenes')];
+    parts.push(plural(this.jobs.length, 'scene') + ' to migrate');
+    if (this.written) parts.push(plural(this.written, 'scene') + ' written');
+    if (this.failed) parts.push(plural(this.failed, 'failure'));
+    return parts.join('. ') + '.';
+  };
+
+  // A cursor cycling under the last line of the log for as long as work is in flight, and
+  // gone the moment it is not. It carries no `-line` class, since it is not a message and
+  // must not be read back as one.
+  Run.prototype.spin = function (on) {
+    if (!on) {
+      if (this.spinTimer) clearInterval(this.spinTimer);
+      this.spinTimer = null;
+      if (this.spinEl && this.spinEl.parentNode) this.spinEl.parentNode.removeChild(this.spinEl);
+      this.spinEl = null;
+      return;
+    }
+    if (this.spinTimer) return;
+    var frames = ['▙', '▛', '▜', '▟'], i = 0, self = this;
+    this.spinEl = el('div', 'svr-spin', frames[0]);
+    this.logEl.appendChild(this.spinEl);
+    this.spinTimer = setInterval(function () {
+      i = (i + 1) % frames.length;
+      if (self.spinEl) self.spinEl.textContent = frames[i];
+    }, 500);
+  };
+
+  Run.prototype.copyLog = function () {
+    var text = [this.progressEl.textContent].concat(this.logText).join('\n');
+    var done = function () { };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, done);
+    }
+  };
+
+  Run.prototype.close = function () {
+    unwireEscape(this);
+    this.spin(false);
+    if (this.backdrop && this.backdrop.parentNode) {
+      this.backdrop.parentNode.removeChild(this.backdrop);
+    }
+    _active = null;
+  };
+
+  // Escape acts through whichever of the footer's exits is showing and enabled, never by
+  // calling `close()` itself. The footer is the dialog's own statement of what it will let
+  // you do right now, so the key can never reach a button that is hidden or disabled - and
+  // in particular does nothing mid-write.
+  function escapeButton(run) {
+    var b = run.closeBtn;
+    return b && !b.disabled && !hasClass(b, 'svr-hidden') ? b : null;
+  }
+
+  function wireEscape(run) {
+    run._onEscape = function (ev) {
+      if (!ev || (ev.key !== 'Escape' && ev.keyCode !== 27)) return;
+      var b = escapeButton(run);
+      if (!b) return;
+      if (ev.preventDefault) ev.preventDefault();
+      b.click();
+    };
+    document.addEventListener('keydown', run._onEscape);
+  }
+
+  function unwireEscape(run) {
+    if (run._onEscape && document.removeEventListener) {
+      document.removeEventListener('keydown', run._onEscape);
+    }
+    run._onEscape = null;
+  }
+
+  // ── The scan ──────────────────────────────────────────────────────────────
+
+  Run.prototype.begin = function () {
+    var self = this;
+    this.setState('scanning');
+    this.progress('Reading your settings and the tag hierarchy…');
+    checkStale(this);
+    var lease = foreignLease();
+    if (lease) {
+      // Noted, never stood down for: this run was started by hand, and §7's rule is that
+      // a manual action is not suppressed. What it buys the reader is an explanation for
+      // a scene that looks a moment out of date.
+      this.note('Another plugin is running a bulk edit here (' + lease.label + '), so a ' +
+        'scene may be read a moment behind what it holds.');
+    }
+    Promise.all([settingsReady(), tagTree()]).then(function (both) {
+      var s = both[0];
+      var m = matchers(both[1], s);
+      var field = fieldName(s);
+      self.field = field;
+      var conflict = conflictNote(m);
+      if (conflict) self.msg('WARN', conflict);
+      var tags = tagIdsFor(m);
+      if (!tags.length) {
+        self.setState('listing');
+        self.progress('Nothing to scan.');
+        self.msg('WARN', 'Neither the full-length nor the partial-length tag setting names ' +
+          'a tag in your library, so there is nothing to classify. Name them in this ' +
+          'plugin’s settings first.');
+        return null;
+      }
+      self.msg('INFO', 'Looking through every scene tagged full-length or partial-length ' +
+        'for a stash-id to move into "' + field + '".');
+      return self.scanPage(1, m, field, tags).then(function () {
+        self.setState('listing');
+        self.progress(self.progressText());
+        if (!self.jobs.length) {
+          self.msg('INFO', 'Nothing to migrate: every tagged scene either carries no ' +
+            'stash-id or has been through this already.');
+        }
+      });
+    }).then(null, function (err) {
+      self.setState('listing');
+      self.msg('ERROR', 'The scan failed: ' + (err && err.message ? err.message : String(err)));
+      self.progress(self.progressText());
+    });
+  };
+
+  // Paged rather than `per_page: -1`, which is what the rest of this plugin uses: a
+  // library-wide scan is the one query here whose answer grows with the library, and the
+  // counters are only worth having if they move while it runs.
+  Run.prototype.scanPage = function (page, m, field, tags) {
+    var self = this;
+    return gqlRequest(MIGRATE_QUERY, {
+      f: { page: page, per_page: READ_PAGE, sort: 'id', direction: 'ASC' }, tags: tags,
+    }).then(function (data) {
+      var answer = ((data || {}).findScenes) || {};
+      var scenes = answer.scenes || [];
+      self.total = answer.count || self.total;
+      scenes.forEach(function (scene) {
+        self.scanned++;
+        var job = planScene(scene, m, field);
+        if (!job) return;
+        self.jobs.push(job);
+        self.jobLine(job);
+      });
+      self.progress(self.progressText());
+      if (scenes.length < READ_PAGE) return null;
+      return self.scanPage(page + 1, m, field, tags);
+    });
+  };
+
+  // ── Writing, and taking it back ───────────────────────────────────────────
+
+  Run.prototype.go = function () {
+    if (this.changes.length) { this.undo(); return; }
+    var self = this;
+    this.setState('writing');
+    this.msg('INFO', 'Writing ' + plural(this.jobs.length, 'scene') + '.');
+    var lease = acquireLease('Variant stash-id migration');
+    this.writeAll(this.jobs, writeInput, 'migrated', lease).then(function () {
+      lease.release();
+      self.setState('listing');
+      self.progress(self.progressText());
+      self.msg('INFO', 'Done: ' + plural(self.written, 'scene') + ' migrated' +
+        (self.failed ? ', ' + plural(self.failed, 'failure') : '') + '.');
+    });
+  };
+
+  Run.prototype.undo = function () {
+    var self = this;
+    var jobs = this.changes.slice().reverse();
+    this.setState('undoing');
+    this.msg('INFO', 'Putting back what ' + plural(jobs.length, 'scene') + ' held before.');
+    var lease = acquireLease('Variant stash-id migration (undo)');
+    this.written = 0;
+    this.failed = 0;
+    this.changes = [];
+    this.writeAll(jobs, undoInput, 'put back', lease).then(function () {
+      lease.release();
+      // Undone means back to a listing nobody has used: the same jobs are still on
+      // screen and Proceed offers them again.
+      self.changes = [];
+      self.setState('listing');
+      self.progress(self.progressText());
+      self.msg('INFO', 'Undone: ' + plural(self.written, 'scene') + ' put back' +
+        (self.failed ? ', ' + plural(self.failed, 'failure') : '') + '.');
+      self.written = 0;
+    });
+  };
+
+  // Batched so the log and the counters stay live on a long run, and so a failure is one
+  // scene rather than the whole plan. The lease is renewed per batch rather than taken
+  // once for the lot: what a crashed tab leaves behind is one batch, not the run.
+  Run.prototype.writeAll = function (jobs, build, verb, lease) {
+    var self = this;
+
+    function batch(i) {
+      if (i >= jobs.length) return Promise.resolve();
+      lease.renew();
+      var slice = jobs.slice(i, i + WRITE_CHUNK);
+      return Promise.all(slice.map(function (job) {
+        return gqlRequest(SCENE_UPDATE, { input: build(job) }).then(function () {
+          self.written++;
+          if (verb === 'migrated') self.changes.push(job);
+          self.msg('INFO', job.title + ' [' + job.id + ']: ' + verb + '.');
+        }, function (e) {
+          self.failed++;
+          self.msg('ERROR', job.title + ' [' + job.id + ']: ' +
+            (e && e.message ? e.message : String(e)));
+        });
+      })).then(function () {
+        self.progress(self.progressText());
+        return batch(i + WRITE_CHUNK);
+      });
+    }
+
+    return batch(0);
+  };
+
+  // ── Is this script the one Stash has installed? ───────────────────────────
+  //
+  // Stash serves plugin JS with caching on, so "Reload plugins" cannot replace a script
+  // this page already executed. The settings page has this in its heading; a dialog does
+  // not, so it asks - and a stale script is refused the write rather than merely warned
+  // about, because what it would write is last release's idea of the plan.
+  function checkStale(run) {
+    gqlRequest('query SVRPluginVersion { plugins { id version } }', null)
+      .then(function (data) {
+        var list = (data && data.plugins) || [];
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && String(list[i].id) === PLUGIN_ID) return list[i].version || null;
+        }
+        return null;
+      }, function () { return null; })
+      .then(function (installed) {
+        if (!installed || installed === PLUGIN_VERSION) return;
+        run.stale = true;
+        run.staleEl.textContent = '⚠ This page is still running ' + PLUGIN_SHORT_NAME + ' ' +
+          PLUGIN_VERSION + ', but ' + installed + ' is installed. Press Ctrl+Shift+R ' +
+          '(⌘+Shift+R on a Mac) and open this again: nothing will be written until you do.';
+        run.show(run.staleEl, true);
+        run.syncFooter();
+      });
+  }
+
+  // ── The task button ───────────────────────────────────────────────────────
+  //
+  // Declared in the yml so Stash renders a button for it in Settings → Tasks, and handled
+  // entirely here: the click never reaches the server, because there is no `exec` behind
+  // it and nothing server-side to run. A capture-phase listener on `document` runs before
+  // React's own handler and stops the propagation, which is what keeps PluginTasks'
+  // "added job to queue" toast from appearing over a dialog that is already open.
+  //
+  // Ours only if the label matches *and* the enclosing SettingGroup is headed with our
+  // name - another plugin may declare a task called the same thing.
+  function ownTaskName(btn) {
+    var label = trim(btn.textContent);
+    if (label !== TASK_NAME) return null;
+    var node = btn;
+    var fallback = null;
+    for (var depth = 0; node && depth < 8; depth++, node = node.parentElement) {
+      var heading = node.querySelector ? node.querySelector('h3') : null;
+      var ours = !!heading && headingIsOurs(heading.textContent);
+      if (hasClass(node, 'setting-group')) return ours ? label : null;
+      if (ours) fallback = label;
+    }
+    return fallback;
+  }
+
+  // Re-applied every tick rather than once: React re-renders this panel and hands back a
+  // button with Stash's own classes, and `paintButton` is a no-op on one that already
+  // carries ours. Amber, because this one writes - the tab and its links are the reading
+  // half of this plugin and take no colour from this rule.
+  function paintTaskButtons() {
+    var nodes = document.querySelectorAll ? document.querySelectorAll('button') : [];
+    for (var i = 0; i < nodes.length; i++) {
+      if (ownTaskName(nodes[i])) paintButton(nodes[i], PLUGIN_BTN_VARIANT);
+    }
+  }
+
   // ── Style ─────────────────────────────────────────────────────────────────
 
   var CSS =
+    // ── The shared dialog chrome ────────────────────────────────────────────
+    //
+    // Kept literally identical to the sibling plugins' stylesheets wherever the dialogs
+    // overlap, down to the hex values. They are separate strings because the plugins
+    // share no module, not because they are meant to look different - and two of them
+    // did drift, from #202b33 to #30404d, because nothing compared them.
+    // `tests/style.test.js` pins the overlap. #202b33 is Blueprint's dark-gray2, the
+    // step Stash's own page uses; every dim grey in these dialogs was chosen against it.
+    '.svr-backdrop{position:fixed;inset:0;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);' +
+    'z-index:1600;display:flex;align-items:center;justify-content:center;}' +
+    '.svr-modal{background:#202b33;color:#f5f8fa;border:1px solid #394b59;border-radius:4px;' +
+    'width:min(100rem,94vw);max-height:88vh;display:flex;flex-direction:column;}' +
+    '.svr-head{padding:.75rem 1rem;border-bottom:1px solid #394b59;}' +
+    '.svr-title{font-size:1.1rem;font-weight:600;}' +
+    '.svr-warn{color:#ffb648;margin-top:.35rem;}' +
+    '.svr-note{color:#a7b6c2;margin-top:.35rem;}' +
+    '.svr-legend{color:#7d8f9c;margin-top:.35rem;font-size:.8rem;}' +
+    '.svr-progress{padding:.5rem 1rem;border-bottom:1px solid #394b59;color:#a7b6c2;' +
+    'white-space:pre-wrap;}' +
+    '.svr-log{flex:1 1 auto;overflow:auto;padding:.5rem 1rem;font-family:monospace;font-size:.8rem;' +
+    'line-height:1.35;min-height:14rem;}' +
+    '.svr-line{white-space:pre-wrap;word-break:break-word;}' +
+    '.svr-spin{color:#a7b6c2;}' +
+    '.svr-ERROR{color:#ff7373;} .svr-WARN{color:#ffb648;} .svr-INFO{color:#a7b6c2;}' +
+    '.svr-foot{padding:.75rem 1rem;border-top:1px solid #394b59;display:flex;gap:.5rem;' +
+    'flex-wrap:wrap;align-items:center;}' +
+    '.svr-foot button{margin-right:.5rem;}' +
+    '.svr-hidden{display:none;}' +
+    // ── This dialog's own ───────────────────────────────────────────────────
+    //
+    // A planned scene is not a message, so it does not wear one of the three message
+    // colours; it wears the row colour the tab already gives that value, which is what
+    // makes a listing of two hundred lines scannable by role.
+    '.svr-job{margin-left:.5rem;}' +
     // ── The tab itself ──────────────────────────────────────────────────────
     //
     // Amber, so the one tab in the strip that Stash did not put there says so. This is the
@@ -734,6 +1475,20 @@
     if (className) node.className = className;
     if (text != null) node.textContent = text;
     return node;
+  }
+
+  function button(label, className) {
+    var b = el('button', 'btn btn-secondary btn-sm' + (className ? ' ' + className : ''), label);
+    b.type = 'button';
+    return b;
+  }
+
+  // Swaps one Bootstrap variant for another in place, so a button can go amber without
+  // losing `btn` or `btn-sm`.
+  function paintButton(btn, variant) {
+    btn.className = String(btn.className || '')
+      .replace(/\bbtn-(secondary|warning|info|primary|success|light|dark|link)\b/g, '')
+      .replace(/\s+/g, ' ').replace(/^ | $/g, '') + ' ' + variant;
   }
 
   function hasClass(node, name) {
@@ -1060,10 +1815,12 @@
   // such a release needed to show. So the group headed with our own name is the
   // fallback, inside this function rather than OR'd in by each caller.
   //
-  // The sibling plugins guard that fallback with a `hasOwnTaskButton` check, because
-  // Settings - Tasks heads *its* group with the same name and decorating it would
-  // destroy the task button. This plugin declares no `tasks:`, so there is no such
-  // group for the heading match to find; adding one means adding the guard.
+  // The fallback is guarded with `hasOwnTaskButton`, because Settings - Tasks heads *its*
+  // group with the same name and decorating it would destroy the task button: the README
+  // link picks its slot by structure, and there that slot is inside the button. The
+  // guard matches this plugin's own task caption rather than merely testing for a
+  // button - Stash puts its own Enable/Disable button in the plugin group's header row,
+  // and a plugin here shipped that looser test and decorated nothing at all.
   function ownSettingGroup() {
     var node = null, d;
     for (var key in DEFAULTS) {
@@ -1076,9 +1833,19 @@
     }
     var heading = ownSettingGroupHeading();
     for (node = heading, d = 0; node && d < 10; d++, node = node.parentElement) {
-      if (hasClass(node, 'setting-group')) return node;
+      if (hasClass(node, 'setting-group')) return hasOwnTaskButton(node) ? null : node;
     }
     return heading ? heading.parentElement : null;
+  }
+
+  function hasOwnTaskButton(node) {
+    if (!node) return false;
+    if (node.tagName === 'BUTTON' && trim(node.textContent) === TASK_NAME) return true;
+    var kids = node.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      if (hasOwnTaskButton(kids[i])) return true;
+    }
+    return false;
   }
 
   function settingRow(key) {
@@ -1336,6 +2103,44 @@
 
   function settingsTick() {
     ensureReadmeLink();
+    paintTaskButtons();
+  }
+
+  if (document.addEventListener) {
+    document.addEventListener('click', function (event) {
+      var target = event.target;
+      var btn = target && target.closest ? target.closest('button') : null;
+      if (!btn || !ownTaskName(btn)) return;
+      if (event.preventDefault) event.preventDefault();
+      if (event.stopPropagation) event.stopPropagation();
+      startRun();
+    }, true);
+  }
+
+  // The one sentence that documents this plugin's custom field, filed in
+  // `CustomFieldsBulkEditor`'s description store so it shows up wherever that plugin
+  // shows a field. Feature-detected, never version-checked, and it never overwrites:
+  // a description already filed under this name is somebody's writing.
+  var FIELD_DESCRIPTION = 'The stash-id of the work this scene is a variant of, as ' +
+    '<provider>:<stash-id>, one per line.\n\n' +
+    'Written by ' + PLUGIN_NAME + '. A partial-length scene carries this instead of a ' +
+    'real stash-id, because a stash-id names the whole work and a cut is not it; a ' +
+    'full-length scene carries it as well as one. The Variants tab matches on this ' +
+    'field and on stash-ids together, so a scene is found by either.';
+
+  function describeVariantField() {
+    var api = coop().api && coop().api.CustomFieldsBulkEditor;
+    if (!api || typeof api.describeField !== 'function') return;
+    api.describeField(fieldName(), FIELD_DESCRIPTION).then(function (outcome) {
+      if (outcome === 'added') {
+        svr('[svr] described the custom field "' + fieldName() + '" in ' +
+          'CustomFieldsBulkEditor\u2019s description store.');
+      } else if (outcome === 'queued') {
+        svr('[svr] a description for "' + fieldName() + '" is waiting for ' +
+          'CustomFieldsBulkEditor\u2019s description store - open "Manage Custom Field ' +
+          'Descriptions..." and press Apply to file it.');
+      }
+    }, function () { /* a sentence is not worth an error */ });
   }
   // ── Wiring ────────────────────────────────────────────────────────────────
   //
@@ -1361,6 +2166,9 @@
     });
   }
   setInterval(tick, 1000);
-  settings();   // warm the settings cache so the first pane knows the two tag names
+  // Warms the settings cache so the first pane knows the two tag names, and documents
+  // the custom field once the configured name is known - the sibling may not have loaded
+  // yet at script bottom, and `describeField` is read off the shared object at call time.
+  settingsReady().then(describeVariantField, function () {});
   tick();
 }());

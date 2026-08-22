@@ -222,6 +222,15 @@ Rules that make this safe:
   relationship copy) and registers no `order` priority (the rename is the trigger; there is
   no button). Those two absences are the rule being followed, and its suite pins them.
 
+- **A plugin can arrive on the bulk side one release after having no side at all.**
+  `SceneVariants` read the library and wrote nothing for four releases - no lease, no
+  `respecters`, no `declares`, no `order`, no `domBus`, the shape `TagBundleClipboard`
+  and `FindEntitiesByTextContent` are in. Its migration task made exactly one of those
+  five wrong, and the edit is one: it takes a lease, renewed per batch, and the other
+  four absences are unchanged for the reasons they were always right. **A plugin's list
+  of absences is a set of separate claims, not one claim about the plugin** - the one
+  that moved is the one whose reason moved.
+
 - **A plugin can be on neither side, and the absence is four things rather than three.**
   `FindEntitiesByTextContent` reads the library and writes nothing at all: no lease (there
   is no bulk write to announce), no `respecters` entry (it reacts to nothing), no `declares`
@@ -314,9 +323,9 @@ object — nothing reads an absent entry as anything other than "declares nothin
 The only one of the shared mechanisms that is a *call* rather than a flag.
 `coop().api[<pluginId>]` holds whatever a plugin is willing to answer for another. Two publishers
 now: `NormalizeParentTags` (`prepare`, at its 3.2.0, called by `TagBundleClipboard` at its 0.5.0)
-and `CustomFieldsBulkEditor` (`describeField`, called by `PropagateTagsAndPerformers`; then
-`descriptions` and `updateDescriptions` at its 2.10.0, called by `EntityNameMaintainer` at its
-0.1.0).
+and `CustomFieldsBulkEditor` (`describeField`, called by `PropagateTagsAndPerformers` and by
+`SceneVariants` at its 0.5.0; then `descriptions` and `updateDescriptions` at its 2.10.0, called by
+`EntityNameMaintainer` at its 0.1.0).
 
 **The second publisher is the other reason to reach for this, and it is not the first one.** NPT's
 entry exists because a caller was *copying a decision* - the exclusion rules - that a later release

@@ -36,14 +36,11 @@ const PLUGINS = [
   // and the bundle limit keeps Stash's blue because it chooses what the clipboard holds
   // rather than starting anything.
   { name: 'TagBundleClipboard', prefix: 'tbc', decl: 'var CSS =', settings: true, toggles: true },
-  // `chrome: false` is the same kind of flag as `settings` above and records the same
-  // kind of absence: this plugin puts up no dialog at all - it draws a panel and links -
-  // so a backdrop, a log and a footer would be a stylesheet for markup it never builds.
-  // It has a settings page like everyone else, so both halves of the settings design are
-  // still required of it, and the inverse check below is what stops the flag excusing a
-  // drift instead of recording an absence.
-  { name: 'SceneVariants', prefix: 'svr', decl: 'var CSS =', settings: true, toggles: true,
-    chrome: false },
+  // It carried `chrome: false` until it grew the migration task: a plugin that writes
+  // shows a plan first, and a plan is a dialog. The flag going means every rule in
+  // CHROME is required of it now, which is the point of the flag being a claim about the
+  // plugin rather than an exemption.
+  { name: 'SceneVariants', prefix: 'svr', decl: 'var CSS =', settings: true, toggles: true },
   // Four settings, one of them coloured: the console toggle is teal like every sibling's.
   // The image switch and the two match limits keep Stash's blue - they choose what a scan
   // *covers*, not what anything does on its own.

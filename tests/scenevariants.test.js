@@ -220,8 +220,67 @@ function responder(opts) {
       if (opts.siblingsFail) return { errors: [{ message: 'invalid modifier' }] };
       return { data: { findScenes: { scenes: opts.siblings || SIBLINGS } } };
     }
+    // The custom-field half of the same question. Answered from its own list so a check
+    // can tell which query found a row, and refusable on its own so the "half an answer
+    // beats none" path is drivable.
+    if (q.indexOf('SVRFieldMatch') !== -1) {
+      if (opts.fieldFail) return { errors: [{ message: 'no such criterion' }] };
+      opts.fieldAsked = (opts.fieldAsked || []).concat([req.variables]);
+      return { data: { findScenes: { scenes: opts.byField || [] } } };
+    }
+    if (q.indexOf('SVRSceneFields') !== -1) {
+      return { data: { findScene: { id: req.variables.id,
+        custom_fields: opts.ownFields || {} } } };
+    }
+    if (q.indexOf('SVRPluginVersion') !== -1) {
+      return { data: { plugins: opts.installed ? [{ id: 'SceneVariants', version: opts.installed }] : [] } };
+    }
+    if (q.indexOf('SVRMigrateScan') !== -1) {
+      if (opts.scanFail) return { errors: [{ message: 'no such filter' }] };
+      const all = opts.library || [];
+      const page = req.variables.f.page, per = req.variables.f.per_page;
+      opts.scanTags = req.variables.tags;
+      return { data: { findScenes: { count: all.length,
+        scenes: all.slice((page - 1) * per, page * per) } } };
+    }
+    if (q.indexOf('SVR_Write') !== -1) {
+      const input = req.variables.input;
+      opts.writes = (opts.writes || []).concat([input]);
+      if (opts.failWrite && opts.failWrite(input)) {
+        return { errors: [{ message: 'write boom' }] };
+      }
+      // Applied to the fixture, so a check can ask the library what it holds rather than
+      // only what was sent - the same reason `enm` applies its cancel.
+      const row = (opts.library || []).filter((sc) => String(sc.id) === String(input.id))[0];
+      if (row) {
+        if (input.stash_ids) row.stash_ids = input.stash_ids;
+        const cf = input.custom_fields || {};
+        row.custom_fields = Object.assign({}, row.custom_fields);
+        Object.keys(cf.partial || {}).forEach((k) => { row.custom_fields[k] = cf.partial[k]; });
+        (cf.remove || []).forEach((k) => { delete row.custom_fields[k]; });
+      }
+      return { data: { sceneUpdate: { id: input.id } } };
+    }
     return { data: {} };
   };
+}
+
+// The group Stash renders for a plugin task: a `.setting-group`, an `<h3>` with the
+// plugin name and version, and a button captioned with the task.
+const TASK = 'Migrate Variant Stash-IDs...';
+const PLUGIN_NAME = 'ᝯㄝₓ Scene Variants';
+
+function taskGroup(env, name) {
+  const group = env.ctx.document.createElement('div');
+  group.className = 'setting-group';
+  const head = env.ctx.document.createElement('h3');
+  head.textContent = name;
+  group.appendChild(head);
+  const btn = env.ctx.document.createElement('button');
+  btn.textContent = TASK;
+  group.appendChild(btn);
+  env.body.appendChild(group);
+  return btn;
 }
 
 function start(opts) {
@@ -244,6 +303,11 @@ function start(opts) {
     env.ctx.window.PluginApi = env.ctx.PluginApi;
   }
   h.run(env.ctx, SRC);
+  env.opts = opts;
+  // Built on request rather than always: two checks below count everything this plugin
+  // put in the document, and a group Stash rendered is not that.
+  env.addTask = (name) => taskGroup(env, name ||
+    (PLUGIN_NAME + ' (' + (opts.installed || '0.5.0') + ')'));
 
   // Stash rendering the two container components: each renders its children, and the
   // after-patches are applied to that result in turn, exactly as `PatchFunction` does —
@@ -797,6 +861,256 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
     const env = start({ noBootstrap: true });
     h.check('and neither does one whose PluginApi has no react-bootstrap',
       Object.keys(env.patches).length === 0, Object.keys(env.patches).join(' '));
+  }
+
+  // ── The migration task ────────────────────────────────────────────────────
+  //
+  // The one thing in this plugin that writes. Every check here is about the same two
+  // rules: what it plans is on screen before anything moves, and what it wrote can be
+  // put back while the dialog is open.
+
+  // A library of tagged scenes for the scan to walk. Two partials carrying stash-ids, a
+  // full-length one, a partial that has been through this already, a partial with no
+  // stash-id at all and an untagged scene that the filter would not have returned but
+  // which is classified out anyway.
+  function migrationLibrary() {
+    return [
+      { id: '42', title: 'Clip 2', tags: [{ id: '2' }], custom_fields: {},
+        stash_ids: [{ endpoint: 'https://stashdb.org/graphql', stash_id: 'abc' }] },
+      { id: '77', title: 'Clip 1', tags: [{ id: '3' }], custom_fields: {},
+        stash_ids: [{ endpoint: 'https://stashdb.org/graphql', stash_id: 'abc' },
+          { endpoint: 'https://theporndb.net/graphql', stash_id: 'zzz' }] },
+      { id: '9', title: 'Cool Shoot', tags: [{ id: '1' }], custom_fields: {},
+        stash_ids: [{ endpoint: 'https://stashdb.org/graphql', stash_id: 'abc' }] },
+      { id: '11', title: 'Done already', tags: [{ id: '2' }],
+        custom_fields: { 'ᱜ╦╦🞮_Variant_Stash_ID': 'stashdb.org:abc' }, stash_ids: [] },
+      { id: '12', title: 'Never scraped', tags: [{ id: '2' }], custom_fields: {}, stash_ids: [] },
+    ];
+  }
+
+  const dlg = (env) => h.dialog(env.body, 'svr');
+  const jobLines = (env) => env.body.descendants()
+    .filter((n) => h.hasClass(n, 'svr-job')).map((n) => n.textContent);
+
+  function openTask(env) {
+    h.fire(env.ctx.document, 'click', { target: env.addTask() });
+    return h.flush(80);
+  }
+
+  {
+    const env = start({ library: migrationLibrary() });
+    await openTask(env);
+    h.check('the task button opens the dialog', dlg(env).open);
+    h.check('whose head recommends a backup, because it writes',
+      /Backing up your database before proceeding is recommended/.test(
+        (env.body.descendants().filter((n) => h.hasClass(n, 'svr-warn'))[0] || {}).textContent || ''));
+    // Classified by the same expanded tag ids the tab classifies rows with: Trailer (3)
+    // is a child of Partial Length and Clip an alias of it, so scene 77 is planned
+    // without the settings naming either.
+    h.check('the scan asks for the two tags and everything under them',
+      (env.opts.scanTags || []).slice().sort().join(',') === '1,2,3,4',
+      (env.opts.scanTags || []).join(','));
+
+    const lines = jobLines(env);
+    h.check('a partial-length scene is planned, with its stash-ids to be removed',
+      lines.some((l) => /Partial-length.*Clip 2 \[42\].*stashdb\.org:abc.*stash-ids removed/.test(l)),
+      lines.join(' | '));
+    h.check('a scene with two stash-ids stores both, one per line',
+      lines.some((l) => /Clip 1 \[77\].*stashdb\.org:abc \+ theporndb\.net:zzz/.test(l)),
+      lines.join(' | '));
+    h.check('a full-length scene is planned too, and keeps its stash-ids',
+      lines.some((l) => /Full-length.*Cool Shoot \[9\]/.test(l) && !/stash-ids removed/.test(l)),
+      lines.join(' | '));
+    h.check('a scene already migrated is not planned again',
+      !lines.some((l) => /\[11\]/.test(l)), lines.join(' | '));
+    h.check('nor is one that never had a stash-id',
+      !lines.some((l) => /\[12\]/.test(l)), lines.join(' | '));
+    h.check('the counters say what was read and what is to be done',
+      /Scanned 5 of 5 tagged scenes\. 3 scenes to migrate\./.test(dlg(env).progress),
+      dlg(env).progress);
+    h.check('and nothing has been written', !env.opts.writes, JSON.stringify(env.opts.writes));
+
+    dlg(env).button('Proceed').click();
+    await h.flush(120);
+    const writes = env.opts.writes || [];
+    h.check('Proceed writes one mutation per planned scene', writes.length === 3,
+      String(writes.length));
+    const partial = writes.filter((w) => w.id === '42')[0];
+    h.check('the partial gets the field and loses its stash-ids',
+      partial.custom_fields.partial['ᱜ╦╦🞮_Variant_Stash_ID'] === 'stashdb.org:abc' &&
+        JSON.stringify(partial.stash_ids) === '[]', JSON.stringify(partial));
+    const full = writes.filter((w) => w.id === '9')[0];
+    h.check('the full-length one gets the field and keeps them',
+      full.custom_fields.partial['ᱜ╦╦🞮_Variant_Stash_ID'] === 'stashdb.org:abc' &&
+        full.stash_ids === undefined, JSON.stringify(full));
+    h.check('through partial, so every other custom field the scene has is left alone',
+      writes.every((w) => w.custom_fields.full === undefined), JSON.stringify(writes));
+    h.check('and the library really carries it',
+      env.opts.library.filter((sc) => sc.id === '42')[0]
+        .custom_fields['ᱜ╦╦🞮_Variant_Stash_ID'] === 'stashdb.org:abc');
+    h.check('the write button becomes Undo', !!dlg(env).button('Undo') && !dlg(env).button('Proceed'));
+
+    dlg(env).button('Undo').click();
+    await h.flush(120);
+    const back = (env.opts.writes || []).slice(3);
+    h.check('Undo writes one back per scene written', back.length === 3, String(back.length));
+    const undone = back.filter((w) => w.id === '42')[0];
+    h.check('removing the field the scene never had rather than emptying it',
+      JSON.stringify(undone.custom_fields.remove) === '["ᱜ╦╦🞮_Variant_Stash_ID"]',
+      JSON.stringify(undone.custom_fields));
+    h.check('and putting the stash-ids back on',
+      undone.stash_ids.length === 1 && undone.stash_ids[0].stash_id === 'abc',
+      JSON.stringify(undone.stash_ids));
+    h.check('the library is back to what it held',
+      !env.opts.library.filter((sc) => sc.id === '42')[0]
+        .custom_fields['ᱜ╦╦🞮_Variant_Stash_ID'],
+      JSON.stringify(env.opts.library[0].custom_fields));
+    h.check('and Proceed is offered again', !!dlg(env).button('Proceed'));
+  }
+
+  {
+    // A field somebody had already filled in by hand is put back to what it said, not
+    // removed - the undo is the inverse of what was written, not a delete.
+    const lib = migrationLibrary();
+    lib[0].custom_fields = { 'ᱜ╦╦🞮_Variant_Stash_ID': 'something else' };
+    const env = start({ library: lib });
+    await openTask(env);
+    dlg(env).button('Proceed').click();
+    await h.flush(120);
+    dlg(env).button('Undo').click();
+    await h.flush(120);
+    const undone = (env.opts.writes || []).filter((w) => w.id === '42').slice(-1)[0];
+    h.check('an undo restores a value the field already held',
+      undone.custom_fields.partial['ᱜ╦╦🞮_Variant_Stash_ID'] === 'something else',
+      JSON.stringify(undone.custom_fields));
+  }
+
+  {
+    // Both tag settings empty: nothing to classify, so nothing to scan. Saying so beats
+    // an empty listing, which reads as "your library is fine".
+    const env = start({ library: migrationLibrary(),
+      settings: { a1FullLengthTag: '', a2PartialLengthTag: '' } });
+    await openTask(env);
+    h.check('with neither tag configured the task explains rather than listing nothing',
+      dlg(env).lines.some((l) => /neither the full-length nor the partial-length tag/i.test(l)),
+      dlg(env).lines.join(' | '));
+    h.check('and Proceed is disabled', dlg(env).button('Proceed').disabled);
+  }
+
+  {
+    // A stale script must not write: what it would write is the previous release's idea
+    // of the plan, and the settings page's own banner cannot reach a dialog.
+    const env = start({ library: migrationLibrary(), installed: '9.9.9' });
+    await openTask(env);
+    h.check('a stale script is refused the write and told why',
+      dlg(env).button('Proceed').disabled && /9\.9\.9 is installed/.test(dlg(env).stale),
+      dlg(env).stale);
+  }
+
+  {
+    const env = start({ library: migrationLibrary(),
+      failWrite: (input) => input.id === '77' });
+    await openTask(env);
+    dlg(env).button('Proceed').click();
+    await h.flush(120);
+    h.check('one scene failing is one scene, not the run',
+      /2 scenes written\. 1 failure\./.test(dlg(env).progress), dlg(env).progress);
+    h.check('and the failure is named in the log',
+      dlg(env).lines.some((l) => /ERROR.*\[77\].*write boom/.test(l)), dlg(env).lines.join(' | '));
+    h.check('Undo offers back only what was written',
+      !!dlg(env).button('Undo'));
+    dlg(env).button('Undo').click();
+    await h.flush(120);
+    h.check('which is the two that landed',
+      (env.opts.writes || []).slice(3).length === 2, String((env.opts.writes || []).slice(3).length));
+  }
+
+  {
+    // The lease: taken for the writes and gone afterwards, which is what a sibling
+    // reactive plugin reads.
+    const env = start({ library: migrationLibrary() });
+    await openTask(env);
+    const leases = () => env.ctx.__GTTx__.StashPluginCoop.leases;
+    h.check('no lease is held while the dialog is only listing', leases().length === 0);
+    dlg(env).button('Proceed').click();
+    // Read before any flush: the lease is taken on the press and this fixture's three
+    // writes resolve in a couple of ticks, so anything asynchronous here would be asking
+    // after they had already finished.
+    h.check('one is held while the writes go out',
+      leases().length === 1 && leases()[0].owner === 'SceneVariants', JSON.stringify(leases()));
+    await h.flush(160);
+    h.check('and released when they are done', leases().length === 0, JSON.stringify(leases()));
+  }
+
+  {
+    // Escape closes through the footer, and the handler goes with the dialog.
+    const env = start({ library: migrationLibrary() });
+    await openTask(env);
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('Escape closes the dialog', !dlg(env).open);
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('and its handler went with it', !dlg(env).open);
+  }
+
+  // ── Matching on the custom field ──────────────────────────────────────────
+
+  {
+    // A migrated partial: no stash-id at all, so the only evidence is the field. The
+    // stash-id query must not be asked, and the field query must be.
+    const env = start({
+      ownFields: { 'ᱜ╦╦🞮_Variant_Stash_ID': 'stashdb.org:abc' },
+      byField: SIBLINGS,
+    });
+    const { inst } = mountPane(env, { scene: sceneProp({ stashIds: [] }) });
+    await h.flush();
+    h.check('a scene with no stash-id is looked up by its variant stash-id field',
+      env.calls.some((c) => c.query.indexOf('SVRFieldMatch') !== -1) &&
+        !env.calls.some((c) => c.query.indexOf('SVRVariants(') !== -1),
+      env.calls.map((c) => c.query.slice(0, 30)).join(' | '));
+    h.check('and its variants are listed', titles(inst.el).length === 3,
+      titles(inst.el).join(' | '));
+    h.check('the summary says what matched them',
+      /Matched on 1 variant stash-id\./.test(summary(inst.el)), summary(inst.el));
+  }
+
+  {
+    // A scene that still has one asks both, and the two answers are one list: a scene
+    // found by both queries is listed once.
+    const env = start({ byField: [SIBLINGS[1], { id: '81', title: 'Only by field', tags: [],
+      files: [{ duration: 100, width: 640, height: 360 }] }] });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    h.check('the field query is asked with the value the stash-id would be stored as',
+      JSON.stringify(((env.opts.fieldAsked || [])[0] || {}).values) === '["stashdb.org:abc"]',
+      JSON.stringify((env.opts.fieldAsked || [])[0]));
+    h.check('a scene both queries found is listed once',
+      titles(inst.el).filter((t) => t === 'Cool Shoot - Clip 1').length === 1,
+      titles(inst.el).join(' | '));
+    h.check('and one only the field query found is listed as well',
+      titles(inst.el).indexOf('Only by field') !== -1, titles(inst.el).join(' | '));
+  }
+
+  {
+    // Half an answer beats none: a Stash that spells the custom-field criterion
+    // differently loses that half and keeps the stash-id matches.
+    const env = start({ fieldFail: true });
+    const { inst } = mountPane(env, { scene: sceneProp({}) });
+    await h.flush();
+    h.check('a custom-field criterion this server refuses does not empty the tab',
+      titles(inst.el).length === 3, titles(inst.el).join(' | '));
+    h.check('and it says so on the console rather than silently',
+      env.warnings.some((w) => /custom-field lookup failed/.test(w)), env.warnings.join(' | '));
+  }
+
+  {
+    // Neither kind of evidence: the sentence names both, because a user reading it is
+    // deciding whether this scene should have been migrated.
+    const env = start({ ownFields: {} });
+    const { inst } = mountPane(env, { scene: sceneProp({ stashIds: [] }) });
+    await h.flush();
+    h.check('a scene with neither is told so, naming both',
+      /no stash-id and no "ᱜ╦╦🞮_Variant_Stash_ID" custom field/.test(summary(inst.el)),
+      summary(inst.el));
   }
 
   h.finish();

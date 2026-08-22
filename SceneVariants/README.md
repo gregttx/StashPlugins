@@ -23,8 +23,9 @@ The tab sits just before **Edit**, which stays last, and is amber — the one ta
 did not put there.
 
 Each cover and title is a link, and a cover plays the scene's preview loop while the pointer is over
-it — the same preview the scene cards use. Nothing is written to your library at any point: the tab
-is two read queries and a list of links.
+it — the same preview the scene cards use. The tab itself writes nothing: it is two read queries and
+a list of links. The one thing here that writes is the migration task below, and it shows you every
+scene it would touch first.
 
 Rows say **Full-length** and **Partial-length** rather than echoing your tag names back. The tag
 that decided a row is on its hover text, which is where it is useful and where it is not in the way
@@ -43,6 +44,7 @@ Two settings, both optional, both under **Settings → Plugins → ᝯㄝₓ Sce
 |---|---|
 | Full-length Tag | The name of the tag you put on a scene that is the whole work |
 | Partial-length Tag | The name of the tag you put on a cut of one |
+| Variant Stash-ID Custom Field | The custom field the migration task writes into. Empty means `ᱜ╦╦🞮_Variant_Stash_ID` |
 
 Names are typed rather than picked, and compared without regard to case or surrounding spaces. A
 name finds the tag by any of its **aliases** as well as by its name, and a scene tagged with any
@@ -52,6 +54,36 @@ Leave both empty and the tab still lists the variants — it just says nothing a
 
 The row's hover text names the tag the **scene** carries, which is how an alias or a child tag says
 which one it matched.
+
+## Migrating a partial-length scene's stash-id
+
+A stash-id names the **work**. A stash-box has one entry for the whole scene, so a partial-length cut
+wearing that same stash-id is claiming to be the thing it was cut out of — and everything in Stash
+that reads a stash-id as a fact about the file believes it: scraping, **Submit to Stash-box**,
+duplicate detection.
+
+**Settings → Tasks → ᝯㄝₓ Scene Variants → Migrate Variant Stash-IDs...** moves that claim somewhere
+it is true. For every scene carrying your partial-length tag, it writes the stash-id into a custom
+field and takes the stash-id off:
+
+```
+ᱜ╦╦🞮_Variant_Stash_ID   stashdb.org:9f3c1e2a-…-8b71
+```
+
+One line per stash-id, written as `<provider>:<stash-id>`, so a scene that carries two ids keeps
+both. Full-length scenes get the same field **and keep their stash-ids**, which is what lets the tab
+find a whole variant set with one query instead of two.
+
+Nothing is written until you press **Proceed**: the dialog lists every scene it would touch, what
+the field will hold and whether the stash-ids come off, and the counters say how far the scan has
+got. **Undo** puts every one of them back — the field to what it said before, or removed where the
+scene had none, and the stash-ids back on — for as long as the dialog stays open.
+
+Running it twice is safe: a scene whose field already says the right thing, and which has no
+stash-id left to move, is not written again.
+
+The **Variants** tab then matches on both — a scene is found by its stash-id, by this field, or by
+either — so a half-migrated library keeps working throughout.
 
 ## What the hover text tells you
 
@@ -84,13 +116,14 @@ left unsaid it shows up as every scene under the overlap being flagged red indiv
 
 ## What it does not do
 
-**The stash-id is the only evidence used.** A scene that never got one, or whose variants never got
-one, gets a tab that says so and lists nothing. Matching on a title convention (`<title> - Clip 2`)
-and on shared performers is the obvious next step and is not built — expect a list on the scenes
-that carry the id convention and nowhere else.
+**A stash-id, or the field the migration task writes, is the only evidence used.** A scene that
+never got one, or whose variants never got one, gets a tab that says so and lists nothing. Matching
+on a title convention (`<title> - Clip 2`) and on shared performers is the obvious next step and is
+not built — expect a list on the scenes that carry the id convention and nowhere else.
 
-**It never writes.** No tag is added, no title is corrected, no stash-id is propagated. Everything
-the tab notices that looks wrong is shown and left alone.
+**The tab never writes.** No tag is added, no title is corrected, no stash-id is propagated.
+Everything it notices that looks wrong is shown and left alone. The migration task is the only thing
+here that writes, it is started by hand, and it shows its whole plan first.
 
 **Scene pages only.** There is nothing on a performer, studio or group.
 
@@ -134,8 +167,8 @@ A JS change needs **no plugin reload** — Stash reads the file on every request
 and reloading the page is enough. Reload plugins only when the `.yml` changes.
 
 **The tab is empty on a scene you know has variants.** The tab tells you why in its first line.
-Check the scene has a stash-id at all (**Edit → Stash IDs**), and that its variants carry the same
-one. A failed query is always reported to the console, whatever the settings say.
+Check the scene has a stash-id at all (**Edit → Stash IDs**), or the variant stash-id custom field if
+it has been migrated, and that its variants carry the same one. A failed query is always reported to the console, whatever the settings say.
 
 **Every row is unclassified.** The two tag names in the settings match no tag at all — neither a
 name nor an alias. Copy the name from the tag's own page rather than retyping it. If the tag list

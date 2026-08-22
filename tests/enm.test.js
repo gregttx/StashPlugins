@@ -515,6 +515,30 @@ const filterBtns = (env) => env.body.descendants()
         tag.input.custom_fields.remove.indexOf('Jane Doe Jr rating') !== -1,
       JSON.stringify(tag.input.custom_fields));
     h.check('the button goes back to Proceed', !!dlg(env).button('Proceed'));
+    // And so does the confirm on Close: an undone run is a listing nobody has used.
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('and Close asks again, now that the run has been taken back',
+      dlg(env).open && /^Are you sure\?/.test(
+        (env.body.descendants().filter((n) => h.hasClass(n, 'enm-close'))[0] || {}).textContent),
+      (env.body.descendants().filter((n) => h.hasClass(n, 'enm-close'))[0] || {}).textContent);
+  });
+}());
+
+// ── Close after a write does not ask ────────────────────────────────────────
+//
+// The confirm is about losing a listing that cannot be got back. Once Proceed has run,
+// the listing has been acted on and there is nothing left to lose.
+(function closeAfterProceed() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    dlg(env).button('Proceed').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('the write landed', !!dlg(env).button('Undo'));
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('Escape closes it outright after a write', !dlg(env).open);
   });
 }());
 
@@ -711,6 +735,22 @@ const filterBtns = (env) => env.body.descendants()
     h.check('the dialog still opens', dlg(env).open);
     h.check('and the plugin never cloned or read a response body',
       cloned === 0 && read === 0, 'cloned ' + cloned + ', read ' + read);
+  });
+}());
+
+// ── The head ────────────────────────────────────────────────────────────────
+
+(function head() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    const title = (env.body.descendants().filter((n) => h.hasClass(n, 'enm-title'))[0] || {})
+      .textContent || '';
+    h.check('the head wears the plugin\'s whole name, the one the settings page shows',
+      title.indexOf('ᝯㄝₓ Entity Name Maintainer') === 0, title);
+    h.check('and goes on to name the entity it is about',
+      /Performer 7 renamed$/.test(title), title);
   });
 }());
 

@@ -10,10 +10,22 @@ Close - and the Escape key, which acts through it - arms and counts down rather 
 second press within a few seconds closes. The tooltip is the user's own wording: *Some
 cross-references might be lost. Copy log just in case.*
 
-**Only when the listing holds something.** An empty listing is nothing to lose, and a confirm over
-it would be the dialog asking permission to do nothing - the same rule §12 applies to All On / All
-Off. The countdown disarms itself, so a user who walks away comes back to an ordinary Close rather
-than to a dialog waiting on a second press it will never explain.
+**Only over a listing nothing has been done with.** Two ways that is true and one way it is not.
+An empty listing is nothing to lose, and a confirm over it would be the dialog asking permission to
+do nothing - the same rule §12 applies to All On / All Off. **A listing Proceed has already acted
+on is equally nothing to lose**, which 0.0.7 got wrong: the replacements are in the library, the
+listing has done its job, and asking again reads as the dialog refusing to let go. `changes` is
+exactly that fact and needed no new state - Proceed fills it and Undo empties it - so an undone run
+is guarded again, which is right, because it is back to being a listing nobody has used. The
+countdown disarms itself, so a user who walks away comes back to an ordinary Close rather than to a
+dialog waiting on a second press it will never explain.
+
+**And the head wears the whole name.** `PLUGIN_SHORT_NAME` exists to shorten where the manifest
+name would crowd out what follows it; here what follows is an entity label and an id, which fits,
+and a head reading `ᝯㄝₓ Name Maintainer` over a settings page reading `ᝯㄝₓ Entity Name Maintainer`
+reads as a different plugin. It is `PLUGIN_NAME`, the way `NormalizeParentTags` writes the same
+decision - as an assignment rather than a second copy of the literal, so a rename cannot move one
+and not the other.
 
 **It arms in the caption rather than putting up a second dialog.** `Are you sure? (3)` is on the
 button being pressed, which is where the question is; a `confirm()` would be a modal over a modal,

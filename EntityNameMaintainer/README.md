@@ -57,11 +57,13 @@ afterwards.
 - **Proceed** — writes. Afterwards the same button reads **Undo** and puts back exactly what
   this dialog changed, while it stays open.
 - **Copy log** — the counters, the whole listing and every message, as plain text.
-- **Close**, or the Escape key. While the listing holds occurrences the first press asks
-  **Are you sure?** and counts down for a few seconds; a second press within that closes.
-  The scan runs off a rename that has already happened, so a listing thrown away cannot be
-  asked for again — press **Copy log** first if you want to keep it. With nothing found
-  there is nothing to lose, and the button closes on the first press.
+- **Close**, or the Escape key. While the listing holds occurrences *nothing has been done
+  with yet*, the first press asks **Are you sure?** and counts down for a few seconds; a
+  second press within that closes. The scan runs off a rename that has already happened, so
+  a listing thrown away cannot be asked for again — press **Copy log** first if you want to
+  keep it. It closes on the first press once there is nothing left to lose: nothing was
+  found, or **Proceed** has run. An **Undo** puts the question back, since it puts the
+  listing back to one nobody has used.
 
 ## While it scans
 

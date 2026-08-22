@@ -31,9 +31,11 @@
   var PLUGIN_NAME = 'ᝯㄝₓ Entity Name Maintainer';
   // The name the dialog head wears. `PLUGIN_NAME` is the manifest's and has to stay
   // byte-identical to the `.yml`, because `ownParts`' heading match finds this plugin's
-  // block on the settings page with it. This one is free to be short, and here it has
-  // to be: the head goes on to name the entity, the old name and the new one.
-  var PLUGIN_SHORT_NAME = 'ᝯㄝₓ Name Maintainer';
+  // block on the settings page with it. This one is free to be short - and is not: the
+  // head names the entity and its id after it, which fits, and a head reading a name the
+  // settings page never shows reads as a different plugin. `NormalizeParentTags` makes
+  // the same call the same way.
+  var PLUGIN_SHORT_NAME = PLUGIN_NAME;
 
   // The one version that proves anything. The settings page reads the manifest over
   // GraphQL and goes current the moment plugins are reloaded, while the browser can
@@ -44,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.7';
+  var PLUGIN_VERSION = '0.0.8';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1699,7 +1701,12 @@
   // away - the countdown disarms itself. Only when something was found: an empty
   // listing is nothing to lose.
   Run.prototype.requestClose = function () {
-    if (!this.hits.length || this._armed) { this.close(); return; }
+    // Nothing found is nothing to lose, and neither is a listing that has been *acted
+    // on*: after Proceed the replacements are in the library and the listing has done
+    // its job. `changes` is exactly that fact - Proceed fills it and Undo empties it -
+    // so an undone run is guarded again, which is right, because it is back to being a
+    // listing nobody has used.
+    if (!this.hits.length || this.changes.length || this._armed) { this.close(); return; }
     var self = this;
     var left = CLOSE_CONFIRM_SECONDS;
     this._armed = true;

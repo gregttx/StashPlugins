@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.9';
+  var PLUGIN_VERSION = '0.0.10';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1006,6 +1006,13 @@
   Run.prototype.setState = function (state) {
     this.state = state;
     var busy = state === 'writing' || state === 'undoing' || state === 'scanning';
+    // An armed Close is a question about a listing nobody has used, and pressing Proceed
+    // is the answer to it. Leaving the countdown running under a write means a disabled
+    // button reading "Are you sure? (3)" while the replacements go out - and by the time
+    // it disarms itself the question it was asking no longer applies at all. `setState`
+    // is where this belongs rather than in `go()`: every path in and out of a write goes
+    // through here, which is the same reason the cursor hangs off it.
+    if (busy) this.disarmClose();
     this.closeBtn.disabled = busy;
     this.copyBtn.disabled = false;
     this.newInput.disabled = state !== 'listing';

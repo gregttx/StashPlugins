@@ -27,12 +27,18 @@ reads as a different plugin. It is `PLUGIN_NAME`, the way `NormalizeParentTags` 
 decision - as an assignment rather than a second copy of the literal, so a rename cannot move one
 and not the other.
 
-**It arms in the caption rather than putting up a second dialog.** `Are you sure? (3)` is on the
+**It arms in the caption rather than putting up a second dialog.** `Are you sure? (5)` is on the
 button being pressed, which is where the question is; a `confirm()` would be a modal over a modal,
 and the repo has no chrome for one. Same latch shape as `PropagateTagsAndPerformers`' Undo, which
 arms for the opposite reason - that one guards a write, this one guards a *loss of a read* - and
 that is worth noting: this is the first control here that asks before something that writes
 nothing.
+
+**And a write disarms it.** Pressing Proceed while the countdown is running is the answer to the
+question the countdown is asking, so leaving it going means a disabled button reading
+`Are you sure? (3)` mid-countdown while the replacements go out - and by the time it disarms itself the question
+no longer applies at all, since `changes` is filled. It hangs off `setState`, not off `go()`: every
+path in and out of a write goes through there, which is the same reason the cursor does.
 
 ## 1. The trigger is a rename, not a button
 

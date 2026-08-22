@@ -542,6 +542,30 @@ const filterBtns = (env) => env.body.descendants()
   });
 }());
 
+// Arming Close and then pressing Proceed: the write is the answer to the question, so
+// the countdown must not go on running under it.
+(function armThenProceed() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib });
+  const closeBtn = () => env.body.descendants()
+    .filter((n) => h.hasClass(n, 'enm-close'))[0] || {};
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('Close is armed before Proceed', /^Are you sure\?/.test(closeBtn().textContent),
+      closeBtn().textContent);
+    dlg(env).button('Proceed').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('and Proceed disarms it rather than leaving it counting',
+      closeBtn().textContent === 'Close', closeBtn().textContent);
+    h.check('with the tooltip gone too', !closeBtn().title, closeBtn().title);
+    h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
+    h.check('so Escape closes on the first press, as it does after any write',
+      !dlg(env).open);
+  });
+}());
+
 // ── A field that moved between the scan and the write ───────────────────────
 
 (function moved() {

@@ -63,7 +63,8 @@ afterwards.
   a listing thrown away cannot be asked for again — press **Copy log** first if you want to
   keep it. It closes on the first press once there is nothing left to lose: nothing was
   found, or **Proceed** has run. An **Undo** puts the question back, since it puts the
-  listing back to one nobody has used.
+  listing back to one nobody has used. Pressing **Proceed** while it is counting down puts the
+  button straight back to **Close** — the write is the answer to the question.
 
 ## While it scans
 

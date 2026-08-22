@@ -14,6 +14,23 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.8.2 stops Apply being live on a dialog nobody has touched**, which is the same question from
+the other end. Two of `pending()`'s clauses were housekeeping that *rides along* with a write rather
+than a reason to make one:
+
+- **A store stamped by an older release.** Every write stamps the current version anyway, so the
+  restamp lands on the next Apply that has a reason. Counting it meant Apply was live on open after
+  every upgrade of this plugin - which, on a week of releases, is every time the dialog is opened -
+  asking for a press that changes nothing anyone can see.
+- **No store tag yet.** With nothing to file in it, Apply would have created a tag in the library to
+  hold an empty store. A description typed or seeded is what makes one worth creating, and that
+  shows up in the diff on its own.
+
+**A seeded description still counts, and should.** The hide field's own description, and anything a
+sibling has queued through `describeField`, are real things to write on the first open - and the log
+says so in as many words. The distinction that matters is whether a user reading the log can see
+what Apply would do.
+
 **2.8.1 stops Apply staying live after a rename has been written.** `pending()` read
 `migration.armed`, and `armed` says the user asked for the rename rather than that it is still
 owed - `runMigration` marks it `done` and leaves it armed. So after a rename Apply never went back

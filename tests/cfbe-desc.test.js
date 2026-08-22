@@ -939,5 +939,57 @@ openDesc()
     });
   })
 
+  // ── What lights Apply on a dialog nobody has touched ─────────────────────
+  //
+  // Reported live: Apply was enabled the moment the dialog opened, with nothing edited.
+  .then(() => openDesc({
+    library: withStore(Object.assign({}, STORE_TAG, {
+      // An older release wrote this store, and it already carries every description this
+      // dialog would seed - so there is genuinely nothing to write.
+      description: blob({ version: '0.8.0', hideField: HIDE, descriptions: {
+        colour: 'The colour it is filed under.',
+        [HIDE]: 'Hides it from the add lists.',
+      } }),
+    })),
+    settings: { b1DescriptionTagName: 'plumbing' },
+  }))
+  .then((env) => {
+    h.check('a store stamped by an older release does not light Apply on its own',
+      one(env.body, 'cfbe-apply').disabled === true,
+      notes(env.body).join(' | '));
+    // The restamp is not lost - it rides along with the next write that has a reason.
+    pick(env.body, 'colour').click();
+    type(env, 'Something new.');
+    h.check('and a real edit still enables it', one(env.body, 'cfbe-apply').disabled === false);
+    return press(env, 'cfbe-apply').then(() => {
+      h.check('which stamps the store with this release on the way past',
+        sentStore(env.calls).version === VERSION, JSON.stringify(sentStore(env.calls).version));
+      h.check('and Apply goes quiet again', one(env.body, 'cfbe-apply').disabled === true);
+      return env;
+    });
+  })
+
+  .then(() => openDesc({
+    // No store tag at all, and nothing that would be seeded into one: Apply would have
+    // created a tag in the library to hold an empty store.
+    library: withStore(null),
+    settings: { c1ExcludeFromAddListField: '' },
+  }))
+  .then((env) => {
+    h.check('and neither does having no store tag, with nothing to put in one',
+      one(env.body, 'cfbe-apply').disabled === true, notes(env.body).join(' | '));
+    h.check('no tag is written for it either', tagWrites(env.calls).length === 0);
+    pick(env.body, 'colour').click();
+    type(env, 'Worth keeping.');
+    h.check('a description is what makes a store worth creating',
+      one(env.body, 'cfbe-apply').disabled === false);
+    return press(env, 'cfbe-apply').then(() => {
+      h.check('and Apply then creates the tag',
+        env.calls.some((c) => /CFBE_TagCreate/.test(c.query || '')),
+        env.calls.map((c) => (c.query || '').slice(0, 22)).join(' | '));
+      return env;
+    });
+  })
+
   .then(() => h.finish())
   .catch((e) => { console.error(e); process.exit(1); });

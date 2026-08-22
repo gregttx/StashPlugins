@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.8.1';
+  var PLUGIN_VERSION = '2.8.2';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -3658,11 +3658,24 @@
     return out;
   };
 
+  // **Only things a user would call a change.** Two of these used to be here and are
+  // not, because both are housekeeping that *rides along* with a write rather than
+  // reasons to make one - and both lit Apply on a dialog nobody had touched:
+  //
+  //  - **A store stamped by an older release.** Every write stamps the current version
+  //    anyway, so the restamp happens on the next real Apply. Counting it meant Apply
+  //    was live on open after every upgrade of this plugin, asking for a press that
+  //    changed nothing anyone could see.
+  //  - **No store tag yet.** With nothing to file in it, Apply would create a tag in the
+  //    library for an empty store. A description typed or seeded is what makes one worth
+  //    creating, and that shows up in the diff on its own.
+  //
+  // What is left is: a description edited or seeded, the store tag needing the name the
+  // setting now gives it, the hide field having moved, and a rename staged and not yet
+  // written.
   DescRun.prototype.pending = function () {
     return this.diff().length > 0 ||
-      !this.tag ||
       (this.tag && this.tag.name !== this.settings.b1DescriptionTagName) ||
-      (this.store && this.store.version !== PLUGIN_VERSION) ||
       (this.hideField !== this.settings.c1ExcludeFromAddListField) ||
       // **`done`, not merely `armed`.** `runMigration` marks a rename written and leaves
       // it armed - the flag says the user asked for it, not that it is still owed - so

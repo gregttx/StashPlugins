@@ -8,7 +8,8 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 0.7.0 (`8b684f1`) | 2026-08-22 | SceneVariants 0.7.0: the migration dialog can be stopped, scan included |
+| 0.7.1 (`bde283f`) | 2026-08-22 | SceneVariants 0.7.1: Close ends a scan, Stop is for the write it cannot end |
+| [0.7.0](https://github.com/gregttx/StashPlugins/commit/8b684f1) | 2026-08-22 | SceneVariants 0.7.0: the migration dialog can be stopped, scan included |
 | [0.6.1](https://github.com/gregttx/StashPlugins/commit/dc3f0b5) | 2026-08-22 | Anchor the Reload UI button on markup every released Stash has, not only develop's |
 | [0.6.0](https://github.com/gregttx/StashPlugins/commit/6712889) | 2026-08-22 | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
 | [0.5.0](https://github.com/gregttx/StashPlugins/commit/011ff95) | 2026-08-22 | SceneVariants 0.5.0: a partial-length scene's stash-id moves into a custom field, and the tab matches on both |

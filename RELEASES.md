@@ -10,7 +10,8 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SVR | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-22 |  |  |  |  |  |  | 0.7.0 (`8b684f1`) |  | SceneVariants 0.7.0: the migration dialog can be stopped, scan included |
+| 2026-08-22 |  |  |  |  |  |  | 0.7.1 (`bde283f`) |  | SceneVariants 0.7.1: Close ends a scan, Stop is for the write it cannot end |
+| 2026-08-22 |  |  |  |  |  |  | [0.7.0](https://github.com/gregttx/StashPlugins/commit/8b684f1) |  | SceneVariants 0.7.0: the migration dialog can be stopped, scan included |
 | 2026-08-22 |  | [1.3.0](https://github.com/gregttx/StashPlugins/commit/7b3793e) | [1.2.0](https://github.com/gregttx/StashPlugins/commit/7b3793e) |  |  |  |  |  | FETC 1.2.0 / ENM 1.3.0: lock the controls that steer a run for as long as it runs |
 | 2026-08-22 |  |  |  |  | [4.8.3](https://github.com/gregttx/StashPlugins/commit/1725c41) | [3.14.3](https://github.com/gregttx/StashPlugins/commit/1725c41) |  |  | NPT 4.8.3 / PTP2RE 3.14.3: a control that changes what a run is doing is locked while it scans, not only while it writes |
 | 2026-08-22 |  |  |  |  | [4.8.2](https://github.com/gregttx/StashPlugins/commit/033b1eb) | [3.14.2](https://github.com/gregttx/StashPlugins/commit/033b1eb) |  |  | NPT 4.8.2 / PTP2RE 3.14.2: Escape cannot abandon a settings save in flight |

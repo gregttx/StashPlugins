@@ -51,7 +51,11 @@ function open(opts) {
     .then(() => ({ env, d: h.dialog(env.ctx.document.body, PREFIX) }));
 }
 
-const mutations = (calls) => calls.filter((c) => /\bmutation\b/.test(c.query || ''));
+// The settings seed is not a library write: it puts this plugin's own default
+// exclusion field name into `config.yml`, which Stash has no `default:` for. Every
+// check here is about whether a *run* wrote anything.
+const mutations = (calls) => calls.filter((c) => /\bmutation\b/.test(c.query || '') &&
+  !/PTPSeedSettings/.test(c.query || ''));
 
 Promise.resolve()
 
@@ -432,9 +436,21 @@ Promise.resolve()
   })
 
   .then(() => open({ settings: { b1TagsPerformersToScenes: true } })).then(({ d }) => {
+    // The custom-field filter has a default name, so a run always has that one in force
+    // and always says so. The "none configured" line survives for a settings map that
+    // names nothing at all, which `settingsFrom` no longer produces - see below.
+    h.check('the default exclusion field is in force and named',
+      d.lines.some((l) => /ᱜ╦╦🞮_Do_Not_Propagate_Tag/.test(l)), d.lines.join('\n'));
+  })
+
+  // Clearing the box puts the default back, so a box holding only spaces is what is
+  // left to mean "off" - and it is the only way back to a run with nothing excluded.
+  .then(() => open({ settings: {
+    b1TagsPerformersToScenes: true, f4ExcludeTagWithCustomFieldName: ' ',
+  } })).then(({ d }) => {
     // Said explicitly rather than by omission: "nothing is skipped" is a fact about
     // the run, and a silent absence reads as a dialog that forgot to mention it.
-    h.check('no filters configured is stated rather than left silent',
+    h.check('a run with nothing excluded says so rather than leaving it silent',
       d.lines.some((l) => /No exclusion filters are configured/.test(l)),
       d.lines.join('\n'));
   })

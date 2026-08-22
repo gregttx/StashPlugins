@@ -14,6 +14,43 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.7.0 puts the descriptions where a user actually reads a custom field, and publishes the one
+call another plugin needs.**
+
+**The tooltip on the entity page is matched on the *name*, not on Stash's markup.** Every other
+anchor in this plugin guesses a class and §8 is the tally of what that costs; here there is a signal
+that needs no guess at all - the store holds the exact field names, so an element whose whole text
+*is* one of them is the field's name wherever Stash chose to put it. A `<dt>`, a span, a table cell,
+a release that restyles the panel: all the same. **That is worth generalising: where the thing you
+are looking for is a string you already own, match the string.** It is the same lesson §16 of
+`FindEntitiesByTextContent`'s notes draws from the opposite direction, where a structural proxy was
+false on the page it was protecting.
+
+What bounds it: only on a detail route, only with descriptions to show, leaves only, never a link or
+an input, and never over a title somebody else set. The residue is a false positive - a leaf
+elsewhere on a detail page whose text happens to be a field name - and **the asymmetry is what
+decided the design**: that costs a tooltip on the wrong word, where a wrong class guess costs the
+feature entirely and silently.
+
+**`coop().api.describeField` exists so that no other plugin holds a copy of this store's format.**
+The JSON shape, the sentence in front of the blob, the version gate, the marker tag, the rule about
+a broken store - all of that is a *decision* this plugin owns, which is the repo's own test for when
+to publish a call rather than let a mechanism be copied. `PropagateTagsAndPerformers` is the first
+caller, documenting the exclusion field it now defaults to.
+
+**It never creates the store tag.** A caller loading is not a user action, and making a tag in
+somebody's library because another plugin's script ran is exactly the write §22 refuses to make even
+from a dialog that is already open. So where there is no store - or where the store is one this
+release will not write over - the description is *queued*, and `adoptStore` seeds it into the next
+opening of the descriptions dialog alongside the one this plugin seeds for its own hide field.
+Nothing is written until that Apply. The queue is per page load, which is the right lifetime: a
+caller that still wants it asks again on the next load.
+
+**Adding only where there is none, and answering with a word rather than throwing.** A caller
+seeding documentation for a field of its own has no business overwriting a sentence the user wrote,
+and no business failing because it could not - so `added`/`kept`/`queued`/`rejected` and a resolved
+promise in every case.
+
 **2.6.0 is the same memory on the two boxes that write, and two things about the descriptions pane.**
 
 **The field-name box is the strongest case for a history in this plugin**, stronger than the filters
@@ -36,6 +73,11 @@ apart.**
 the name box inline after it, which made one heading describe two controls - the box beside it and
 the box below it - and read as though the name were part of the description's label. Two heads,
 one each, in the class the pane's third head already uses.
+
+**The detail-page tooltip has never been seen on a live page** - the suite drives it against a
+fixture of this repo's own making, which proves the *matching* and says nothing about whether Stash
+renders a custom field's name as the whole text of a leaf. That is the one assumption in it, and it
+is a far smaller one than a class name.
 
 **The red on a bad mode is CSS this suite cannot check** - see 2.5.1 below; the harness has
 no style engine, so an option inheriting the select's colour is invisible to every check here.

@@ -425,6 +425,14 @@ release carries your existing path toggles over untouched.
 **Exclusion filters** — skip entities carrying a tag you name, skip entities marked Organized,
 never copy tags set to *Ignore auto tag*, and never copy tags carrying a custom field you name.
 
+That last one is the only box here with a **default**: `ᱜ╦╦🞮_Do_Not_Propagate_Tag`, written in the
+first time the plugin loads so you can see the name to mark tags with. Put that custom field on a
+tag — any value at all — and nothing here ever copies it anywhere. **Clearing the box puts the
+default back** rather than switching the filter off: a path either excludes marked tags or it does
+not, so an empty box had no meaning to take. To switch it off, put a single space in it. And if a
+value was adopted from `MergePerformerTagsToScenes`, that value is left alone and no default is
+written — the field is theirs rather than ours.
+
 The **Paths** row leaves a value it cannot read exactly as it is, and says so in red rather than
 reporting "No paths enabled" — the two look the same from the list and are not the same thing. A
 value it reads only in part is left alone too, with the paths it *did* read shown above the warning;
@@ -476,10 +484,14 @@ Settings** and set your paths again, and check the four toggles at the top while
   is set to prune or roll up an entity type automatically — naming which direction, and what it
   would do to what this run adds — exactly as `MergePerformerTagsToScenes`' own dialog already
   does.
-- **`CustomFieldsBulkEditor`** does not overlap at all: it edits *custom fields*, which nothing here
-  reads or writes, and it puts its control in the list view's "..." menu rather than in an entity's
-  action row. The one thing they share is the lease — this plugin's automatic modes stand down while
-  that one is applying, and its dialog says so if you open it while a run here is writing.
+- **`CustomFieldsBulkEditor`** barely overlaps: it edits *custom fields*, and the only one this
+  plugin reads is the exclusion field above. Two things pass between them. They share the lease —
+  this plugin's automatic modes stand down while that one is applying, and its dialog says so if you
+  open it while a run here is writing. And if it is installed, this plugin asks it to file a
+  description for `ᱜ╦╦🞮_Do_Not_Propagate_Tag`, so the field explains itself wherever that plugin
+  shows a description. Nothing is written to your library for it: if there is no description store
+  yet, the sentence waits until you next open **Manage Custom Field Descriptions...** and press
+  Apply.
 
 ## Troubleshooting
 

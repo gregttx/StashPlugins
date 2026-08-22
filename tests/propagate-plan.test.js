@@ -82,7 +82,11 @@ function run(opts) {
   }));
 }
 
-const mutations = (calls) => calls.filter((c) => /\bmutation\b/.test(c.query || ''));
+// The settings seed is not a library write: it puts this plugin's own default
+// exclusion field name into `config.yml`, which Stash has no `default:` for. Every
+// check here is about whether a *run* wrote anything.
+const mutations = (calls) => calls.filter((c) => /\bmutation\b/.test(c.query || '') &&
+  !/PTPSeedSettings/.test(c.query || ''));
 const tagLines = (d) => d.lines.filter((l) => /^\[TAG\]/.test(l));
 const perfLines = (d) => d.lines.filter((l) => /^\[PERF\]/.test(l));
 // The hoverable segments of the tag recap: only the tags with something to say beyond
@@ -523,13 +527,25 @@ Promise.resolve()
   })
 
   .then(() => run({
-    settings: { b1TagsPerformersToScenes: true },
+    settings: { b1TagsPerformersToScenes: true, f4ExcludeTagWithCustomFieldName: ' ' },
     library: { findScenes: { node: 'scenes', list: [] } },
   })).then(({ env }) => {
     // A free JSON map per tag is dead weight on every run that does not filter on it.
+    // The filter has a default name now, so this is the run that has switched it off -
+    // a box holding only spaces, which is what clearing it no longer means.
     h.check('custom_fields is left out when nothing filters on it',
       env.calls.some((c) => /PTPTags/.test(c.query || '')) &&
       env.calls.every((c) => !/PTPTags/.test(c.query || '') || !/custom_fields/.test(c.query)));
+  })
+
+  // And the default is what a run has in force when nobody has said otherwise, which is
+  // the other half of the same fact: the map is asked for on an ordinary run now.
+  .then(() => run({
+    settings: { b1TagsPerformersToScenes: true },
+    library: { findScenes: { node: 'scenes', list: [] } },
+  })).then(({ env }) => {
+    h.check('and asked for by default, since the filter has a default field name',
+      env.calls.some((c) => /PTPTags/.test(c.query || '') && /custom_fields/.test(c.query)));
   })
 
   // ── Ordering and errors ───────────────────────────────────────────────────

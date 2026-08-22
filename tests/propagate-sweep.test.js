@@ -362,7 +362,10 @@ Promise.resolve()
   .then(({ env, d }) => {
     d.button('Proceed').click();
     return h.flush(200).then(() => {
-      const writes = env.calls.filter((c) => /\bmutation\b/.test(c.query || ''));
+      // The settings seed is not a library write - it puts this plugin's own default
+      // exclusion field name into `config.yml`.
+      const writes = env.calls.filter((c) => /\bmutation\b/.test(c.query || '') &&
+        !/PTPSeedSettings/.test(c.query || ''));
       h.check('a swept plan writes through the gallery bulk mutation',
         writes.length > 0 && writes.every((c) => /bulkGalleryUpdate/.test(c.query)),
         writes.map((c) => (c.query || '').slice(0, 40)).join(' | '));

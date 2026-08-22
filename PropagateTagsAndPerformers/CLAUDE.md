@@ -10,6 +10,52 @@ either.
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
 
+**3.13.0 gives the custom-field exclusion filter a default, and has the sibling document it.**
+
+**`ᱜ╦╦🞮_Do_Not_Propagate_Tag`, and it is the only setting here with a non-empty default.** Marking a
+tag "never propagate this" is the thing this filter is *for*, and until now every user had to invent
+a field name before they could do it. The name wears the plugins' own prefix for the reason every
+other name they put in a namespace the user shares does: a custom field lives in one flat map that
+anything can write to, and `Do_Not_Propagate_Tag` is a name anybody could have picked.
+
+**Stash has no `default:` for a plugin setting**, so a default meant to be *visible* has to be
+written in - `CustomFieldsBulkEditor` learnt this at its 0.8.1 and `seedDefaults` is the same shape.
+Four things about this one:
+
+- **Cleared means "give me the standard name back", not "off".** That is the opposite of the hide
+  field in the sibling, where an empty box *is* the off switch, and it is right here for a reason
+  rather than by preference: a path either excludes marked tags or it does not, so an empty string
+  had no state to mean. What is left to mean off is a box holding only spaces, which every reader of
+  this setting already trims - so it needed no code, and it is on the setting's own description
+  because nothing about a space says so.
+- **An adopted value is neither overwritten nor described.** The import is the user having answered
+  this question already, in the other plugin; seeding over it would undo the adoption on the very
+  load that made it, and describing *our* default while the configured field is theirs would
+  document a field nothing here reads.
+- **An empty value in the sibling is not an import.** `importSiblingExclusions` skipped a value
+  equal to our own default, which was the same test as "empty" until this release gave one key a
+  non-empty default - and would otherwise have adopted a sibling's unset filter as a deliberate
+  choice. One clause, and it is the kind of thing a default quietly breaks two functions away.
+- **The seed carries its own operation name, `PTPSeedSettings`.** The fetch wrapper drops every
+  cache this plugin holds on seeing its own `configurePlugin`, which is right for a settings change
+  and wrong for this: what it writes is the value `settingsFrom` has already returned. Unmarked, a
+  fresh install paid for a wasted read of the whole tag library on its first page. A name we choose
+  is a better discriminator than anything inferred from the body, and it is what the suites filter
+  on too. It also writes from the `raw` map already in hand rather than through `writeOwnSettings`,
+  which re-reads first - correct for a write minutes after load, and asking the same question twice
+  inside the read that produced it.
+
+**The description goes through `coop().api`, never beside it.** `CustomFieldsBulkEditor` owns the
+description store - its JSON shape, the version gate, the marker tag - and a copy of any of that
+here is exactly what that mechanism exists to stop. Feature-detected rather than version-checked;
+absent sibling, older sibling and no-store-yet are all silence, because a tag exclusion filter works
+perfectly well with no sentence explaining it.
+
+**One consequence worth knowing: every run now asks for `custom_fields` on the tag query**, because
+the filter is always configured. That is an empty map per tag for most libraries, and it is cached
+on the probe context for five minutes; it is still a real cost that arrived with a default rather
+than with a feature.
+
 **3.12.0 moves the path editor out of Stash's task list and makes a log line clickable.**
 
 **One task, and a shorter name for it.** `Propagate Tags and Performers to All Related Entities...`

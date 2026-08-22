@@ -59,7 +59,14 @@ const toggles = (env) =>
   env.ctx.document.body.descendants().filter((n) => h.hasClass(n, PREFIX + '-toggle'));
 const rowName = (btn) => btn.previousSibling.textContent;
 const toggleFor = (env, label) => toggles(env).filter((b) => rowName(b) === label)[0] || null;
-const saved = (env) => env.calls.filter((c) => /configurePlugin/.test(c.query || ''));
+// The default exclusion field name is seeded into `config.yml` on a fresh install -
+// Stash has no `default:` for a plugin setting, so a default that is meant to be
+// visible has to be written in. It carries an operation name of its own so that it is
+// not read as a settings *change*, here or by the plugin's own fetch wrapper.
+const saved = (env) => env.calls.filter((c) => /configurePlugin/.test(c.query || '') &&
+  !/PTPSeedSettings/.test(c.query || ''));
+const hasKey = (c, k) => Object.prototype.hasOwnProperty.call(c.variables.input, k);
+const seeded = (env) => env.calls.filter((c) => /PTPSeedSettings/.test(c.query || ''));
 
 // Presses until the caption is the wanted one, giving up after a full cycle rather
 // than spinning: a button that cannot reach a state is the failure worth reporting.
@@ -997,6 +1004,123 @@ Promise.resolve()
           saved(env)[0].variables.input.b1Paths === 'tags:marker>scene=ON, tags:gallery>image=ON',
           JSON.stringify(saved(env).map((c) => c.variables.input)));
       });
+    });
+  })
+
+  // ── The exclusion field's default, and its description ───────────────────
+  .then(() => {
+    const env = boot({});
+    return h.flush().then(() => {
+      h.check('a fresh install is given the default exclusion field name',
+        seeded(env).length === 1 &&
+        seeded(env)[0].variables.input.f4ExcludeTagWithCustomFieldName ===
+          'ᱜ╦╦🞮_Do_Not_Propagate_Tag',
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
+      env.tick();
+      return h.flush().then(() => {
+        h.check('once per page, however many settings loads there are',
+          seeded(env).length === 1, String(seeded(env).length));
+      });
+    });
+  })
+
+  .then(() => {
+    const env = boot({ settings: { f4ExcludeTagWithCustomFieldName: 'Mine' } });
+    return h.flush().then(() => {
+      h.check('a name the user has set is left alone', seeded(env).length === 0,
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
+    });
+  })
+
+  .then(() => {
+    // Cleared means "give me the standard name back", which is the opposite of
+    // CustomFieldsBulkEditor's hide field - there is no off state here for an empty
+    // string to mean.
+    const env = boot({ settings: { f4ExcludeTagWithCustomFieldName: '' } });
+    return h.flush().then(() => {
+      h.check('and a cleared one gets the default back',
+        seeded(env).length === 1 &&
+        seeded(env)[0].variables.input.f4ExcludeTagWithCustomFieldName ===
+          'ᱜ╦╦🞮_Do_Not_Propagate_Tag',
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
+    });
+  })
+
+  .then(() => {
+    const env = boot({ settings: { a1ShowManualButtons: true } });
+    return h.flush().then(() => {
+      h.check('the seed carries the whole stored map, since configurePlugin replaces it',
+        seeded(env)[0].variables.input.a1ShowManualButtons === true,
+        JSON.stringify(seeded(env)[0].variables.input));
+    });
+  })
+
+  .then(() => {
+    // A value adopted from the sibling is the user having answered this already, in the
+    // other plugin. Seeding over it would undo the adoption on the load that made it.
+    const env = boot({ sibling: { c2ExcludeTagWithCustomFieldName: 'Theirs' } });
+    return h.flush().then(() => {
+      h.check('an imported name is neither overwritten nor seeded over',
+        seeded(env).length === 0 &&
+        saved(env).some((c) => c.variables.input.f4ExcludeTagWithCustomFieldName === 'Theirs'),
+        JSON.stringify(saved(env).map((c) => c.variables.input)));
+    });
+  })
+
+  .then(() => {
+    // And an empty value in the sibling is not an import, so the default still lands.
+    const env = boot({ sibling: { c2ExcludeTagWithCustomFieldName: '' } });
+    return h.flush().then(() => {
+      h.check('an empty value in the sibling is not an import',
+        seeded(env).length === 1 &&
+        !saved(env).some((c) => hasKey(c, 'f4ExcludeTagWithCustomFieldName')),
+        JSON.stringify(saved(env).map((c) => c.variables.input)));
+    });
+  })
+
+  // The description goes through CustomFieldsBulkEditor's own API, never beside it.
+  .then(() => {
+    const env = boot({});
+    const asked = [];
+    env.ctx.window.StashPluginCoop.api = env.ctx.window.StashPluginCoop.api || {};
+    env.ctx.window.StashPluginCoop.api.CustomFieldsBulkEditor = {
+      version: '9.9.9',
+      describeField: (name, text) => { asked.push([name, text]); return Promise.resolve('added'); },
+    };
+    env.tick();
+    return h.flush().then(() => {
+      h.check('the default field is described through the sibling that owns the store',
+        asked.length === 1 && asked[0][0] === 'ᱜ╦╦🞮_Do_Not_Propagate_Tag' &&
+        /Never propagate a tag marked via this Custom Field/.test(asked[0][1]) &&
+        /ᝯㄝₓ Propagate Tags and Performers to Related Entities/.test(asked[0][1]),
+        JSON.stringify(asked));
+    });
+  })
+
+  .then(() => {
+    const env = boot({ sibling: { c2ExcludeTagWithCustomFieldName: 'Theirs' } });
+    const asked = [];
+    env.ctx.window.StashPluginCoop.api = env.ctx.window.StashPluginCoop.api || {};
+    env.ctx.window.StashPluginCoop.api.CustomFieldsBulkEditor = {
+      version: '9.9.9',
+      describeField: (name) => { asked.push(name); return Promise.resolve('added'); },
+    };
+    env.tick();
+    return h.flush().then(() => {
+      h.check('an imported name is not described either - it is not our field',
+        asked.length === 0, JSON.stringify(asked));
+    });
+  })
+
+  .then(() => {
+    // Absent sibling, or one too old to answer: silence. A tag exclusion filter works
+    // perfectly well with no sentence explaining it.
+    const env = boot({});
+    env.ctx.window.StashPluginCoop.api = { CustomFieldsBulkEditor: { version: '0.1.0' } };
+    env.tick();
+    return h.flush().then(() => {
+      h.check('a sibling with no describeField is passed over without error',
+        !!env.ctx.document.body, 'no throw');
     });
   })
 

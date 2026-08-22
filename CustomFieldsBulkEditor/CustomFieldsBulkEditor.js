@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.6.0';
+  var PLUGIN_VERSION = '2.7.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -338,6 +338,7 @@
     if (!c.respecters) c.respecters = {};
     if (!c.declares) c.declares = {};
     if (!c.order) c.order = {};
+    if (!c.api) c.api = {};
     return c;
   }
 
@@ -3280,6 +3281,23 @@
         'writes it.');
     }
 
+    // What another plugin asked this one to document while there was nowhere to put it -
+    // no store tag yet, or one this release will not write over. Seeded into the working
+    // copy exactly like the hide field's own description above, so it goes out on the
+    // same Apply and nothing is written on the way in.
+    var queued = [];
+    for (var q in _pendingDescriptions) {
+      if (!hasOwn(_pendingDescriptions, q) || hasOwn(this.desc, q)) continue;
+      this.desc[q] = _pendingDescriptions[q];
+      queued.push(q);
+    }
+    if (queued.length) {
+      this.msg('INFO', 'Another plugin asked for ' + plural(queued.length, 'description') +
+        ' to be filed here while there was nowhere to put ' +
+        (queued.length === 1 ? 'it' : 'them') + ': ' + queued.join(', ') +
+        '. Seeded like any other; Apply writes ' + (queued.length === 1 ? 'it' : 'them') + '.');
+    }
+
     // A rescan's unsaved edits, put back over the baseline that has just been re-read.
     var self = this;
     if (this.pendingEdits) {
@@ -4384,6 +4402,156 @@
     };
   }
 
+  // ── The descriptions, on Stash's own detail pages ─────────────────────────
+  //
+  // A custom field's description was only ever visible inside this plugin's dialogs,
+  // which is the one place a user is already thinking about custom fields. The place
+  // they need it is the entity page, where the field's *name* is all Stash shows.
+  //
+  // **Matched on the name, not on Stash's markup.** Every other anchor in this plugin
+  // guesses a class and pays for it (§8), and here there is a signal that needs no
+  // guess: the store already holds the exact names, so an element whose whole text *is*
+  // one of them is the field's name wherever Stash chose to put it - a `<dt>`, a span, a
+  // table cell. A release that restyles that panel cannot break it.
+  //
+  // Four things bound what that costs:
+  //
+  //  - **Only on a detail route.** `/scenes/12`, `/tags/9` and the rest. A list page
+  //    shows no custom fields, and not walking it is most of the saving.
+  //  - **Only with descriptions to show.** No store, or a store with nothing in it, and
+  //    the walk never starts.
+  //  - **Leaves only, and never a link or a field the user can type in.** A tag pill is
+  //    an `<a>`; an input carries its value rather than a name.
+  //  - **Never over a title somebody else set.** Ours is remembered on the node, so a
+  //    re-tick can update it and a title of Stash's own is left alone.
+  //
+  // The residue is a false positive: a leaf elsewhere on a detail page whose text is
+  // exactly a custom field's name gets a tooltip about a field. That is a tooltip on the
+  // wrong word, against a description that is missing everywhere - and the asymmetry is
+  // what decided this. A class guess fails the other way, silently and completely.
+  var DETAIL_ROUTE =
+    /^\/(scenes|images|galleries|performers|studios|groups|tags)\/\d+(?:\/|$)/;
+
+  function onDetailPage() {
+    return DETAIL_ROUTE.test(String(location.pathname || ''));
+  }
+
+  // The one string this puts on the page, in the user's own shape.
+  function detailTip(name) {
+    var d = String(_descriptions[name] || '').replace(/^\s+|\s+$/g, '');
+    return d ? name + '\n\nDescription: ' + d : name;
+  }
+
+  function decorateDetailNames(root) {
+    var kids = root.childNodes || [];
+    for (var i = 0; i < kids.length; i++) {
+      var n = kids[i];
+      if (!n || !n.tagName) continue;
+      var tag = String(n.tagName).toUpperCase();
+      if (tag === 'A' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+          tag === 'SCRIPT' || tag === 'STYLE') continue;
+      if (hasClass(n, 'cfbe-backdrop')) continue;             // our own dialogs
+      var leaf = !(n.childNodes || []).some(function (c) { return c && c.tagName; });
+      if (leaf) {
+        var text = String(n.textContent == null ? '' : n.textContent)
+          .replace(/^\s+|\s+$/g, '');
+        if (text && hasOwn(_descriptions, text)) {
+          if (!n.title || n._cfbeTip) {
+            n.title = detailTip(text);
+            n._cfbeTip = true;
+          }
+        }
+        continue;
+      }
+      decorateDetailNames(n);
+    }
+  }
+
+  var _detailStore = null;
+
+  function detailTick() {
+    if (!onDetailPage()) return;
+    // One read for the page, chained off the settings the dropdown filter already
+    // fetches. A store that cannot be read leaves the names untouched, which is what
+    // they were before this existed.
+    if (!_detailStore) {
+      _detailStore = filterSettings().then(function (s) { return readStore(s); })
+        .then(null, function () { return null; });
+    }
+    var names = 0;
+    for (var k in _descriptions) { if (hasOwn(_descriptions, k)) { names++; break; } }
+    if (!names) return;
+    var root = document.getElementById('root') || document.body;
+    if (root) decorateDetailNames(root);
+  }
+
+  // ── What this plugin answers for another ──────────────────────────────────
+  //
+  // One entry, and it exists because the alternative is a second plugin holding a copy
+  // of this one's store format: the JSON shape, the sentence in front of it, the version
+  // gate, the marker field, the rule about a broken store. That is a *decision* this
+  // plugin owns, which is the repo's test for when to publish a call rather than let a
+  // mechanism be copied.
+  //
+  // `describeField(name, text)` documents a field **only where it has no description**,
+  // and resolves to a word rather than throwing: a caller seeding documentation for a
+  // field of its own has no business overwriting a sentence the user wrote, and no
+  // business failing because it could not.
+  //
+  // **It never creates the store tag.** A caller loading is not a user action, and
+  // making a tag in somebody's library because another plugin's script ran is exactly
+  // the write §22 refuses to make even from a dialog that is open. So where there is no
+  // store yet - or where the store is one this release will not write over - the
+  // description is *queued* instead, and `adoptStore` seeds it the next time the
+  // descriptions dialog is opened, alongside the one this plugin seeds for its own hide
+  // field. Nothing is written until that dialog's Apply, which is the rule the queue
+  // exists to keep.
+  var API_VERSION = PLUGIN_VERSION;
+
+  // name -> description, for fields a caller asked to document that the store could not
+  // take at the time. Per page load: a caller that still wants it asks again next load.
+  var _pendingDescriptions = {};
+
+  function storeWritable() {
+    return !!_storeTagId && !!_store && !_store.broken &&
+      !(_store.version && cmpVersion(_store.version, PLUGIN_VERSION) > 0);
+  }
+
+  function apiDescribeField(name, description) {
+    var field = String(name == null ? '' : name).replace(/^\s+|\s+$/g, '');
+    var text = String(description == null ? '' : description).replace(/^\s+|\s+$/g, '');
+    if (!field || !text) return Promise.resolve('rejected');
+    return filterSettings().then(function (s) {
+      return readStore(s).then(function () { return s; });
+    }).then(function () {
+      if (hasOwn(_descriptions, field)) return 'kept';
+      if (!storeWritable()) {
+        _pendingDescriptions[field] = text;
+        return 'queued';
+      }
+      var descriptions = {};
+      for (var k in _descriptions) {
+        if (hasOwn(_descriptions, k)) descriptions[k] = _descriptions[k];
+      }
+      descriptions[field] = text;
+      return gqlRequest('mutation CFBE_TagUpdate($input: TagUpdateInput!) ' +
+        '{ tagUpdate(input: $input) { id } }',
+      { input: { id: _storeTagId, description: serialiseStore(
+        { hideField: _store.hideField, descriptions: descriptions }) } })
+        .then(function () {
+          _descriptions = descriptions;
+          _store = { version: PLUGIN_VERSION, hideField: _store.hideField,
+            descriptions: descriptions };
+          return 'added';
+        });
+    }).then(null, function () {
+      _pendingDescriptions[field] = text;
+      return 'queued';
+    });
+  }
+
+  coop().api[PLUGIN_ID] = { version: API_VERSION, describeField: apiDescribeField };
+
   // ── Ticking ───────────────────────────────────────────────────────────────
   //
   // Stash is a SPA, so there is no page load to hang this off: the tick re-derives
@@ -4415,6 +4583,7 @@
   // is the opposite case, which is why only `menuTick` is on the observer.
   function tick() {
     try { menuTick(); } catch (e) { console.error('[cfbe] tick failed', e); }
+    try { detailTick(); } catch (e) { console.error('[cfbe] detail tick failed', e); }
     try { settingsTick(); } catch (e) { console.error('[cfbe] settings tick failed', e); }
     try { paintTaskButtons(); } catch (e) { console.error('[cfbe] task paint failed', e); }
   }

@@ -821,5 +821,116 @@ openDesc()
     return env;
   })
 
+  // ── The descriptions, on Stash's own detail pages ────────────────────────
+  .then(() => {
+    const env = start({ pathname: '/scenes/1' });
+    // Whatever Stash's markup is, the field's name is somewhere in it as the whole text
+    // of a leaf. Two of these, and a decoy that must not be touched.
+    const panel = h.makeElement('div');
+    const root = h.makeElement('div');
+    root.id = 'root';
+    const leaf = (text, cls) => { const n = h.makeElement('span');
+      n.textContent = text; if (cls) n.className = cls; panel.appendChild(n); return n; };
+    const named = leaf('colour');
+    const undescribed = leaf('rating_source');
+    const link = h.makeElement('a');
+    link.textContent = 'colour';
+    panel.appendChild(link);
+    const own = h.makeElement('div');
+    own.className = 'cfbe-backdrop';
+    const inside = h.makeElement('span');
+    inside.textContent = 'colour';
+    own.appendChild(inside);
+    panel.appendChild(own);
+    root.appendChild(panel);
+    env.body.appendChild(root);
+    env.tick();
+    return h.flush(60).then(() => {
+      env.tick();
+      h.check('a described field name on a detail page gets the description as a tooltip',
+        named.title === 'colour\n\nDescription: The colour it is filed under.', named.title);
+      h.check('a name with no description of its own is left alone',
+        !undescribed.title, undescribed.title);
+      h.check('a link is never decorated - a tag pill is one',
+        !link.title, link.title);
+      h.check('and neither is anything inside this plugin\'s own dialog',
+        !inside.title, inside.title);
+      return env;
+    });
+  })
+
+  .then(() => {
+    // A list page shows no custom fields, and not walking it is most of the saving.
+    const env = start({ pathname: '/scenes' });
+    const root = h.makeElement('div');
+    root.id = 'root';
+    const n = h.makeElement('span');
+    n.textContent = 'colour';
+    root.appendChild(n);
+    env.body.appendChild(root);
+    env.tick();
+    return h.flush(60).then(() => {
+      env.tick();
+      h.check('a list page is not walked at all', !n.title, n.title);
+      h.check('and the store is not even read for one',
+        !env.calls.some((c) => /CFBE_Store/.test(c.query || '')),
+        env.calls.map((c) => (c.query || '').slice(0, 24)).join(' | '));
+      return env;
+    });
+  })
+
+  // ── What this plugin answers for another ─────────────────────────────────
+  .then(() => {
+    const env = start({});
+    const api = () => (env.ctx.window.StashPluginCoop.api || {}).CustomFieldsBulkEditor;
+    h.check('it publishes describeField on the shared object',
+      !!api() && typeof api().describeField === 'function' && !!api().version,
+      api() && Object.keys(api()).join(','));
+    return api().describeField('brand_new', 'What it is for.').then((outcome) => {
+      h.check('a field with no description is documented, in one tag write',
+        outcome === 'added' && sentStore(env.calls).descriptions.brand_new === 'What it is for.',
+        outcome + ' / ' + JSON.stringify(sentStore(env.calls) || {}));
+      h.check('and the descriptions already there are carried across',
+        sentStore(env.calls).descriptions.colour === 'The colour it is filed under.',
+        JSON.stringify(sentStore(env.calls).descriptions));
+      return api().describeField('colour', 'Something else entirely.');
+    }).then((outcome) => {
+      h.check('a field that already has one keeps it', outcome === 'kept' &&
+        sentStore(env.calls).descriptions.colour === 'The colour it is filed under.',
+        outcome);
+      return api().describeField('', 'nothing to file this under');
+    }).then((outcome) => {
+      h.check('an empty name or an empty description is refused', outcome === 'rejected');
+      return env;
+    });
+  })
+
+  .then(() => {
+    // No store tag yet: the description is queued rather than a tag being created.
+    // Making an entity in somebody's library because another plugin's script ran is
+    // exactly the write this dialog refuses to make even while it is open.
+    const env = start({ library: withStore(null) });
+    const api = () => (env.ctx.window.StashPluginCoop.api || {}).CustomFieldsBulkEditor;
+    return api().describeField('brand_new', 'What it is for.').then((outcome) => {
+      h.check('with no store yet the description is queued, not written',
+        outcome === 'queued' && tagWrites(env.calls).length === 0, outcome);
+      const btn = mountTasksPage(env.body, TASK);
+      env.tick();
+      return clickTask(env, btn).then(() => {
+        h.check('and the descriptions dialog seeds it like any other',
+          names(env.body).some((n) => /brand_new/.test(n)), names(env.body).join(' | '));
+        h.check('saying where it came from',
+          notes(env.body).some((l) => /Another plugin asked for/.test(l)),
+          notes(env.body).join(' | '));
+        h.check('still writing nothing until Apply', tagWrites(env.calls).length === 0);
+        return press(env, 'cfbe-apply').then(() => {
+          h.check('and Apply files it with the rest',
+            sentStore(env.calls).descriptions.brand_new === 'What it is for.',
+            JSON.stringify(sentStore(env.calls).descriptions));
+        });
+      });
+    });
+  })
+
   .then(() => h.finish())
   .catch((e) => { console.error(e); process.exit(1); });

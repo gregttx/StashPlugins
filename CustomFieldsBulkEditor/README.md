@@ -232,7 +232,13 @@ default name.
 Settings → Tasks → **Manage Custom Field Descriptions...** scans the library and shows every custom
 field it found on the left, with how many entities carry each. Pick one and you get a box to
 describe it in and a list of exactly what carries it; the description then shows as a tooltip on
-that field's name everywhere in the bulk-edit dialog.
+that field's name everywhere in the bulk-edit dialog — **and on the entity's own page**, where Stash
+shows the field's name and nothing else. Hover it there and you get the name, then the description
+under it.
+
+That works on any detail page — a scene, a tag, a performer — and it is matched on the *name*: an
+element whose whole text is a custom field you have described gets the tooltip, wherever Stash chose
+to put it. Nothing is decorated on a list page, on a link, or inside this plugin's own dialogs.
 
 Some details worth knowing:
 

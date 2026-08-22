@@ -19,6 +19,20 @@ const SRC = process.env.SRC || path.join(
 const OLD = 'Jane Doe';
 const NEW = 'Jane Doe Jr';
 
+// The description store's owner, loaded for real into the same page. Its descriptions
+// are prose a rename has business in, they are not in the library at all, and the only
+// way to reach them is the API it publishes - so a fake publisher here would be a fake
+// on both sides of the one thing these cases are about. This is the shape
+// `tests/tagclip.test.js` already uses for the other cross-plugin call in this repo.
+const CFBE_SRC = path.join(
+  __dirname, '..', 'CustomFieldsBulkEditor', 'CustomFieldsBulkEditor.js');
+const STORE_FIELD = 'ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store';
+const CFBE_BLOB = (o) => 'Managed by the plugin; delete this to reset.\n\n' + JSON.stringify(o);
+const DESCRIPTIONS = {
+  colour: 'The colour Jane Doe files it under.',
+  note: 'Free text. Nothing about the performer here.',
+};
+
 // ── The fake schema ─────────────────────────────────────────────────────────
 
 const STR = { kind: 'SCALAR', name: 'String' };
@@ -93,13 +107,32 @@ function makeEnv(opts) {
   opts = opts || {};
   const lib = opts.library || library();
   const writes = [];
+  const storeWrites = [];
   const env = h.makeEnv({
     quiet: true,
     respond(req) {
       const q = req.query || '';
       if (q.indexOf('configuration') !== -1) {
-        return { data: { configuration: { plugins: { EntityNameMaintainer: opts.settings || {} } } } };
+        return { data: { configuration: { plugins: {
+          EntityNameMaintainer: opts.settings || {},
+          CustomFieldsBulkEditor: {},
+        } } } };
       }
+      // The sibling's own queries, answered from the same fixture: it finds its store
+      // tag by the marker field, and writes it back as one whole description.
+      if (/CFBE_Store/.test(q)) {
+        const wanted = ((req.variables.f || {}).custom_fields || [{}])[0].field;
+        const found = wanted === STORE_FIELD && env.storeTag ? [env.storeTag] : [];
+        return { data: { findTags: { tags: found } } };
+      }
+      if (/CFBE_TagUpdate/.test(q)) {
+        storeWrites.push(req.variables.input);
+        if (env.storeTag && typeof req.variables.input.description === 'string') {
+          env.storeTag.description = req.variables.input.description;
+        }
+        return { data: { tagUpdate: { id: req.variables.input.id } } };
+      }
+      if (/CFBE_/.test(q)) return { data: {} };
       if (/ENMPluginVersion/.test(q)) {
         return { data: { plugins: opts.installed ? [opts.installed] : [] } };
       }
@@ -152,8 +185,24 @@ function makeEnv(opts) {
       return { data: {} };
     },
   });
+  env.storeTag = opts.cfbe === false || opts.noStore ? null : {
+    id: '99', name: 'plumbing', custom_fields: { [STORE_FIELD]: '1' },
+    description: CFBE_BLOB({ version: '2.10.0', hideField: '',
+      descriptions: opts.descriptions || DESCRIPTIONS }),
+  };
   h.run(env.ctx, SRC);
+  // The sibling, for real, into the same page - after this plugin, which is the order
+  // that proves the API is read at call time rather than captured at load.
+  if (opts.cfbe) {
+    h.run(env.ctx, CFBE_SRC);
+    // Installed and running, but from before it published the read/write halves.
+    if (opts.cfbeOld) {
+      delete env.ctx.__GTTx__.StashPluginCoop.api.CustomFieldsBulkEditor.descriptions;
+      delete env.ctx.__GTTx__.StashPluginCoop.api.CustomFieldsBulkEditor.updateDescriptions;
+    }
+  }
   env.writes = writes;
+  env.storeWrites = storeWrites;
   env.lib = lib;
   env.api = () => env.ctx.__GTTx__.enm;
   return env;
@@ -819,6 +868,125 @@ const filterBtns = (env) => env.body.descendants()
   });
 }());
 
+// ── The custom field descriptions ───────────────────────────────────────────
+//
+// They are the one thing in this listing that is not in the library: they belong to
+// `CustomFieldsBulkEditor`, they are JSON inside a tag this plugin deliberately skips,
+// and the only honest way to reach their text is to ask their owner for it as strings.
+// The publisher here is the real plugin, in the same page, answering from the same
+// fixture - a fake one would prove only that this plugin can call a function.
+(function descriptionsAreSearched() {
+  const lib = library();
+  lib.performers[0].name = OLD;          // still to be renamed, as every case here starts
+  const env = makeEnv({ library: lib, cfbe: true });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    const d = dlg(env);
+    h.check('the sibling\'s descriptions are searched too',
+      d.lines.some((l) => /Also searched 2 custom field descriptions/.test(l)),
+      d.lines.join(' | '));
+    const row = rows(env).filter((r) => /The colour/.test(r.textContent))[0];
+    h.check('a description mentioning the old name is listed', !!row,
+      rowText(env).join(' | '));
+    h.check('named by the field it describes, with no id and no link to a page it has not got',
+      !!row && /colour/.test(row.textContent) && !/\(colour\)/.test(row.textContent) &&
+      row.descendants().every((n) => n.tagName !== 'A'),
+      row && row.textContent);
+    h.check('the description with no mention in it is not listed',
+      !rowText(env).some((t) => /Free text/.test(t)), rowText(env).join(' | '));
+    const labels = filterBtns(env).map((b) => b.textContent);
+    h.check('and it gets a filter of its own, last among the types rather than first',
+      labels.indexOf('Custom field descriptions') === labels.indexOf('Tags') + 1,
+      labels.join(' | '));
+
+    // Only the description line, so the write is unambiguous.
+    rows(env).forEach((r) => {
+      if (r === row) return;
+      box(r).checked = false;
+      h.fire(box(r), 'change');
+    });
+    d.button('Proceed').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('Proceed writes the description through its owner, not by editing the tag as text',
+      env.storeWrites.length === 1 && !!env.storeWrites[0].description,
+      JSON.stringify(env.storeWrites));
+    const store = JSON.parse(env.storeWrites[0].description.slice(
+      env.storeWrites[0].description.indexOf('{')));
+    h.check('with the old name replaced in the description it was in',
+      store.descriptions.colour === 'The colour Jane Doe Jr files it under.',
+      JSON.stringify(store.descriptions));
+    h.check('and the description nobody touched carried across whole',
+      store.descriptions.note === DESCRIPTIONS.note, JSON.stringify(store.descriptions));
+    h.check('the library was not written to for it',
+      env.writes.length === 0, JSON.stringify(env.writes));
+    h.check('and the log names the field rather than an id it has not got',
+      dlg(env).lines.some((l) => /Custom field "colour": 1 occurrence replaced/.test(l)),
+      dlg(env).lines.join(' | '));
+
+    dlg(env).button('Undo').click();
+    return h.flush(200);
+  }).then(() => {
+    const last = env.storeWrites[env.storeWrites.length - 1];
+    const store = JSON.parse(last.description.slice(last.description.indexOf('{')));
+    h.check('Undo puts the description back through the same owner',
+      env.storeWrites.length === 2 && store.descriptions.colour === DESCRIPTIONS.colour,
+      JSON.stringify(store.descriptions));
+  });
+}());
+
+// The re-read before the write, on a store this plugin does not own: the same rule the
+// entity path follows, and the reason the write is built from what is there now rather
+// than from what the scan saw.
+(function aDescriptionThatMovedIsLeftAlone() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib, cfbe: true });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    const row = rows(env).filter((r) => /The colour/.test(r.textContent))[0];
+    rows(env).forEach((r) => {
+      if (r === row) return;
+      box(r).checked = false;
+      h.fire(box(r), 'change');
+    });
+    // Somebody edits it between the scan and Proceed.
+    env.storeTag.description = CFBE_BLOB({ version: '2.10.0', hideField: '',
+      descriptions: { colour: 'Rewritten entirely.', note: DESCRIPTIONS.note } });
+    dlg(env).button('Proceed').click();
+    return h.flush(200);
+  }).then(() => {
+    h.check('a description that has changed since the scan is not written over',
+      env.storeWrites.length === 0, JSON.stringify(env.storeWrites));
+    h.check('and the log says which one was skipped',
+      dlg(env).lines.some((l) => /description of custom field "colour" has changed/.test(l)),
+      dlg(env).lines.join(' | '));
+  });
+}());
+
+// Absent, and too old to ask. Both are the same answer - no descriptions in the
+// listing - and neither is an error: the library half of the scan is untouched.
+(function noSiblingIsNotAFailure() {
+  const bare = library();
+  bare.performers[0].name = OLD;
+  const env = makeEnv({ library: bare });
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    const d = dlg(env);
+    h.check('with the sibling absent nothing is said about descriptions',
+      !d.lines.some((l) => /custom field description/i.test(l)), d.lines.join(' | '));
+    h.check('and the library hits are all still there',
+      rows(env).length > 0 && !rowText(env).some((t) => /The colour/.test(t)),
+      rowText(env).join(' | '));
+  });
+  const oldLib = library();
+  oldLib.performers[0].name = OLD;
+  const old = makeEnv({ library: oldLib, cfbe: true, cfbeOld: true });
+  rename(old, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('a sibling too old to publish the halves is passed over in silence',
+      !dlg(old).lines.some((l) => /custom field description/i.test(l)) &&
+      !rowText(old).some((t) => /The colour/.test(t)),
+      dlg(old).lines.join(' | '));
+  });
+}());
+
 // Every case above is a promise chain started at load; the suite's own result is only
 // known once they have all settled.
 //
@@ -826,4 +994,4 @@ const filterBtns = (env) => env.body.descendants()
 // here rather than a typical one - `h.finish` exits the process, so a case still in
 // flight is silently dropped and the run reports every check that did manage to run as
 // a pass. The write-and-undo case is the long one: a rename, a Proceed and an Undo.
-h.flush(900).then(() => h.finish());
+h.flush(1200).then(() => h.finish());

@@ -4,6 +4,45 @@ Why the parts that look arbitrary are the way they are. This file does not ship
 (`files:` carries the `js`, the `yml` and the `README.md`), so this is where a release is
 argued.
 
+**0.1.0 searches the custom field descriptions `CustomFieldsBulkEditor` keeps, by asking it for
+them.** They are the one thing in the listing that is not in the library: prose the user wrote
+about a field, mentioning names like any other prose, living as JSON inside one tag - the same tag
+this plugin skips whole and must go on skipping, because replacing text inside JSON by substring is
+how it stops parsing. So the text is fetched through `coop().api`, and the changed strings are
+handed back to their owner. **Nothing here parses or serialises that JSON**, which is the whole
+reason this is a call rather than a copy: the store's shape is that plugin's decision, and a copy
+of it here would be wrong the first time it changed.
+
+**It is an eighth entity *type*, not a new field.** `ENTITIES` gains a `cfbeDescriptions` entry
+with a label, a plural and no route; `TYPE_ORDER` leaves it out, which is what keeps it out of the
+scan loop and out of the introspection. Everything downstream then works unchanged - the plan
+groups by type and id, the filters get a toggle, the listing gets rows, the stale check re-reads
+before writing, Undo replays. The alternative - a field on some pseudo-entity - would have needed a
+second code path through all of that.
+
+**The one real difference is who writes, so that is the only fork: `job.write`.** A job with no
+writer is an entity and goes out as a `<Type>Update`; a job with one calls it. `sendJob` is that
+single line, and it takes the operation name as an argument rather than choosing it, because
+`ENM_Write` and `ENM_Undo` are how a write is told from a replay in a Stash log and in the suite -
+folding those into one name was the first attempt and the suite caught it.
+
+**A hit with no page has no link.** A description is named by the field it describes and there is
+nothing to open, so the row draws a span where an entity draws an `<a>`. `entityLabel` is the same
+fact in the log: `Custom field "colour"` rather than `Custom field colour "colour"`, off a `noId`
+flag on the pseudo-spec, and every line that names what was written now goes through it.
+
+**Feature-detected per call, and an absent sibling is not a failure.** The plugin may be disabled,
+or a release older than the one that publishes the halves; both read correctly as "there are no
+descriptions to search here", and the library half of the scan is untouched. A sibling that *is*
+there but cannot answer gets a WARN and the listing still stands - refusing every library hit
+because one sibling was unhappy would be the worse trade.
+
+**Its suite loads the real publisher into the same page**, the way `tests/tagclip.test.js` does for
+the other cross-plugin call in this repo. A fake would have proved only that this plugin can call a
+function; what needs proving is that the two agree about what a description is, and only the real
+one can answer that. It is loaded *after* this plugin, which is also what proves the API is read at
+call time rather than captured at load.
+
 **0.0.7 puts a confirm on Close.** The listing is not reproducible: the scan runs off a rename
 that has already happened, and the old name is known only because the plugin watched it go. So
 Close - and the Escape key, which acts through it - arms and counts down rather than closing, and a

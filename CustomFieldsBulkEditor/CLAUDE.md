@@ -152,6 +152,33 @@ a broken store - all of that is a *decision* this plugin owns, which is the repo
 to publish a call rather than let a mechanism be copied. `PropagateTagsAndPerformers` is the first
 caller, documenting the exclusion field it now defaults to.
 
+**2.10.0 adds the read and write halves, and they are a different contract from
+`describeField` rather than the same one with the guard removed.** `EntityNameMaintainer` is the
+caller: a rename has the same business in a description as in a performer's details, and the one
+thing it must never do is text-replace the store, because the store is JSON. That plugin already
+skips the store tag for exactly that reason - so without an API the descriptions were simply
+unreachable, which is the shape of problem this registry exists for.
+
+- **`descriptions()`** re-reads the store rather than answering from the page's cache, and answers
+  with a copy. A caller is about to show these to somebody, and another tab may have written.
+- **`updateDescriptions(patch)` overwrites**, which is the point: the caller is editing prose the
+  user wrote, not seeding documentation for a field of its own.
+- **It writes only names the store already has.** Creating one is `describeField`'s job, where the
+  caller is the field's author. A name this store has never heard of arriving in a patch is a
+  caller's mistake - a typo, a stale copy - and inventing an entry would file somebody's sentence
+  under a field nothing carries. Those come back in `skipped`, and the caller decides.
+- **It never queues.** That is the sharpest difference and the reason the two are not one call:
+  `describeField` queues *because* it runs at load, where there is no user and no dialog to write
+  from. `updateDescriptions` runs from a caller's own Proceed, where a silent deferral would report
+  a write that has not happened. A store that cannot be written rejects with the reason.
+
+**What is deliberately not published: a rename.** ENM renaming a custom field *key* on entities
+leaves this store's description filed under the old name, where the descriptions dialog already
+shows it as an orphan. Publishing `renameField` would be a second way to move a name, next to the
+Rename this dialog already has, and the two would have to agree about staging, the carrier count
+and Undo. The orphan is visible, correctable in one click here, and honest; a half-agreeing second
+path would not be.
+
 **It never creates the store tag.** A caller loading is not a user action, and making a tag in
 somebody's library because another plugin's script ran is exactly the write §22 refuses to make even
 from a dialog that is already open. So where there is no store - or where the store is one this

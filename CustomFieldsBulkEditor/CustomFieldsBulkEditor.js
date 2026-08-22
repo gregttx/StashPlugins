@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.9.0';
+  var PLUGIN_VERSION = '2.10.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -4585,6 +4585,13 @@
   // field of its own has no business overwriting a sentence the user wrote, and no
   // business failing because it could not.
   //
+  // `descriptions()` and `updateDescriptions(patch)` are the read and write halves of
+  // the same reasoning, added for `EntityNameMaintainer`: a rename that has to reach
+  // the *text* of a description cannot text-replace this store, because the store is
+  // JSON and rewriting it by substring is how it stops parsing. That plugin already
+  // skips the store tag for exactly that reason. So it asks for the descriptions as
+  // strings and hands back the ones it changed, and the JSON stays this plugin's.
+  //
   // **It never creates the store tag.** A caller loading is not a user action, and
   // making a tag in somebody's library because another plugin's script ran is exactly
   // the write §22 refuses to make even from a dialog that is open. So where there is no
@@ -4637,7 +4644,88 @@
     });
   }
 
-  coop().api[PLUGIN_ID] = { version: API_VERSION, describeField: apiDescribeField };
+  // `descriptions()` is the read half, and it re-reads the store rather than answering
+  // from the page's cache: a caller asking is about to show these to somebody, and
+  // another tab may have written since this one last looked. The answer is a copy, so
+  // a caller editing it cannot edit this plugin's own state.
+  function apiDescriptions() {
+    return filterSettings().then(function (s) {
+      return readStore(s);
+    }).then(function () {
+      var out = {};
+      for (var k in _descriptions) {
+        if (hasOwn(_descriptions, k)) out[k] = _descriptions[k];
+      }
+      return out;
+    });
+  }
+
+  // `updateDescriptions(patch)` is the write half, and it is deliberately not
+  // `describeField` with the guard taken off. Three differences, each one a decision:
+  //
+  //  - **It overwrites.** That is the point: a caller here is editing prose the user
+  //    wrote - a name replaced inside a sentence - rather than seeding documentation
+  //    for a field of its own.
+  //  - **It writes only names the store already has.** Creating one is `describeField`'s
+  //    job, where the caller is the field's author. A name this store has never heard of
+  //    arriving in a patch is a caller's mistake - a typo, a stale copy - and inventing
+  //    an entry for it would file somebody's sentence under a field nothing carries.
+  //    Those names come back in `skipped` rather than failing the write.
+  //  - **It never queues.** `describeField` queues because it runs at *load*, where
+  //    there is no user and no dialog. This one runs from a caller's own Proceed, where
+  //    a silent deferral would report a write that has not happened. A store that
+  //    cannot be written rejects, with the reason in the message.
+  function apiUpdateDescriptions(patch) {
+    if (!patch || typeof patch !== 'object') {
+      return Promise.reject(new Error('updateDescriptions needs an object of name -> description.'));
+    }
+    return filterSettings().then(function (s) {
+      return readStore(s);
+    }).then(function () {
+      if (!_storeTagId || !_store) {
+        throw new Error('There is no custom field description store in this library yet.');
+      }
+      if (_store.broken) {
+        throw new Error('The description store cannot be read, so nothing will be written ' +
+          'over it. Open Manage Custom Field Descriptions to see what it holds.');
+      }
+      if (_store.version && cmpVersion(_store.version, PLUGIN_VERSION) > 0) {
+        throw new Error('The description store was written by ' + PLUGIN_NAME + ' ' +
+          _store.version + ' and this page is running ' + PLUGIN_VERSION + '.');
+      }
+      var descriptions = {};
+      for (var k in _descriptions) {
+        if (hasOwn(_descriptions, k)) descriptions[k] = _descriptions[k];
+      }
+      var written = [], skipped = [];
+      for (var name in patch) {
+        if (!hasOwn(patch, name)) continue;
+        if (!hasOwn(descriptions, name)) { skipped.push(name); continue; }
+        var text = String(patch[name] == null ? '' : patch[name]);
+        if (text === descriptions[name]) continue;
+        descriptions[name] = text;
+        written.push(name);
+      }
+      if (!written.length) return { written: [], skipped: skipped };
+      return gqlRequest('mutation CFBE_TagUpdate($input: TagUpdateInput!) ' +
+        '{ tagUpdate(input: $input) { id } }',
+      { input: { id: _storeTagId, description: serialiseStore(
+        { hideField: _store.hideField, descriptions: descriptions }) } })
+        .then(function () {
+          _descriptions = descriptions;
+          _store = { version: PLUGIN_VERSION, hideField: _store.hideField,
+            descriptions: descriptions };
+          return { written: written, skipped: skipped };
+        });
+    });
+  }
+
+  coop().api[PLUGIN_ID] = {
+    version: API_VERSION,
+    describeField: apiDescribeField,
+    descriptions: apiDescriptions,
+    updateDescriptions: apiUpdateDescriptions,
+  };
 
   // ── Ticking ───────────────────────────────────────────────────────────────
   //

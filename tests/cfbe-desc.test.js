@@ -977,6 +977,76 @@ openDesc()
     });
   })
 
+  // The read and write halves the same registry publishes, which are a different
+  // contract from `describeField` in three ways this pins one at a time: they overwrite,
+  // they refuse a name the store does not have, and they never queue.
+  .then(() => {
+    const env = start({});
+    const api = () => (env.ctx.window.StashPluginCoop.api || {}).CustomFieldsBulkEditor;
+    h.check('it publishes the read and write halves too',
+      typeof api().descriptions === 'function' &&
+      typeof api().updateDescriptions === 'function',
+      Object.keys(api()).join(','));
+    return api().descriptions().then((map) => {
+      h.check('descriptions() answers with what the store holds',
+        map.colour === 'The colour it is filed under.', JSON.stringify(map));
+      map.colour = 'edited by the caller';
+      return api().descriptions();
+    }).then((again) => {
+      h.check('and with a copy, so a caller cannot edit the store by editing the answer',
+        again.colour === 'The colour it is filed under.', JSON.stringify(again));
+      return api().updateDescriptions({ colour: 'The colour it is filed under. (in blue)' });
+    }).then((res) => {
+      h.check('updateDescriptions overwrites, which describeField will not',
+        res.written.join(',') === 'colour' &&
+        sentStore(env.calls).descriptions.colour === 'The colour it is filed under. (in blue)',
+        JSON.stringify(res) + ' / ' + JSON.stringify(sentStore(env.calls).descriptions));
+      h.check('and carries the rest of the store with it',
+        !!sentStore(env.calls).version && sentStore(env.calls).hideField !== undefined,
+        JSON.stringify(sentStore(env.calls)));
+      return api().updateDescriptions({ never_heard_of_it: 'text' });
+    }).then((res) => {
+      h.check('a name the store does not have is skipped rather than invented',
+        res.skipped.join(',') === 'never_heard_of_it' && res.written.length === 0,
+        JSON.stringify(res));
+      const before = tagWrites(env.calls).length;
+      return api().updateDescriptions({}).then((r) => {
+        h.check('and a patch that changes nothing writes nothing',
+          r.written.length === 0 && tagWrites(env.calls).length === before,
+          JSON.stringify(r));
+        return env;
+      });
+    });
+  })
+
+  .then(() => {
+    // The other half of "it never queues": `describeField` runs at load and defers,
+    // this one runs from a caller's own Proceed and has to say so.
+    const env = start({ library: withStore(null) });
+    const api = () => (env.ctx.window.StashPluginCoop.api || {}).CustomFieldsBulkEditor;
+    return api().updateDescriptions({ colour: 'anything' }).then(
+      () => { h.check('with no store, updateDescriptions rejects rather than queueing', false); },
+      (e) => {
+        h.check('with no store, updateDescriptions rejects rather than queueing',
+          /no custom field description store/i.test(e.message) &&
+          tagWrites(env.calls).length === 0, e.message);
+        return env;
+      });
+  })
+
+  .then(() => {
+    const env = start({ library: withStore({ id: '9', name: 'plumbing',
+      custom_fields: { [STORE_FIELD]: '1' }, description: 'hand-written, not our JSON' }) });
+    const api = () => (env.ctx.window.StashPluginCoop.api || {}).CustomFieldsBulkEditor;
+    return api().updateDescriptions({ colour: 'anything' }).then(
+      () => { h.check('a store that cannot be read is never written over', false); },
+      (e) => {
+        h.check('a store that cannot be read is never written over',
+          /cannot be read/i.test(e.message) && tagWrites(env.calls).length === 0, e.message);
+        return env;
+      });
+  })
+
   .then(() => {
     // No store tag yet: the description is queued rather than a tag being created.
     // Making an entity in somebody's library because another plugin's script ran is

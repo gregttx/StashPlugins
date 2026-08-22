@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '0.0.10';
+  var PLUGIN_VERSION = '0.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -179,6 +179,30 @@
 
   var TYPE_ORDER = ['scenes', 'images', 'galleries', 'performers', 'studios', 'groups', 'tags'];
 
+  // An eighth "type" that is not one: the descriptions `CustomFieldsBulkEditor` keeps for
+  // custom fields. They are prose the user wrote about a field, they mention names, and a
+  // rename has the same business in them as in a performer's details - but they do not
+  // live on an entity at all. They live as JSON inside one tag's description, which is
+  // exactly why this plugin skips that tag (`isPluginStore`) and must go on skipping it:
+  // replacing text inside JSON by substring is how the store stops parsing.
+  //
+  // So it is a type here rather than a field: `ENTITIES` gives it a label, a plural and
+  // no route, `TYPE_ORDER` leaves it out of the scan loop and the introspection, and the
+  // one place a description differs from a scene - who writes it - is a `write` on the
+  // job rather than a second code path. The store's owner does the writing, through
+  // `coop().api`; nothing here parses or serialises that JSON.
+  var DESC_KEY = 'cfbeDescriptions';
+  var DESC_LABEL = 'Description';
+  ENTITIES[DESC_KEY] = {
+    key: DESC_KEY,
+    label: 'Custom field',
+    plural: 'Custom field descriptions',
+    // No page to open and no id to show: a description is named by the field it is
+    // about, which is the whole of what identifies it.
+    route: null,
+    noId: true,
+  };
+
   // The label a filter row and a hit line both wear. One label per *concept*, shared
   // across types on purpose: Details means the same thing on a Scene and on a
   // Performer, and a user turning it off means both.
@@ -203,6 +227,19 @@
   // exactly the way to break it. The tag marks itself with a custom field, so it can
   // be recognised whatever the user has renamed it to, and it is skipped whole.
   var CFBE_STORE_FIELDS = ['ᱜ╦╦🞮_🛂🧲_🛠🛈🖫_desc_store', 'cfbe_desc_store'];
+  var CFBE_ID = 'CustomFieldsBulkEditor';
+  var CFBE_NAME = 'ᝯㄝₓ Custom Fields Bulk Editor';
+
+  // The descriptions are reached by *asking*, never by reading that tag. Feature-detected
+  // per call rather than remembered: the plugin may be disabled, may be a release older
+  // than the one that publishes these, and either way an absent entry reads correctly as
+  // "there are no descriptions to search here".
+  function cfbeApi() {
+    var api = (coop().api || {})[CFBE_ID];
+    if (!api || typeof api.descriptions !== 'function' ||
+        typeof api.updateDescriptions !== 'function') return null;
+    return api;
+  }
 
   // ── Settings ──────────────────────────────────────────────────────────────
   //
@@ -252,6 +289,10 @@
     if (!c.respecters) c.respecters = {};
     if (!c.declares) c.declares = {};
     if (!c.order) c.order = {};
+    // Not published by this plugin - read only, for the description store's owner. The
+    // field is brought into shape here for the same reason `declares` is: whichever
+    // plugin loads first should not leave the next one repairing the object.
+    if (!c.api) c.api = {};
     return c;
   }
 
@@ -1106,6 +1147,8 @@
     describeFields().then(function (shapes) {
       return self.scan(shapes);
     }).then(function () {
+      return self.scanDescriptions();
+    }).then(function () {
       self.setState('listing');
       self.buildFilters();
       self.renderHits();
@@ -1173,6 +1216,47 @@
     }
 
     return nextType(0);
+  };
+
+  // The custom field descriptions, which are not in the library at all - they are one
+  // sibling's, and it hands them over as strings. Run after the library rather than
+  // beside it so the progress line's per-type breakdown stays about the scan, and so a
+  // sibling that is slow to answer cannot hold up the entity pages.
+  //
+  // A failure here is a warning and not an error: every hit in the library is still
+  // good, and refusing the whole listing because one sibling could not answer would be
+  // the worse trade.
+  Run.prototype.scanDescriptions = function () {
+    var self = this;
+    if (this.stopped) return Promise.resolve();
+    var api = cfbeApi();
+    if (!api) return Promise.resolve();
+    this.loadingWhat = 'custom field descriptions';
+    return api.descriptions().then(function (map) {
+      var names = Object.keys(map || {}).sort();
+      self.descriptionsRead = names.length;
+      names.forEach(function (name) {
+        var text = map[name];
+        if (typeof text !== 'string' || !text) return;
+        var found = occurrences(text, self.oldName);
+        found.forEach(function (pos, i) {
+          self.hits.push({
+            typeKey: DESC_KEY, entId: name, entName: name,
+            label: DESC_LABEL, field: 'description', kind: 'cfbedesc', slot: name,
+            pos: pos, seq: i + 1, total: found.length,
+            ctx: context(text, pos, self.oldName.length),
+          });
+        });
+      });
+      if (names.length) {
+        self.msg('INFO', 'Also searched ' + plural(names.length, 'custom field description') +
+          ' kept by ' + CFBE_NAME + '.');
+      }
+    }, function (e) {
+      self.msg('WARN', CFBE_NAME + ' could not be asked for its custom field ' +
+        'descriptions, so they are not in this listing: ' +
+        (e && e.message ? e.message : String(e)));
+    });
   };
 
   // One entry per type in scope, `Plural read/there`, in the order they are read. A type
@@ -1268,7 +1352,9 @@
       return;
     }
     this.show(this.filtersEl, true);
-    types.sort(function (a, b) { return TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b); });
+    // A type `TYPE_ORDER` does not name is not out of order, it is not a library type -
+    // the descriptions - and it goes last rather than to index -1, which would put it first.
+    types.sort(function (a, b) { return typeRank(a) - typeRank(b); });
     attrs.sort();
 
     this.typeRow.appendChild(el('span', 'enm-label', 'Entity types'));
@@ -1283,6 +1369,11 @@
     });
     this.syncFilterButtons();
   };
+
+  function typeRank(k) {
+    var i = TYPE_ORDER.indexOf(k);
+    return i === -1 ? TYPE_ORDER.length : i;
+  }
 
   Run.prototype.toggle = function (label, bag, key) {
     var self = this;
@@ -1364,6 +1455,14 @@
     this.syncFooter();
   };
 
+  // `Scene 12 "Title"`, or `Custom field "colour"` for a thing with no id to show. Every
+  // line that names what was written goes through here rather than building it twice.
+  Run.prototype.entityLabel = function (typeKey, entId, entName) {
+    var spec = ENTITIES[typeKey];
+    if (spec.noId) return spec.label + ' "' + entName + '"';
+    return spec.label + ' ' + entId + ' "' + (entName || '(untitled)') + '"';
+  };
+
   Run.prototype.hitRow = function (h) {
     var self = this;
     // A div with a click of its own rather than a `<label>`: the row holds a link to the
@@ -1389,11 +1488,19 @@
     });
     row.appendChild(box);
 
-    var link = el('a', 'enm-ent', (h.entName || '(untitled)') + ' (' + h.entId + ')');
-    link.href = ENTITIES[h.typeKey].route + h.entId;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    row.appendChild(link);
+    var route = ENTITIES[h.typeKey].route;
+    if (route) {
+      var link = el('a', 'enm-ent', (h.entName || '(untitled)') + ' (' + h.entId + ')');
+      link.href = route + h.entId;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      row.appendChild(link);
+    } else {
+      // A description has no page of its own. The same slot, the same width, no link -
+      // and the row's click still ticks the line, which is what the `<a>` guard above
+      // was protecting.
+      row.appendChild(el('span', 'enm-ent', h.entName));
+    }
 
     row.appendChild(el('span', 'enm-attr', ENTITIES[h.typeKey].label + ' \u00b7 ' + h.label +
       (h.total > 1 ? ' (' + h.seq + ')' : '') +
@@ -1412,8 +1519,8 @@
     var lines = [this.progressText(), ''];
     this.hits.forEach(function (h) {
       if (!self.visible(h)) return;
-      lines.push((h.checked !== false ? '[x] ' : '[ ] ') + ENTITIES[h.typeKey].label + ' ' +
-        (h.entName || '(untitled)') + ' (' + h.entId + ') · ' + h.label +
+      lines.push((h.checked !== false ? '[x] ' : '[ ] ') +
+        self.entityLabel(h.typeKey, h.entId, h.entName) + ' · ' + h.label +
         (h.total > 1 ? ' (' + h.seq + ')' : '') +
         (h.kind === 'cfname' || h.kind === 'cfvalue' ? ' [' + h.slot + ']' : '') + ': ' +
         h.ctx.pre + h.ctx.hit + h.ctx.post);
@@ -1492,6 +1599,7 @@
   // now, and a field that no longer matches is skipped and said out loud.
   Run.prototype.buildUpdate = function (p, ent) {
     var self = this;
+    if (ent.typeKey === DESC_KEY) return this.buildDescriptionUpdate(p, ent);
     var spec = ENTITIES[ent.typeKey];
     var fields = (_shapes[ent.typeKey] || []).map(function (f) { return f.name; });
     return gqlRequest('query ENM_One($id: ID!) { ' + spec.one + '(id: $id) { id ' +
@@ -1581,6 +1689,49 @@
     });
   };
 
+  // The same shape as `buildUpdate`, for a store this plugin does not own: re-read the
+  // description as it is *now*, check the recorded positions against it, and hand the
+  // changed string back to whoever keeps it. The job carries a `write` because that is
+  // the only thing about it that differs - the plan, the stale check, the counters, the
+  // log line and the undo are the entity path's, unchanged.
+  Run.prototype.buildDescriptionUpdate = function (p, ent) {
+    var self = this;
+    var api = cfbeApi();
+    if (!api) {
+      this.msg('WARN', CFBE_NAME + ' is no longer available, so its descriptions are ' +
+        'left alone.');
+      return Promise.resolve(null);
+    }
+    return api.descriptions().then(function (live) {
+      var name = ent.entId;
+      var slot = ent.fields.description && ent.fields.description.slots[name];
+      var positions = (slot && slot.positions) || [];
+      var cur = live[name];
+      if (typeof cur !== 'string' || !self.stillThere(cur, positions, p.len)) {
+        self.msg('WARN', 'The description of custom field "' + name + '" has changed ' +
+          'since the scan and is left alone.');
+        return null;
+      }
+      var after = {}, before = {};
+      after[name] = replaceAt(cur, positions, p.len, p.to);
+      before[name] = cur;
+      // One field per job, so a description that has moved on takes only itself out.
+      return {
+        spec: ENTITIES[DESC_KEY], input: after, before: before,
+        count: positions.length, hits: ent.hits,
+        write: function (input) {
+          return api.updateDescriptions(input).then(function (res) {
+            if (res && res.skipped && res.skipped.length) {
+              throw new Error('"' + res.skipped.join('", "') + '" is not a field the ' +
+                'description store knows about any more.');
+            }
+            return res;
+          });
+        },
+      };
+    });
+  };
+
   // The occurrence positions the scan recorded, checked against the string as it is
   // now. Cheap, exact, and the whole of this plugin's answer to "what if it moved".
   Run.prototype.stillThere = function (text, positions, len) {
@@ -1592,6 +1743,19 @@
     return true;
   };
 
+  // Every write goes out through here, whether it is one of Stash's own mutations or a
+  // sibling's call. `job.write` is what says which, and it is the only fork: a job with
+  // no writer of its own is an entity, and an entity is a `<Type>Update`.
+  // `op` is the operation name, and it is not decoration: `ENM_Write` and `ENM_Undo` are
+  // how a write of this plugin's is told from a replay of one, in a Stash log and in
+  // this repo's own suites. The fork stays about *who writes*, not about which of the
+  // two this is.
+  function sendJob(job, input, op) {
+    if (job.write) return job.write(input);
+    return gqlRequest('mutation ' + op + '($input: ' + job.spec.updateInput + '!) { ' +
+      job.spec.update + '(input: $input) { id } }', { input: input });
+  }
+
   // Batched so the log and the counters stay live on a long run, and so a failure is one
   // entity rather than the whole plan.
   Run.prototype.writeAll = function (p, build) {
@@ -1602,23 +1766,22 @@
       if (i >= list.length) return Promise.resolve();
       var slice = list.slice(i, i + WRITE_CHUNK);
       return Promise.all(slice.map(function (ent) {
+        var what = self.entityLabel(ent.typeKey, ent.entId, ent.entName);
         return build(ent).then(function (job) {
           if (!job) return null;
-          return gqlRequest('mutation ENM_Write($input: ' + job.spec.updateInput + '!) { ' +
-            job.spec.update + '(input: $input) { id } }', { input: job.input })
-            .then(function () {
-              self.written += job.count;
-              self.changes.push({ spec: job.spec, input: job.before });
-              job.hits.forEach(function (h) { h.done = true; });
-              self.msg('INFO', job.spec.label + ' ' + ent.entId + ' "' +
-                (ent.entName || '(untitled)') + '": ' + plural(job.count, 'occurrence') +
-                ' replaced.');
-              return null;
-            });
+          return sendJob(job, job.input, 'ENM_Write').then(function () {
+            self.written += job.count;
+            // The undo entry carries the writer as well as the values, so replaying it
+            // does not have to work out again who owns the thing being put back.
+            self.changes.push({ spec: job.spec, input: job.before, write: job.write,
+              label: what });
+            job.hits.forEach(function (h) { h.done = true; });
+            self.msg('INFO', what + ': ' + plural(job.count, 'occurrence') + ' replaced.');
+            return null;
+          });
         }).then(null, function (e) {
           self.failed++;
-          self.msg('ERROR', ENTITIES[ent.typeKey].label + ' ' + ent.entId + ': ' +
-            (e && e.message ? e.message : String(e)));
+          self.msg('ERROR', what + ': ' + (e && e.message ? e.message : String(e)));
           return null;
         });
       })).then(function () {
@@ -1645,12 +1808,10 @@
     function step(i) {
       if (i >= jobs.length) return Promise.resolve();
       var job = jobs[i];
-      return gqlRequest('mutation ENM_Undo($input: ' + job.spec.updateInput + '!) { ' +
-        job.spec.update + '(input: $input) { id } }', { input: job.input })
+      return sendJob(job, job.input, 'ENM_Undo')
         .then(function () { undone++; }, function (e) {
           failed++;
-          self.msg('ERROR', job.spec.label + ' ' + job.input.id + ': ' +
-            (e && e.message ? e.message : String(e)));
+          self.msg('ERROR', job.label + ': ' + (e && e.message ? e.message : String(e)));
         }).then(function () { return step(i + 1); });
     }
 

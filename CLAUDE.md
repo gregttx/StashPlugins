@@ -312,9 +312,28 @@ object — nothing reads an absent entry as anything other than "declares nothin
 ## Cross-plugin cooperation: one plugin computing another's operation
 
 The only one of the shared mechanisms that is a *call* rather than a flag.
-`coop().api[<pluginId>]` holds whatever a plugin is willing to answer for another; today
-`NormalizeParentTags` publishes one entry (`prepare`, at its 3.2.0) and `TagBundleClipboard` is the
-one caller (at its 0.5.0).
+`coop().api[<pluginId>]` holds whatever a plugin is willing to answer for another. Two publishers
+now: `NormalizeParentTags` (`prepare`, at its 3.2.0, called by `TagBundleClipboard` at its 0.5.0)
+and `CustomFieldsBulkEditor` (`describeField`, called by `PropagateTagsAndPerformers`; then
+`descriptions` and `updateDescriptions` at its 2.10.0, called by `EntityNameMaintainer` at its
+0.1.0).
+
+**The second publisher is the other reason to reach for this, and it is not the first one.** NPT's
+entry exists because a caller was *copying a decision* - the exclusion rules - that a later release
+could make wrong. CFBE's exists because the data is **unreachable any other way that is safe**: the
+descriptions are JSON inside one tag, ENM already skips that tag precisely so that a substring
+replacement cannot break the JSON, and there is no third option between "ask the owner" and
+"parse somebody else's store". Both are the same rule stated once - *call an owner where the thing
+you would otherwise duplicate is theirs to change* - and it is worth knowing it fires for
+unreachable data as well as for drifting rules.
+
+**A read call and a write call are two contracts, not one with a flag.** `describeField` and
+`updateDescriptions` both put text into the same store and are deliberately separate, because
+*when* they run decides what they may do: `describeField` runs at **load**, so it never overwrites
+(the user's sentence is not a caller's to replace), never creates the tag, and **queues** where it
+cannot write; `updateDescriptions` runs from a caller's own **Proceed**, so it does overwrite, and
+must **reject** rather than queue - a silent deferral there reports a write that has not happened.
+Merging them into one call with an `overwrite` option would have hidden that behind a boolean.
 
 **It exists because the alternative was tried and documented before it failed.** That dialog offers
 Prune and Roll Up, which are the other plugin's two operations, and it honoured that plugin's tag

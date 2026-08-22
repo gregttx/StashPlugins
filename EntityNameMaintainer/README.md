@@ -32,6 +32,15 @@ failing the whole search.
 Scene markers are not covered: a marker carries a title but has no page of its own to be
 renamed from.
 
+**Custom field descriptions are covered too, where ᝯㄝₓ Custom Fields Bulk Editor is
+installed and enabled.** Those descriptions are prose you wrote about a field, they mention
+names like anything else you write, and they are not in the library at all — that plugin
+keeps them as JSON inside one tag. This plugin does not read or write that JSON: it asks the
+other plugin for the descriptions as text and hands back the ones you agreed to change. They
+appear in the listing under their own filter, named by the field they describe, and Undo
+puts them back the same way. With that plugin absent, older, or disabled, nothing is listed
+and nothing else changes.
+
 ## The dialog
 
 One line per occurrence, reading: the entity it is in with its id in brackets, the type and
@@ -96,7 +105,8 @@ number is honest, and it costs nothing — every page already carries its type's
 - **An entity carrying another plugin's store is left out whole.** ᝯㄝₓ Custom Fields Bulk
   Editor keeps every custom field's description as JSON inside one tag's description;
   rewriting text inside that by substring is how it stops parsing, so the tag carrying its
-  marker is skipped and counted.
+  marker is skipped and counted. The descriptions *in* it are still reached — by asking that
+  plugin for them, which is the only way to change one without touching the JSON.
 - **It stands down while a sibling plugin is running a bulk task.** A library-wide rename
   would otherwise put up one dialog per entity. What decides is the lease being held *when
   you pressed Save* — a sibling that reacts to that same save, such as ᝯㄝₓ Normalize Parent

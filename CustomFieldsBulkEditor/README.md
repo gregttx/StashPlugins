@@ -242,6 +242,15 @@ holds wherever Stash chose to put the field: the plain tooltip Stash gives that 
 since the fuller one starts with the same name. A tooltip that says anything else is left alone,
 and nothing is decorated on a list page, on a link, or inside this plugin's own dialogs.
 
+**Other plugins can ask about these descriptions rather than keeping copies of them.** A
+plugin that creates a custom field of its own can document it here; one that rewrites text —
+ᝯㄝₓ Entity Name Maintainer, replacing an old name after a rename — can read the descriptions
+as text and hand back the ones it changed. Nothing outside this plugin ever parses or writes
+the store itself, which is what keeps it from being corrupted by a well-meaning substring.
+Documenting a field never overwrites a description you wrote, and never creates the store
+tag on its own; a text replacement does overwrite, because that is what you asked another
+plugin to do, and it only ever touches fields this store already knows about.
+
 Some details worth knowing:
 
 - **Nothing is written until Apply**, including the tag itself. A field marked `*` in the left pane

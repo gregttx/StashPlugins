@@ -10,8 +10,9 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-22 |  | 0.1.1 (`ba4a138`) |  |  |  |  |  |  | EntityNameMaintainer 0.1.1: the skipped store tag no longer reads as something missed |
-| 2026-08-22 | 2.10.0 (`cccd6be`) | 0.1.0 (`cccd6be`) |  |  |  |  |  |  | CustomFieldsBulkEditor 2.10.0 / EntityNameMaintainer 0.1.0: descriptions are read and written through coop().api |
+| 2026-08-22 |  | 0.1.2 (`23eaeb6`) |  |  |  |  |  | 0.7.3 (`23eaeb6`) | EntityNameMaintainer 0.1.2 / TagBundleClipboard 0.7.3: a scoped dialog head names the entity, not just its id |
+| 2026-08-22 |  | [0.1.1](https://github.com/gregttx/StashPlugins/commit/ba4a138) |  |  |  |  |  |  | EntityNameMaintainer 0.1.1: the skipped store tag no longer reads as something missed |
+| 2026-08-22 | [2.10.0](https://github.com/gregttx/StashPlugins/commit/cccd6be) | [0.1.0](https://github.com/gregttx/StashPlugins/commit/cccd6be) |  |  |  |  |  |  | CustomFieldsBulkEditor 2.10.0 / EntityNameMaintainer 0.1.0: descriptions are read and written through coop().api |
 | 2026-08-22 | [2.9.0](https://github.com/gregttx/StashPlugins/commit/0b9205b) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.9.0: the description tooltip appears where Stash shows the field name |
 | 2026-08-22 | [2.8.4](https://github.com/gregttx/StashPlugins/commit/bb28ff4) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.8.4: the detail tick stops throwing on every page |
 | 2026-08-22 | [2.8.3](https://github.com/gregttx/StashPlugins/commit/c8d90e7) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.8.3: Undo of an applied rename takes the list back, not only the library |

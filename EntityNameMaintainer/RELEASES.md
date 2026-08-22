@@ -8,8 +8,9 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 0.1.1 (`ba4a138`) | 2026-08-22 | EntityNameMaintainer 0.1.1: the skipped store tag no longer reads as something missed |
-| 0.1.0 (`cccd6be`) | 2026-08-22 | CustomFieldsBulkEditor 2.10.0 / EntityNameMaintainer 0.1.0: descriptions are read and written through coop().api |
+| 0.1.2 (`23eaeb6`) | 2026-08-22 | EntityNameMaintainer 0.1.2 / TagBundleClipboard 0.7.3: a scoped dialog head names the entity, not just its id |
+| [0.1.1](https://github.com/gregttx/StashPlugins/commit/ba4a138) | 2026-08-22 | EntityNameMaintainer 0.1.1: the skipped store tag no longer reads as something missed |
+| [0.1.0](https://github.com/gregttx/StashPlugins/commit/cccd6be) | 2026-08-22 | CustomFieldsBulkEditor 2.10.0 / EntityNameMaintainer 0.1.0: descriptions are read and written through coop().api |
 | [0.0.10](https://github.com/gregttx/StashPlugins/commit/d1e1e4a) | 2026-08-21 | EntityNameMaintainer 0.0.10: a Proceed pressed mid-countdown disarms Close |
 | [0.0.9](https://github.com/gregttx/StashPlugins/commit/f39a7a2) | 2026-08-21 | EntityNameMaintainer 0.0.9 / CustomFieldsBulkEditor 2.5.1: five seconds to answer Close, and the red marks one mode |
 | [0.0.8](https://github.com/gregttx/StashPlugins/commit/0e3fa64) | 2026-08-21 | EntityNameMaintainer 0.0.8: the head wears the whole name, and Close stops asking once Proceed has run |

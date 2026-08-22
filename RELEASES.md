@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-22 |  | 1.0.2 (`6fd97e2`) |  |  |  |  |  |  | EntityNameMaintainer 1.0.2: the entity says whether a cancelled rename landed, not the response |
 | 2026-08-22 |  | 1.0.1 (`a5353a8`) | 1.0.0 (`a5353a8`) |  |  |  |  |  | EntityNameMaintainer 1.0.1 / FindEntitiesByTextContent 1.0.0: a cancelled rename reloads the page it changed |
 | 2026-08-22 |  | 1.0.0 (`1094a8c`) |  |  |  |  |  |  | EntityNameMaintainer 1.0.0: Cancel takes back the rename itself, while it is the only write |
 | 2026-08-22 |  | 0.1.2 (`23eaeb6`) |  |  |  |  |  | 0.7.3 (`23eaeb6`) | EntityNameMaintainer 0.1.2 / TagBundleClipboard 0.7.3: a scoped dialog head names the entity, not just its id |

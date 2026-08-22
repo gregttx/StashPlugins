@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.5.0 (`ee5372e`) | 2026-08-21 | CustomFieldsBulkEditor 2.5.0: the filter boxes remember, and a lost Rename is marked rather than switched |
 | [2.4.0](https://github.com/gregttx/StashPlugins/commit/c612d93) | 2026-08-21 | CustomFieldsBulkEditor 2.4.0: the field's name in the descriptions dialog is a box, and changing it renames the field |
 | [2.3.0](https://github.com/gregttx/StashPlugins/commit/5e37588) | 2026-08-21 | EntityNameMaintainer 0.0.7 / FindEntitiesByTextContent 0.0.8 / CustomFieldsBulkEditor 2.3.0 / PropagateTagsAndPerformers 3.12.0: a control says what pressing it costs |
 | [2.2.2](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | 2026-08-20 | One grammatical load banner, in all five |

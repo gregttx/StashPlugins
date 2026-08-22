@@ -10,7 +10,8 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-21 |  | 0.0.8 (`0e3fa64`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.8: the head wears the whole name, and Close stops asking once Proceed has run |
+| 2026-08-21 | 2.5.0 (`ee5372e`) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.5.0: the filter boxes remember, and a lost Rename is marked rather than switched |
+| 2026-08-21 |  | [0.0.8](https://github.com/gregttx/StashPlugins/commit/0e3fa64) |  |  |  |  |  |  | EntityNameMaintainer 0.0.8: the head wears the whole name, and Close stops asking once Proceed has run |
 | 2026-08-21 | [2.4.0](https://github.com/gregttx/StashPlugins/commit/c612d93) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.4.0: the field's name in the descriptions dialog is a box, and changing it renames the field |
 | 2026-08-21 | [2.3.0](https://github.com/gregttx/StashPlugins/commit/5e37588) | [0.0.7](https://github.com/gregttx/StashPlugins/commit/5e37588) | [0.0.8](https://github.com/gregttx/StashPlugins/commit/5e37588) |  |  | [3.12.0](https://github.com/gregttx/StashPlugins/commit/5e37588) |  |  | EntityNameMaintainer 0.0.7 / FindEntitiesByTextContent 0.0.8 / CustomFieldsBulkEditor 2.3.0 / PropagateTagsAndPerformers 3.12.0: a control says what pressing it costs |
 | 2026-08-21 |  | [0.0.6](https://github.com/gregttx/StashPlugins/commit/a0b463d) |  |  |  |  |  |  | EntityNameMaintainer 0.0.6: the hit list reads in the order things happened |

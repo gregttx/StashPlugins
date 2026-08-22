@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-22 |  |  |  |  | 4.7.1 (`34981ce`) | 3.13.2 (`34981ce`) |  |  | NPT 4.7.1 / PTP2RE 3.13.2: the settings dialogs' Save waits for a change |
 | 2026-08-22 |  |  |  |  |  |  | 0.5.0 (`011ff95`) |  | SceneVariants 0.5.0: a partial-length scene's stash-id moves into a custom field, and the tab matches on both |
 | 2026-08-22 |  |  |  |  |  |  |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/3e4458b) | TagBundleClipboard 1.0.0: the major digit, on live use |
 | 2026-08-22 |  | [1.0.2](https://github.com/gregttx/StashPlugins/commit/6fd97e2) |  |  |  |  |  |  | EntityNameMaintainer 1.0.2: the entity says whether a cancelled rename landed, not the response |

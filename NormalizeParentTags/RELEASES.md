@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 4.7.1 (`34981ce`) | 2026-08-22 | NPT 4.7.1 / PTP2RE 3.13.2: the settings dialogs' Save waits for a change |
 | [4.7.0](https://github.com/gregttx/StashPlugins/commit/e3597ce) | 2026-08-22 | CustomFieldsBulkEditor 2.6.0 / NormalizeParentTags 4.7.0: three more boxes remember, and the descriptions pane reads Name then Description |
 | [4.6.6](https://github.com/gregttx/StashPlugins/commit/9a4f14a) | 2026-08-20 | One grammatical load banner, in all five |
 | [4.6.5](https://github.com/gregttx/StashPlugins/commit/fb346a7) | 2026-08-19 | Release history out of all five plugin sources |

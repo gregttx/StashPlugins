@@ -464,6 +464,13 @@ Three decisions in it:
   plugin's copy of that shared function differs from the other four. A key press that wrote
   to the library would be a worse version of the thing the Close confirm exists to prevent.
 
+- **It reloads the page.** The entity was changed from outside Stash's own UI, so the form
+  behind the dialog goes on showing the name that was just taken back and no plugin here can
+  re-render somebody else's React state. `location.reload()` is what the user would press F5
+  for, and nothing is lost by it: the save that opened this dialog is the write that landed.
+  Only on success - a refused revert changed nothing and must leave the log on screen to be
+  read.
+
 It re-reads the name immediately before writing, like every other write here: an entity
 renamed again since the dialog opened is not this dialog's to put back, and the log says so
 rather than the write going out. The read and the write both go through `gqlRequest`, so the

@@ -305,8 +305,9 @@ for no types chosen. A box holding only spaces is empty.
 
 ## Unverified in a live Stash
 
-Everything below is a guess the test suite cannot check. The major digit stays at 0 until
-this list is empty.
+Everything below is a guess the test suite cannot check. The plugin has been run in a live
+Stash, which is what the major digit says; these assumptions are the ones no test in this
+repo reaches, and a Stash upgrade can still move any of them.
 
 - **The task button.** That Stash renders it in a `.setting-group` headed with the plugin
   name, that a capture-phase click listener beats React's, and that stopping propagation

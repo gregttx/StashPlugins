@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '1.0.0';
+  var PLUGIN_VERSION = '1.0.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1884,6 +1884,12 @@
     }).then(function () {
       lease.release();
       self.close();
+      // The page behind the dialog is React holding the name the user just saved, and
+      // nothing this plugin can reach re-renders it - the form's state is not ours and
+      // the entity was changed from outside Stash's own UI. So the reload is the whole
+      // of the answer: it is what the user would press F5 for, and there is nothing
+      // unsaved to lose, since the save that triggered this dialog is what landed.
+      if (window.location && window.location.reload) window.location.reload();
     }, function (e) {
       lease.release();
       self.setState('listing');

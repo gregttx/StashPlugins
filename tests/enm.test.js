@@ -833,6 +833,8 @@ const filterBtns = (env) => env.body.descendants()
   const lib = library();
   lib.performers[0].name = OLD;
   const env = makeEnv({ library: lib });
+  let reloads = 0;
+  env.ctx.location.reload = () => { reloads++; };
   rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
     h.check('Cancel is offered while nothing has been written', dlg(env).visible('Cancel'));
     h.check('and says what it does, both halves of it',
@@ -851,6 +853,10 @@ const filterBtns = (env) => env.body.descendants()
     h.check('nothing else was written', env.writes.filter((w) => !w.cancel).length === 0,
       JSON.stringify(env.writes));
     h.check('and the dialog is gone', !dlg(env).open);
+    // The page behind it is React still showing the name that was just taken back, and
+    // nothing here can re-render it - the reload is what makes the revert visible.
+    h.check('and the page is reloaded, so what is on screen is what is in the library',
+      reloads === 1, String(reloads));
   });
 }());
 
@@ -880,6 +886,8 @@ const filterBtns = (env) => env.body.descendants()
   const lib = library();
   lib.performers[0].name = OLD;
   const env = makeEnv({ library: lib });
+  let reloads = 0;
+  env.ctx.location.reload = () => { reloads++; };
   rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
     env.lib.performers[0].name = 'Someone Else';
     dlg(env).button('Cancel').click();
@@ -890,6 +898,7 @@ const filterBtns = (env) => env.body.descendants()
     h.check('the dialog stays open and says why',
       dlg(env).open && dlg(env).lines.some((l) => /not reverted.*Someone Else/.test(l)),
       dlg(env).lines.join(' | '));
+    h.check('and nothing is reloaded, since nothing changed', reloads === 0, String(reloads));
   });
 }());
 

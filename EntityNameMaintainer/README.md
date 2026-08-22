@@ -66,7 +66,8 @@ afterwards.
 - **Proceed** — writes. Afterwards the same button reads **Undo** and puts back exactly what
   this dialog changed, while it stays open.
 - **Cancel** — takes back the rename itself: the entity goes back to the name it had when
-  the dialog opened, and the dialog closes. Nothing else is touched, because nothing else has
+  the dialog opened, the dialog closes and the page reloads — the form behind it is still
+  showing the name that was just taken back, and nothing short of a reload re-reads it. Nothing else is touched, because nothing else has
   been. It is offered only while **Proceed** has not run — after that the rename is no longer
   the only thing that would have to come back, and **Undo** is the control for that; an
   **Undo** brings **Cancel** back. If the name has moved again in the meantime it is left

@@ -10,7 +10,8 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-21 |  | 0.0.6 (`a0b463d`) |  |  |  |  |  |  | EntityNameMaintainer 0.0.6: the hit list reads in the order things happened |
+| 2026-08-21 | 2.3.0 (`5e37588`) | 0.0.7 (`5e37588`) | 0.0.8 (`5e37588`) |  |  | 3.12.0 (`5e37588`) |  |  | EntityNameMaintainer 0.0.7 / FindEntitiesByTextContent 0.0.8 / CustomFieldsBulkEditor 2.3.0 / PropagateTagsAndPerformers 3.12.0: a control says what pressing it costs |
+| 2026-08-21 |  | [0.0.6](https://github.com/gregttx/StashPlugins/commit/a0b463d) |  |  |  |  |  |  | EntityNameMaintainer 0.0.6: the hit list reads in the order things happened |
 | 2026-08-21 |  | [0.0.5](https://github.com/gregttx/StashPlugins/commit/098d782) | [0.0.7](https://github.com/gregttx/StashPlugins/commit/098d782) |  |  |  |  |  | EntityNameMaintainer 0.0.5 / FindEntitiesByTextContent 0.0.7: the counters say where the scan is, not only how far |
 | 2026-08-21 |  |  | [0.0.6](https://github.com/gregttx/StashPlugins/commit/edab204) |  |  |  |  |  | FindEntitiesByTextContent 0.0.6: search works again - childNodes is not an Array |
 | 2026-08-21 |  |  | [0.0.5](https://github.com/gregttx/StashPlugins/commit/7056bd7) |  |  |  |  |  | FindEntitiesByTextContent 0.0.5: the same attribute filter row EntityNameMaintainer has |

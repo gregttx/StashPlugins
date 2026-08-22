@@ -236,9 +236,11 @@ that field's name everywhere in the bulk-edit dialog — **and on the entity's o
 shows the field's name and nothing else. Hover it there and you get the name, then the description
 under it.
 
-That works on any detail page — a scene, a tag, a performer — and it is matched on the *name*: an
-element whose whole text is a custom field you have described gets the tooltip, wherever Stash chose
-to put it. Nothing is decorated on a list page, on a link, or inside this plugin's own dialogs.
+That works on any detail page — a scene, a tag, a performer — in the details panel and in the
+**Custom Fields** section of the edit panel, once you open it. It is matched on the *name*, so it
+holds wherever Stash chose to put the field: the plain tooltip Stash gives that name is replaced,
+since the fuller one starts with the same name. A tooltip that says anything else is left alone,
+and nothing is decorated on a list page, on a link, or inside this plugin's own dialogs.
 
 Some details worth knowing:
 

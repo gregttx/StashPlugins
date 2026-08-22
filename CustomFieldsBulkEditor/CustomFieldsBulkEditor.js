@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.8.4';
+  var PLUGIN_VERSION = '2.9.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -4483,8 +4483,9 @@
   //    the walk never starts.
   //  - **Leaves only, and never a link or a field the user can type in.** A tag pill is
   //    an `<a>`; an input carries its value rather than a name.
-  //  - **Never over a title somebody else set.** Ours is remembered on the node, so a
-  //    re-tick can update it and a title of Stash's own is left alone.
+  //  - **Never over a title that says something we do not.** Ours is remembered on the
+  //    node; a title of Stash's own that is *only the name* is replaced, since the
+  //    enhanced one opens with that same name and adds the description under it.
   //
   // The residue is a false positive: a leaf elsewhere on a detail page whose text is
   // exactly a custom field's name gets a tooltip about a field. That is a tooltip on the
@@ -4503,6 +4504,26 @@
     return d ? name + '\n\nDescription: ' + d : name;
   }
 
+  // Stash renders a field's name in two places, and neither is the bare name as text:
+  //
+  //   detail panel  `<span class="detail-item-title" title="Colour">Colour:</span>`
+  //                 - `DetailItem` appends the colon when `fullWidth` is set, which
+  //                   `CustomFields` sets for every field.
+  //   edit panel    `<label title="Colour">Colour</label>`, inside the collapsed
+  //                 "Custom Fields" section. Only a *new* row is an input, and a field
+  //                 with no name yet has no description to show.
+  //
+  // Both carry the name in `title`, which is why that is read first: it is the name
+  // exactly, with nothing to undo. The text is the fallback for a Stash that stops
+  // setting it, and one trailing colon comes off it.
+  function fieldNameAt(n) {
+    var t = String(n.title == null ? '' : n.title).replace(/^\s+|\s+$/g, '');
+    if (t && hasOwn(_descriptions, t)) return t;
+    var text = String(n.textContent == null ? '' : n.textContent)
+      .replace(/^\s+|\s+$/g, '').replace(/:$/, '').replace(/\s+$/, '');
+    return text && hasOwn(_descriptions, text) ? text : '';
+  }
+
   function decorateDetailNames(root) {
     var kids = root.childNodes || [];
     for (var i = 0; i < kids.length; i++) {
@@ -4519,13 +4540,13 @@
         if (kn[j] && kn[j].tagName) { leaf = false; break; }
       }
       if (leaf) {
-        var text = String(n.textContent == null ? '' : n.textContent)
-          .replace(/^\s+|\s+$/g, '');
-        if (text && hasOwn(_descriptions, text)) {
-          if (!n.title || n._cfbeTip) {
-            n.title = detailTip(text);
-            n._cfbeTip = true;
-          }
+        var name = fieldNameAt(n);
+        // A title of Stash's own here is the field name and nothing else, so replacing
+        // it loses nothing - and refusing to was what left every described field
+        // wearing the plain tooltip. A title saying anything else is somebody's.
+        if (name && (!n.title || n._cfbeTip || n.title === name)) {
+          n.title = detailTip(name);
+          n._cfbeTip = true;
         }
         continue;
       }

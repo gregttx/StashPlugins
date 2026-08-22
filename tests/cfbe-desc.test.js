@@ -871,15 +871,31 @@ openDesc()
   // ── The descriptions, on Stash's own detail pages ────────────────────────
   .then(() => {
     const env = start({ pathname: '/scenes/1' });
-    // Whatever Stash's markup is, the field's name is somewhere in it as the whole text
-    // of a leaf. Two of these, and a decoy that must not be touched.
+    // Stash's own markup, read off `Shared/DetailItem.tsx` and `Shared/CustomFields.tsx`
+    // rather than imagined: the detail panel's label is a span carrying the name in
+    // `title` and the name *plus a colon* as text (DetailItem appends it for a
+    // `fullWidth` item, which every custom field is), and the edit panel's is a label
+    // carrying the name in both. An invented fixture - a leaf whose whole text is the
+    // bare name and which carries no title - is what let this ship decorating nothing.
     const panel = h.makeElement('div');
     const root = h.makeElement('div');
     root.id = 'root';
-    const leaf = (text, cls) => { const n = h.makeElement('span');
-      n.textContent = text; if (cls) n.className = cls; panel.appendChild(n); return n; };
-    const named = leaf('colour');
-    const undescribed = leaf('rating_source');
+    const detailLabel = (name) => { const n = h.makeElement('span');
+      n.className = 'detail-item-title'; n.textContent = name + ':'; n.title = name;
+      panel.appendChild(n); return n; };
+    const named = detailLabel('colour');
+    const undescribed = detailLabel('rating_source');
+    const editLabel = h.makeElement('label');
+    editLabel.textContent = 'colour';
+    editLabel.title = 'colour';
+    panel.appendChild(editLabel);
+    const plain = h.makeElement('span');       // no title at all: the text route
+    plain.textContent = 'colour';
+    panel.appendChild(plain);
+    const theirs = h.makeElement('span');      // a title that says something else
+    theirs.textContent = 'colour';
+    theirs.title = 'Sort by this';
+    panel.appendChild(theirs);
     const link = h.makeElement('a');
     link.textContent = 'colour';
     panel.appendChild(link);
@@ -894,10 +910,19 @@ openDesc()
     env.tick();
     return h.flush(60).then(() => {
       env.tick();
+      const tip = 'colour\n\nDescription: The colour it is filed under.';
       h.check('a described field name on a detail page gets the description as a tooltip',
-        named.title === 'colour\n\nDescription: The colour it is filed under.', named.title);
+        named.title === tip, named.title);
+      h.check('the colon DetailItem appends does not stop the name matching',
+        named.title === tip, named.textContent + ' -> ' + named.title);
+      h.check('the edit panel\'s label gets it too, so an open Custom Fields section is covered',
+        editLabel.title === tip, editLabel.title);
+      h.check('a leaf carrying no title of its own is still matched on its text',
+        plain.title === tip, plain.title);
+      h.check('a title that is not just the name is left alone',
+        theirs.title === 'Sort by this', theirs.title);
       h.check('a name with no description of its own is left alone',
-        !undescribed.title, undescribed.title);
+        undescribed.title === 'rating_source', undescribed.title);
       h.check('a link is never decorated - a tag pill is one',
         !link.title, link.title);
       h.check('and neither is anything inside this plugin\'s own dialog',

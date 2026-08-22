@@ -14,6 +14,38 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.9.0 makes the detail-page tooltip actually appear, and reach the edit panel.** Reported live:
+hovering a custom field's name showed Stash's plain tooltip - the name and nothing else - in both
+the detail view and the open Custom Fields section of the edit panel. Three separate things were
+wrong, and only the first was a crash:
+
+ 1. The tick threw before it decorated anything ([[2.8.4]] above).
+ 2. **The name is not the leaf's text.** `Shared/DetailItem.tsx` renders the label as
+    `{message}{fullWidth ? ":" : ""}`, and `CustomFields.tsx` passes `fullWidth`, so the text is
+    `Colour:` and never matched a key in the store.
+ 3. **Stash sets `title` on that label itself** (`labelTitle={field}`), and the guard was
+    "never over a title somebody else set" - so the one element this feature exists for was the
+    one element it refused to touch.
+
+**The title is now the *first* thing read, not the obstacle.** Both places Stash renders a field
+name carry the bare name in `title` - the detail label via `labelTitle`, the edit panel's
+`<Form.Label title={currentField}>` - so it is the most exact signal available, with no colon to
+undo. Text remains the fallback, minus one trailing colon. And a title equal to the name is
+replaced rather than respected: the enhanced tooltip opens with that same name and puts the
+description under it, so nothing is lost. A title saying anything else still belongs to whoever
+set it.
+
+**Edit mode needed no separate pass.** Only a *new* row is an input there; an existing field's name
+is a `<label>`, which the same walk already reaches. A field with no name yet has no description to
+show, so the input this plugin skips is the one case that was never in scope.
+
+**The fixture was the reason none of this was caught.** It built "a leaf whose whole text is the
+field name", which is the markup this plugin *wished* for - no colon, no title, exactly the two
+things that broke it. It is Stash's own two shapes now, read off `DetailItem.tsx` and
+`CustomFields.tsx`. Three checks fail against 2.8.4. This is the repo's standing lesson about a
+fixture for someone else's markup being worth only what the reading behind it was worth, and it
+cost a feature that shipped decorating nothing.
+
 **2.8.4 fixes a detail tick that threw on every page, once per second, in a live Stash.**
 `decorateDetailNames` asked `!(n.childNodes || []).some(...)` whether a node was a leaf. A live
 `NodeList` has no `.some`, so nothing on any detail page ever got a description tooltip and the

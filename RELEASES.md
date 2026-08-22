@@ -10,7 +10,8 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-22 | 2.8.0 (`06f51e6`) |  | 0.0.9 (`06f51e6`) |  |  | 3.13.1 (`06f51e6`) |  |  | PropagateTagsAndPerformers 3.13.1 / CustomFieldsBulkEditor 2.8.0 / FindEntitiesByTextContent 0.0.9: an empty box is empty again, Undo Rename, and the search box keeps its own history |
+| 2026-08-22 | 2.8.1 (`3d8adb6`) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.8.1: Apply goes back to disabled once a rename has been written |
+| 2026-08-22 | [2.8.0](https://github.com/gregttx/StashPlugins/commit/06f51e6) |  | [0.0.9](https://github.com/gregttx/StashPlugins/commit/06f51e6) |  |  | [3.13.1](https://github.com/gregttx/StashPlugins/commit/06f51e6) |  |  | PropagateTagsAndPerformers 3.13.1 / CustomFieldsBulkEditor 2.8.0 / FindEntitiesByTextContent 0.0.9: an empty box is empty again, Undo Rename, and the search box keeps its own history |
 | 2026-08-22 | [2.7.0](https://github.com/gregttx/StashPlugins/commit/16a1bcf) |  |  |  |  | [3.13.0](https://github.com/gregttx/StashPlugins/commit/16a1bcf) |  |  | CustomFieldsBulkEditor 2.7.0 / PropagateTagsAndPerformers 3.13.0: the descriptions reach the entity page, and the exclusion field has a default that documents itself |
 | 2026-08-22 | [2.6.0](https://github.com/gregttx/StashPlugins/commit/e3597ce) |  |  |  | [4.7.0](https://github.com/gregttx/StashPlugins/commit/e3597ce) |  |  |  | CustomFieldsBulkEditor 2.6.0 / NormalizeParentTags 4.7.0: three more boxes remember, and the descriptions pane reads Name then Description |
 | 2026-08-21 |  | [0.0.10](https://github.com/gregttx/StashPlugins/commit/d1e1e4a) |  |  |  |  |  |  | EntityNameMaintainer 0.0.10: a Proceed pressed mid-countdown disarms Close |

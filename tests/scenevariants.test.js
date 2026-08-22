@@ -998,6 +998,82 @@ const summary = (el) => textOf(byClass(el, 'svr-summary')[0] || { children: [] }
   }
 
   {
+    // The scan pages through the whole library, which is the longest a user waits here,
+    // so the exit has to be offered *during* it. Stop takes effect between pages, and
+    // what was read stays on screen as a listing Proceed can act on.
+    const lib = [];
+    for (let i = 0; i < 501; i++) {
+      lib.push({ id: String(1000 + i), title: 'S' + i, tags: [{ id: '1' }], custom_fields: {},
+        stash_ids: [{ endpoint: 'https://stashdb.org/graphql', stash_id: 'abc' }] });
+    }
+    const opts = { library: lib };
+    const base = responder(opts);
+    let env, pages = 0, offered = null;
+    opts.respond = (req) => {
+      if (req.query.indexOf('SVRMigrateScan') !== -1) {
+        pages++;
+        if (pages === 1) {
+          // Asked from inside the scan, because that is the state being reported on: by
+          // the time the dialog settles the answer is a different one.
+          offered = dlg(env).visible('Stop') && dlg(env).button('Close').disabled;
+          dlg(env).button('Stop').click();
+        }
+      }
+      return base(req);
+    };
+    env = start(opts);
+    await openTask(env);
+    h.check('Stop is offered while the scan runs, where Close is not', offered === true,
+      String(offered));
+    h.check('and the next page is never asked for', pages === 1, String(pages));
+    h.check('the scenes already read are listed', jobLines(env).length === 500,
+      String(jobLines(env).length));
+    h.check('the log says the listing is only what was reached',
+      dlg(env).lines.some((l) => /Stopped: only the scenes read so far/.test(l)),
+      dlg(env).lines.join(' | '));
+    h.check('and the dialog is back to a listing: Stop gone, Close and Proceed live',
+      !dlg(env).visible('Stop') && !dlg(env).button('Close').disabled &&
+        !dlg(env).button('Proceed').disabled);
+  }
+
+  {
+    // Stopping a reversal is where the bookkeeping shows: what it did not reach is still
+    // written, so it has to still be offered as Undo rather than dropped.
+    const lib = [];
+    for (let i = 0; i < 25; i++) {
+      lib.push({ id: String(2000 + i), title: 'T' + i, tags: [{ id: '2' }], custom_fields: {},
+        stash_ids: [{ endpoint: 'https://stashdb.org/graphql', stash_id: 'abc' }] });
+    }
+    const opts = { library: lib };
+    const base = responder(opts);
+    let env, undone = 0;
+    opts.respond = (req) => {
+      const input = req.variables && req.variables.input;
+      if (req.query.indexOf('SVR_Write') !== -1 && input.custom_fields.remove) {
+        undone++;
+        if (undone === 12) dlg(env).button('Stop').click();   // inside the second batch
+      }
+      return base(req);
+    };
+    env = start(opts);
+    await openTask(env);
+    dlg(env).button('Proceed').click();
+    await h.flush(200);
+    h.check('all 25 are written', (env.opts.writes || []).length === 25,
+      String((env.opts.writes || []).length));
+    dlg(env).button('Undo').click();
+    await h.flush(200);
+    h.check('a stopped Undo finishes the batch in flight and no more', undone === 20,
+      String(undone));
+    h.check('and still offers Undo for the five it did not reach',
+      !!dlg(env).button('Undo') && !dlg(env).button('Undo').disabled);
+    dlg(env).button('Undo').click();
+    await h.flush(200);
+    h.check('which puts those back too', undone === 25, String(undone));
+    h.check('and only then is Proceed offered again', !!dlg(env).button('Proceed'));
+  }
+
+  {
     // A stale script must not write: what it would write is the previous release's idea
     // of the plan, and the settings page's own banner cannot reach a dialog.
     const env = start({ library: migrationLibrary(), installed: '9.9.9' });

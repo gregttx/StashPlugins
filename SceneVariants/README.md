@@ -79,6 +79,10 @@ the field will hold and whether the stash-ids come off, and the counters say how
 got. **Undo** puts every one of them back — the field to what it said before, or removed where the
 scene had none, and the stash-ids back on — for as long as the dialog stays open.
 
+**Stop** ends whichever phase is running, after the request already in flight. Stopping the scan
+leaves the scenes it did reach listed, and Proceed writes those; stopping a write or an undo leaves
+what landed as it is, and Undo still covers exactly the scenes that were written.
+
 Running it twice is safe: a scene whose field already says the right thing, and which has no
 stash-id left to move, is not written again.
 

@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.6.1';
+  var PLUGIN_VERSION = '0.7.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -889,6 +889,7 @@
     this.written = 0;
     this.failed = 0;
     this.state = 'scanning';
+    this.stopped = false;
     this.build();
   }
 
@@ -932,14 +933,20 @@
     this.goBtn = button('Proceed', 'svr-go');
     this.goBtn.className = this.goBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
     this.goBtn.disabled = true;
+    // Every phase here can be long - the scan pages through the whole library - so the
+    // one exit is offered throughout: it stops after the request in flight, leaving what
+    // has been found or written on screen. A part-finished scan is still a listing that
+    // Proceed can act on, which is why it does not close the dialog instead.
+    this.stopBtn = button('Stop', 'svr-stop svr-hidden');
     this.closeBtn = button('Close', 'svr-close');
     this.copyBtn = button('Copy log', 'svr-copy');
     this.copyBtn.title = 'Copy the counters, the messages and every line of the listing as ' +
       'plain text.';
     this.goBtn.addEventListener('click', function () { self.go(); });
+    this.stopBtn.addEventListener('click', function () { self.stop(); });
     this.closeBtn.addEventListener('click', function () { self.close(); });
     this.copyBtn.addEventListener('click', function () { self.copyLog(); });
-    [this.goBtn, this.closeBtn, this.copyBtn].forEach(function (b) { foot.appendChild(b); });
+    [this.goBtn, this.stopBtn, this.closeBtn, this.copyBtn].forEach(function (b) { foot.appendChild(b); });
     this.modal.appendChild(foot);
 
     wireEscape(this);
@@ -962,6 +969,7 @@
   Run.prototype.setState = function (state) {
     this.state = state;
     var busy = state !== 'listing';
+    this.show(this.stopBtn, busy);
     this.closeBtn.disabled = busy;
     this.syncFooter();
     this.spin(busy);
@@ -1058,6 +1066,12 @@
     }
   };
 
+  Run.prototype.stop = function () {
+    if (this.state === 'listing' || this.stopped) return;
+    this.stopped = true;
+    this.msg('WARN', 'Stopping after the request in flight…');
+  };
+
   Run.prototype.close = function () {
     unwireEscape(this);
     this.spin(false);
@@ -1099,6 +1113,7 @@
   Run.prototype.begin = function () {
     var self = this;
     this.setState('scanning');
+    this.stopped = false;
     this.progress('Reading your settings and the tag hierarchy…');
     checkStale(this);
     var lease = foreignLease();
@@ -1130,6 +1145,10 @@
       return self.scanPage(1, m, field, tags).then(function () {
         self.setState('listing');
         self.progress(self.progressText());
+        if (self.stopped) {
+          self.msg('WARN', 'Stopped: only the scenes read so far are listed, and Proceed ' +
+            'writes those. Open the task again for the rest.');
+        }
         if (!self.jobs.length) {
           self.msg('INFO', 'Nothing to migrate: every tagged scene either carries no ' +
             'stash-id or has been through this already.');
@@ -1161,7 +1180,7 @@
         self.jobLine(job);
       });
       self.progress(self.progressText());
-      if (scenes.length < READ_PAGE) return null;
+      if (self.stopped || scenes.length < READ_PAGE) return null;
       return self.scanPage(page + 1, m, field, tags);
     });
   };
@@ -1172,6 +1191,7 @@
     if (this.changes.length) { this.undo(); return; }
     var self = this;
     this.setState('writing');
+    this.stopped = false;
     this.msg('INFO', 'Writing ' + plural(this.jobs.length, 'scene') + '.');
     var lease = acquireLease('Variant stash-id migration');
     this.writeAll(this.jobs, writeInput, 'migrated', lease).then(function () {
@@ -1179,7 +1199,9 @@
       self.setState('listing');
       self.progress(self.progressText());
       self.msg('INFO', 'Done: ' + plural(self.written, 'scene') + ' migrated' +
-        (self.failed ? ', ' + plural(self.failed, 'failure') : '') + '.');
+        (self.failed ? ', ' + plural(self.failed, 'failure') : '') +
+        (self.stopped ? ' (stopped early; what was written stays written, and Undo takes ' +
+          'back exactly that)' : '') + '.');
     });
   };
 
@@ -1187,20 +1209,21 @@
     var self = this;
     var jobs = this.changes.slice().reverse();
     this.setState('undoing');
+    this.stopped = false;
     this.msg('INFO', 'Putting back what ' + plural(jobs.length, 'scene') + ' held before.');
     var lease = acquireLease('Variant stash-id migration (undo)');
     this.written = 0;
     this.failed = 0;
-    this.changes = [];
+    // `changes` is emptied a scene at a time by the write itself rather than upfront, so
+    // a stopped or failed reversal still knows what it did not reach. Empty at the end
+    // means back to a listing nobody has used, and Proceed offers the same jobs again.
     this.writeAll(jobs, undoInput, 'put back', lease).then(function () {
       lease.release();
-      // Undone means back to a listing nobody has used: the same jobs are still on
-      // screen and Proceed offers them again.
-      self.changes = [];
       self.setState('listing');
       self.progress(self.progressText());
       self.msg('INFO', 'Undone: ' + plural(self.written, 'scene') + ' put back' +
-        (self.failed ? ', ' + plural(self.failed, 'failure') : '') + '.');
+        (self.failed ? ', ' + plural(self.failed, 'failure') : '') +
+        (self.stopped ? ' (stopped early; what was put back stays put back)' : '') + '.');
       self.written = 0;
     });
   };
@@ -1212,13 +1235,17 @@
     var self = this;
 
     function batch(i) {
-      if (i >= jobs.length) return Promise.resolve();
+      if (i >= jobs.length || self.stopped) return Promise.resolve();
       lease.renew();
       var slice = jobs.slice(i, i + WRITE_CHUNK);
       return Promise.all(slice.map(function (job) {
         return gqlRequest(SCENE_UPDATE, { input: build(job) }).then(function () {
           self.written++;
           if (verb === 'migrated') self.changes.push(job);
+          else {
+            var ix = self.changes.indexOf(job);
+            if (ix >= 0) self.changes.splice(ix, 1);
+          }
           self.msg('INFO', job.title + ' [' + job.id + ']: ' + verb + '.');
         }, function (e) {
           self.failed++;

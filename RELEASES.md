@@ -10,6 +10,7 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-08-22 | 2.11.1 (`dc3f0b5`) | 1.2.1 (`dc3f0b5`) | 1.1.1 (`dc3f0b5`) | 3.8.1 (`dc3f0b5`) | 4.8.1 (`dc3f0b5`) | 3.14.1 (`dc3f0b5`) | 0.6.1 (`dc3f0b5`) | 1.1.1 (`dc3f0b5`) | Anchor the Reload UI button on markup every released Stash has, not only develop's |
 | 2026-08-22 | 2.11.0 (`6712889`) | 1.2.0 (`6712889`) | 1.1.0 (`6712889`) | 3.8.0 (`6712889`) | 4.8.0 (`6712889`) | 3.14.0 (`6712889`) | 0.6.0 (`6712889`) | 1.1.0 (`6712889`) | One shared Reload UI button beside Stash's Reload plugins, drawn while any plugin's script is stale |
 | 2026-08-22 |  | 1.1.0 (`8507b96`) |  |  |  |  |  |  | EntityNameMaintainer 1.1.0: Close is green when it will close rather than ask |
 | 2026-08-22 |  |  |  |  | 4.7.1 (`34981ce`) | 3.13.2 (`34981ce`) |  |  | NPT 4.7.1 / PTP2RE 3.13.2: the settings dialogs' Save waits for a change |

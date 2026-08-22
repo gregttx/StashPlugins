@@ -79,8 +79,9 @@ afterwards.
   second press within five seconds closes. The scan runs off a rename that has already happened, so
   a listing thrown away cannot be asked for again — press **Copy log** first if you want to
   keep it. It closes on the first press once there is nothing left to lose: nothing was
-  found, or **Proceed** has run. An **Undo** puts the question back, since it puts the
-  listing back to one nobody has used. Pressing **Proceed** while it is counting down puts the
+  found, or **Proceed** has run. It is **green** in exactly those states, and grey
+  otherwise: green means the press will close rather than ask. An **Undo** puts the
+  question back, since it puts the listing back to one nobody has used. Pressing **Proceed** while it is counting down puts the
   button straight back to **Close** — the write is the answer to the question.
 
 ## While it scans

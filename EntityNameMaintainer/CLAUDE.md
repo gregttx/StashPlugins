@@ -68,6 +68,25 @@ is guarded again, which is right, because it is back to being a listing nobody h
 countdown disarms itself, so a user who walks away comes back to an ordinary Close rather than to a
 dialog waiting on a second press it will never explain.
 
+**1.1.0 paints that same question on the button.** Close is green while pressing it will
+close - nothing found, or a Proceed that has landed - and grey while it will ask. It is one
+predicate, `clearToClose`, read by both `requestClose` and the paint, so the colour cannot come to
+mean something the confirm does not: a second condition list would be a second definition of "clear",
+free to drift from the one that actually decides.
+
+**Green, which is neither of the repo's two button colours.** Amber says a control writes and teal
+says it only reads, and Close does neither - it is the one control here whose colour is about the
+*dialog's* state rather than about what the button does. This dialog is also the only one in the
+repo that opens by itself, on a rename the user did not ask it about, so "you are done, nothing is
+waiting on you" is worth a glance rather than a tooltip. Do not read this as a third repo-wide
+convention; it is one button in one dialog, and the repo rule it does follow is that a colour has
+to mean one thing.
+
+**Painted from `setState` alone**, beside the cursor and the disabled flags, for the same reason
+the disarm is: `hits` and `changes` only move on a scan, a write or an undo, and all three end
+there. An armed Close is never green without that being a condition - arming only happens where
+`clearToClose` is already false.
+
 **And the head wears the whole name.** `PLUGIN_SHORT_NAME` exists to shorten where the manifest
 name would crowd out what follows it; here what follows is an entity label and an id, which fits,
 and a head reading `ᝯㄝₓ Name Maintainer` over a settings page reading `ᝯㄝₓ Entity Name Maintainer`

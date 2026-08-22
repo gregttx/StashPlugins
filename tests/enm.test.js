@@ -315,6 +315,9 @@ const filterBtns = (env) => env.body.descendants()
       d.button('Proceed').disabled);
     h.check('and the filter buttons dead, because there are no filters to act on',
       d.button('All On').disabled && d.button('All Off').disabled);
+    // Green says Close will not ask, which is the whole of what it means.
+    h.check('and Close green, because there is nothing here to lose',
+      h.hasClass(d.button('Close'), 'btn-success'), d.button('Close').className);
     h.check('and no write of any kind', env.writes.length === 0);
   });
 }());
@@ -576,6 +579,9 @@ const filterBtns = (env) => env.body.descendants()
         tag.input.custom_fields.remove.indexOf('Jane Doe Jr rating') !== -1,
       JSON.stringify(tag.input.custom_fields));
     h.check('the button goes back to Proceed', !!dlg(env).button('Proceed'));
+    h.check('and Close back to grey, since the listing is unacted on again',
+      !h.hasClass(dlg(env).button('Close'), 'btn-success'),
+      dlg(env).button('Close').className);
     // And so does the confirm on Close: an undone run is a listing nobody has used.
     h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
     h.check('and Close asks again, now that the run has been taken back',
@@ -594,10 +600,15 @@ const filterBtns = (env) => env.body.descendants()
   lib.performers[0].name = OLD;
   const env = makeEnv({ library: lib });
   rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('Close is grey while the listing is still unacted on',
+      !h.hasClass(dlg(env).button('Close'), 'btn-success'),
+      dlg(env).button('Close').className);
     dlg(env).button('Proceed').click();
     return h.flush(200);
   }).then(() => {
     h.check('the write landed', !!dlg(env).button('Undo'));
+    h.check('and Close goes green with it', h.hasClass(dlg(env).button('Close'), 'btn-success'),
+      dlg(env).button('Close').className);
     h.fire(env.ctx.document, 'keydown', { key: 'Escape' });
     h.check('Escape closes it outright after a write', !dlg(env).open);
   });

@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '1.0.2';
+  var PLUGIN_VERSION = '1.1.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1076,6 +1076,7 @@
     this.newInput.disabled = state !== 'listing';
     this.syncFilterButtons();
     this.syncFooter();
+    this.syncCloseColour();
     this.spin(busy);
   };
 
@@ -1105,6 +1106,29 @@
               : '';
     this.goBtn.disabled = !!why;
     this.goBtn.title = why || ('Replace ' + plural(picked, 'occurrence') + '.');
+  };
+
+  // Nothing found, or a Proceed that has landed: the listing has either nothing in it
+  // to lose or has already been acted on. `requestClose` asks exactly this before it
+  // arms its confirm, so one function answers both - and green on the button is then
+  // the visible half of the same fact: it means Close will not ask.
+  Run.prototype.clearToClose = function () {
+    return !this.hits.length || this.changes.length > 0;
+  };
+
+  // Green where every sibling's Close is grey, and only ever here: this dialog opens by
+  // itself on a rename the user did not ask it about, so "you are done, nothing is
+  // waiting on you" is worth saying. Grey while a listing is still unacted on, which is
+  // the state the confirm exists for - so an armed Close is never green, without that
+  // needing to be a condition of its own. Not the repo's amber/teal pair: neither says
+  // "finished", and Close writes nothing either way.
+  //
+  // Painted from `setState` alone, like the cursor and the disabled flags beside it:
+  // the two things it reads only ever move on a scan, a write or an undo, and all
+  // three end there.
+  Run.prototype.syncCloseColour = function () {
+    paintButton(this.closeBtn,
+      this.state === 'listing' && this.clearToClose() ? 'btn-success' : 'btn-secondary');
   };
 
   // A cursor cycling under the last line of the log for as long as work is in flight,
@@ -1962,7 +1986,7 @@
     // its job. `changes` is exactly that fact - Proceed fills it and Undo empties it -
     // so an undone run is guarded again, which is right, because it is back to being a
     // listing nobody has used.
-    if (!this.hits.length || this.changes.length || this._armed) { this.close(); return; }
+    if (this.clearToClose() || this._armed) { this.close(); return; }
     var self = this;
     var left = CLOSE_CONFIRM_SECONDS;
     this._armed = true;

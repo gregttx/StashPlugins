@@ -8,10 +8,10 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 1.0.2 (`6fd97e2`) | 2026-08-22 | EntityNameMaintainer 1.0.2: the entity says whether a cancelled rename landed, not the response |
-| 1.0.1 (`a5353a8`) | 2026-08-22 | EntityNameMaintainer 1.0.1 / FindEntitiesByTextContent 1.0.0: a cancelled rename reloads the page it changed |
-| 1.0.0 (`1094a8c`) | 2026-08-22 | EntityNameMaintainer 1.0.0: Cancel takes back the rename itself, while it is the only write |
-| 0.1.2 (`23eaeb6`) | 2026-08-22 | EntityNameMaintainer 0.1.2 / TagBundleClipboard 0.7.3: a scoped dialog head names the entity, not just its id |
+| [1.0.2](https://github.com/gregttx/StashPlugins/commit/6fd97e2) | 2026-08-22 | EntityNameMaintainer 1.0.2: the entity says whether a cancelled rename landed, not the response |
+| [1.0.1](https://github.com/gregttx/StashPlugins/commit/a5353a8) | 2026-08-22 | EntityNameMaintainer 1.0.1 / FindEntitiesByTextContent 1.0.0: a cancelled rename reloads the page it changed |
+| [1.0.0](https://github.com/gregttx/StashPlugins/commit/1094a8c) | 2026-08-22 | EntityNameMaintainer 1.0.0: Cancel takes back the rename itself, while it is the only write |
+| [0.1.2](https://github.com/gregttx/StashPlugins/commit/23eaeb6) | 2026-08-22 | EntityNameMaintainer 0.1.2 / TagBundleClipboard 0.7.3: a scoped dialog head names the entity, not just its id |
 | [0.1.1](https://github.com/gregttx/StashPlugins/commit/ba4a138) | 2026-08-22 | EntityNameMaintainer 0.1.1: the skipped store tag no longer reads as something missed |
 | [0.1.0](https://github.com/gregttx/StashPlugins/commit/cccd6be) | 2026-08-22 | CustomFieldsBulkEditor 2.10.0 / EntityNameMaintainer 0.1.0: descriptions are read and written through coop().api |
 | [0.0.10](https://github.com/gregttx/StashPlugins/commit/d1e1e4a) | 2026-08-21 | EntityNameMaintainer 0.0.10: a Proceed pressed mid-countdown disarms Close |

@@ -10,11 +10,12 @@ commit has not been pushed yet. Per-plugin notes are in each plugin's own `RELEA
 
 | Date | CFBE | ENM | FETC | MPTTS | NPT | PTP2RE | SceneVariants | TBC | Change |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-08-22 |  |  |  |  |  |  |  | 1.0.0 (`3e4458b`) | TagBundleClipboard 1.0.0: the major digit, on live use |
-| 2026-08-22 |  | 1.0.2 (`6fd97e2`) |  |  |  |  |  |  | EntityNameMaintainer 1.0.2: the entity says whether a cancelled rename landed, not the response |
-| 2026-08-22 |  | 1.0.1 (`a5353a8`) | 1.0.0 (`a5353a8`) |  |  |  |  |  | EntityNameMaintainer 1.0.1 / FindEntitiesByTextContent 1.0.0: a cancelled rename reloads the page it changed |
-| 2026-08-22 |  | 1.0.0 (`1094a8c`) |  |  |  |  |  |  | EntityNameMaintainer 1.0.0: Cancel takes back the rename itself, while it is the only write |
-| 2026-08-22 |  | 0.1.2 (`23eaeb6`) |  |  |  |  |  | 0.7.3 (`23eaeb6`) | EntityNameMaintainer 0.1.2 / TagBundleClipboard 0.7.3: a scoped dialog head names the entity, not just its id |
+| 2026-08-22 |  |  |  |  |  |  | 0.5.0 (`011ff95`) |  | SceneVariants 0.5.0: a partial-length scene's stash-id moves into a custom field, and the tab matches on both |
+| 2026-08-22 |  |  |  |  |  |  |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/3e4458b) | TagBundleClipboard 1.0.0: the major digit, on live use |
+| 2026-08-22 |  | [1.0.2](https://github.com/gregttx/StashPlugins/commit/6fd97e2) |  |  |  |  |  |  | EntityNameMaintainer 1.0.2: the entity says whether a cancelled rename landed, not the response |
+| 2026-08-22 |  | [1.0.1](https://github.com/gregttx/StashPlugins/commit/a5353a8) | [1.0.0](https://github.com/gregttx/StashPlugins/commit/a5353a8) |  |  |  |  |  | EntityNameMaintainer 1.0.1 / FindEntitiesByTextContent 1.0.0: a cancelled rename reloads the page it changed |
+| 2026-08-22 |  | [1.0.0](https://github.com/gregttx/StashPlugins/commit/1094a8c) |  |  |  |  |  |  | EntityNameMaintainer 1.0.0: Cancel takes back the rename itself, while it is the only write |
+| 2026-08-22 |  | [0.1.2](https://github.com/gregttx/StashPlugins/commit/23eaeb6) |  |  |  |  |  | [0.7.3](https://github.com/gregttx/StashPlugins/commit/23eaeb6) | EntityNameMaintainer 0.1.2 / TagBundleClipboard 0.7.3: a scoped dialog head names the entity, not just its id |
 | 2026-08-22 |  | [0.1.1](https://github.com/gregttx/StashPlugins/commit/ba4a138) |  |  |  |  |  |  | EntityNameMaintainer 0.1.1: the skipped store tag no longer reads as something missed |
 | 2026-08-22 | [2.10.0](https://github.com/gregttx/StashPlugins/commit/cccd6be) | [0.1.0](https://github.com/gregttx/StashPlugins/commit/cccd6be) |  |  |  |  |  |  | CustomFieldsBulkEditor 2.10.0 / EntityNameMaintainer 0.1.0: descriptions are read and written through coop().api |
 | 2026-08-22 | [2.9.0](https://github.com/gregttx/StashPlugins/commit/0b9205b) |  |  |  |  |  |  |  | CustomFieldsBulkEditor 2.9.0: the description tooltip appears where Stash shows the field name |

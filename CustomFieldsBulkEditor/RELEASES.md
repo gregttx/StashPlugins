@@ -8,7 +8,8 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 2.8.3 (`c8d90e7`) | 2026-08-22 | CustomFieldsBulkEditor 2.8.3: Undo of an applied rename takes the list back, not only the library |
+| 2.8.4 (`bb28ff4`) | 2026-08-22 | CustomFieldsBulkEditor 2.8.4: the detail tick stops throwing on every page |
+| [2.8.3](https://github.com/gregttx/StashPlugins/commit/c8d90e7) | 2026-08-22 | CustomFieldsBulkEditor 2.8.3: Undo of an applied rename takes the list back, not only the library |
 | [2.8.2](https://github.com/gregttx/StashPlugins/commit/2484566) | 2026-08-22 | CustomFieldsBulkEditor 2.8.2: Apply is quiet until there is something a user would call a change |
 | [2.8.1](https://github.com/gregttx/StashPlugins/commit/3d8adb6) | 2026-08-22 | CustomFieldsBulkEditor 2.8.1: Apply goes back to disabled once a rename has been written |
 | [2.8.0](https://github.com/gregttx/StashPlugins/commit/06f51e6) | 2026-08-22 | PropagateTagsAndPerformers 3.13.1 / CustomFieldsBulkEditor 2.8.0 / FindEntitiesByTextContent 0.0.9: an empty box is empty again, Undo Rename, and the search box keeps its own history |

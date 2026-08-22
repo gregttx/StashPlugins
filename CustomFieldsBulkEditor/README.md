@@ -230,6 +230,20 @@ Some details worth knowing:
 
 - **Nothing is written until Apply**, including the tag itself. A field marked `*` in the left pane
   has an unsaved edit; `•` means it already has a description.
+- **The field's own name is a box, and changing it renames the field.** The heading over the
+  description reads *Description of custom field* followed by the name in an editable box; type a
+  new one and a **Rename** button appears beside it (Enter does the same). It **stages** the
+  rename, like everything else here: the left pane shows the new name at once, and **Apply** is what
+  writes it across every entity carrying the field — with its description — while **Undo** puts the
+  old name back. Type the library's own name back in and press Rename again to take a staged rename
+  off. **Rescan** is held back while one is staged, since it would re-read a library the rename has
+  not reached yet; Apply, or close the dialog to discard it.
+  - A name another custom field already has is **refused** — that is a merge, not a rename, and it
+    would overwrite the values already under that name.
+  - The **Hide from Add Lists** field cannot be renamed here: its name is a setting, and this
+    dialog already handles the other direction (change the setting, then **Migrate**). Renaming it
+    from the list would leave the setting pointing at a name nothing carries.
+  - One rename at a time. A second is refused until the first is applied.
 - **`[orphan]`** is a description whose custom field no entity carries any more. It is kept rather
   than dropped — a field you cleared today may come back tomorrow — and **Prune orphans** clears
   them all in one press, staged like everything else. The rows go with them: an orphan row is a

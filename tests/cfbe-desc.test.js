@@ -171,6 +171,7 @@ function sentStore(calls) {
   const d = String(last.variables.input.description || '');
   return JSON.parse(d.slice(d.indexOf('{'), d.lastIndexOf('}') + 1));
 }
+const hasOwnShade = (o) => Object.prototype.hasOwnProperty.call(o, 'shade');
 const pick = (body, label) => byClass(body, 'cfbe-name')
   .filter((b) => b.textContent.indexOf(label) !== -1)[0] || null;
 
@@ -282,8 +283,11 @@ openDesc()
     pick(env.body, 'colour').click();
     // Two boxes, one typed into and one read-only, neither obvious from its contents.
     const heads = byClass(env.body, 'cfbe-detail-head').map((n) => n.textContent);
-    h.check('the box you type in says it is the description',
-      heads[0] === 'Description of custom field "colour"', heads.join(' | '));
+    // The name is a box now, not part of the heading text - that is the rename control.
+    h.check('the box you type in says it is the description, and names the field in a box',
+      heads[0].indexOf('Description of custom field') === 0 &&
+      one(env.body, 'cfbe-namebox').value === 'colour',
+      heads.join(' | ') + ' / ' + one(env.body, 'cfbe-namebox').value);
     h.check('and the box under it says it is the list of entities, and what carries it',
       heads[1] === 'List of entities - 3 entities carry "colour"', heads.join(' | '));
     h.check('with a line per entity, each linking to its own type',
@@ -521,6 +525,96 @@ openDesc()
         JSON.stringify(sent.descriptions));
       h.check('and keeps the ones something does',
         sent.descriptions.colour === 'The colour it is filed under.');
+      return env;
+    });
+  })
+
+  // ── Renaming the field itself, from the box in the heading ───────────────
+  .then(() => openDesc({}))
+  .then((env) => {
+    const box = () => one(env.body, 'cfbe-namebox');
+    const btn = () => one(env.body, 'cfbe-rename');
+    const rename = (to) => {
+      box().value = to;
+      h.fire(box(), 'input', {});
+      return btn();
+    };
+    h.check('nothing is picked, so there is no name box on the page yet',
+      h.hasClass(box(), 'cfbe-hidden'), box().className);
+    pick(env.body, 'colour').click();
+    h.check('picking a field puts its name in the box',
+      !h.hasClass(box(), 'cfbe-hidden') && box().value === 'colour', box().value);
+    h.check('and Rename is not offered until the name is changed',
+      h.hasClass(btn(), 'cfbe-hidden'), btn().className);
+    rename('colour');
+    h.check('nor when it is typed back to what it already is',
+      h.hasClass(btn(), 'cfbe-hidden'), btn().className);
+    rename('shade');
+    h.check('it appears once the name differs', !h.hasClass(btn(), 'cfbe-hidden'));
+
+    // A name something else already has would merge two fields into one key.
+    rename('rating_source');
+    btn().click();
+    h.check('renaming onto a name that already exists is refused',
+      notes(env.body).some((l) => /a custom field of that name already exists/.test(l)),
+      notes(env.body).slice(-2).join(' | '));
+    h.check('and nothing moved in the list',
+      names(env.body).some((n) => /colour/.test(n)), names(env.body).join(' | '));
+
+    // The hide field's name is a setting, and this dialog implements the other direction.
+    pick(env.body, HIDE).click();
+    rename('something_else');
+    btn().click();
+    h.check('renaming the hide field from here is refused, naming the setting instead',
+      notes(env.body).some((l) => /it is the field named by the "Hide from Add Lists" setting/.test(l)),
+      notes(env.body).slice(-2).join(' | '));
+
+    pick(env.body, 'colour').click();
+    rename('shade');
+    btn().click();
+    h.check('a rename stages rather than writing', writes(env.calls).length === 0,
+      String(writes(env.calls).length));
+    h.check('and says what it staged, with the carrier count',
+      notes(env.body).some((l) => /Staged: rename custom field "colour" to "shade" on 3 entities/.test(l)),
+      notes(env.body).slice(-1).join(''));
+    h.check('the list shows the new name and not the old one, with no rescan',
+      names(env.body).some((n) => /shade/.test(n)) &&
+      !names(env.body).some((n) => /colour/.test(n)) &&
+      env.calls.filter((c) => /CFBE_ReadAll/.test(c.query || '')).length === 7,
+      names(env.body).join(' | '));
+    h.check('the users pane still shows each carrier\'s value, read from the old key',
+      byClass(env.body, 'cfbe-users')[0].descendants()
+        .some((n) => n.textContent === 'blue'),
+      byClass(env.body, 'cfbe-users')[0].textContent);
+    h.check('Rescan is held back while it is staged, and says why',
+      one(env.body, 'cfbe-rescan').disabled === true &&
+      /press Apply first/.test(one(env.body, 'cfbe-rescan').title),
+      one(env.body, 'cfbe-rescan').title);
+    h.check('and Apply is offered', one(env.body, 'cfbe-apply').disabled === false);
+
+    // Typing the library's own name back is how a staged rename is taken off.
+    rename('colour');
+    btn().click();
+    h.check('renaming it back cancels the staged rename',
+      notes(env.body).some((l) => /staged rename of "colour" is cancelled/.test(l)),
+      notes(env.body).slice(-1).join(''));
+    h.check('and Rescan comes back with it',
+      one(env.body, 'cfbe-rescan').disabled === false);
+
+    rename('shade');
+    btn().click();
+    return press(env, 'cfbe-apply').then(() => {
+      const moved = writes(env.calls).filter((c) => c.variables.input.custom_fields &&
+        c.variables.input.custom_fields.remove);
+      h.check('Apply renames the field on every entity carrying it',
+        moved.length === 3 &&
+        moved.every((c) => c.variables.input.custom_fields.remove[0] === 'colour' &&
+          hasOwnShade(c.variables.input.custom_fields.partial)),
+        JSON.stringify(moved.map((c) => c.variables.input.custom_fields)));
+      h.check('and the description goes with it, into the store',
+        !!sentStore(env.calls).descriptions.shade &&
+        !sentStore(env.calls).descriptions.colour,
+        JSON.stringify(sentStore(env.calls).descriptions));
       return env;
     });
   })

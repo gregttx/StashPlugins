@@ -14,6 +14,50 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.4.0 renames a custom field from the descriptions dialog, and it is almost all reuse.**
+
+**The control is Option 1 of the two that were offered: the name in the heading, editable.** That
+heading already read *Description of custom field "colour"*, so making the name a box is the same
+words with a caret in them, and the **Rename** button appears only once it has been changed. Option
+2 - a **Rename Custom Field...** button opening a sub-dialog - would have been a second modal, a
+second footer and a second Escape target to hold one text box that was already on the page.
+`PropagateTagsAndPerformers` 3.12.0 had just paid for a stacked dialog (a slot of its own, five
+guards rebound, a top-dialog check on Escape); this needed none of it.
+
+**It writes no new write path, because `this.migration` already was one.** That slot -
+`{from, to, entities, armed, done}` - was built for the hide-field Migrate button: `runMigration`
+writes it inside `apply`, grouped one delta per (type, value), and `undo` reverses it. A user-driven
+rename fills the same slot. So §22's rule holds unchanged (nothing here writes before Apply), Undo
+came free, and there is exactly one implementation of "rename a custom field across the library" in
+this dialog rather than two that can disagree.
+
+**The list refreshes without a rescan, and a rescan is refused instead.** Nothing has been written,
+so moving the name in `fields`, `desc` and `names` *is* the refresh - and `base` is deliberately not
+moved, so the diff reads as the old description going and the new one arriving, which is what the
+store has to end up holding. A Rescan would rebuild `fields` from a library the rename has not
+reached, leaving the staged rename holding entity objects from the previous read; so Rescan is
+disabled while one is staged and its title says why. **The alternative - dropping the staged rename
+on a rescan - loses work silently**, which is the thing the Rescan button was specifically written
+not to do.
+
+**The entities keep their values under the old key until the write lands**, which is the one place
+the local move is not a clean substitution: `runMigration` reads `e.fields[from]` to build the
+payload. `stagedFrom(name)` is the one-line resolution, read at the single place that needs it - the
+users pane. A mutant that reads the new key fails exactly the check written for it.
+
+**Three refusals, and the middle one is the interesting one.** A name another field already has is a
+merge, not a rename - the same call `plan()` makes in the other dialog. A second rename while one is
+staged would take over the slot and drop whichever rename was in it, the hide-field migration
+included. And **the hide field cannot be renamed from here at all**: its name is a *setting*, this
+dialog already implements the other direction (setting moves, Migrate follows), and a rename from
+the list would leave the setting pointing at a name nothing carries - every hidden entity back in
+the add lists, silently. §24 is the whole argument; supporting it here would have meant a second copy
+of `followHideRename` and `moveStoreMark` pointing the other way, for a route the settings page
+already has.
+
+**Renaming back to the library's own name un-stages.** Three lines, and it is the only way off a
+staged rename short of closing the dialog - which also re-enables Rescan, so the two hang together.
+
 **2.3.0 is two things a live filter row wanted.**
 
 **A × in each of the three filter boxes.** `NormalizeParentTags`' `clearableInput` is the shape -

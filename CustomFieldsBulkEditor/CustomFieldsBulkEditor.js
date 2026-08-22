@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.3.0';
+  var PLUGIN_VERSION = '2.4.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -718,7 +718,15 @@
     // Not the orphan amber: a store-tag field is accounted for, not a loose end.
     '.cfbe-name-store{color:#48aff0;}' +
     '.cfbe-detail{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:.35rem;}' +
-    '.cfbe-detail-head{color:#a7b6c2;font-size:.85rem;}' +
+    '.cfbe-detail-head{color:#a7b6c2;font-size:.85rem;display:flex;align-items:center;' +
+    'gap:.35rem;flex-wrap:wrap;}' +
+    // The selected field's name *is* the rename box - the heading was already showing
+    // it, so an editable one is the same words with a caret in them. Monospace, like
+    // every other place a field name is shown here.
+    '.cfbe-namebox{flex:1 1 12rem;min-width:8rem;background:#1f2b33;color:#f5f8fa;' +
+    'border:1px solid #394b59;border-radius:3px;padding:.15rem .4rem;' +
+    'font-family:monospace;font-size:.8rem;}' +
+    '.cfbe-rename{padding:.05rem .4rem;line-height:1.2;flex:0 0 auto;}' +
     '.cfbe-text{width:100%;box-sizing:border-box;min-height:5rem;background:#1f2b33;' +
     'color:#f5f8fa;border:1px solid #394b59;border-radius:3px;padding:.35rem .5rem;' +
     'font-family:inherit;font-size:.85rem;resize:vertical;}' +
@@ -2956,7 +2964,31 @@
     this.namesEl = el('div', 'cfbe-names');
     panes.appendChild(this.namesEl);
     var detail = el('div', 'cfbe-detail');
-    this.detailEl = el('div', 'cfbe-detail-head', DESC_HEAD + ' - pick a custom field on the left.');
+    this.detailEl = el('div', 'cfbe-detail-head');
+    this.detailLabel = el('span', null, DESC_HEAD + ' - pick a custom field on the left.');
+    this.detailEl.appendChild(this.detailLabel);
+    // The name the heading was already showing, as a box. Editing it and pressing
+    // Rename stages a rename of the field itself - the same staged, undoable
+    // `this.migration` the hide-field Migrate button fills in, so Apply is still the
+    // only thing that writes.
+    this.nameBox = el('input', 'cfbe-namebox cfbe-hidden');
+    this.nameBox.type = 'text';
+    this.nameBox.title = 'The custom field\'s own name. Change it and press Rename to ' +
+      'stage a rename of the field across the library; Apply writes it.';
+    this.renameBtn = button('Rename', 'cfbe-rename cfbe-hidden');
+    this.renameBtn.className = this.renameBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
+    this.renameBtn.title = 'Stage a rename of this custom field on every entity carrying ' +
+      'it, with its description. Apply writes it, and Undo puts the old name back.';
+    this.nameBox.addEventListener('input', function () { self.syncRename(); });
+    // Enter is what a one-box form means, and the button is small.
+    this.nameBox.addEventListener('keydown', function (ev) {
+      if (!ev || (ev.key !== 'Enter' && ev.keyCode !== 13)) return;
+      if (ev.preventDefault) ev.preventDefault();
+      if (!self.renameBtn.disabled && !hasClass(self.renameBtn, 'cfbe-hidden')) self.renameField();
+    });
+    this.renameBtn.addEventListener('click', function () { self.renameField(); });
+    this.detailEl.appendChild(this.nameBox);
+    this.detailEl.appendChild(this.renameBtn);
     detail.appendChild(this.detailEl);
     this.textEl = el('textarea', 'cfbe-text');
     this.textEl.disabled = true;
@@ -3253,7 +3285,13 @@
     // A field only the store tag carries has one carrier this scan never read, so the
     // pane names it and draws it as a row of its own rather than reading as an orphan.
     var store = !users.length && hasOwn(_storeTagFields, name) && this.tag;
-    this.detailEl.textContent = DESC_HEAD + ' of custom field "' + name + '"';
+    this.detailLabel.textContent = DESC_HEAD + ' of custom field';
+    this.nameBox.value = name;
+    this.show(this.nameBox, true);
+    this.syncRename();
+    // A staged rename has moved the name in this dialog's own maps and has not touched
+    // the library, so the values are still filed under the name the field still has.
+    var valueKey = this.stagedFrom(name) || name;
     this.usersHead.textContent = USERS_HEAD + ' - ' + (users.length
       ? plural(users.length, 'entity', 'entities') + ' carry "' + name + '"'
       : store
@@ -3268,7 +3306,7 @@
       row.appendChild(textNode(ENTITIES.tags.label + ' '));
       row.appendChild(entityPill(ENTITIES.tags, this.tag.id, this.tag.name));
       row.appendChild(textNode(': '));
-      row.appendChild(copyPill(valueText(_storeTagFields[name])));
+      row.appendChild(copyPill(valueText(_storeTagFields[valueKey])));
       this.usersEl.appendChild(row);
     }
     users.slice(0, LIST_RENDER_CAP).forEach(function (e) {
@@ -3276,7 +3314,7 @@
       row.appendChild(textNode(e.spec.label + ' '));
       row.appendChild(entityPill(e.spec, e.id, e.display));
       row.appendChild(textNode(': '));
-      row.appendChild(copyPill(valueText(e.fields[name])));
+      row.appendChild(copyPill(valueText(e.fields[valueKey])));
       self.usersEl.appendChild(row);
     });
     if (users.length > LIST_RENDER_CAP) {
@@ -3284,6 +3322,108 @@
         '... and ' + plural(users.length - LIST_RENDER_CAP, 'more') + ' not shown.'));
     }
     this.renderNames();
+  };
+
+  // ── Renaming the field itself ─────────────────────────────────────────────
+  //
+  // The heading already showed the selected field's name, so the rename control is that
+  // name with a caret in it and a button that appears once it has been changed. The
+  // alternative considered was a **Rename Custom Field...** button opening a sub-dialog:
+  // one more modal, one more footer, one more Escape target, to hold a single text box
+  // that was already on the page.
+  //
+  // **It stages; Apply writes.** `this.migration` is the slot the hide-field Migrate
+  // button already fills - `{from, to, entities, armed}`, written by `runMigration`
+  // inside `apply` and reversed by `undo` - so a user-driven rename needed no write path,
+  // no undo and no second grouping of its own. That is also what keeps §22's rule intact:
+  // nothing in this dialog writes before Apply, including this.
+  //
+  // **And it refreshes the list without a rescan**, because nothing has been written yet:
+  // the name moves in `fields`, `desc` and `names`, and the entities keep their values
+  // under the old key until the write lands. A rescan here would re-read a library that
+  // has not changed and would have to drop the staged rename to stay honest, which is why
+  // Rescan is held back while one is staged rather than being the refresh.
+
+  // The name a staged rename moved this one *from*, or null. What the users pane reads
+  // its values by, and what a rename-back is compared against.
+  DescRun.prototype.stagedFrom = function (name) {
+    var m = this.migration;
+    return m && m.armed && !m.done && m.to === name ? m.from : null;
+  };
+
+  DescRun.prototype.syncRename = function () {
+    var to = String(this.nameBox.value || '').replace(/^\s+|\s+$/g, '');
+    var show = this.sel != null && to !== '' && to !== this.sel;
+    this.show(this.renameBtn, show);
+    this.renameBtn.disabled = !this.editable();
+  };
+
+  DescRun.prototype.renameField = function () {
+    var from = this.sel;
+    var to = String(this.nameBox.value || '').replace(/^\s+|\s+$/g, '');
+    if (from == null || !to || to === from || !this.editable()) return;
+
+    // A name something else already has: the write would land two fields on one key and
+    // silently keep one value. Refused rather than merged - the same call `plan()`'s
+    // rename makes in the other dialog, for the same reason.
+    if (hasOwn(this.fields, to) || hasOwn(this.desc, to) || hasOwn(_storeTagFields, to)) {
+      this.msg('ERROR', 'Cannot rename "' + from + '" to "' + to + '": a custom field of ' +
+        'that name already exists. Renaming onto it would overwrite its values, which is ' +
+        'a merge rather than a rename.');
+      return;
+    }
+    // The hide field's name is a *setting*, and this dialog already implements the other
+    // direction: change the setting, and Migrate moves the entities. Renaming it from
+    // here would leave the setting pointing at a name nothing carries, and everything
+    // hidden would come back into the add lists with nothing saying so.
+    if (from === this.settings.c1ExcludeFromAddListField) {
+      this.msg('ERROR', 'Cannot rename "' + from + '" from here: it is the field named by ' +
+        'the "Hide from Add Lists" setting. Change that setting instead - this dialog then ' +
+        'offers Migrate to move the entities, and the setting and the field stay in step.');
+      return;
+    }
+    // One rename at a time. The slot holds the entities to write and the name to write
+    // them back to; taking it over would drop whichever rename was in it, including the
+    // hide-field migration this dialog offered on its own.
+    var m = this.migration;
+    if (m && !m.done && m.to !== from) {
+      this.msg('ERROR', 'A rename of "' + m.from + '" to "' + m.to + '" is already ' +
+        (m.armed ? 'staged' : 'offered') + '. Press Apply first, or close this dialog, ' +
+        'before renaming another field.');
+      return;
+    }
+
+    var orig = this.stagedFrom(from) || from;
+    if (orig === to) {
+      // Renamed back to what it is called in the library: there is nothing left to write.
+      this.migration = null;
+      this.msg('INFO', 'The staged rename of "' + orig + '" is cancelled - the name is ' +
+        'back to what the library has.');
+    } else {
+      this.migration = { from: orig, to: to, entities: this.fields[from] || [], armed: true };
+      this.msg('INFO', 'Staged: rename custom field "' + orig + '" to "' + to + '" on ' +
+        plural((this.fields[from] || []).length, 'entity', 'entities') +
+        ', with its description. Apply writes it, and Undo puts the old name back.');
+    }
+
+    // The list, without a rescan: nothing has been written, so moving the name in this
+    // dialog's own maps *is* the refresh. `base` is deliberately untouched - the diff
+    // then reads as the old description going and the new one arriving, which is exactly
+    // what the store has to end up holding.
+    var move = function (bag) {
+      if (bag && hasOwn(bag, from)) { bag[to] = bag[from]; delete bag[from]; }
+    };
+    move(this.fields);
+    move(this.desc);
+    var swap = function (list) {
+      return (list || []).map(function (n) { return n === from ? to : n; });
+    };
+    this.names = swap(this.names);
+    this.orphans = swap(this.orphans);
+    this.storeOnly = swap(this.storeOnly);
+    this.sel = to;
+    this.pick(to);
+    this.syncApply();
   };
 
   // Grow the box to whatever description was just loaded, so a long one is read without
@@ -3314,7 +3454,15 @@
     var kept = function (n) { return gone.indexOf(n) === -1; };
     this.names = this.names.filter(kept);
     this.orphans = this.orphans.filter(kept);
-    if (gone.indexOf(this.sel) !== -1) { this.sel = null; this.textEl.value = ''; }
+    if (gone.indexOf(this.sel) !== -1) {
+      this.sel = null;
+      this.textEl.value = '';
+      // The head is an editable name; leaving it naming a field that has just gone would
+      // offer a rename of nothing.
+      this.detailLabel.textContent = DESC_HEAD + ' - pick a custom field on the left.';
+      this.show(this.nameBox, false);
+      this.show(this.renameBtn, false);
+    }
     this.msg('INFO', 'Pruned ' + plural(gone.length, 'orphan description') +
       ': ' + gone.join(', ') + '. Apply writes it.');
     this.renderNames();
@@ -3401,6 +3549,18 @@
 
   DescRun.prototype.syncApply = function () {
     this.pruneBtn.disabled = !this.editable() || !this.prunable().length;
+    this.nameBox.disabled = !this.editable() || this.sel == null;
+    this.syncRename();
+    // A rescan re-reads the library and rebuilds `fields` from it, which would leave a
+    // staged rename holding entity objects from the previous read and a name the new
+    // read has never heard of. Apply is the way forward from here, and Cancel is the way
+    // out; the button says so rather than quietly dropping the rename.
+    var staged = !!(this.migration && this.migration.armed && !this.migration.done);
+    this.rescanBtn.disabled = staged || this.state === 'applying' || this.state === 'undoing';
+    this.rescanBtn.title = staged
+      ? 'Not while a custom field rename is staged - press Apply first, or close this ' +
+        'dialog to discard it.'
+      : 'Read the library and the store again. Unsaved edits in this dialog are kept.';
     this.applyBtn.disabled = !this.editable() || this.stale || !this.pending();
     this.applyBtn.title = this.blocked
       ? 'Editing is off: ' + this.blocked + '.'
@@ -3556,7 +3716,10 @@
       }
       groups[key].ids.push(e.id);
     });
-    if (!batches.length) return Promise.resolve();
+    // Nothing to write is still a rename that has happened: an orphan description
+    // renamed here has no carriers, and marking it done is what lets Rescan come back
+    // and stops Apply offering the same staged rename again.
+    if (!batches.length) { m.done = !reversed; return Promise.resolve(); }
 
     return this.runWrites(batches, 'Custom field rename "' + from + '" to "' + to + '"')
       .then(function (ok) {

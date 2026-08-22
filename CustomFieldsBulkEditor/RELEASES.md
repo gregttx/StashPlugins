@@ -8,7 +8,8 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 2.6.0 (`e3597ce`) | 2026-08-22 | CustomFieldsBulkEditor 2.6.0 / NormalizeParentTags 4.7.0: three more boxes remember, and the descriptions pane reads Name then Description |
+| 2.7.0 (`16a1bcf`) | 2026-08-22 | CustomFieldsBulkEditor 2.7.0 / PropagateTagsAndPerformers 3.13.0: the descriptions reach the entity page, and the exclusion field has a default that documents itself |
+| [2.6.0](https://github.com/gregttx/StashPlugins/commit/e3597ce) | 2026-08-22 | CustomFieldsBulkEditor 2.6.0 / NormalizeParentTags 4.7.0: three more boxes remember, and the descriptions pane reads Name then Description |
 | [2.5.1](https://github.com/gregttx/StashPlugins/commit/f39a7a2) | 2026-08-21 | EntityNameMaintainer 0.0.9 / CustomFieldsBulkEditor 2.5.1: five seconds to answer Close, and the red marks one mode |
 | [2.5.0](https://github.com/gregttx/StashPlugins/commit/ee5372e) | 2026-08-21 | CustomFieldsBulkEditor 2.5.0: the filter boxes remember, and a lost Rename is marked rather than switched |
 | [2.4.0](https://github.com/gregttx/StashPlugins/commit/c612d93) | 2026-08-21 | CustomFieldsBulkEditor 2.4.0: the field's name in the descriptions dialog is a box, and changing it renames the field |

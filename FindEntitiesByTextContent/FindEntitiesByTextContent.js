@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '1.1.1';
+  var PLUGIN_VERSION = '1.2.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1084,6 +1084,24 @@
     // says so.
     var toggles = this.toggles();
     var busy = this.state === 'running';
+    // The **type** toggles are what `start()` copied the queue from, so switching one
+    // while the search is going changes nothing about it - results go on arriving for a
+    // type the strip now shows as off, and the breakdown goes on naming it. A control
+    // that looks like it steers the run and does not is worse than one that is plainly
+    // unavailable, so it is disabled with the reason on it and live again the moment the
+    // search pauses or ends. **The attribute toggles are the opposite case and stay
+    // live**: they filter what is shown out of what has been found, which goes on being
+    // true as more arrives - the distinction is whether the control decides what the run
+    // *does* or what the screen *shows*.
+    var self = this;
+    toggles.forEach(function (b) {
+      if (b._bag !== self.typeOn) return;
+      b.disabled = busy;
+      b.title = busy
+        ? 'Not while a search is running - it covers the types it started with. Pause it, ' +
+          'or let it finish, and this comes back.'
+        : '';
+    });
     this.allOnBtn.disabled = busy || !toggles.length ||
       toggles.every(function (b) { return b._bag[b._key]; });
     this.allOffBtn.disabled = busy || !toggles.length ||

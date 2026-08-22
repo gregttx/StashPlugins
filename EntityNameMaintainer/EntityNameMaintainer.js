@@ -46,7 +46,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about which mutation its edit form actually posts.
-  var PLUGIN_VERSION = '1.2.1';
+  var PLUGIN_VERSION = '1.3.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -1460,6 +1460,16 @@
       }
     });
     var busy = this.state !== 'listing';
+    // The toggles go with the two bulk buttons. A filter decides what Proceed covers, and
+    // `plan()` is taken before the write starts - so a toggle pressed mid-write changes
+    // the listing and the counters under a write that is not doing any such thing. A
+    // control that looks like it steers the run and does not is worse than one that is
+    // plainly unavailable.
+    toggles.forEach(function (b) {
+      b.disabled = busy;
+      b.title = busy ? 'Not while this dialog is working - what Proceed covers was ' +
+        'decided when it started. This comes back when it finishes.' : '';
+    });
     var allOn = toggles.every(function (b) { return b._bag[b._key]; });
     var allOff = toggles.every(function (b) { return !b._bag[b._key]; });
     this.allOnBtn.disabled = busy || !toggles.length || allOn;
@@ -1532,7 +1542,10 @@
     box.checked = h.checked !== false;
     box.disabled = this.state !== 'listing' || !!h.done;
     function set(on) {
-      if (box.disabled) return;
+      // `box.disabled` was decided when this row was drawn, and a write that starts
+      // afterwards does not redraw - so the state is asked again here. Without it a tick
+      // changes mid-write, and the write it appears to change was planned before it.
+      if (box.disabled || self.state !== 'listing') { box.checked = h.checked !== false; return; }
       box.checked = on;
       h.checked = on;
       self.progress(self.progressText());

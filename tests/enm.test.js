@@ -158,6 +158,10 @@ function makeEnv(opts) {
       }
       const write = /mutation ENM_(Write|Undo|Cancel)\(.*\{ (\w+)\(/.exec(q);
       if (write) {
+        // `hangWrite` holds the write open, which is the only place a check can read the
+        // dialog while it is writing - the state where a live tick or filter would be
+        // steering a plan that was taken before it.
+        if (opts.hangWrite) return h.HANG;
         writes.push({ undo: write[1] === 'Undo', cancel: write[1] === 'Cancel',
           mutation: write[2], input: req.variables.input });
         // A cancel is a real rename on the server, so the fixture applies it: a check
@@ -588,6 +592,42 @@ const filterBtns = (env) => env.body.descendants()
       dlg(env).open && /^Are you sure\?/.test(
         (env.body.descendants().filter((n) => h.hasClass(n, 'enm-close'))[0] || {}).textContent),
       (env.body.descendants().filter((n) => h.hasClass(n, 'enm-close'))[0] || {}).textContent);
+  });
+}());
+
+// ── Nothing that decides the plan is live while the plan is being written ───
+//
+// `plan()` is taken at the top of `apply()`, so a tick or a filter pressed afterwards
+// cannot reach the write - which is exactly why they must not look as though they can.
+// The same rule the sibling's Path Settings button and the search plugin's type toggles
+// now follow.
+(function controlsLockedWhileWriting() {
+  const lib = library();
+  lib.performers[0].name = OLD;
+  const env = makeEnv({ library: lib, hangWrite: true });
+  const boxes = () => env.body.descendants()
+    .filter((n) => n.tagName === 'INPUT' && n.type === 'checkbox');
+  const filters = () => env.body.descendants().filter((n) => h.hasClass(n, 'enm-filterbtn'));
+  rename(env, 'performerUpdate', { id: '7', name: NEW }).then(() => {
+    h.check('the ticks are live while the listing is', boxes().every((b) => !b.disabled));
+    h.check('and so are the filters',
+      filters().length > 0 && filters().some((b) => !b.disabled));
+    const before = boxes()[0].checked;
+    dlg(env).button('Proceed').click();
+    return h.flush(60).then(() => {
+      h.check('the write is still in flight', !dlg(env).button('Undo'));
+      const f = filters().filter((b) => b._bag);
+      h.check('every filter is locked while it is', f.length > 0 && f.every((b) => b.disabled),
+        f.map((b) => b.textContent + ':' + b.disabled).join(' '));
+      h.check('and says why', f.length > 0 && /not while/i.test(f[0].title || ''), f[0].title);
+      // The box is not redrawn by a write, so the guard is in the handler rather than on
+      // the element - press it the way a user does and check nothing moved.
+      const box = boxes()[0];
+      box.checked = !before;
+      h.fire(box, 'change');
+      h.check('and a tick pressed mid-write does not move', box.checked === before,
+        String(box.checked));
+    });
   });
 }());
 

@@ -4,6 +4,21 @@ Why the parts that look arbitrary are the way they are. This file does not ship
 (`files:` carries the `js`, the `yml` and the `README.md`), so this is where a release is
 argued.
 
+**The ticks and the filters were live while the write ran (1.3.0).** `plan()` is taken at the top of
+`apply()`, so neither could reach the write - which is exactly why neither should have looked as
+though it could: unticking a line mid-write changed the listing and the counters under a write that
+was doing no such thing.
+
+**Two different guards, because the two controls fail differently.** The filter buttons are
+disabled from `syncFilterButtons`, which `setState` already calls. A row's checkbox has its
+`disabled` decided *when the row is drawn*, and a write that starts afterwards redraws nothing - so
+the state is asked again inside `set()`, which every route into a tick already goes through, and
+the box is put back rather than left showing a tick that did not take. **A flag set at render time
+is not a guard against something that happens after the render.**
+
+Found by auditing every dialog here after the same fault was reported against
+`PropagateTagsAndPerformers`' Path Settings button.
+
 **The Reload UI button (1.2.0, fixed at 1.2.1).** The stale banner said to reload and nothing on the page did
 it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
 Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -

@@ -141,6 +141,11 @@ function makeEnv(opts) {
   return env;
 }
 
+// The type row's captions, so a check can tell a type toggle from an attribute one -
+// the two rows are the same class and the same shape.
+const ENTITY_LABELS = { Scenes: 1, Images: 1, Galleries: 1, Performers: 1, Studios: 1,
+  Groups: 1, Tags: 1 };
+
 const dlg = (env) => h.dialog(env.body, 'fetc');
 // The head's amber line, which in this dialog carries the run's own warnings rather than
 // the backup sentence a writing dialog puts there.
@@ -497,6 +502,48 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
     h.check('Copy log hands over every result, not only the ones on screen',
       (env.copied.match(/^Scene beach /gm) || []).length === 900,
       String((env.copied.match(/^Scene beach /gm) || []).length));
+  });
+}());
+
+// ── The type toggles are what the running search was built from ─────────────
+//
+// `start()` copies the enabled types into `queue`, so a type switched off mid-search is
+// a control that appears to change what the run is doing and does not: results go on
+// arriving for it, and the progress breakdown goes on naming it. The attribute toggles
+// are the opposite case and stay live - they filter what is *shown* out of what has been
+// found, which keeps working as more arrives.
+(function typeTogglesLockedWhileRunning() {
+  const lib = library();
+  lib.scenes = [];
+  for (let i = 1; i <= 1200; i++) {
+    lib.scenes.push({ id: String(i), title: (i % 500 === 3 ? 'beach ' : 'scene ') + i,
+      code: null, details: '', urls: [], custom_fields: {} });
+  }
+  let paused = false;
+  const env = makeEnv({ library: lib, onPage(find, page) {
+    if (find !== 'findScenes' || page !== 2 || paused) return;
+    paused = true;
+    // Read while the search is genuinely between two pages, which is the only place a
+    // check can stand and still be inside `running`.
+    const scenes = typeBtn(env, 'Scenes');
+    h.check('a type toggle is locked while the search runs', scenes.disabled === true,
+      String(scenes.disabled));
+    h.check('and says why', /running|finish|pause/i.test(scenes.title || ''), scenes.title);
+    run(env).go();                                    // pause, so the case can go on
+  } });
+  open(env, 'beach', ['Scenes']).then(() => {
+    h.check('and live before it starts', typeBtn(env, 'Scenes').disabled === false);
+    dlg(env).button('Search').click();
+    return h.flush(80);
+  }).then(() => {
+    h.check('the search paused where the check was made', !!dlg(env).button('Resume'));
+    h.check('a type toggle is live again while paused',
+      typeBtn(env, 'Scenes').disabled === false, String(typeBtn(env, 'Scenes').disabled));
+    const attrs = env.body.descendants()
+      .filter((n) => h.hasClass(n, 'fetc-filterbtn') && n._key && !ENTITY_LABELS[n.textContent]);
+    h.check('the attribute toggles were never locked',
+      attrs.length > 0 && attrs.every((b) => b.disabled === false),
+      attrs.map((b) => b.textContent + ':' + b.disabled).join(' '));
   });
 }());
 

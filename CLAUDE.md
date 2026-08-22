@@ -864,6 +864,56 @@ about the entity the user cannot recognise. So:
 default holding rather than a rule, and it only holds while nothing in a plugin's CSS makes
 `.<prefix>-title` a flex child or sets `white-space` on it. It is now a default worth not breaking.
 
+## A control that steers a run is unavailable while the run is running
+
+Reported against `PropagateTagsAndPerformers`' `Path Settings...` button, which was hidden during
+the write and left live through the **scan** - the longer phase, and the one a user sits through.
+Saving paths behind a running scan changes the setting the pass is reading as it walks, so the plan
+that lands is built half from each. Auditing every dialog here for the same shape found it in three
+more places, in two different failure modes:
+
+- **It really does corrupt the run.** PTP2RE's Path Settings, and `NormalizeParentTags`' seven
+  inline selectors, are read *by the pass in flight*. Both were locked with
+  `!applying && !undoing` and are now locked whenever anything is in flight.
+- **It cannot reach the run, which is worse than it sounds.** `FindEntitiesByTextContent` copies
+  the enabled types into its queue at `start()`, and `EntityNameMaintainer` takes its `plan()` at
+  the top of `apply()`. Pressing those controls mid-run changed the strip, the listing and the
+  counters while the work carried on doing what it had already decided. **A control that looks like
+  it steers the run and does not is worse than one that is plainly unavailable** - the first is a
+  lie the user acts on, the second is a fact they can see.
+
+**The rule: a control that changes what a run is doing is unavailable while the run is doing it,
+and a scan counts.** Not only a write - a read that is planning from the control is using it just
+as much.
+
+**The line it is not: what the screen shows.** `FindEntitiesByTextContent`'s *attribute* toggles
+stay live during a search, because they filter what is displayed out of what has been found, and
+that goes on being true as more arrives. `CustomFieldsBulkEditor`'s three filter boxes are the same
+case and are also untouched. Ask which of the two a control decides - what the run *does*, or what
+the screen *shows* - and lock only the first.
+
+**Disabled with a reason, not hidden.** PTP2RE's button was hidden mid-write and is now disabled in
+all three busy states: it is in that footer precisely because the dialog is where a user finds out
+a path they wanted is off, so vanishing without explanation is the one thing it must not do. Every
+one of these carries a title saying to let the pass finish or stop it.
+
+**A flag set at render time is not a guard against something that happens after the render.**
+`EntityNameMaintainer`'s row checkboxes take `disabled` when the row is drawn, and a write that
+starts afterwards redraws nothing - so the check moved into `set()`, which every route into a tick
+already goes through, and the box is put back rather than left showing a tick that did not take.
+
+**What a fake DOM cannot tell you here.** `tests/npt-harness.js` runs a click handler whatever
+`disabled` says, so a check that pressed a disabled button would be interrogating the harness and
+would pass against a plugin that never set the flag. Assert the flag, and where the guard is in the
+handler (the checkbox above), press it and assert nothing moved.
+
+**Reading a dialog mid-phase needs the response held open.** Every one of these checks stands
+inside a phase the suites otherwise skip straight past, so each suite grew a way to hang one
+request - `hang` in `propagate-apply`, `hangScan` in `normalize-modes`, `hangWrite` in `enm`,
+`hangSave` in the two settings-dialog suites - all of them the `h.HANG` the bulk suites already
+had. `fetc` needed none: its `onPage` hook already fires between two pages, which is inside the
+running state by construction.
+
 ## Placing a manual button near Stash's own actions: important vs. casual
 
 A rule for *any* plugin injecting a button into a row Stash already put buttons in — distinct from

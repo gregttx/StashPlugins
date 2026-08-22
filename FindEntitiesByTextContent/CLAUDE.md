@@ -4,6 +4,17 @@ Why the parts that look arbitrary are the way they are. This file does not ship
 (`files:` carries the `js`, the `yml` and the `README.md`), so this is where a release is
 argued.
 
+**The type toggles were live while a search ran (1.2.0).** `start()` copies the enabled types into
+`queue`, so switching one off mid-search changed nothing about the search: results went on arriving
+for a type the strip now showed as off, and the progress breakdown went on naming it. Not a
+corruption - a **lying control**, which is the same fault as the sibling's Path Settings button
+being live during a scan and is where this was found from.
+
+**Locked while running, live again the moment it pauses or ends**, with the reason on the button.
+**The attribute toggles are deliberately untouched**, and the line between them is the rule: a type
+decides what the run *does*, an attribute decides what the screen *shows* out of what has been
+found - and that stays true while more arrives.
+
 **The Reload UI button (1.1.0, fixed at 1.1.1).** The stale banner said to reload and nothing on the page did
 it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
 Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -

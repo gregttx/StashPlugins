@@ -40,7 +40,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's markup or about a filter field name.
-  var PLUGIN_VERSION = '0.6.0';
+  var PLUGIN_VERSION = '0.6.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -2085,17 +2085,25 @@
     return false;
   }
 
-  // Stash's own row at the top of the plugins section - the filter box and the Reload
-  // plugins button in one flex row. Found through the section our own group is in,
-  // never by the button's caption, which is translated; the scope is also what keeps
-  // the package-manager sections above it from matching.
+  // Stash's own Reload plugins button, found by *where* it is rather than by its
+  // caption, which is translated - the last button in our section that is not inside a
+  // plugin's own group. Two shapes have to match: a released Stash puts it in a
+  // `.setting` row of its own, and `develop` puts it in a flex row beside a filter box
+  // whose clear button is a second button in that row. "Outside any `.setting-group`"
+  // is what both have in common, and taking the last one is what keeps the filter box's
+  // clear button from winning. Scoping to our own section is what keeps the
+  // package-manager sections above it from matching at all.
   function reloadUiAnchor(group) {
     var sec = group;
     while (sec && !hasClass(sec, 'setting-section')) sec = sec.parentNode;
-    var row = sec && sec.querySelector ? sec.querySelector('.justify-content-between') : null;
-    var kids = (row && row.childNodes) || [], i, b = null;
-    for (i = 0; i < kids.length; i++) {
-      if (kids[i] && kids[i].tagName === 'BUTTON' && kids[i].id !== RELOAD_UI_ID) b = kids[i];
+    if (!sec || !sec.querySelectorAll) return null;
+    var all = sec.querySelectorAll('button'), i, p, b = null;
+    for (i = 0; i < all.length; i++) {
+      if (all[i].id === RELOAD_UI_ID) continue;
+      for (p = all[i].parentNode; p && p !== sec; p = p.parentNode) {
+        if (hasClass(p, 'setting-group')) break;
+      }
+      if (p === sec) b = all[i];
     }
     return b;
   }

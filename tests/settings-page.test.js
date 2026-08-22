@@ -94,25 +94,45 @@ function elem(doc, tag, cls, text) {
 // `Inputs.tsx`. A BOOLEAN puts it on the Form.Switch *input* inside the row; a STRING or
 // NUMBER puts it on the `.setting` row div itself, and renders no input at all.
 // The section around it is Stash's too, and it is the anchor for the shared Reload UI
-// button: `SettingSection` renders `div.setting-section > h1 + Card`, and
-// `SettingsPluginsPanel` puts the filter box and the **Reload plugins** button in one
-// `content d-flex justify-content-between` row at the top of that card, above the groups.
-// Read off `stashapp/stash` `develop`, 2026-08-22.
-function pluginsSection(doc, body) {
+// button. `SettingSection` renders `div.setting-section > h1 + Card` in both shapes
+// below; what differs is how the panel puts **Reload plugins** into that card, and
+// **there are two live answers**, which is the whole reason this is a parameter:
+//
+//   - `released` — every Stash up to and including v0.31.1: a `<Setting>` row of its
+//     own, so `div.setting > h3 + button`.
+//   - `develop` — since "Settings: collapsible, filterable, sorted plugin list" (merged
+//     2026-06-25, in no release yet): a `content d-flex justify-content-between` row
+//     holding a filter box and the button, where the filter box contributes a clear
+//     button of its own once it has text.
+//
+// Read off `stashapp/stash` at `v0.31.1` and at `develop`, 2026-08-22 - after the first
+// cut of this fixture was built from `develop` alone and the button therefore appeared
+// on no released Stash at all.
+function pluginsSection(doc, body, shape) {
   const sec = elem(doc, 'div', 'setting-section');
   sec.appendChild(elem(doc, 'h1', null, 'Plugins'));
   const card = elem(doc, 'div', 'card');
-  const row = elem(doc, 'div', 'content d-flex justify-content-between');
-  row.appendChild(elem(doc, 'input', 'clearable-text-field'));
-  row.appendChild(elem(doc, 'button', 'btn btn-primary', 'Reload plugins'));
-  card.appendChild(row);
+  if (shape === 'develop') {
+    const row = elem(doc, 'div', 'content d-flex justify-content-between');
+    const box = elem(doc, 'div', 'clearable-input-group');
+    box.appendChild(elem(doc, 'input', 'clearable-text-field'));
+    box.appendChild(elem(doc, 'button', 'btn btn-secondary clearable-text-field-clear', '×'));
+    row.appendChild(box);
+    row.appendChild(elem(doc, 'button', 'btn btn-primary', 'Reload plugins'));
+    card.appendChild(row);
+  } else {
+    const row = elem(doc, 'div', 'setting');
+    row.appendChild(elem(doc, 'h3', null, 'Reload plugins'));
+    row.appendChild(elem(doc, 'button', 'btn btn-primary', 'Reload plugins'));
+    card.appendChild(row);
+  }
   sec.appendChild(card);
   body.appendChild(sec);
   return card;
 }
 
-function pluginsPage(doc, body, yml, id, version) {
-  const card = pluginsSection(doc, body);
+function pluginsPage(doc, body, yml, id, version, shape) {
+  const card = pluginsSection(doc, body, shape);
   const group = elem(doc, 'div', 'setting-group');
   const header = elem(doc, 'div', 'setting');
   const left = elem(doc, 'div');
@@ -250,15 +270,20 @@ PLUGINS.forEach((p) => {
   }
 
   // ── Settings → Plugins, with the script older than the manifest ───────────
-  {
-    const { env, group } = load(p, (doc, body) => pluginsPage(doc, body, yml, id, '99.0.0'));
+  //
+  // Both panel shapes, because the Reload UI button anchors on Stash's own markup here
+  // and the two are genuinely different: the first cut of this matched a row that only
+  // `develop` has, so the button appeared on no released Stash and every check passed.
+  ['released', 'develop'].forEach((shape) => {
+    const at = p.dir + ' (' + shape + ')';
+    const { env, group } = load(p, (doc, body) => pluginsPage(doc, body, yml, id, '99.0.0', shape));
     const stale = one(group, p.prefix + '-stale');
-    h.check(p.dir + ' warns when the page is running an older script than the manifest',
+    h.check(at + ' warns when the page is running an older script than the manifest',
       !!stale && /99\.0\.0/.test(stale.textContent) &&
         stale.textContent.indexOf(scriptVersion) !== -1,
       String(stale && stale.textContent).slice(0, 90));
     const sub = one(group, 'sub-heading');
-    h.check(p.dir + ' puts the banner above the description, where it is read first',
+    h.check(at + ' puts the banner above the description, where it is read first',
       !!stale && stale.nextSibling === sub, String(stale && !!stale.nextSibling));
 
     // The banner says reload; the button is what does it. One per page however many
@@ -268,21 +293,21 @@ PLUGINS.forEach((p) => {
     const reload = env.ctx.document.getElementById('gttx-reload-ui');
     const stashBtn = env.body.descendants()
       .filter((n) => n.tagName === 'BUTTON' && n.textContent === 'Reload plugins')[0];
-    h.check(p.dir + ' draws a Reload UI button when its script is stale',
+    h.check(at + ' draws a Reload UI button when its script is stale',
       !!reload && reload.textContent === 'Reload UI', String(reload && reload.textContent));
-    h.check(p.dir + ' puts it left of Stash\'s own Reload plugins button',
+    h.check(at + ' puts it left of Stash\'s own Reload plugins button',
       !!reload && !!stashBtn && reload.nextSibling === stashBtn &&
         reload.parentNode === stashBtn.parentNode,
       String(reload && reload.nextSibling && reload.nextSibling.textContent));
-    h.check(p.dir + ' paints it red, so it is not read as one of Stash\'s',
+    h.check(at + ' paints it red, so it is not read as one of Stash\'s',
       !!reload && h.hasClass(reload, 'btn-danger'), String(reload && reload.className));
-    h.check(p.dir + ' says in its title what pressing it fixes and what to do if it does not',
+    h.check(at + ' says in its title what pressing it fixes and what to do if it does not',
       !!reload && /mismatching version/.test(reload.title) &&
         /Ctrl\+Shift\+R/.test(reload.title), String(reload && reload.title));
     env.tick();
-    h.check(p.dir + ' does not draw a second one on the next tick',
+    h.check(at + ' does not draw a second one on the next tick',
       env.body.descendants().filter((n) => n.id === 'gttx-reload-ui').length === 1);
-  }
+  });
 
   // ── Settings → Tasks ──────────────────────────────────────────────────────
   if (yml.tasks.length) {

@@ -5,12 +5,20 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 `../CLAUDE.md` and still apply. The user-facing description is `README.md`; this file is for the
 reasoning that does not belong in either.
 
-**The Reload UI button (2.11.0).** The stale banner said to reload and nothing on the page did
+**The Reload UI button (2.11.0, fixed at 2.11.1).** The stale banner said to reload and nothing on the page did
 it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
 Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -
 why Stash's own reload cannot replace a running script, why the anchor is the section rather than
 the button's translated caption, and why the colour is red - is in the repo-root `CLAUDE.md` under
 "one Reload UI button"; the three functions are byte-identical in all eight plugins and pinned.
+
+**And its anchor was wrong on every released Stash** - the fix, one release later. The Reload
+plugins button is in a `content d-flex justify-content-between` row on `develop`, and in a
+`.setting` row of its own on everything up to and including v0.31.1; the first cut matched only the
+first, so the button appeared for nobody. It is now the last `<button>` in our section that is not
+inside a `.setting-group`, which is true of both. The repo-root note has the reasoning; the lesson
+is the one this repo keeps relearning - **markup read off `develop` is not markup the user is
+running**, and `tests/settings-page.test.js` now drives both shapes for exactly that reason.
 
 **0.9.0's two filter modes, all of 0.10.0, all of 0.11.0, all of 0.12.0, all of 1.0.0, all of
 1.1.0, the stale-script banner of 1.2.0/1.3.0 and 2.1.0's cursor are unverified** — §5b's truth modes, §5c's fixed height, §5d's divider and box sizing, §5e's three text

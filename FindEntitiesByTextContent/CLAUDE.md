@@ -4,12 +4,20 @@ Why the parts that look arbitrary are the way they are. This file does not ship
 (`files:` carries the `js`, the `yml` and the `README.md`), so this is where a release is
 argued.
 
-**The Reload UI button (1.1.0).** The stale banner said to reload and nothing on the page did
+**The Reload UI button (1.1.0, fixed at 1.1.1).** The stale banner said to reload and nothing on the page did
 it, so `ensureStaleNotice` now also calls `ensureReloadUiButton`, which draws one red button beside
 Stash's own **Reload plugins** while any plugin here reports a mismatch. The whole mechanism -
 why Stash's own reload cannot replace a running script, why the anchor is the section rather than
 the button's translated caption, and why the colour is red - is in the repo-root `CLAUDE.md` under
 "one Reload UI button"; the three functions are byte-identical in all eight plugins and pinned.
+
+**And its anchor was wrong on every released Stash** - the fix, one release later. The Reload
+plugins button is in a `content d-flex justify-content-between` row on `develop`, and in a
+`.setting` row of its own on everything up to and including v0.31.1; the first cut matched only the
+first, so the button appeared for nobody. It is now the last `<button>` in our section that is not
+inside a `.setting-group`, which is true of both. The repo-root note has the reasoning; the lesson
+is the one this repo keeps relearning - **markup read off `develop` is not markup the user is
+running**, and `tests/settings-page.test.js` now drives both shapes for exactly that reason.
 
 **0.0.9 retires the recent-searches pulldown for the box's own autocomplete.** A `<select>` beside
 the box was a second control to explain, a second thing to line up in a wrapping row, and a list you

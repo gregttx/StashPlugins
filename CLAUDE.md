@@ -541,10 +541,20 @@ decisions worth repeating:
   the id - the shared namespace, not a plugin prefix, because the button belongs to none of them.
 - **Anchored through the section, never by the button's caption.** "Reload plugins" is a
   translated string (`actions.reload_plugins`). The walk goes up from our own group to
-  `.setting-section` and takes the last `<button>` in that section's `.justify-content-between`
-  row, which is Stash's own filter-box-and-Reload-plugins row. Scoping to the section is also what
-  keeps the package-manager sections above it from matching, and it is why the button cannot
-  appear on Settings → Tasks, whose sections have no such row.
+  `.setting-section` and takes the **last `<button>` in that section that is not inside a
+  `.setting-group`** - Stash's own, whatever row it is in, since every plugin's buttons are inside
+  a group. Scoping to the section is also what keeps the package-manager sections above it from
+  matching, and it is why the button cannot appear on Settings → Tasks.
+
+  **That rule is a correction, and the mistake is the one this repo keeps making.** It shipped
+  matching `.justify-content-between`, read off `develop` - and that row arrived with "Settings:
+  collapsible, filterable, sorted plugin list", merged 2026-06-25, which is **after v0.31.1 and in
+  no release**. Every released Stash renders the button in a `<Setting>` row of its own instead.
+  So the button appeared for nobody, the suite was green, and a jsdom page built from the same
+  reading agreed. **Check a version tag, not just `develop`, whenever the markup being matched is
+  markup the user's Stash renders today** - and where two shapes are live, drive both in the
+  fixture, which `tests/settings-page.test.js` now does. The "last button outside a group" rule is
+  also the more durable one: it survives the row moving again.
 - **`margin-left:auto` rather than a spacing class.** That row is `justify-content-between`, so a
   third child would otherwise sit stranded in the middle of it; this puts our button and Stash's
   together at the right with the filter box still at the left. The measured-donor rule for entity

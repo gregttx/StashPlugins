@@ -582,8 +582,9 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
     const cleared = JSON.parse(env.storage.items['__GTTx__.fetcSearch']);
     h.check('setting the number to zero is what clears the list',
       cleared.history.length === 0 && cleared.historyMax === 0, JSON.stringify(cleared));
-    h.check('and takes the pulldown off the page',
-      h.hasClass(run(env).recentEl, 'fetc-hidden'), run(env).recentEl.className);
+    h.check('and empties the list the box offers back',
+      run(env).recentEl.childNodes.length === 0,
+      run(env).recentEl.childNodes.map((o) => o.value).join(','));
   });
 }());
 
@@ -599,14 +600,25 @@ const search = (env) => { dlg(env).button('Search').click(); return h.flush(200)
       /btn-warning/.test(typeBtn(env, 'Tags').className) &&
         /btn-secondary/.test(typeBtn(env, 'Scenes').className));
     h.check('the Remember filters box comes back ticked', run(env).persistBox.checked === true);
-    h.check('and the remembered searches are in the pulldown',
-      run(env).recentEl.childNodes.filter((o) => o.value).map((o) => o.value).join(',') ===
-        'beach,sand',
+    h.check('and the remembered searches are what the box offers back',
+      run(env).recentEl.childNodes.map((o) => o.value).join(',') === 'beach,sand',
       run(env).recentEl.childNodes.map((o) => o.value).join(','));
-    // Choosing one fills the box, which is the whole point of keeping them.
-    run(env).recentEl.value = 'sand';
-    h.fire(run(env).recentEl, 'change');
-    h.check('choosing one fills the search box', run(env).textInput.value === 'sand');
+    // The browser fills the box from a datalist; what this plugin owns is the list and
+    // the box pointing at it.
+    h.check('through a datalist the search box names',
+      run(env).recentEl.tagName === 'DATALIST' &&
+      run(env).textInput.attrs.list === run(env).recentEl.id,
+      run(env).recentEl.tagName + ' / ' + run(env).textInput.attrs.list);
+    // The pulldown that used to sit beside the box is gone with it, and so is the row
+    // it had to be lined up in.
+    h.check('and no select of ours is left in the row',
+      !env.body.descendants().some((n) => n.tagName === 'SELECT'),
+      env.body.descendants().filter((n) => n.tagName === 'SELECT').length + ' selects');
+    const opts = env.body.descendants().filter((n) => h.hasClass(n, 'fetc-opts'))[0];
+    h.check('the two remembering controls are one group of their own',
+      !!opts && opts.childNodes.length === 2 &&
+      opts.childNodes.every((n) => h.hasClass(n, 'fetc-check')),
+      opts && opts.childNodes.map((n) => n.className).join(' | '));
   });
 }());
 

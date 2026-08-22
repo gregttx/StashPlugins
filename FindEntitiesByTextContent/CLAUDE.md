@@ -4,6 +4,22 @@ Why the parts that look arbitrary are the way they are. This file does not ship
 (`files:` carries the `js`, the `yml` and the `README.md`), so this is where a release is
 argued.
 
+**0.0.9 retires the recent-searches pulldown for the box's own autocomplete.** A `<select>` beside
+the box was a second control to explain, a second thing to line up in a wrapping row, and a list you
+had to leave the box to read. It is a `<datalist>` on the box now - the shape the three siblings'
+filter boxes settled on, and the reason this plugin's was different in the first place is only that
+it was written before them.
+
+**The count setting stays**, and this is the one place in the repo where a history has one. It is
+not a duplicate of the datalist: zero is how the list is *cleared*, which none of the sibling boxes
+offers at all, and a search box is the one of them where somebody might want that.
+
+**And the two remembering controls are one group of their own.** They were direct children of a
+wrapping flex row, so what lined them up was wherever the wrap happened to put them, and the gap
+between them was the row's own - the same as the gap to the search box, which is why they read as
+loose. One `.fetc-opts` with a gap of its own fixes both, and `margin:0` on the checkbox fixes the
+third thing: a browser's default margin puts a checkbox off the row's centre line.
+
 **0.0.8 is two small things about the controls, both from live use.**
 
 **The exit says which of the two it is.** One button, `Cancel` while there is a search to abandon

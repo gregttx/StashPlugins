@@ -538,27 +538,28 @@ openDesc()
   .then((env) => {
     const box = () => one(env.body, 'cfbe-namebox');
     const btn = () => one(env.body, 'cfbe-rename');
-    const rename = (to) => {
-      box().value = to;
-      h.fire(box(), 'input', {});
-      return btn();
-    };
+    // Typing is the instruction; `change` is the browser saying it is finished.
+    const type = (to) => { box().value = to; h.fire(box(), 'input', {}); return btn(); };
+    const rename = (to) => { type(to); h.fire(box(), 'change', {}); return btn(); };
     h.check('nothing is picked, so there is no name box on the page yet',
       h.hasClass(box(), 'cfbe-hidden'), box().className);
     pick(env.body, 'colour').click();
     h.check('picking a field puts its name in the box',
       !h.hasClass(box(), 'cfbe-hidden') && box().value === 'colour', box().value);
-    h.check('and Rename is not offered until the name is changed',
+    h.check('and Undo Rename is not offered until there is one to undo',
       h.hasClass(btn(), 'cfbe-hidden'), btn().className);
-    rename('colour');
-    h.check('nor when it is typed back to what it already is',
+    type('shade');
+    h.check('nor while the new name is only being typed',
       h.hasClass(btn(), 'cfbe-hidden'), btn().className);
     rename('shade');
-    h.check('it appears once the name differs', !h.hasClass(btn(), 'cfbe-hidden'));
+    h.check('it appears once the rename is staged', !h.hasClass(btn(), 'cfbe-hidden'));
+    btn().click();
+    h.check('and pressing it puts the library\u2019s own name back',
+      box().value === 'colour' && h.hasClass(btn(), 'cfbe-hidden'),
+      box().value + ' / ' + btn().className);
 
     // A name something else already has would merge two fields into one key.
     rename('rating_source');
-    btn().click();
     h.check('renaming onto a name that already exists is refused',
       notes(env.body).some((l) => /a custom field of that name already exists/.test(l)),
       notes(env.body).slice(-2).join(' | '));
@@ -568,14 +569,12 @@ openDesc()
     // The hide field's name is a setting, and this dialog implements the other direction.
     pick(env.body, HIDE).click();
     rename('something_else');
-    btn().click();
     h.check('renaming the hide field from here is refused, naming the setting instead',
       notes(env.body).some((l) => /it is the field named by the "Hide from Add Lists" setting/.test(l)),
       notes(env.body).slice(-2).join(' | '));
 
     pick(env.body, 'colour').click();
     rename('shade');
-    btn().click();
     h.check('a rename stages rather than writing', writes(env.calls).length === 0,
       String(writes(env.calls).length));
     h.check('and says what it staged, with the carrier count',
@@ -596,9 +595,9 @@ openDesc()
       one(env.body, 'cfbe-rescan').title);
     h.check('and Apply is offered', one(env.body, 'cfbe-apply').disabled === false);
 
-    // Typing the library's own name back is how a staged rename is taken off.
+    // Undo Rename is the way off; typing the library's own name back is the same path,
+    // and the button just fills the box for you.
     rename('colour');
-    btn().click();
     h.check('renaming it back cancels the staged rename',
       notes(env.body).some((l) => /staged rename of "colour" is cancelled/.test(l)),
       notes(env.body).slice(-1).join(''));
@@ -606,7 +605,6 @@ openDesc()
       one(env.body, 'cfbe-rescan').disabled === false);
 
     rename('shade');
-    btn().click();
     return press(env, 'cfbe-apply').then(() => {
       const moved = writes(env.calls).filter((c) => c.variables.input.custom_fields &&
         c.variables.input.custom_fields.remove);

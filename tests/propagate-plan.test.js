@@ -527,12 +527,11 @@ Promise.resolve()
   })
 
   .then(() => run({
-    settings: { b1TagsPerformersToScenes: true, f4ExcludeTagWithCustomFieldName: ' ' },
+    settings: { b1TagsPerformersToScenes: true, f4ExcludeTagWithCustomFieldName: '' },
     library: { findScenes: { node: 'scenes', list: [] } },
   })).then(({ env }) => {
     // A free JSON map per tag is dead weight on every run that does not filter on it.
-    // The filter has a default name now, so this is the run that has switched it off -
-    // a box holding only spaces, which is what clearing it no longer means.
+    // The filter has a default name now, so this is the run that has cleared it.
     h.check('custom_fields is left out when nothing filters on it',
       env.calls.some((c) => /PTPTags/.test(c.query || '')) &&
       env.calls.every((c) => !/PTPTags/.test(c.query || '') || !/custom_fields/.test(c.query)));

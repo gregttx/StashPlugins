@@ -427,11 +427,14 @@ never copy tags set to *Ignore auto tag*, and never copy tags carrying a custom 
 
 That last one is the only box here with a **default**: `ᱜ╦╦🞮_Do_Not_Propagate_Tag`, written in the
 first time the plugin loads so you can see the name to mark tags with. Put that custom field on a
-tag — any value at all — and nothing here ever copies it anywhere. **Clearing the box puts the
-default back** rather than switching the filter off: a path either excludes marked tags or it does
-not, so an empty box had no meaning to take. To switch it off, put a single space in it. And if a
-value was adopted from `MergePerformerTagsToScenes`, that value is left alone and no default is
-written — the field is theirs rather than ours.
+tag — any value at all — and nothing here ever copies it anywhere. **Clearing the box switches the
+filter off**, like every other box here, and it stays off: the default is written once and never
+again.
+
+If a value is adopted from `MergePerformerTagsToScenes` on that first load, it replaces the default
+— the field is theirs, and you have already answered this question over there. The description filed
+for the default is then an orphan: it shows as `[orphan]` in **Manage Custom Field Descriptions...**
+and **Prune orphans** clears it.
 
 The **Paths** row leaves a value it cannot read exactly as it is, and says so in red rather than
 reporting "No paths enabled" — the two look the same from the list and are not the same thing. A

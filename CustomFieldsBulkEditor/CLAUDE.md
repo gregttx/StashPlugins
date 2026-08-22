@@ -14,6 +14,21 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.8.0 makes the rename control an Undo rather than a confirm.** Typing a new name *is* the
+instruction; a **Rename** button beside the box asked the user to say it twice, and the thing the
+row actually lacked was a way back. So the rename stages on `change` - the browser saying the box is
+finished with, by a blur or an Enter - and the button that appears is **Undo Rename**, which puts
+the library's own name back.
+
+**It is the same path, not a second one.** `undoRename` fills the box with `migration.from` and
+calls `renameField`, which already treats "renamed back to what the library has" as cancelling the
+stage. One function decides what a name change means, whoever typed it.
+
+**The trade, stated: a blur now stages.** Clicking a different field in the left pane while the box
+holds a typo stages a rename of the typo. That is what the confirm press was guarding, and the guard
+is now the Undo beside it - which is the shape the user asked for, and is consistent with the filter
+boxes, where `change` is also what commits. Nothing is written either way until Apply.
+
 **2.7.0 puts the descriptions where a user actually reads a custom field, and publishes the one
 call another plugin needs.**
 

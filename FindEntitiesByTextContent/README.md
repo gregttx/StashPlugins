@@ -106,8 +106,9 @@ Two things the dialog can keep, both off until you ask for them, and both in **t
 rather than on the server:
 
 - **Remember filters** — the entity types you turned on come back the next time it is opened.
-- **Recent searches kept** — how many previous searches to offer in the pulldown beside the
-  box. Setting it to **zero** keeps none, and is also what throws away the ones already kept.
+- **Recent searches kept** — how many previous searches the **box itself** offers back as you
+  type, the way the other boxes in these plugins do. Setting it to **zero** keeps none, and is
+  also what throws away the ones already kept.
 
 Neither is a plugin setting, and neither writes anything: they live in the browser's own
 storage. A private window, or a browser set to block site data, simply remembers nothing.

@@ -247,9 +247,10 @@ Some details worth knowing:
 - **The pane reads Name, then Description.** The field's name is in an editable box on the first
   line, the description box is under a heading of its own, and the read-only list of what carries
   the field is under that.
-- **Changing the name renames the field.** Type a new one in that box and a **Rename** button
-  appears beside it (Enter does the same). The box is live as soon as a field is picked, whether or
-  not the description has been touched. It **stages** the
+- **Changing the name renames the field.** Type a new one in that box and leave it — press Enter,
+  or click elsewhere — and the rename is staged. An **Undo Rename** button then appears beside the
+  box; pressing it puts the library's own name back and takes the staged rename off. The box is
+  live as soon as a field is picked, whether or not the description has been touched. It **stages** the
   rename, like everything else here: the left pane shows the new name at once, and **Apply** is what
   writes it across every entity carrying the field — with its description — while **Undo** puts the
   old name back. Type the library's own name back in and press Rename again to take a staged rename

@@ -42,7 +42,7 @@
   // not a contradiction.
   // This constant travels inside the file. Bump it with the manifest and the yml;
   // the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '3.13.0';
+  var PLUGIN_VERSION = '3.13.1';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1304,8 +1304,6 @@
     f4ExcludeTagWithCustomFieldName: 'c2ExcludeTagWithCustomFieldName',
   };
 
-  var _importedExclusions = false;
-
   // Fills `s` in place and returns what should be written back, or null.
   function importSiblingExclusions(s, raw, sibling) {
     if (!sibling) return null;
@@ -1329,92 +1327,89 @@
     return input;
   }
 
-  function saveImportedExclusions(input) {
-    if (_importedExclusions) return;
-    _importedExclusions = true;
-    var names = [];
-    for (var k in input) if (hasOwn(input, k)) names.push(k);
-    ptp2re('[ptp2re] adopting ' + plural(names.length, 'exclusion setting') + ' from ' +
-      MPTTS_NAME + ' (' + names.join(', ') + '): this plugin had never been set to ' +
-      'anything for ' + (names.length === 1 ? 'it' : 'them') + '. Change them here from now on.');
-    writeOwnSettings(input).then(function () { invalidateAutoSettings(); }, function (e) {
-      ptp2re('[ptp2re] the adopted exclusion settings could not be saved (' +
-        (e && e.message ? e.message : e) + '). They are in force for this page all the ' +
-        'same; set them by hand if this keeps happening.');
-    });
-  }
-
   // ── The exclusion field's own default, and its documentation ──────────────
   //
   // Stash has no `default:` for a plugin setting - the panel renders whatever is in
   // `config.yml`, which is nothing until the user types in a box - so a default that is
-  // meant to be *visible* has to be written in. `CustomFieldsBulkEditor` learnt this the
-  // same way and `seedDefaults` is the same shape; the difference is that this plugin has
-  // exactly one setting with a non-empty default, so this seeds that one rather than
-  // every string it has.
+  // meant to be *visible* has to be written in once. `CustomFieldsBulkEditor` learnt
+  // this the same way and `seedDefaults` is the same shape; the difference is that this
+  // plugin has exactly one setting with a non-empty default, so this seeds that one.
   //
-  // Three rules, and the middle one is the user's:
+  // Three rules, and the first two are the ones that were got wrong first:
   //
-  //  - **Absent, or cleared, gets the default.** `settingsFrom` falls back to it in
-  //    memory and this writes it back so the box agrees. Clearing that box is therefore
-  //    how you get the standard name back rather than how you switch the filter off -
-  //    the opposite of `CustomFieldsBulkEditor`'s hide field, where an empty box *is*
-  //    the off switch. A path either excludes marked tags or it does not, so there was
-  //    never an off state here for an empty string to mean.
-  //  - **A value adopted from `MergePerformerTagsToScenes` is not overwritten, and is
-  //    not documented either.** The import is the user having answered this question
-  //    already, in the other plugin; seeding a name over it would undo the adoption on
-  //    the very load that made it, and describing *our* default field when the
-  //    configured field is theirs would document a field nothing here reads.
+  //  - **Absent is seeded; empty is left empty.** A box the user has cleared is a filter
+  //    they have switched off, which is the reading every other string setting here
+  //    already has and the one a user expects. Putting the default back on a clear
+  //    leaves no way to switch the filter off at all - and the whitespace that was left
+  //    to mean "off" was a rule nobody would guess.
+  //  - **Seeded before the import, and replaced by it.** A value adopted from
+  //    `MergePerformerTagsToScenes` is the user having answered this question already,
+  //    in the other plugin, so it wins. The seeded name is then a description filed
+  //    against a field nothing reads - an orphan, which is exactly what "Manage Custom
+  //    Field Descriptions..." lists and offers to prune.
   //  - **The description is written through `CustomFieldsBulkEditor`, never beside it.**
   //    That plugin owns the store - its JSON shape, the sentence in front of it, the
   //    version gate, the marker tag - and a copy of any of that here is the thing
   //    `coop().api` exists to stop. Absent sibling, older sibling, no store yet: all
   //    three are silence, because a tag exclusion filter works perfectly well with no
   //    sentence explaining it.
-  var F4_DEFAULT = DEFAULTS.f4ExcludeTagWithCustomFieldName;
+  var F4_KEY = 'f4ExcludeTagWithCustomFieldName';
+  var F4_DEFAULT = DEFAULTS[F4_KEY];
   var F4_DESCRIPTION = 'Never propagate a tag marked via this Custom Field. Used by the ' +
     PLUGIN_NAME + ' plugin.';
   var CFBE_ID = 'CustomFieldsBulkEditor';
 
-  var _seededField = false;
+  var _wroteInitial = false;
 
-  function seedExclusionField(raw, adopted, s) {
-    if (_seededField) return;
-    _seededField = true;
-    var mine = String(raw.f4ExcludeTagWithCustomFieldName || '');
-    var imported = !!(adopted && hasOwn(adopted, 'f4ExcludeTagWithCustomFieldName'));
-    if (!imported && !mine) {
-      // The whole map goes back, not the one key: `configurePlugin` replaces
-      // `plugins.<id>` rather than merging into it. See the repo-root CLAUDE.md.
-      //
-      // **Built from `raw` rather than through `writeOwnSettings`**, which re-reads the
-      // map first. That re-read is the right thing for a write the user asked for
-      // minutes after the page loaded; this one is inside the read that produced `raw`,
-      // so re-reading would be asking the same question twice in the same tick.
-      //
-      // **An operation name of its own**, `PTPSeedSettings`, which is what the fetch
-      // wrapper below tells it apart by: an ordinary settings save has to drop every
-      // cache this plugin holds, and this one must not, because what it writes is the
-      // value `settingsFrom` has already returned. Without that, a fresh install pays
-      // for a wasted read of the whole tag library on its first page. A name we choose
-      // is a better discriminator than anything inferred from the body, and
-      // `CustomFieldsBulkEditor`'s `CFBE_SeedSettings` is the same idea.
-      var input = {};
-      for (var k in raw) if (hasOwn(raw, k)) input[k] = raw[k];
-      input.f4ExcludeTagWithCustomFieldName = F4_DEFAULT;
-      gqlRequest(
-        'mutation PTPSeedSettings($plugin_id: ID!, $input: Map!) {' +
-        '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
-        '}',
-        { plugin_id: PLUGIN_ID, input: input }
-      ).then(null, function (e) {
-        _seededField = false;
-        ptp2re('[ptp2re] the default exclusion custom field name could not be saved (' +
-          (e && e.message ? e.message : e) + '). It is in force for this page all the same.');
-      });
+  // Fills `s` in place and returns what should be written back, or null - the same shape
+  // as `importSiblingExclusions`, so the caller can merge the two.
+  function seedExclusionField(raw, s) {
+    if (hasOwn(raw, F4_KEY)) return null;      // set, or deliberately cleared: not ours
+    s[F4_KEY] = F4_DEFAULT;
+    var out = {};
+    out[F4_KEY] = F4_DEFAULT;
+    return out;
+  }
+
+  // One `configurePlugin` for both, once per page. The whole stored map goes back, not
+  // the keys named: `configurePlugin` replaces `plugins.<id>` rather than merging into
+  // it. Built from the `raw` this same read produced rather than through
+  // `writeOwnSettings`, which re-reads first - right for a write the user asks for
+  // minutes later, and asking the same question twice inside the read that answered it.
+  function saveInitialSettings(raw, seeded, adopted, s) {
+    if (_wroteInitial || (!seeded && !adopted)) return;
+    _wroteInitial = true;
+    var input = {}, k;
+    for (k in raw) if (hasOwn(raw, k)) input[k] = raw[k];
+    for (k in seeded || {}) if (hasOwn(seeded, k)) input[k] = seeded[k];
+    for (k in adopted || {}) if (hasOwn(adopted, k)) input[k] = adopted[k];   // the import wins
+    if (adopted) {
+      var names = [];
+      for (k in adopted) if (hasOwn(adopted, k)) names.push(k);
+      ptp2re('[ptp2re] adopting ' + plural(names.length, 'exclusion setting') + ' from ' +
+        MPTTS_NAME + ' (' + names.join(', ') + '): this plugin had never been set to ' +
+        'anything for ' + (names.length === 1 ? 'it' : 'them') + '. Change them here from now on.');
     }
-    if (!imported && s.f4ExcludeTagWithCustomFieldName === F4_DEFAULT) describeExclusionField();
+    // An operation name of its own, which is what the fetch wrapper below tells it apart
+    // by: an ordinary settings save has to drop every cache this plugin holds, and this
+    // one must not, because what it writes is what `settingsFrom` has already returned.
+    // Unmarked, a fresh install pays for a wasted read of the whole tag library on its
+    // first page. A name we choose beats anything inferred from the body, and
+    // `CustomFieldsBulkEditor`'s `CFBE_SeedSettings` is the same idea.
+    gqlRequest(
+      'mutation PTPSeedSettings($plugin_id: ID!, $input: Map!) {' +
+      '  configurePlugin(plugin_id: $plugin_id, input: $input)' +
+      '}',
+      { plugin_id: PLUGIN_ID, input: input }
+    ).then(null, function (e) {
+      _wroteInitial = false;
+      ptp2re('[ptp2re] the initial settings could not be saved (' +
+        (e && e.message ? e.message : e) + '). They are in force for this page all the same.');
+    });
+    // Described only where the field in force is the one this plugin named. An imported
+    // field is the sibling's, and documenting ours while theirs is configured would file
+    // a sentence against a field nothing here reads.
+    if (s[F4_KEY] === F4_DEFAULT) describeExclusionField();
   }
 
   // Feature-detected, never version-checked: the number on the entry is for a log line,
@@ -1444,22 +1439,21 @@
     var s = {};
     for (var k in DEFAULTS) {
       if (!hasOwn(DEFAULTS, k)) continue;
-      // A cleared string setting falls back to its default, which is a no-op for every
-      // key here but `f4` - the others default to empty, so there is nothing to fall
-      // back to. It is what makes "clear the box to get the standard field name back"
-      // true, and it is deliberately *not* the rule `CustomFieldsBulkEditor` reads its
-      // own settings by: there, an emptied box switches a filter off, and here there is
-      // no off to switch to - a path either excludes marked tags or it does not.
-      s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (String(raw[k] || '') || DEFAULTS[k]);
+      s[k] = typeof DEFAULTS[k] === 'boolean' ? !!raw[k] : (raw[k] || '');
     }
     if (!String(s.b1Paths).replace(/^\s+|\s+$/g, '') && hasLegacyPaths(raw)) {
       s.b1Paths = formatPaths(legacyPaths(raw));
       migrateLegacyPaths(s.b1Paths);
     }
     s.paths = parsePaths(s.b1Paths);
+    // The seed goes first and the import may then replace what it seeded - which is
+    // what makes a sibling's own field name win while the default still lands for
+    // everyone else. Both write the same key, so they are merged into **one**
+    // `configurePlugin`: two writes racing would have the second re-read a map the
+    // first had not landed in yet, and drop it.
+    var seeded = seedExclusionField(raw, s);
     var adopted = importSiblingExclusions(s, raw, sibling);
-    if (adopted) saveImportedExclusions(adopted);
-    seedExclusionField(raw, adopted, s);
+    saveInitialSettings(raw, seeded, adopted, s);
     return s;
   }
 

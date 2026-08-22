@@ -10,6 +10,19 @@ either.
 and it now makes it. From here a fix takes the patch digit and a feature the minor, like its two
 siblings.
 
+**3.13.1 corrects what 3.13.0 made an empty box mean.** That release read a cleared box as "give me
+the default back", which left no way to switch the filter off at all - and the whitespace that was
+then left to mean off was a rule nobody would guess. **Absent is seeded; empty is empty**, which is
+what every other string setting here already means and what a user expects of a box they have just
+cleared.
+
+The seed still runs *before* the import, and a sibling's own field name still replaces it - so the
+description filed for the default is then an orphan, which is exactly what "Manage Custom Field
+Descriptions..." lists and offers to prune. What changed is that the two now go out as **one**
+`configurePlugin` rather than two: they write the same key, and two writes racing would have the
+second re-read a map the first had not landed in and drop it. `saveImportedExclusions` is gone with
+them, folded into `saveInitialSettings`.
+
 **3.13.0 gives the custom-field exclusion filter a default, and has the sibling document it.**
 
 **`ᱜ╦╦🞮_Do_Not_Propagate_Tag`, and it is the only setting here with a non-empty default.** Marking a

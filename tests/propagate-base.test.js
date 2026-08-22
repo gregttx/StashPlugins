@@ -443,10 +443,10 @@ Promise.resolve()
       d.lines.some((l) => /ᱜ╦╦🞮_Do_Not_Propagate_Tag/.test(l)), d.lines.join('\n'));
   })
 
-  // Clearing the box puts the default back, so a box holding only spaces is what is
-  // left to mean "off" - and it is the only way back to a run with nothing excluded.
+  // A cleared box is a filter switched off, which is how a run gets back to excluding
+  // nothing at all.
   .then(() => open({ settings: {
-    b1TagsPerformersToScenes: true, f4ExcludeTagWithCustomFieldName: ' ',
+    b1TagsPerformersToScenes: true, f4ExcludeTagWithCustomFieldName: '',
   } })).then(({ d }) => {
     // Said explicitly rather than by omission: "nothing is skipped" is a fact about
     // the run, and a silent absence reads as a dialog that forgot to mention it.

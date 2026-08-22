@@ -162,7 +162,7 @@ Promise.resolve()
   .then(() => {
     const env = boot({ settings: {} });
     return h.flush().then(() => {
-      h.check('a fresh install migrates nothing and writes nothing',
+      h.check('a fresh install migrates nothing',
         saved(env).length === 0, JSON.stringify(saved(env).map((c) => c.variables)));
     });
   })
@@ -181,13 +181,17 @@ Promise.resolve()
       },
     });
     return h.flush().then(() => {
-      const input = saved(env).length === 1 ? saved(env)[0].variables.input : {};
+      const input = seeded(env).length === 1 ? seeded(env)[0].variables.input : {};
       h.check('all four are adopted where this plugin has none of its own',
-        saved(env).length === 1 && input.f1ExcludeTargetWithTagName === 'NoTouch' &&
+        seeded(env).length === 1 && input.f1ExcludeTargetWithTagName === 'NoTouch' &&
         input.f2ExcludeTargetOrganized === true &&
         input.f3ExcludeTagWithIgnoreAutoTag === true &&
         input.f4ExcludeTagWithCustomFieldName === 'NoCopy',
-        JSON.stringify(saved(env).map((c) => c.variables.input)));
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
+      // The sibling's name wins over the default this plugin would otherwise seed - it
+      // is the user having answered the question already, in the other plugin.
+      h.check('and the sibling\'s field name beats the default, in the one write',
+        input.f4ExcludeTagWithCustomFieldName === 'NoCopy', JSON.stringify(input));
       // `configurePlugin` REPLACES this plugin's config map rather than merging into
       // it, so a mutation naming only the keys it changes deletes every other setting
       // the user has. Reported live, twice over: a config left holding exactly the two
@@ -195,7 +199,7 @@ Promise.resolve()
       h.check('and every setting the write did not name is carried through with them',
         input.b1Paths === 'tags:studio>scene=ON', JSON.stringify(input));
       h.check('under our own plugin id, not the sibling id',
-        saved(env)[0].variables.plugin_id === NAME, saved(env)[0].variables.plugin_id);
+        seeded(env)[0].variables.plugin_id === NAME, seeded(env)[0].variables.plugin_id);
     });
   })
 
@@ -208,9 +212,11 @@ Promise.resolve()
     });
     return h.flush().then(() => {
       // The key's *presence* is what says the question has been answered, not its
-      // value: f4 is stored empty, which is also its default.
+      // value: f4 is stored empty, which is a filter switched off rather than an unset
+      // one - so it is neither adopted from the sibling nor given the default.
       h.check('a setting this plugin already carries is never overwritten',
-        saved(env).length === 0, JSON.stringify(saved(env).map((c) => c.variables.input)));
+        seeded(env).length === 0 && saved(env).length === 0,
+        JSON.stringify(seeded(env).concat(saved(env)).map((c) => c.variables.input)));
     });
   })
 
@@ -224,8 +230,13 @@ Promise.resolve()
       sibling: { b2ExcludeSceneOrganized: true },
     });
     return h.flush().then(() => {
+      // The write that goes out is the seed's, carrying the whole stored map - so f2 is
+      // in it because it was already stored, not because it was adopted. What the check
+      // is about is its *value*.
       h.check('a toggle switched off by hand stays off, however the sibling is set',
-        saved(env).length === 0, JSON.stringify(saved(env).map((c) => c.variables.input)));
+        seeded(env)[0].variables.input.f2ExcludeTargetOrganized === false &&
+        saved(env).length === 0,
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
     });
   })
 
@@ -238,15 +249,20 @@ Promise.resolve()
       // Writing their default into our config would set the key and spend the one
       // chance this has to run.
       h.check('a sibling with nothing set is not an import',
-        saved(env).length === 0, JSON.stringify(saved(env).map((c) => c.variables.input)));
+        seeded(env).length === 1 &&
+        JSON.stringify(seeded(env)[0].variables.input) ===
+          JSON.stringify({ f4ExcludeTagWithCustomFieldName: 'ᱜ╦╦🞮_Do_Not_Propagate_Tag' }),
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
     });
   })
 
   .then(() => {
     const env = boot({ settings: {} });
     return h.flush().then(() => {
-      h.check('and neither is a sibling that is not installed', saved(env).length === 0,
-        JSON.stringify(saved(env).map((c) => c.variables.input)));
+      h.check('and neither is a sibling that is not installed',
+        !seeded(env).some((c) => hasKey(c, 'f1ExcludeTargetWithTagName')) &&
+        saved(env).length === 0,
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
     });
   })
 
@@ -255,18 +271,18 @@ Promise.resolve()
       settings: {}, sibling: { c1ExcludeTagWithIgnoreAutoTag: true },
     });
     return h.flush().then(() => {
+      // One write for both halves: the seed and the import name the same key, and two
+      // writes racing would have the second re-read a map the first had not landed in.
       h.check('only what the sibling actually sets is adopted',
-        saved(env).length === 1 &&
-        JSON.stringify(saved(env)[0].variables.input) ===
-          JSON.stringify({ f3ExcludeTagWithIgnoreAutoTag: true }),
-        JSON.stringify(saved(env).map((c) => c.variables.input)));
-      // Our own configurePlugin drops the settings cache, so the next thing to want
-      // settings reloads them - and a second load must not send the import again.
+        seeded(env).length === 1 &&
+        seeded(env)[0].variables.input.f3ExcludeTagWithIgnoreAutoTag === true &&
+        !hasKey(seeded(env)[0], 'f1ExcludeTargetWithTagName'),
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
       // Driven through `settingsFrom` directly, which is the function that decides.
       env.ctx.window.__GTTx__.ptp2re.settingsFrom({}, { c1ExcludeTagWithIgnoreAutoTag: true });
       return h.flush().then(() => {
         h.check('and it is written once, not once per settings load',
-          saved(env).length === 1, String(saved(env).length));
+          seeded(env).length === 1, String(seeded(env).length));
       });
     });
   })
@@ -1033,15 +1049,11 @@ Promise.resolve()
   })
 
   .then(() => {
-    // Cleared means "give me the standard name back", which is the opposite of
-    // CustomFieldsBulkEditor's hide field - there is no off state here for an empty
-    // string to mean.
+    // A cleared box is a filter switched off, which is what every other string setting
+    // here means by empty. Putting the default back would leave no way to switch it off.
     const env = boot({ settings: { f4ExcludeTagWithCustomFieldName: '' } });
     return h.flush().then(() => {
-      h.check('and a cleared one gets the default back',
-        seeded(env).length === 1 &&
-        seeded(env)[0].variables.input.f4ExcludeTagWithCustomFieldName ===
-          'ᱜ╦╦🞮_Do_Not_Propagate_Tag',
+      h.check('and a cleared one stays cleared', seeded(env).length === 0,
         JSON.stringify(seeded(env).map((c) => c.variables.input)));
     });
   })
@@ -1061,9 +1073,9 @@ Promise.resolve()
     const env = boot({ sibling: { c2ExcludeTagWithCustomFieldName: 'Theirs' } });
     return h.flush().then(() => {
       h.check('an imported name is neither overwritten nor seeded over',
-        seeded(env).length === 0 &&
-        saved(env).some((c) => c.variables.input.f4ExcludeTagWithCustomFieldName === 'Theirs'),
-        JSON.stringify(saved(env).map((c) => c.variables.input)));
+        seeded(env).length === 1 &&
+        seeded(env)[0].variables.input.f4ExcludeTagWithCustomFieldName === 'Theirs',
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
     });
   })
 
@@ -1071,10 +1083,11 @@ Promise.resolve()
     // And an empty value in the sibling is not an import, so the default still lands.
     const env = boot({ sibling: { c2ExcludeTagWithCustomFieldName: '' } });
     return h.flush().then(() => {
-      h.check('an empty value in the sibling is not an import',
+      h.check('an empty value in the sibling is not an import, so the default lands',
         seeded(env).length === 1 &&
-        !saved(env).some((c) => hasKey(c, 'f4ExcludeTagWithCustomFieldName')),
-        JSON.stringify(saved(env).map((c) => c.variables.input)));
+        seeded(env)[0].variables.input.f4ExcludeTagWithCustomFieldName ===
+          'ᱜ╦╦🞮_Do_Not_Propagate_Tag',
+        JSON.stringify(seeded(env).map((c) => c.variables.input)));
     });
   })
 

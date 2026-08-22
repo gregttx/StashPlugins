@@ -38,7 +38,7 @@
   // The major digit is zero and stays there until the plugin has been used in a live
   // Stash: it is the claim that the thing works, and no test in this repo can check a
   // guess about Stash's schema or about the markup its task panel renders.
-  var PLUGIN_VERSION = '0.0.8';
+  var PLUGIN_VERSION = '0.0.9';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers rather
@@ -368,14 +368,16 @@
     '.fetc-result{display:flex;align-items:baseline;gap:.5rem;padding:.1rem .25rem;}' +
     '.fetc-result>*{min-width:0;}' +
     '.fetc-result:hover{background:#3c4f5d;}' +
-    // The recent-searches pulldown, which is only on the page while the history is set
-    // to keep something.
-    '.fetc-recent{background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;' +
-    'border-radius:3px;padding:.25rem .5rem;max-width:16rem;}' +
+    // The two remembering controls, grouped so that they line up with each other and
+    // sit a clear step away from the search box rather than at the row's own gap.
+    '.fetc-opts{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;' +
+    'margin-left:.5rem;}' +
     '.fetc-num{background:#1f2b33;color:#f5f8fa;border:1px solid #394b59;border-radius:3px;' +
     'padding:.25rem .35rem;width:4rem;}' +
-    '.fetc-check{display:flex;align-items:center;gap:.3rem;color:#a7b6c2;font-size:.85rem;' +
-    'white-space:nowrap;cursor:pointer;}' +
+    '.fetc-check{display:flex;align-items:center;gap:.35rem;color:#a7b6c2;font-size:.85rem;' +
+    'white-space:nowrap;cursor:pointer;margin:0;}' +
+    // A checkbox carries browser margins that put it off the row's centre line.
+    '.fetc-check input{margin:0;}' +
     '.fetc-readme{color:#7cc4ff;font-size:.8rem;margin-top:.35rem;display:inline-block;}' +
     // ── The settings page ───────────────────────────────────────────────────
     //
@@ -840,16 +842,20 @@
     wrap.appendChild(this.clearBtn);
     bar.appendChild(wrap);
 
-    // Only on the page while the history is set to keep something, so an unused feature
-    // is not a control that has to be explained.
-    this.recentEl = el('select', 'fetc-recent');
-    this.recentEl.addEventListener('change', function () {
-      if (!self.recentEl.value) return;
-      self.textInput.value = self.recentEl.value;
-      self.syncFooter();
-    });
-    bar.appendChild(this.recentEl);
+    // The recent searches are the box's own autocomplete, through a `<datalist>` - the
+    // shape the three siblings' filter boxes settled on. It replaced a `<select>` beside
+    // the box, which was a second control to explain, a second thing to line up in the
+    // row, and a list you had to leave the box to look at.
+    this.recentEl = el('datalist');
+    this.recentEl.id = 'fetc-recent-searches';
+    this.textInput.setAttribute('list', this.recentEl.id);
+    wrap.appendChild(this.recentEl);
 
+    // The two remembering controls in one group of their own: they were direct children
+    // of a wrapping row, so what lined them up was wherever the wrap happened to put
+    // them, and the gap between them was the row's own - the same as the gap to the
+    // search box. One flex group with a gap of its own fixes both.
+    var opts = el('div', 'fetc-opts');
     var keep = el('label', 'fetc-check');
     this.persistBox = el('input');
     this.persistBox.type = 'checkbox';
@@ -863,18 +869,21 @@
     keep.title = 'Keep the entity types you have turned on, in this browser, for the next ' +
       'time this dialog is opened. Nothing is written to your library or to the plugin ' +
       'settings.';
-    bar.appendChild(keep);
+    opts.appendChild(keep);
 
-    bar.appendChild(el('span', 'fetc-label', 'Recent searches kept:'));
+    var kept = el('label', 'fetc-check');
+    kept.appendChild(el('span', null, 'Recent searches kept'));
     this.historyInput = el('input', 'fetc-num');
     this.historyInput.type = 'number';
     this.historyInput.value = String(this.historyMax);
-    this.historyInput.title = 'How many previous searches to offer in the pulldown, in this ' +
-      'browser. Zero keeps none - and setting it to zero also throws away the ones already ' +
-      'kept, which is how the list is cleared.';
+    kept.title = this.historyInput.title = 'How many previous searches the box offers back ' +
+      'as you type, in this browser. Zero keeps none - and setting it to zero also throws ' +
+      'away the ones already kept, which is how the list is cleared.';
     this.historyInput.addEventListener('change', function () { self.setHistoryMax(); });
     this.historyInput.addEventListener('input', function () { self.setHistoryMax(); });
-    bar.appendChild(this.historyInput);
+    kept.appendChild(this.historyInput);
+    opts.appendChild(kept);
+    bar.appendChild(opts);
     this.modal.appendChild(bar);
 
     this.filtersEl = el('div', 'fetc-filters');
@@ -1014,18 +1023,16 @@
     this.save();
   };
 
+  // A `<datalist>` renders nothing of its own, so there is no empty state to draw and
+  // nothing to hide when the history is switched off - an empty list is simply a box that
+  // suggests nothing, which is exactly right.
   Run.prototype.syncRecent = function () {
-    this.show(this.recentEl, this.historyMax > 0);
-    this.recentEl.textContent = '';
-    var blank = el('option', null, this.history.length ? 'Recent searches' : 'Nothing kept yet');
-    blank.value = '';
-    this.recentEl.appendChild(blank);
+    while (this.recentEl.firstChild) this.recentEl.removeChild(this.recentEl.firstChild);
     this.history.forEach(function (t) {
-      var o = el('option', null, t);
+      var o = el('option');
       o.value = t;
       this.recentEl.appendChild(o);
     }, this);
-    this.recentEl.value = '';
   };
 
   Run.prototype.save = function () {

@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.7.0';
+  var PLUGIN_VERSION = '2.8.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -3093,18 +3093,19 @@
     this.nameBox.type = 'text';
     this.nameBox.title = 'The custom field\'s own name. Change it and press Rename to ' +
       'stage a rename of the field across the library; Apply writes it.';
-    this.renameBtn = button('Rename', 'cfbe-rename cfbe-hidden');
+    // **Undo Rename, not Rename.** Typing a new name *is* the instruction, so a second
+    // press to confirm it was a click for nothing; what the row needs is a way back. So
+    // the button appears only once a rename is staged, and takes it off.
+    this.renameBtn = button('Undo Rename', 'cfbe-rename cfbe-hidden');
     this.renameBtn.className = this.renameBtn.className.replace('btn-secondary', PLUGIN_BTN_VARIANT);
-    this.renameBtn.title = 'Stage a rename of this custom field on every entity carrying ' +
-      'it, with its description. Apply writes it, and Undo puts the old name back.';
+    this.renameBtn.title = 'Put the custom field\'s name back to what the library has, and ' +
+      'take the staged rename off with it.';
     this.nameBox.addEventListener('input', function () { self.syncRename(); });
-    // Enter is what a one-box form means, and the button is small.
-    this.nameBox.addEventListener('keydown', function (ev) {
-      if (!ev || (ev.key !== 'Enter' && ev.keyCode !== 13)) return;
-      if (ev.preventDefault) ev.preventDefault();
-      if (!self.renameBtn.disabled && !hasClass(self.renameBtn, 'cfbe-hidden')) self.renameField();
-    });
-    this.renameBtn.addEventListener('click', function () { self.renameField(); });
+    // **On `change`, never on `input`** - the browser saying the user has finished with
+    // the box, by blurring it or pressing Enter. Per keystroke would stage a rename per
+    // character. Same event and same reason as the filter boxes' history.
+    this.nameBox.addEventListener('change', function () { self.renameField(); });
+    this.renameBtn.addEventListener('click', function () { self.undoRename(); });
     this.detailEl.appendChild(this.nameBox);
     this.detailEl.appendChild(this.renameBtn);
     detail.appendChild(this.detailEl);
@@ -3498,11 +3499,20 @@
   // `syncApply`, which is what keeps a state change (a write in flight, a blocked store)
   // reaching it too.
   DescRun.prototype.syncRename = function () {
-    var to = String(this.nameBox.value || '').replace(/^\s+|\s+$/g, '');
-    var show = this.sel != null && to !== '' && to !== this.sel;
     this.nameBox.disabled = !this.editable() || this.sel == null;
-    this.show(this.renameBtn, show);
+    // Offered only while there is a staged rename to take back, which is the whole of
+    // what it does.
+    this.show(this.renameBtn, this.sel != null && !!this.stagedFrom(this.sel));
     this.renameBtn.disabled = !this.editable();
+  };
+
+  // The way off a staged rename: put the library's own name back in the box and let
+  // `renameField` see there is nothing left to write. One path, not two.
+  DescRun.prototype.undoRename = function () {
+    var from = this.sel == null ? null : this.stagedFrom(this.sel);
+    if (!from || !this.editable()) return;
+    this.nameBox.value = from;
+    this.renameField();
   };
 
   DescRun.prototype.renameField = function () {

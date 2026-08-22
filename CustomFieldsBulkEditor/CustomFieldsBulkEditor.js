@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.8.0';
+  var PLUGIN_VERSION = '2.8.1';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -3664,7 +3664,12 @@
       (this.tag && this.tag.name !== this.settings.b1DescriptionTagName) ||
       (this.store && this.store.version !== PLUGIN_VERSION) ||
       (this.hideField !== this.settings.c1ExcludeFromAddListField) ||
-      !!(this.migration && this.migration.armed);
+      // **`done`, not merely `armed`.** `runMigration` marks a rename written and leaves
+      // it armed - the flag says the user asked for it, not that it is still owed - so
+      // reading `armed` alone left Apply enabled for the rest of the session over a
+      // dialog with nothing left to write, and every press re-sent the store.
+      // `undo()` clears `done` again, which is what re-offers Apply after a reversal.
+      !!(this.migration && this.migration.armed && !this.migration.done);
   };
 
   // **A written Apply does not end this dialog the way it ends the other one.** There

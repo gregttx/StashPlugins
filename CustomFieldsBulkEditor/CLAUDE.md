@@ -14,6 +14,18 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.8.1 stops Apply staying live after a rename has been written.** `pending()` read
+`migration.armed`, and `armed` says the user asked for the rename rather than that it is still
+owed - `runMigration` marks it `done` and leaves it armed. So after a rename Apply never went back
+to disabled, and every further press re-sent the whole store. One clause: `armed && !done`. `undo()`
+clears `done`, which is what correctly re-offers Apply after a reversal.
+
+**This is the cost of §22a's decision that a written Apply does not end this dialog**, and it is
+worth stating as a rule rather than as a bug: where editing stays open, *every* input to "is there
+anything to write" has to have a way of becoming false again. The description diff had one, the tag
+name had one, the store version had one; the rename flag did not, and nothing pointed at it because
+the four other clauses kept working.
+
 **2.8.0 makes the rename control an Undo rather than a confirm.** Typing a new name *is* the
 instruction; a **Rename** button beside the box asked the user to say it twice, and the thing the
 row actually lacked was a way back. So the rename stages on `change` - the browser saying the box is

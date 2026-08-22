@@ -606,6 +606,15 @@ openDesc()
 
     rename('shade');
     return press(env, 'cfbe-apply').then(() => {
+      // Editing stays open after an Apply here, so Apply itself has to go back to
+      // saying there is nothing to write - a rename left `armed` after being written
+      // kept it live for the rest of the session, and every press re-sent the store.
+      const before = writes(env.calls).length;
+      h.check('Apply goes back to disabled once the rename has been written',
+        one(env.body, 'cfbe-apply').disabled === true);
+      one(env.body, 'cfbe-apply').click();
+      h.check('and pressing it again writes nothing',
+        writes(env.calls).length === before, String(writes(env.calls).length - before));
       const moved = writes(env.calls).filter((c) => c.variables.input.custom_fields &&
         c.variables.input.custom_fields.remove);
       h.check('Apply renames the field on every entity carrying it',

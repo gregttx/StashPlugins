@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 0.0.9 (`f39a7a2`) | 2026-08-21 | EntityNameMaintainer 0.0.9 / CustomFieldsBulkEditor 2.5.1: five seconds to answer Close, and the red marks one mode |
 | [0.0.8](https://github.com/gregttx/StashPlugins/commit/0e3fa64) | 2026-08-21 | EntityNameMaintainer 0.0.8: the head wears the whole name, and Close stops asking once Proceed has run |
 | [0.0.7](https://github.com/gregttx/StashPlugins/commit/5e37588) | 2026-08-21 | EntityNameMaintainer 0.0.7 / FindEntitiesByTextContent 0.0.8 / CustomFieldsBulkEditor 2.3.0 / PropagateTagsAndPerformers 3.12.0: a control says what pressing it costs |
 | [0.0.6](https://github.com/gregttx/StashPlugins/commit/a0b463d) | 2026-08-21 | EntityNameMaintainer 0.0.6: the hit list reads in the order things happened |

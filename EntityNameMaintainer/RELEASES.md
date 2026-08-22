@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 1.0.1 (`a5353a8`) | 2026-08-22 | EntityNameMaintainer 1.0.1 / FindEntitiesByTextContent 1.0.0: a cancelled rename reloads the page it changed |
 | 1.0.0 (`1094a8c`) | 2026-08-22 | EntityNameMaintainer 1.0.0: Cancel takes back the rename itself, while it is the only write |
 | 0.1.2 (`23eaeb6`) | 2026-08-22 | EntityNameMaintainer 0.1.2 / TagBundleClipboard 0.7.3: a scoped dialog head names the entity, not just its id |
 | [0.1.1](https://github.com/gregttx/StashPlugins/commit/ba4a138) | 2026-08-22 | EntityNameMaintainer 0.1.1: the skipped store tag no longer reads as something missed |

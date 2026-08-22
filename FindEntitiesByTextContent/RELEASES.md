@@ -8,6 +8,7 @@ is in `README.md` — neither of those carries version history.
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 1.0.0 (`a5353a8`) | 2026-08-22 | EntityNameMaintainer 1.0.1 / FindEntitiesByTextContent 1.0.0: a cancelled rename reloads the page it changed |
 | [0.0.9](https://github.com/gregttx/StashPlugins/commit/06f51e6) | 2026-08-22 | PropagateTagsAndPerformers 3.13.1 / CustomFieldsBulkEditor 2.8.0 / FindEntitiesByTextContent 0.0.9: an empty box is empty again, Undo Rename, and the search box keeps its own history |
 | [0.0.8](https://github.com/gregttx/StashPlugins/commit/5e37588) | 2026-08-21 | EntityNameMaintainer 0.0.7 / FindEntitiesByTextContent 0.0.8 / CustomFieldsBulkEditor 2.3.0 / PropagateTagsAndPerformers 3.12.0: a control says what pressing it costs |
 | [0.0.7](https://github.com/gregttx/StashPlugins/commit/098d782) | 2026-08-21 | EntityNameMaintainer 0.0.5 / FindEntitiesByTextContent 0.0.7: the counters say where the scan is, not only how far |

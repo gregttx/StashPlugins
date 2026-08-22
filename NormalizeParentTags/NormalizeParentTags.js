@@ -30,7 +30,7 @@
   // stale script, not a contradiction. This constant travels inside the file, so the
   // line below says which script is actually running. Bump it with the manifest and
   // the yml; the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.8.2';
+  var PLUGIN_VERSION = '4.8.3';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1973,9 +1973,12 @@
     // is what settles them.
     this.show(this.rescanBtn, done || (ready && this.selectionDirty));
     this.show(this.closeBtn, done);
-    // The selection is what a write in flight is writing; changing it mid-write would
-    // describe something the run is not doing.
-    if (this.modesPanel) this.modesPanel.enable(!applying && !undoing);
+    // The selection is what a pass in flight is acting on - what a write is writing, and
+    // what a scan is planning from. Changing it mid-write would describe something the
+    // run is not doing, and changing it mid-scan produces a plan built half from each.
+    // The scan was live here until the same hole was found in the sibling's Path
+    // Settings button, which is the same control in a different shape.
+    if (this.modesPanel) this.modesPanel.enable(!scanning && !applying && !undoing);
     // Undo is deliberately not gated on `stale`: it reverses writes this dialog has
     // already made, and stranding the user with changes they cannot take back would
     // be a worse outcome than the mismatch it is protecting them from.

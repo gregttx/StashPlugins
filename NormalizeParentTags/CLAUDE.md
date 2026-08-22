@@ -1,5 +1,15 @@
 # CLAUDE.md — ᝯㄝₓ Normalize Parent Tags
 
+**The run dialog's selectors were editable while the scan ran (4.8.3).** They were locked with
+`!applying && !undoing`, so a selector moved mid-scan changed what the pass in flight was planning
+from and produced a plan built half from each selection. Now `!scanning && !applying && !undoing`.
+
+**Found from the other side.** The report was against `PropagateTagsAndPerformers`' `Path
+Settings...` button, which is the same choice in a different shape and carried the identical
+condition. The rule both now follow: **a control that changes what a run is doing is unavailable
+while the run is doing it, and a scan counts** - it is not only a write that is reading the
+selection.
+
 **Escape could abandon a settings save in flight (4.8.2).** The footer is what the key acts
 through, which is what stops it reaching a hidden or disabled button - but this dialog's Save
 disabled itself and left **Cancel** live, so Escape during the one `configurePlugin` closed the

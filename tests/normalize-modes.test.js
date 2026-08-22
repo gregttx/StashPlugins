@@ -33,7 +33,8 @@ function open(opts) {
     // `hangSave` leaves the settings write in flight, which is the only way to read the
     // dialog *during* one - a footer only ever seen after a write cannot show the state
     // that would be wrong.
-    respond: (req) => (opts.hangSave && /configurePlugin/.test(req.query || ''))
+    respond: (req) => ((opts.hangSave && /configurePlugin/.test(req.query || '')) ||
+      (opts.hangScan && /query NPT\w*Find|query NPTScenes|query NPT_/.test(req.query || '')))
       ? h.HANG : base(req),
     localStorage: opts.localStorage,
   });
@@ -343,6 +344,18 @@ Promise.resolve()
     setSelect(env, 'Scenes', 'prune');
     h.check('and held back again when it moves back',
       d(env).button('Save').disabled === true);
+  })
+
+  // ── The selectors are not editable while a pass is using them ─────────────
+  //
+  // Same hole as the sibling's Path Settings button, in the shape this plugin puts the
+  // same choice in: they were locked mid-*write* and live through the scan, which is
+  // the longer phase. A selector moved mid-scan produces a plan built half from each.
+  .then(() => open({ task: h.TASK_RUN, hangScan: true })).then((env) => {
+    h.check('the scan is still running',
+      d(env).visible('Cancel') && !d(env).visible('Rescan'), d(env).progress);
+    h.check('and every selector is locked while it runs',
+      selects(env).length > 0 && selects(env).every((sel) => sel.disabled), selected(env));
   })
 
   // Escape acts through the footer, so it must not reach a way out the footer is not

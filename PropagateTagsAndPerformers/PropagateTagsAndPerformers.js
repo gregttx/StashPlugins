@@ -42,7 +42,7 @@
   // not a contradiction.
   // This constant travels inside the file. Bump it with the manifest and the yml;
   // the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '3.14.2';
+  var PLUGIN_VERSION = '3.14.3';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -94,6 +94,10 @@
   // from the run dialog's own footer and from the button that takes over the Paths
   // settings row - both places a user is already looking at what it edits.
   var TASK_PATHS = 'Path Settings...';
+  // On a constant because `setState` swaps it for the reason the button is unavailable
+  // and has to be able to put it back.
+  var PATHS_BTN_TIP = 'Choose which of the thirteen paths run. Saving there changes ' +
+    'nothing already planned above - press Rescan to plan with the paths you have just set.';
   var TASKS = [TASK_PROPAGATE_ALL];
 
   var PAGE_SIZE      = 500;    // targets per page while walking the library
@@ -2476,8 +2480,7 @@
     // so the editor belongs a press away from that, not a page away.
     this.pathsBtn   = button(TASK_PATHS, 'ptp2re-paths-open');
     this.pathsBtn.className = this.pathsBtn.className.replace('btn-secondary', READONLY_BTN_VARIANT);
-    this.pathsBtn.title = 'Choose which of the thirteen paths run. Saving there changes ' +
-      'nothing already planned above - press Rescan to plan with the paths you have just set.';
+    this.pathsBtn.title = PATHS_BTN_TIP;
     this.proceedBtn.disabled = true;
     this.undoBtn.title = 'Reverse every change this dialog has written, as an add/remove delta. ' +
       'Only what this dialog wrote, and only while it stays open.';
@@ -2533,9 +2536,19 @@
     this.show(this.undoBtn, (ready || done) && this.undoable.length > 0);
     this.show(this.rescanBtn, done);
     this.show(this.closeBtn, done);
-    // Hidden mid-write for the same reason Close is: the paths it edits are the ones
-    // the batches in flight were planned from.
-    this.show(this.pathsBtn, !applying && !undoing);
+    // Unavailable while anything is in flight: the paths it edits are the ones the pass
+    // in flight is *using* - a save behind a running scan produces a plan built half
+    // from each setting, and behind a write it describes something the batches are not
+    // doing. Disabled rather than hidden, which is the correction: it was hidden
+    // mid-write and left live through the scan, which is the longer phase and the one
+    // a user sits through. A greyed button beside Stop says why; a vanished one says
+    // nothing, and this is the button whose whole reason for being here is that the
+    // dialog is where you find out a path you wanted is off.
+    this.pathsBtn.disabled = scanning || applying || undoing;
+    this.pathsBtn.title = this.pathsBtn.disabled
+      ? 'Not while this dialog is working - the paths it edits are the ones the pass in ' +
+        'flight is using. Let it finish, or Cancel it, and press this again.'
+      : PATHS_BTN_TIP;
     // Undo is deliberately not gated on `stale`: it reverses writes this dialog has
     // already made, and stranding the user with changes they cannot take back would
     // be a worse outcome than the mismatch it is protecting them from.

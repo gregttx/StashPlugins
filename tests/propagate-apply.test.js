@@ -54,7 +54,15 @@ function responder(opts) {
 }
 
 function boot(opts) {
-  const env = h.makeEnv({ quiet: true, respond: responder(opts) });
+  const base = responder(opts);
+  // `hang` holds one request in flight, which is the only way to read the footer
+  // *during* a phase - a dialog only ever seen at rest cannot show the state that is
+  // wrong while it is working.
+  const env = h.makeEnv({
+    quiet: true,
+    respond: (req, calls) => ((opts || {}).hang && (opts.hang).test(req.query || '')
+      ? h.HANG : base(req, calls)),
+  });
   h.run(env.ctx, SRC);
   return env;
 }
@@ -463,6 +471,37 @@ Promise.resolve()
       h.check('and every request it makes is a write',
         bulks(env.calls).length === 2, bulks(env.calls).length + ' mutations');
     });
+  })
+
+  // ── Path Settings is not reachable while the run is using the paths ───────
+  //
+  // The button edits the setting the pass in flight was planned from, so a save behind
+  // a running scan produces a plan built half from each. It was hidden mid-*write* and
+  // live during the scan, which is the longer of the two phases and the one a user is
+  // sitting through.
+  //
+  // The state is all this can check: the fake DOM's `click()` runs the handler whatever
+  // `disabled` says, so a check that pressed it would be asking the harness rather than
+  // the plugin - and would pass against a plugin that had never set the flag.
+  .then(() => {
+    const env = boot({ settings: SETTINGS, library: LIB, hang: /query PTP_findScenes\(/ });
+    return h.startTask(env.ctx, TASK, NAME).then(() => h.flush(60)).then(() => {
+      const d = h.dialog(env.ctx.document.body, PREFIX);
+      const btn = d.button('Path Settings...');
+      h.check('the scan is still running', d.visible('Cancel') && !d.visible('Rescan'),
+        d.progress);
+      h.check('Path Settings is offered but disabled while the scan runs',
+        !!btn && btn.disabled === true, String(btn && btn.disabled));
+      h.check('and says why rather than vanishing',
+        !!btn && /finish|cancel/i.test(btn.title), String(btn && btn.title));
+    });
+  })
+
+  // And the other half: live again the moment the plan is on screen.
+  .then(() => review({ settings: SETTINGS, library: LIB })).then(({ d }) => {
+    const btn = d.button('Path Settings...');
+    h.check('Path Settings comes back once the plan is ready',
+      !!btn && btn.disabled === false, String(btn && btn.disabled));
   })
 
   .then(() => h.finish(), (e) => {

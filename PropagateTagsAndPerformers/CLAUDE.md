@@ -5,6 +5,24 @@ Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, 
 The user-facing description is `README.md`; this file is for the reasoning that does not belong in
 either.
 
+**Path Settings was live while the scan ran (3.14.3).** The footer's own
+`Path Settings...` button was hidden during `applying`/`undoing` and left enabled through
+`scanning` - and the scan is the long phase, the one a user sits through on a library-sized run. A
+save behind a running scan changes the setting the pass is *reading as it goes*, so the plan that
+lands is built half from each. Reported live.
+
+**It is disabled now rather than hidden, in all three busy states.** Hiding is what the write
+phases did, and it is the weaker answer for this button in particular: its whole reason for being
+in this footer is that the dialog is where a user finds out a path they wanted is off, so it
+vanishing without explanation is the one thing it must not do. Disabled, it carries a title saying
+to let the pass finish or Cancel it - and `PATHS_BTN_TIP` exists so `setState` can put the ordinary
+title back.
+
+**The same hole was in `NormalizeParentTags`' run dialog**, where the same choice is seven inline
+selectors rather than a button, locked with the identical `!applying && !undoing`. Both were fixed
+in one pass: **a control that changes what a run is doing is unavailable while the run is doing it,
+and a scan counts.**
+
 **Escape could abandon a settings save in flight (3.14.2).** The footer is what the key acts
 through, which is what stops it reaching a hidden or disabled button - but this dialog's Save
 disabled itself and left **Cancel** live, so Escape during the one `configurePlugin` closed the

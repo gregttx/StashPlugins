@@ -277,11 +277,23 @@ sources.forEach((s) => {
 // The leading dot is load-bearing: `children` is also a perfectly good name for a local
 // array of tag names, which `TagBundleClipboard` has and which is none of this rule's
 // business. Comment lines go first, so a note *about* the rule does not trip it.
-const COLLECTION_METHODS = /\.(childNodes|children)\s*\.\s*(slice|filter|map|some|every|indexOf|lastIndexOf|reduce|find|findIndex|sort|concat|join|forEach|includes)\b/g;
+const ARRAY_METHODS =
+  'slice|filter|map|some|every|indexOf|lastIndexOf|reduce|find|findIndex|sort|concat|join|forEach|includes';
+const COLLECTION_METHODS = new RegExp('\\.(childNodes|children)\\s*\\.\\s*(' + ARRAY_METHODS + ')\\b', 'g');
+
+// `(n.childNodes || []).some(...)` reads as a guard and is not one: a live NodeList is
+// truthy, so the `[]` never arrives and the method lands on the NodeList itself. That
+// is how a `.some` shipped in `CustomFieldsBulkEditor` past the rule above and threw on
+// every detail tick in a live Stash. `Array.prototype.slice.call(x.childNodes || [])` is
+// the copy this rule asks for, so it is the one form excluded.
+const COLLECTION_FALLBACK = new RegExp(
+  '(?<!\\.call)\\(\\s*[\\w$.]+\\.(?:childNodes|children)\\s*\\|\\|\\s*\\[\\]\\s*\\)\\s*\\.\\s*(?:'
+  + ARRAY_METHODS + ')\\b', 'g');
 
 sources.forEach((s) => {
   const code = s.src.split('\n').filter((l) => l.trim().indexOf('//') !== 0).join('\n');
-  const hits = (code.match(COLLECTION_METHODS) || []);
+  const hits = (code.match(COLLECTION_METHODS) || [])
+    .concat(code.match(COLLECTION_FALLBACK) || []);
   h.check(s.plugin.name + ' treats a live DOM collection as one, not as an Array',
     hits.length === 0, hits.join(' | '));
 });

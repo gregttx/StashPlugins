@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.8.3';
+  var PLUGIN_VERSION = '2.8.4';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -4512,7 +4512,12 @@
       if (tag === 'A' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
           tag === 'SCRIPT' || tag === 'STYLE') continue;
       if (hasClass(n, 'cfbe-backdrop')) continue;             // our own dialogs
-      var leaf = !(n.childNodes || []).some(function (c) { return c && c.tagName; });
+      // `n.childNodes` is a live NodeList here, which has none of the Array methods the
+      // harness's fake collection hands back. Index it.
+      var leaf = true, kn = n.childNodes;
+      for (var j = 0; kn && j < kn.length; j++) {
+        if (kn[j] && kn[j].tagName) { leaf = false; break; }
+      }
       if (leaf) {
         var text = String(n.textContent == null ? '' : n.textContent)
           .replace(/^\s+|\s+$/g, '');

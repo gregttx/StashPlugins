@@ -14,6 +14,19 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.8.4 fixes a detail tick that threw on every page, once per second, in a live Stash.**
+`decorateDetailNames` asked `!(n.childNodes || []).some(...)` whether a node was a leaf. A live
+`NodeList` has no `.some`, so nothing on any detail page ever got a description tooltip and the
+console filled with `detail tick failed`. The rule against this is in `../CLAUDE.md` and there is a
+static check for it, and **both were dodged by the `|| []`**: the check matched `.childNodes.some`
+literally, and the fallback looks like a guard while a truthy NodeList means it never fires.
+
+**The wrapper is the tell, not the method.** `x.childNodes || []` cannot make a NodeList into an
+Array - only a *missing* `childNodes` reaches the `[]`, which is the case that was never the
+problem. `tests/style.test.js` now fails on that form too, excluding
+`Array.prototype.slice.call(x.childNodes || [])`, which is the copy the rule asks for and the one
+place the `|| []` earns its keep.
+
 **2.8.3 makes Undo take the *list* back, not only the library.** Reported live: after applying a
 rename and pressing Undo, the pane still named the field the new way and had no description under
 it. Both halves of the write were correct - the entities went back to the old key and the store went

@@ -37,6 +37,7 @@ function open(opts) {
   const env = h.makeEnv({
     quiet: true,
     clipboard: opts.clipboard,
+    localStorage: opts.localStorage,
     respond: (req) => {
       const q = req.query || '';
       if (q.indexOf('configuration') !== -1) {
@@ -626,6 +627,44 @@ Promise.resolve()
     h.check('and the key handler goes with it',
       (env.ctx.document.handlers.keydown || []).length === 0,
       String((env.ctx.document.handlers.keydown || []).length));
+  })
+
+  // ── What the filter box remembers ────────────────────────────────────────
+  .then(() => open({
+    localStorage: { '__GTTx__.nptFilterHistory': JSON.stringify(['leaf', 'root']) },
+  })).then(({ env }) => {
+    const input = env.body.descendants().filter((n) => h.hasClass(n, 'npt-search-input'))[0];
+    const find = env.body.descendants().filter((n) => h.hasClass(n, 'npt-find-input'))[0];
+    const list = () => env.body.descendants()
+      .filter((n) => n.tagName === 'DATALIST' && n.id === input.attrs.list)[0];
+    const entries = () => (list() || { childNodes: [] }).childNodes.map((o) => o.value);
+    h.check('the filter box points at a datalist', !!list(), String(input.attrs.list));
+    h.check('and the find box beside it has none - it is spent the moment it lands you',
+      !find.attrs.list, String(find.attrs.list));
+    h.check('what was filtered on before is offered back, newest first',
+      entries().join(',') === 'leaf,root', entries().join(','));
+    input.value = 'lea';
+    h.fire(input, 'input');
+    h.check('typing does not record - that would keep every prefix of one word',
+      entries().join(',') === 'leaf,root', entries().join(','));
+    input.value = 'branch';
+    h.fire(input, 'change');
+    h.check('leaving the box records what it holds, at the front',
+      entries().join(',') === 'branch,leaf,root', entries().join(','));
+    input.value = 'root';
+    h.fire(input, 'change');
+    h.check('a repeat moves to the front rather than being kept twice',
+      entries().join(',') === 'root,branch,leaf', entries().join(','));
+    for (let i = 0; i < 12; i++) { input.value = 'f' + i; h.fire(input, 'change'); }
+    h.check('and the list stops at ten',
+      entries().length === 10 && entries()[0] === 'f11', entries().join(','));
+    input.value = '  ';
+    h.fire(input, 'change');
+    h.check('an empty box records nothing', entries()[0] === 'f11', entries().join(','));
+    h.check('and it is in this browser rather than in the plugin settings',
+      JSON.parse(env.ctx.localStorage.getItem('__GTTx__.nptFilterHistory'))[0] === 'f11' &&
+      !env.calls.some((c) => /configurePlugin/.test(c.query || '')),
+      env.ctx.localStorage.getItem('__GTTx__.nptFilterHistory'));
   })
 
   .then(h.finish, (e) => { console.error(e); process.exit(1); });

@@ -30,7 +30,7 @@
   // stale script, not a contradiction. This constant travels inside the file, so the
   // line below says which script is actually running. Bump it with the manifest and
   // the yml; the `version` suite fails if the three disagree.
-  var PLUGIN_VERSION = '4.6.6';
+  var PLUGIN_VERSION = '4.7.0';
 
   // Printed before anything else runs, so a script that loads and then throws is
   // told apart from one that never loaded at all: banner plus error means the new
@@ -1715,6 +1715,45 @@
     } catch (e) { /* quota, private mode: nothing here is worth an error for */ }
   }
 
+  // ── What the tree's filter box remembers ──────────────────────────────────
+  //
+  // The last few things filtered on, offered back as the browser's own autocomplete -
+  // `CustomFieldsBulkEditor`'s mechanism, copied like everything else shared here. A
+  // `<datalist>` is the whole control: nothing of ours to build, to place, or to close on
+  // a click elsewhere.
+  //
+  // The **find** box beside it deliberately has none. A find bar is typed to get somewhere
+  // once and is spent; Enter already walks the matches, and a list dropping over that is
+  // in the way of the thing the box is for.
+  var FILTER_HISTORY_KEY = '__GTTx__.nptFilterHistory';
+  var FILTER_HISTORY_MAX = 10;
+
+  function storedFilterHistory() {
+    var store = runModesStore();
+    if (!store) return [];
+    try {
+      var v = JSON.parse(store.getItem(FILTER_HISTORY_KEY) || 'null');
+      return v && v.length ? v : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Newest first, no duplicates, capped. Returns the list so a caller can render it
+  // without reading the store back.
+  function rememberFilter(text) {
+    var t = String(text == null ? '' : text).replace(/^\s+|\s+$/g, '');
+    if (!t) return null;
+    var list = storedFilterHistory().filter(function (x) { return x !== t; });
+    list.unshift(t);
+    list = list.slice(0, FILTER_HISTORY_MAX);
+    var store = runModesStore();
+    if (store) {
+      try { store.setItem(FILTER_HISTORY_KEY, JSON.stringify(list)); } catch (e) { /* as above */ }
+    }
+    return list;
+  }
+
   function clearRunModes() {
     var store = runModesStore();
     if (!store) return;
@@ -2707,6 +2746,18 @@
       'Filter by name...', 'Clear filter');
     this.searchEl = filterBox.input;
     this.clearBtn = filterBox.clear;
+    // Recorded on `change` - the browser saying the user has finished with the box, by
+    // blurring it or pressing Enter - rather than on `input`, which fires per keystroke
+    // and would keep every prefix of one word.
+    this.filterHistory = el('datalist');
+    this.filterHistory.id = 'npt-filter-history';
+    this.searchEl.setAttribute('list', this.filterHistory.id);
+    this.fillFilterHistory(storedFilterHistory());
+    filterBox.wrap.appendChild(this.filterHistory);
+    this.searchEl.addEventListener('change', function () {
+      var kept = rememberFilter(self.searchEl.value);
+      if (kept) self.fillFilterHistory(kept);
+    });
     this.searchEl.addEventListener('input', function () {
       self.setQuery(self.searchEl.value || '');
     });
@@ -2863,6 +2914,17 @@
     if (typeof row.offsetTop === 'number' && typeof this.treeEl.clientHeight === 'number') {
       this.treeEl.scrollTop = Math.max(0, row.offsetTop - (this.treeEl.clientHeight / 2));
     }
+  };
+
+  TreeView.prototype.fillFilterHistory = function (entries) {
+    var list = this.filterHistory;
+    if (!list) return;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    entries.forEach(function (t) {
+      var o = el('option');
+      o.value = t;
+      list.appendChild(o);
+    });
   };
 
   TreeView.prototype.setQuery = function (raw) {

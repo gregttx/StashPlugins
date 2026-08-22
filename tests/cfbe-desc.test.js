@@ -283,13 +283,17 @@ openDesc()
     pick(env.body, 'colour').click();
     // Two boxes, one typed into and one read-only, neither obvious from its contents.
     const heads = byClass(env.body, 'cfbe-detail-head').map((n) => n.textContent);
-    // The name is a box now, not part of the heading text - that is the rename control.
-    h.check('the box you type in says it is the description, and names the field in a box',
-      heads[0].indexOf('Description of custom field') === 0 &&
-      one(env.body, 'cfbe-namebox').value === 'colour',
+    // Three heads: the name, in a box that is also the rename control; the description
+    // over the box it is typed into; and the read-only list of what carries the field.
+    h.check('the first head is the name, with the field in an editable box',
+      heads[0].indexOf('Name') === 0 && one(env.body, 'cfbe-namebox').value === 'colour',
       heads.join(' | ') + ' / ' + one(env.body, 'cfbe-namebox').value);
-    h.check('and the box under it says it is the list of entities, and what carries it',
-      heads[1] === 'List of entities - 3 entities carry "colour"', heads.join(' | '));
+    h.check('the second says what the box under it is for',
+      heads[1] === 'Description', heads.join(' | '));
+    h.check('and the third is the list of entities, and what carries it',
+      heads[2] === 'List of entities - 3 entities carry "colour"', heads.join(' | '));
+    h.check('the name box is editable straight away, with nothing typed into the description',
+      one(env.body, 'cfbe-namebox').disabled === false);
     h.check('with a line per entity, each linking to its own type',
       byClass(one(env.body, 'cfbe-users'), 'cfbe-pill-ent').map((p) => p.href).join(' ') ===
         '/scenes/1 /performers/1 /tags/1',

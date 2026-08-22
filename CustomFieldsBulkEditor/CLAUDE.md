@@ -14,6 +14,29 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.6.0 is the same memory on the two boxes that write, and two things about the descriptions pane.**
+
+**The field-name box is the strongest case for a history in this plugin**, stronger than the filters
+that got it first: the names repeat, and unlike a filter this box feeds a **write**, so a typo makes
+a junk field across a whole selection rather than merely showing nothing. It is a quiet spell-check
+on the one control here that can create data. Its list is deliberately **not** the name *filter*'s -
+one is what you are looking at, the other is what you are about to write, and they are frequently
+different strings. The value box gets one on the same four lines.
+
+**The name box in the descriptions pane could not be edited until the description had been**, which
+is a fair description of a bug with a boring cause: `nameBox.disabled` was set only in `syncApply`,
+and `pick()` does not call it. So the box kept whatever state the last Apply-sync left - on a
+freshly opened dialog, "nothing selected, so disabled" - and the first thing to call `syncApply`
+again was the *textarea's* own `input` handler. Moved into `syncRename`, which `pick()` already
+calls and which `syncApply` calls in turn, so both routes reach it. **A control enabled from one
+sync function and rendered from another will be stale exactly as often as the two are called
+apart.**
+
+**And the pane reads Name, then Description.** The heading was *Description of custom field* with
+the name box inline after it, which made one heading describe two controls - the box beside it and
+the box below it - and read as though the name were part of the description's label. Two heads,
+one each, in the class the pane's third head already uses.
+
 **The red on a bad mode is CSS this suite cannot check** - see 2.5.1 below; the harness has
 no style engine, so an option inheriting the select's colour is invisible to every check here.
 

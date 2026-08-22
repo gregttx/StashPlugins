@@ -239,7 +239,9 @@ Two boxes sit above the tree, and they do different things:
   list. A **×** clears the box and the counter, leaving the tree where the find took you.
 - **Filter by name** — reduces the tree *to* the matches, listed flat. Useful for "how many tags
   contain this" rather than "where is this one". A **×** appears in the box once you have typed
-  something; clicking it clears the filter and puts the whole tree back.
+  something; clicking it clears the filter and puts the whole tree back. It also **remembers the
+  last ten things you filtered on** and offers them back as you type, in this browser. The find box
+  keeps none: a find is typed to get you somewhere once, and Enter already walks the matches.
 
 Both boxes carry the **×** on the right-hand side, and it only appears once there is something to
 clear.

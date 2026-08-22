@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.5.1';
+  var PLUGIN_VERSION = '2.6.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -72,6 +72,7 @@
   var SPIN_MS = 125;           // one four-frame cycle at 2Hz
   // The two boxes in the descriptions dialog's right pane say what they are, since one
   // is typed into and the other is read-only and neither is obvious from its contents.
+  var NAME_HEAD  = 'Name';
   var DESC_HEAD  = 'Description';
   var USERS_HEAD = 'List of entities';
   var EQ = '🟰';  // the name-value separator, U+1F7F0
@@ -1566,6 +1567,13 @@
     [this.nameInput, this.valueInput].forEach(function (i) {
       i.addEventListener('input', function () { self.syncApply(); });
     });
+    // The same memory the filter boxes have, and the field-name box is the strongest
+    // case for it in the plugin: the names repeat, and unlike a filter this one feeds a
+    // *write*, so a typo here makes a junk field across a selection rather than merely
+    // showing nothing. Its own list, kept apart from the name *filter*'s - one is what
+    // you are looking at and the other is what you are about to write.
+    fields.appendChild(this.historied(this.nameInput, 'field'));
+    fields.appendChild(this.historied(this.valueInput, 'fieldvalue'));
     this.modal.appendChild(fields);
 
     var foot = el('div', 'cfbe-foot');
@@ -3074,7 +3082,7 @@
     panes.appendChild(this.namesEl);
     var detail = el('div', 'cfbe-detail');
     this.detailEl = el('div', 'cfbe-detail-head');
-    this.detailLabel = el('span', null, DESC_HEAD + ' - pick a custom field on the left.');
+    this.detailLabel = el('span', null, NAME_HEAD + ' - pick a custom field on the left.');
     this.detailEl.appendChild(this.detailLabel);
     // The name the heading was already showing, as a box. Editing it and pressing
     // Rename stages a rename of the field itself - the same staged, undoable
@@ -3099,6 +3107,10 @@
     this.detailEl.appendChild(this.nameBox);
     this.detailEl.appendChild(this.renameBtn);
     detail.appendChild(this.detailEl);
+    // The name and the description are two things about one field, so they get a head
+    // each rather than one head naming the field and a box under it that has to be
+    // guessed at. Same class as the other two heads in this pane.
+    detail.appendChild(el('div', 'cfbe-detail-head', DESC_HEAD));
     this.textEl = el('textarea', 'cfbe-text');
     this.textEl.disabled = true;
     this.textEl.addEventListener('input', function () {
@@ -3394,7 +3406,7 @@
     // A field only the store tag carries has one carrier this scan never read, so the
     // pane names it and draws it as a row of its own rather than reading as an orphan.
     var store = !users.length && hasOwn(_storeTagFields, name) && this.tag;
-    this.detailLabel.textContent = DESC_HEAD + ' of custom field';
+    this.detailLabel.textContent = NAME_HEAD;
     this.nameBox.value = name;
     this.show(this.nameBox, true);
     this.syncRename();
@@ -3460,9 +3472,17 @@
     return m && m.armed && !m.done && m.to === name ? m.from : null;
   };
 
+  // **Here rather than in `syncApply`**, which `pick()` does not call: the box was
+  // therefore left in whatever state the last Apply-sync had put it in, which on a freshly
+  // opened dialog is "nothing selected, so disabled" - and the first thing that called
+  // `syncApply` again was the textarea's own `input` handler. So the name could not be
+  // edited until the description had been. `pick()` calls this one, and so does
+  // `syncApply`, which is what keeps a state change (a write in flight, a blocked store)
+  // reaching it too.
   DescRun.prototype.syncRename = function () {
     var to = String(this.nameBox.value || '').replace(/^\s+|\s+$/g, '');
     var show = this.sel != null && to !== '' && to !== this.sel;
+    this.nameBox.disabled = !this.editable() || this.sel == null;
     this.show(this.renameBtn, show);
     this.renameBtn.disabled = !this.editable();
   };
@@ -3568,7 +3588,7 @@
       this.textEl.value = '';
       // The head is an editable name; leaving it naming a field that has just gone would
       // offer a rename of nothing.
-      this.detailLabel.textContent = DESC_HEAD + ' - pick a custom field on the left.';
+      this.detailLabel.textContent = NAME_HEAD + ' - pick a custom field on the left.';
       this.show(this.nameBox, false);
       this.show(this.renameBtn, false);
     }
@@ -3658,7 +3678,6 @@
 
   DescRun.prototype.syncApply = function () {
     this.pruneBtn.disabled = !this.editable() || !this.prunable().length;
-    this.nameBox.disabled = !this.editable() || this.sel == null;
     this.syncRename();
     // A rescan re-reads the library and rebuilds `fields` from it, which would leave a
     // staged rename holding entity objects from the previous read and a name the new

@@ -1033,6 +1033,24 @@ openDialog()
       h.fire(nameFilter, 'change');
       return entries('cfbe-filter-name')[0] === 'f11';
     })(), entries('cfbe-filter-name').join(','));
+
+    // The two editor boxes have one each too, and the field-name box's is kept apart
+    // from the name *filter*'s: one is what you are looking at, the other is what you
+    // are about to write.
+    const fieldName = one(env.body, 'cfbe-field-name');
+    const fieldValue = one(env.body, 'cfbe-field-value');
+    h.check('the field name and value boxes have lists of their own',
+      !!fieldName.attrs.list && !!fieldValue.attrs.list &&
+      fieldName.attrs.list !== fieldValue.attrs.list &&
+      fieldName.attrs.list !== nameFilter.attrs.list,
+      [fieldName, fieldValue, nameFilter].map((n) => n.attrs.list).join(' | '));
+    fieldName.value = 'shoot';
+    h.fire(fieldName, 'change');
+    h.check('and the field name box records what is written into it',
+      entries('cfbe-field-name').join(',') === 'shoot',
+      entries('cfbe-field-name').join(','));
+    h.check('without touching the filter box beside it',
+      entries('cfbe-filter-name')[0] === 'f11', entries('cfbe-filter-name').join(','));
     return env;
   })
 

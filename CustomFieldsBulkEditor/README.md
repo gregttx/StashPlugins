@@ -119,8 +119,8 @@ Below the list:
 | **Operation** — Rename | Moves the field to a new name, keeping each entity's value. Only selectable while everything in scope carries **one** field name — that is the name it renames. |
 | **Apply to** — All *(default)* | Every entity in scope: what you selected, or the whole library on a task run. |
 | **Apply to** — Filtered list only | Only the entities still showing in the filtered list. Touching any filter switches to this on its own. |
-| **Custom Field name** | Required. **Apply** stays disabled until it is filled in. Under **Rename** it is the *new* name, and says so. |
-| **Custom Field value** | May be empty — an empty string is a value like any other. Ignored by Remove, and greyed out under Rename. |
+| **Custom Field name** | Required. **Apply** stays disabled until it is filled in. Under **Rename** it is the *new* name, and says so. It remembers the last ten names written into it and offers them back — a list of its own, kept apart from the name *filter*'s. |
+| **Custom Field value** | May be empty — an empty string is a value like any other. Ignored by Remove, and greyed out under Rename. It remembers the last ten values too. |
 
 Each of those has a tooltip on the dropdown itself.
 
@@ -238,9 +238,12 @@ Some details worth knowing:
 
 - **Nothing is written until Apply**, including the tag itself. A field marked `*` in the left pane
   has an unsaved edit; `•` means it already has a description.
-- **The field's own name is a box, and changing it renames the field.** The heading over the
-  description reads *Description of custom field* followed by the name in an editable box; type a
-  new one and a **Rename** button appears beside it (Enter does the same). It **stages** the
+- **The pane reads Name, then Description.** The field's name is in an editable box on the first
+  line, the description box is under a heading of its own, and the read-only list of what carries
+  the field is under that.
+- **Changing the name renames the field.** Type a new one in that box and a **Rename** button
+  appears beside it (Enter does the same). The box is live as soon as a field is picked, whether or
+  not the description has been touched. It **stages** the
   rename, like everything else here: the left pane shows the new name at once, and **Apply** is what
   writes it across every entity carrying the field — with its description — while **Undo** puts the
   old name back. Type the library's own name back in and press Rename again to take a staged rename

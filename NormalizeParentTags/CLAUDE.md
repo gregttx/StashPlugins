@@ -1,5 +1,23 @@
 # CLAUDE.md — ᝯㄝₓ Normalize Parent Tags
 
+**4.7.0 gives the tree's filter box a memory.** The last ten things filtered on, offered back
+through the browser's own `<datalist>` - `CustomFieldsBulkEditor`'s mechanism copied like every
+other thing shared here, and the whole control is one attribute: nothing of ours to build, to
+place, or to close on a click elsewhere. `localStorage`, through the store helper the run-mode
+selection already uses, for the same reason that one is there: it is one browser's convenience, and
+a plugin writing its own config as a side effect of typing is one careless write from `configurePlugin`
+replacing everything else in it.
+
+**The find box beside it deliberately gets none.** A find bar is typed to get somewhere once and is
+spent; Enter already walks the matches, and a dropdown over that is in the way of the thing the box
+is for. That asymmetry is the reason this is worth a note rather than a line: the two boxes look
+alike and are not the same kind of control, which the tree section already says about what
+they *do*.
+
+**Recorded on `change`, never on `input`.** `change` is the browser saying the user has finished
+with the box - blur, or Enter - where `input` fires per keystroke and would fill the list with every
+prefix of one word.
+
 Project-specific guidance for this plugin. The repo-wide conventions (ES5 IIFE, no build
 step, `gqlRequest`, `tick()` + MutationObserver) are in `../CLAUDE.md` and still apply.
 

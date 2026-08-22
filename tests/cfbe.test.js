@@ -206,6 +206,7 @@ function start(opts) {
     quiet: true,
     pathname: opts.pathname || '/scenes',
     respond: responder(opts),
+    localStorage: opts.localStorage,
     clipboard: { writeText: (t) => { copied.push(t); return Promise.resolve(); } },
   });
   env.copied = copied;
@@ -873,8 +874,8 @@ openDialog()
       });
   })
 
-  // A rescan is the one moment a mode that has become unavailable is switched back,
-  // and the × on a filter box is the quickest way to make it unavailable.
+  // A mode that becomes unavailable is *marked*, never switched - whatever moved the
+  // scope. The × on a filter box is the quickest way to move it.
   .then(() => openDialog({
     entities: {
       1: { id: '1', title: 'S1', custom_fields: { colour: 'blue', rating: '5' } },
@@ -900,18 +901,132 @@ openDialog()
     return h.flush().then(() => {
       h.check('the × empties the box', nameFilter.value === '');
       h.check('and hides itself again', h.hasClass(clear, 'cfbe-hidden'));
-      h.check('Rename stays selected mid-editing, even though it is now unavailable',
-        modeSel.value === 'rename' &&
-        modeSel.childNodes.filter((o) => o.value === 'rename')[0].disabled === true);
+      const renameOpt = modeSel.childNodes.filter((o) => o.value === 'rename')[0];
+      h.check('clearing a filter is enough to take Rename away, without a rescan',
+        renameOpt.disabled === true);
+      h.check('and Rename stays selected rather than being switched under the user',
+        modeSel.value === 'rename');
+      h.check('the option is marked in red', h.hasClass(renameOpt, 'cfbe-bad'),
+        renameOpt.className);
+      h.check('and so is the select, since that is what shows while the list is shut',
+        h.hasClass(modeSel, 'cfbe-bad'), modeSel.className);
+      h.check('Apply is blocked, with the reason in its title',
+        one(env.body, 'cfbe-apply').disabled === true &&
+        /needs one field name in scope/.test(one(env.body, 'cfbe-apply').title),
+        one(env.body, 'cfbe-apply').title);
+      h.check('and the log says it is not possible any more, and why',
+        notes(env.body).filter((l) => /Rename is not possible any more/.test(l)).length === 1,
+        notes(env.body).join(' | '));
+
+      // The line is about the transition, not the state: the tick that draws it runs on
+      // every keystroke in a filter box.
+      const entFilter = one(env.body, 'cfbe-filter-ent');
+      entFilter.value = 'S';
+      h.fire(entFilter, 'input');
+      entFilter.value = 'S1';
+      h.fire(entFilter, 'input');
+      h.check('and says it once, not once per keystroke',
+        notes(env.body).filter((l) => /Rename is not possible any more/.test(l)).length === 1,
+        notes(env.body).join(' | '));
+
+      // Filtering back down to one field name is the way out, and it is not the only one:
+      // picking another operation is what the red is asking for.
+      nameFilter.value = 'colour';
+      h.fire(nameFilter, 'input');
+      h.check('filtering back to one field name takes the red off',
+        !h.hasClass(renameOpt, 'cfbe-bad') && !h.hasClass(modeSel, 'cfbe-bad') &&
+        renameOpt.disabled === false, modeSel.className + ' / ' + renameOpt.className);
+      nameFilter.value = '';
+      h.fire(nameFilter, 'input');
+      h.check('and losing it again says so a second time',
+        notes(env.body).filter((l) => /Rename is not possible any more/.test(l)).length === 2,
+        notes(env.body).join(' | '));
+
+      one(env.body, 'cfbe-field-name').value = 'shade';
+      h.fire(one(env.body, 'cfbe-field-name'), 'input');
+      modeSel.value = 'add';
+      h.fire(modeSel, 'change');
+      h.check('changing the operation clears the select and unblocks Apply',
+        !h.hasClass(modeSel, 'cfbe-bad') && one(env.body, 'cfbe-apply').disabled === false,
+        modeSel.className + ' / ' + one(env.body, 'cfbe-apply').title);
+      h.check('while the option itself stays red, because it is still unavailable',
+        h.hasClass(renameOpt, 'cfbe-bad'), renameOpt.className);
+
+      modeSel.value = 'rename';
+      h.fire(modeSel, 'change');
       press(env.body, 'cfbe-rescan');
       return h.flush().then(() => {
-        h.check('a rescan switches the operation back to Add', modeSel.value === 'add');
-        h.check('and says so in the log',
-          notes(env.body).some((l) => /Rename is no longer offered.*set back to Add/.test(l)),
-          notes(env.body).join(' | '));
+        h.check('a rescan does not switch it either', modeSel.value === 'rename');
         return env;
       });
     });
+  })
+
+  // ── What the filter boxes remember ───────────────────────────────────────
+  .then(() => openDialog({
+    entities: {
+      1: { id: '1', title: 'S1', custom_fields: { colour: 'blue' } },
+      2: { id: '2', title: 'S2', custom_fields: { colour: 'red' } },
+    },
+    select: ['1', '2'],
+    localStorage: { '__GTTx__.cfbeFilters': JSON.stringify({ name: ['shoot', 'colour'] }) },
+  }))
+  .then((env) => {
+    const listFor = (cls) => {
+      const input = one(env.body, cls);
+      return byClass(env.body, '').length, env.body.descendants()
+        .filter((n) => n.tagName === 'DATALIST' && n.id === input.attrs.list)[0];
+    };
+    const entries = (cls) => (listFor(cls) || { childNodes: [] }).childNodes.map((o) => o.value);
+    h.check('each filter box points at a datalist of its own',
+      ['cfbe-filter-ent', 'cfbe-filter-name', 'cfbe-filter-value']
+        .every((c) => !!listFor(c)) &&
+      one(env.body, 'cfbe-filter-ent').attrs.list !== one(env.body, 'cfbe-filter-name').attrs.list,
+      ['cfbe-filter-ent', 'cfbe-filter-name', 'cfbe-filter-value']
+        .map((c) => one(env.body, c).attrs.list).join(' | '));
+    h.check('what was typed before is offered back, newest first',
+      entries('cfbe-filter-name').join(',') === 'shoot,colour',
+      entries('cfbe-filter-name').join(','));
+    h.check('and a box with nothing kept for it offers nothing',
+      entries('cfbe-filter-value').length === 0);
+
+    const nameFilter = one(env.body, 'cfbe-filter-name');
+    nameFilter.value = 'rat';
+    h.fire(nameFilter, 'input');
+    h.check('typing does not record - that would keep every prefix of one word',
+      entries('cfbe-filter-name').join(',') === 'shoot,colour',
+      entries('cfbe-filter-name').join(','));
+    nameFilter.value = 'rating';
+    h.fire(nameFilter, 'change');
+    h.check('leaving the box records what it holds, at the front',
+      entries('cfbe-filter-name').join(',') === 'rating,shoot,colour',
+      entries('cfbe-filter-name').join(','));
+    h.check('and it is in this browser rather than in the plugin settings',
+      JSON.parse(env.ctx.localStorage.getItem('__GTTx__.cfbeFilters')).name[0] === 'rating' &&
+      !env.calls.some((c) => /configurePlugin/.test(c.query || '') &&
+        /cfbeFilters/.test(JSON.stringify(c.variables || {}))),
+      env.ctx.localStorage.getItem('__GTTx__.cfbeFilters'));
+
+    nameFilter.value = 'shoot';
+    h.fire(nameFilter, 'change');
+    h.check('a repeat moves to the front rather than being kept twice',
+      entries('cfbe-filter-name').join(',') === 'shoot,rating,colour',
+      entries('cfbe-filter-name').join(','));
+
+    for (let i = 0; i < 12; i++) {
+      nameFilter.value = 'f' + i;
+      h.fire(nameFilter, 'change');
+    }
+    h.check('and the list stops at ten',
+      entries('cfbe-filter-name').length === 10 &&
+      entries('cfbe-filter-name')[0] === 'f11',
+      entries('cfbe-filter-name').join(','));
+    h.check('an empty box records nothing', (() => {
+      nameFilter.value = '   ';
+      h.fire(nameFilter, 'change');
+      return entries('cfbe-filter-name')[0] === 'f11';
+    })(), entries('cfbe-filter-name').join(','));
+    return env;
   })
 
   // The one case a rename must refuse: the new name is already on the entity, so the

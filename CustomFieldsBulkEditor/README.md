@@ -75,6 +75,10 @@ with no colours to paste into anything.
   empty box filters nothing in either mode.
 - Each also has a **×** at the right-hand end of its box, showing only while there is something
   to empty.
+- Each also **remembers the last ten things typed into it** and offers them back as you type, as
+  the browser's own autocomplete. Each box keeps its own list — an entity name, a field name and a
+  value are three different vocabularies — and an entry is kept when you leave the box, not on
+  every keystroke. The lists live in this browser, not in your library or in the plugin settings.
 - The dropdown beside **Filter by Value** also offers three modes that are the whole query on
   their own — the text box greys out for all three:
   - **is empty** lists only the fields set to the empty string — the one thing an empty box cannot
@@ -126,10 +130,13 @@ that **already carries the new name** is skipped with a `[WARN]` naming the valu
 overwritten: that is a merge, not a rename, and the dialog will not decide it for you. **Undo**
 reverses both halves at once.
 
-**Rename** is offered only while everything in scope carries one field name, and a **Rescan** can
-take that away — the library may have moved, or the filter that narrowed the scope may no longer
-narrow it to one. When it does, the operation goes back to **Add** and an `[INFO]` line says so.
-Editing a filter does not: mid-typing is exactly where a mode should stay where you put it.
+**Rename** is offered only while everything in scope carries one field name, and anything that
+moves the scope can take that away — a filter, the type filter, a rescan over a library that has
+changed. When it does, **the operation is marked, never switched**: Rename goes red in the list and
+on the select, **Apply** is blocked with the reason in its tooltip, and an `[INFO]` line says it is
+not possible any more and why. Nothing changes what you had selected — filter the scope back down to
+one field name, or pick another operation. The line is said once on the way in, not once per
+keystroke.
 
 **Why Add/Overwrite and not Stash's own Overwrite/Add/Remove tabs.** A custom field holds *one*
 value per key, so there is no list to append to. "Add" therefore means *do not overwrite* and

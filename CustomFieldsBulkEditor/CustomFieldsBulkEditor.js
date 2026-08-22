@@ -31,7 +31,7 @@
   // still be running a script it cached before the edit. This constant travels
   // inside the file; bump it with the manifest and the yml, or the `version` suite
   // fails.
-  var PLUGIN_VERSION = '2.4.0';
+  var PLUGIN_VERSION = '2.5.0';
 
   // Printed before anything else runs, so a script that loads and then throws is told
   // apart from one that never loaded at all. Through whatever the console offers
@@ -77,6 +77,50 @@
   var EQ = '🟰';  // the name-value separator, U+1F7F0
   var NONE = '␀';      // "no field here": what an Add starts from, a Delete ends at, U+2400
   var ARROW = ' ⇒ ';
+
+  // ── What the filter boxes remember ────────────────────────────────────────
+  //
+  // The last few things typed into each of the three filter boxes, offered back as the
+  // browser's own autocomplete. `localStorage` rather than the plugin settings, for the
+  // two reasons `FindEntitiesByTextContent` gives: it belongs to the person at this
+  // browser rather than to the server, and `configurePlugin` **replaces** a plugin's
+  // settings block, so a plugin writing its own config as a side effect of typing is one
+  // careless write away from losing everything else in it.
+  //
+  // Per box rather than one shared list: an entity name, a field name and a value are
+  // three different vocabularies, and a box offering the other two's entries back is
+  // noise in the one place a user is trying to narrow something.
+  var FILTER_STORE_KEY = '__GTTx__.cfbeFilters';
+  var FILTER_HISTORY_MAX = 10;
+
+  function readFilterHistory() {
+    try {
+      var raw = window.localStorage.getItem(FILTER_STORE_KEY);
+      var v = raw ? JSON.parse(raw) : null;
+      return v && typeof v === 'object' ? v : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeFilterHistory(v) {
+    try {
+      window.localStorage.setItem(FILTER_STORE_KEY, JSON.stringify(v));
+    } catch (e) { /* a browser that will not store is not a reason to refuse a filter */ }
+  }
+
+  // Newest first, no duplicates, capped. Returns the list so a caller can render it
+  // without reading the store back.
+  function rememberFilter(key, text) {
+    var t = String(text == null ? '' : text).replace(/^\s+|\s+$/g, '');
+    if (!t) return null;
+    var all = readFilterHistory();
+    var list = (all[key] || []).filter(function (x) { return x !== t; });
+    list.unshift(t);
+    all[key] = list.slice(0, FILTER_HISTORY_MAX);
+    writeFilterHistory(all);
+    return all[key];
+  }
 
   function hasOwn(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
@@ -701,6 +745,12 @@
     // set their own background and colour, so the browser's own disabled look does not
     // show through.
     '.cfbe-input:disabled{opacity:.5;}' +
+    // A mode that cannot be applied over the scope as it now stands. The log's own
+    // ERROR red, on the option and on the select while that option is the one chosen -
+    // an `<option>` honours `color` in a dropdown list, and the select is what is
+    // visible when the list is shut.
+    '.cfbe-bad{color:#ff7373;}' +
+    'select.cfbe-bad{border-color:#ff7373;}' +
     // ── The manage-descriptions dialog ──────────────────────────────────────
     //
     // Two panes over one log. None of these selectors exists in a sibling, so
@@ -838,6 +888,15 @@
       if (ev.preventDefault) ev.preventDefault();   // no text selection while dragging
     });
     return bar;
+  }
+
+  // Marks a control as holding something that cannot be applied. A class rather than an
+  // inline colour, so the one rule below is the only place the red is written - and it is
+  // the same red every ERROR line in these dialogs already uses.
+  function paintBad(node, bad) {
+    if (!node) return;
+    var cls = String(node.className || '').replace(/\s*cfbe-bad\b/g, '');
+    node.className = bad ? (cls + ' cfbe-bad').replace(/^\s+/, '') : cls;
   }
 
   function hasClass(node, name) {
@@ -1436,6 +1495,12 @@
     [this.nameFilter, this.entFilter, this.valueFilter].forEach(function (i) {
       i.addEventListener('input', function () { self.filterChanged(); });
     });
+    // The datalists go in the row beside their boxes; a `<datalist>` renders nothing, so
+    // where it sits is only about keeping it in the same subtree React cannot reach.
+    this.historyLists = {};
+    filters.appendChild(this.historied(this.entFilter, 'ent'));
+    filters.appendChild(this.historied(this.nameFilter, 'name'));
+    filters.appendChild(this.historied(this.valueFilter, 'value'));
     [this.nameMode, this.entMode].forEach(function (s) {
       s.addEventListener('change', function () { self.filterChanged(); });
     });
@@ -1540,6 +1605,38 @@
     i.type = 'text';
     i.value = '';
     return i;
+  };
+
+  // A filter box that remembers what has been typed into it, through the browser's own
+  // `<datalist>` - which is the whole feature: no dropdown of ours to build, to place, to
+  // close on a click elsewhere, or to keep in step with the box beside it.
+  //
+  // Recorded on `change` rather than on `input`: `change` is the browser saying the user
+  // has finished with the box (blur, or Enter), where `input` fires per keystroke and
+  // would fill the list with the prefixes of one word.
+  Run.prototype.historied = function (input, key) {
+    var self = this;
+    var list = el('datalist');
+    list.id = 'cfbe-history-' + key;
+    input.setAttribute('list', list.id);
+    this.historyLists[key] = list;
+    this.fillHistory(key, (readFilterHistory() || {})[key] || []);
+    input.addEventListener('change', function () {
+      var kept = rememberFilter(key, input.value);
+      if (kept) self.fillHistory(key, kept);
+    });
+    return list;
+  };
+
+  Run.prototype.fillHistory = function (key, entries) {
+    var list = this.historyLists[key];
+    if (!list) return;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    entries.forEach(function (t) {
+      var o = el('option');
+      o.value = t;
+      list.appendChild(o);
+    });
   };
 
   // A filter box with the × that empties it, in a wrapper the icon positions against -
@@ -1763,13 +1860,11 @@
       self.setState('listing');
       self.renderList();
       self.summarise();
-      self.dropRenameIfGone();
     }, function (e) {
       self.msg('ERROR', 'Reading custom fields failed: ' + (e && e.message ? e.message : String(e)));
       self.setState('listing');
       self.renderList();
       self.summarise();
-      self.dropRenameIfGone();
     });
   };
 
@@ -2255,32 +2350,36 @@
     return name;
   };
 
-  // The one place that rule is wrong: a rescan is a fresh read of a library that may
-  // have moved, and a Rename left selected over a scope that now carries several field
-  // names is a mode with no field to rename and an Apply that can never enable. So the
-  // operation goes back to Add and the log says it did - which is the part that keeps
-  // this from being the silent switch the rule above refuses.
+  // Rename is offered only while the scope carries exactly one field name, and the value
+  // box is not part of it. A mode that *becomes* unavailable while selected **stays
+  // selected**, and is marked rather than replaced: switching the operation under someone
+  // about to press Apply is the silent change this refuses to make, and it refuses it
+  // whatever moved the scope - a rescan, a filter, a type filter, an Apply that emptied a
+  // field. Red on the option, red on the select while it is the one chosen, Apply already
+  // disabled with the reason in its title, and one `[INFO]` line on the way in.
   //
-  // Called after a read rather than from `syncOps`, which also runs on every keystroke
-  // in a filter box: mid-typing is exactly where staying selected is the right answer.
-  Run.prototype.dropRenameIfGone = function () {
-    if (this.modeSel.value !== 'rename' || this.renameFrom()) return;
-    this.modeSel.value = 'add';
-    this.msg('INFO', 'Rename is no longer offered - what is in scope now carries more than ' +
-      'one custom field name - so the operation has been set back to Add.');
-    this.syncOps();
-  };
-
-  // Rename is offered only while the scope carries exactly one field name, and the
-  // value box is not part of it. A mode that *becomes* unavailable while selected stays
-  // selected - silently switching the operation under a user about to press Apply would
-  // be worse than a disabled button that says why.
+  // So this runs from `renderList` - every filter keystroke, every read - and the log
+  // line is what needs the transition rather than the state: `_renameLost` is set on the
+  // way in and cleared the moment Rename is possible again, so a scope that comes back
+  // and goes away twice says so twice and a scope that stays broken says it once.
   Run.prototype.syncOps = function (rows) {
     var rename = this.modeSel.value === 'rename';
     this.renameName = this.renameFrom(rows);
+    var lost = !this.renameName;
     if (this.modeSel._opts && this.modeSel._opts.rename) {
-      this.modeSel._opts.rename.disabled = !this.renameName;
+      this.modeSel._opts.rename.disabled = lost;
+      paintBad(this.modeSel._opts.rename, lost);
     }
+    paintBad(this.modeSel, rename && lost);
+    if (rename && lost && !this._renameLost) {
+      this._renameLost = true;
+      this.msg('INFO', 'Rename is not possible any more: it moves one custom field to a ' +
+        'new name, so it needs exactly one field name in scope, and what Apply covers now ' +
+        'carries ' + (this.rows.length ? 'more than one' : 'none') + '. The operation is ' +
+        'left as you set it and marked in red; Apply stays off until it is changed, or ' +
+        'until the scope is filtered back down to a single field name.');
+    }
+    if (!lost) this._renameLost = false;
     this.modeSel.title = MODE_TIPS[this.modeSel.value] || '';
     this.scopeSel.title = SCOPE_TIPS[this.scopeSel.value] || '';
     this.valueInput.disabled = rename || this.state !== 'listing';

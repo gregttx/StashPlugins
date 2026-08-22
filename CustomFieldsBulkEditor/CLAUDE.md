@@ -14,6 +14,48 @@ fields, and so was the hide field reading as an orphan), but nothing in any of t
 clicked: it is `tests/cfbe.test.js` at 222 checks, `tests/cfbe-desc.test.js` at 90, and twenty-five
 mutants across the six releases.
 
+**2.5.0 gives the filter boxes a memory, and corrects 2.3.0's answer to a lost Rename.**
+
+**The history is a `<datalist>`, which is the whole feature.** No dropdown of ours to build, place,
+close on a click elsewhere, or keep in step with the box beside it - the browser already has this
+control and it is one attribute. `FindEntitiesByTextContent` built a `<select>` for the same job and
+had to, because its recent-searches list is also where the *count* setting clears it from; nothing
+here needs a second control over the list.
+
+- **Per box, not one shared list.** An entity name, a field name and a value are three vocabularies,
+  and a box offering the other two back is noise in the place a user is narrowing something.
+- **Recorded on `change`, never on `input`.** `change` is the browser saying the user has finished
+  with the box - blur, or Enter - where `input` fires per keystroke and would fill the list with
+  every prefix of one word. That is one event name and no debounce.
+- **`localStorage`, for the two reasons the sibling gives**: it belongs to the person at this
+  browser rather than to the server, and `configurePlugin` **replaces** a plugin's settings block,
+  so a plugin writing its own config as a side effect of typing is one careless write from losing
+  everything else in it. Every read and write is wrapped, since a private window throws on the
+  accessor itself.
+
+**And the Rename correction, which is 2.3.0 half-right.** That release switched the operation back
+to Add after a rescan and said so - honest, but still a change nobody asked for, and scoped to the
+one event that happened to be reported. The scope moves on a filter keystroke, on the type filter,
+on an Apply that empties a field, and on a rescan; only the last of those did anything.
+
+So `syncOps` marks instead, and it already ran from `renderList` - every filter change, every read -
+so the *checking* half needed no new call site at all. Rename goes red on the option and on the
+select while it is the one chosen, Apply was already disabled with the reason in its title, and the
+`[INFO]` line says what happened. `dropRenameIfGone` is deleted; §6a's rule ("a mode that becomes
+unavailable while selected stays selected") is back to being the whole rule, with no exception.
+
+**The log line is about the transition, not the state**, which is the only thing here that needed
+thought: the tick that draws it runs on every keystroke in a filter box, so an undeduplicated line
+would fill the log while somebody typed. `_renameLost` is set on the way in and cleared the moment
+Rename is possible again - so a scope that breaks, comes back and breaks again says so twice, and
+one that stays broken says it once. Same shape as `debugButtons`' per-channel dedup, and for the
+same reason.
+
+**`paintBad` is a class, not an inline colour**, so the red is written in one rule and is the log's
+own ERROR red. The `<option>` carries it as well as the select: a browser honours `color` on an
+option inside an open dropdown list, and the select is what is visible when the list is shut - the
+two together are what makes the mark visible in both states.
+
 **2.4.0 renames a custom field from the descriptions dialog, and it is almost all reuse.**
 
 **The control is Option 1 of the two that were offered: the name in the heading, editable.** That
